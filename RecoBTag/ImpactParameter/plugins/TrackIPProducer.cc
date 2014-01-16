@@ -80,6 +80,7 @@ TrackIPProducer::TrackIPProducer(const edm::ParameterSet& iConfig) :
   m_cutMaxLIP               = m_config.getParameter<double>("maximumLongitudinalImpactParameter");
   m_directionWithTracks     = m_config.getParameter<bool>("jetDirectionUsingTracks");
   m_directionWithGhostTrack = m_config.getParameter<bool>("jetDirectionUsingGhostTrack");
+  m_useTrackQuality         = m_config.getParameter<bool>("useTrackQuality");
   m_selectTracksFromExternalSV = false;
   if(m_config.existsAs<bool>("selectTracksFromExternalSV")) m_selectTracksFromExternalSV = m_config.getParameter<bool> ("selectTracksFromExternalSV");
         if(m_selectTracksFromExternalSV) {

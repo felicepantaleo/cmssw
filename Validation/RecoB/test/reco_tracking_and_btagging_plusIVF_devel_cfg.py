@@ -26,7 +26,7 @@ process.bTagValidation.allHistograms = True
 #process.bTagValidation.fastMC = True
 
 process.maxEvents = cms.untracked.PSet(
-    input = cms.untracked.int32(100)
+    input = cms.untracked.int32(-1)
 )
 process.source = cms.Source("PoolSource",
     fileNames = cms.untracked.vstring()
@@ -90,7 +90,21 @@ process.CustombTagValidation = process.bTagValidation.clone(
                                 ),
             label = cms.InputTag("cleanedCombinedInclusiveSecondaryVertexBJetTags"),
             folder = cms.string("CSVIVF-NI")
-           )
+           ),
+        cms.PSet(
+                                    parameters = cms.PSet(
+                                discriminatorStart = cms.double(-0.05),
+                                discriminatorEnd = cms.double(1.05),
+                                nBinEffPur = cms.int32(200),
+                                # the constant b-efficiency for the differential plots versus pt and eta
+                                effBConst = cms.double(0.5),
+                                endEffPur = cms.double(1.005),
+                                startEffPur = cms.double(-0.005)
+                                ),
+            label = cms.InputTag("combinedSecondaryVertexBJetTags","","RECO"),
+            folder = cms.string("CSV09")
+        ),
+
 
        )
 
@@ -153,21 +167,38 @@ process.cleanedCombinedInclusiveSecondaryVertexBJetTags = process.combinedInclus
 
 #feed IVF vertices to IPTagInfo in order to let IVF tracks be selected 
 process.impactParameterTagInfos.extSVCollection = cms.InputTag("inclusiveMergedVertices")
-process.impactParameterTagInfos.selectTracksFromExternalSV = cms.bool(True)
+process.impactParameterTagInfos.selectTracksFromExternalSV = cms.bool(False)
 process.cleanedImpactParameterTagInfos.extSVCollection = cms.InputTag("inclusiveMergedVertices2")
-process.cleanedImpactParameterTagInfos.selectTracksFromExternalSV = cms.bool(True)
+process.cleanedImpactParameterTagInfos.selectTracksFromExternalSV = cms.bool(False)
 
-process.inclusiveSecondaryVertexFinderTagInfos.vertexCuts.distVal2dMax = 8
-process.cleanedInclusiveSecondaryVertexFinderTagInfos.vertexCuts.distVal2dMax = 8
+process.inclusiveSecondaryVertexFinderTagInfos.vertexCuts.distVal2dMax = 2.5
+process.cleanedInclusiveSecondaryVertexFinderTagInfos.vertexCuts.distVal2dMax = 2.5
+
+process.siPixelClusters = cms.EDProducer("JetCoreClusterSplitter",
+    pixelClusters         = cms.InputTag("siPixelClusters"),
+    vertices              = cms.InputTag('offlinePrimaryVertices'),
+    pixelCPE = cms.string( "PixelCPEGeneric" ),
+ 
+    )
+
+process.GroupedCkfTrajectoryBuilder.maxCand=25
+process.GroupedCkfTrajectoryBuilderP5.maxCand=25
+#process.convCkfTrajectoryBuilder.maxCand=25
+#process.detachedTripletStepTrajectoryBuilder.maxCand=25
+process.initialStepTrajectoryBuilder.maxCand=25
+#process.lowPtTripletStepTrajectoryBuilder.maxCand=25
+process.mixedTripletStepTrajectoryBuilder.maxCand=25
+process.pixelLessStepTrajectoryBuilder.maxCand=25
+process.tobTecStepTrajectoryBuilder.maxCand=200
 
 #redo tracking + nominal btagging (with IVF used in IP TagInfo too) + NI-cleaned btagging
-process.reco = cms.Sequence(process.siPixelRecHits+process.siStripMatchedRecHits+process.pixelTracks+process.ckftracks_wodEdX+process.offlinePrimaryVertices+process.ak5JetTracksAssociatorAtVertex+process.inclusiveVertexing+process.btagging  * process.inclusiveSecondaryVertexFinderTagInfos * process.combinedInclusiveSecondaryVertexBJetTags * process.nuclearInteractionIdentifier * process.cleanedInclusiveMergedVertices * process.trackCollectionCleaner * process.offlinePrimaryVertices2 * process.inclusiveVertexing2 * process.ak5JetCleanedTracksAssociatorAtVertex * process.cleanedImpactParameterTagInfos * process.cleanedInclusiveSecondaryVertexFinderTagInfos * process.cleanedCombinedInclusiveSecondaryVertexBJetTags)
+process.reco = cms.Sequence(process.siPixelClusters+process.siPixelRecHits+process.siStripMatchedRecHits+process.pixelTracks+process.ckftracks_wodEdX+process.offlinePrimaryVertices+process.ak5JetTracksAssociatorAtVertex+process.inclusiveVertexing+process.btagging  * process.inclusiveSecondaryVertexFinderTagInfos * process.combinedInclusiveSecondaryVertexBJetTags * process.nuclearInteractionIdentifier * process.cleanedInclusiveMergedVertices * process.trackCollectionCleaner * process.offlinePrimaryVertices2 * process.inclusiveVertexing2 * process.ak5JetCleanedTracksAssociatorAtVertex * process.cleanedImpactParameterTagInfos * process.cleanedInclusiveSecondaryVertexFinderTagInfos * process.cleanedCombinedInclusiveSecondaryVertexBJetTags)
 
 #DQM/Validation stuff
 process.plots = cms.Sequence(process.myPartons* process.AK5Flavour * process.CustombTagValidation * process.dqmSaver)
 process.dqmEnv.subSystemFolder = 'BTAG'
 process.dqmSaver.producer = 'DQM'
-process.dqmSaver.workflow = '/POG/BTAG/BJET470600'
+process.dqmSaver.workflow = '/POG/BTAG/BJET470600splitClusterNONEWDEVEL'
 process.dqmSaver.convention = 'Offline'
 process.dqmSaver.saveByRun = cms.untracked.int32(-1)
 process.dqmSaver.saveAtJobEnd =cms.untracked.bool(True) 

@@ -9,6 +9,11 @@ process = cms.Process("rereco")
 #keep the logging output to a nice level
 process.load("FWCore.MessageLogger.MessageLogger_cfi")
 
+process.options = cms.untracked.PSet(multiProcesses=cms.untracked.PSet(
+         maxChildProcesses=cms.untracked.int32(7),
+         maxSequentialEventsPerChild=cms.untracked.uint32(10)))
+
+
 
 # load the full reconstraction configuration, to make sure we're getting all needed dependencies
 process.load("Configuration.StandardSequences.MagneticField_cff")

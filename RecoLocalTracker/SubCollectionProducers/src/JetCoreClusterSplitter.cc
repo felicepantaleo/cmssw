@@ -94,9 +94,9 @@ const TrackerGeometry * trackerGeometry = tracker.product();*/
               		{
 				 float jetZOverRho = jit->momentum().Z()/jit->momentum().Rho();
                  		 GlobalVector jetDir(jit->momentum().x(),jit->momentum().y(),jit->momentum().z());
-				 int maxSizeY=jetZOverRho*1.9;
+				 unsigned int maxSizeY=fabs(jetZOverRho*1.9);
 				 if(maxSizeY < 1) maxSizeY=1;
-		  		 if(Geom::deltaR(jetDir,clusterDir) < 0.05 && aCluster.charge() > 30000 && (aCluster.sizeX() > 2 || aCluster.sizeY() > maxSizeY+1) )
+		  		 if(Geom::deltaR(jetDir,clusterDir) < 0.05 && aCluster.charge() > 30000 && (aCluster.sizeX() > 2 || ((unsigned int)aCluster.sizeY()) > maxSizeY+1) )
 					{
                                                 std::cout << "CHECK FOR SPLITTING: charge and deltaR " <<aCluster.charge() << " " << Geom::deltaR(jetDir,clusterDir) << " size x y"<< aCluster.sizeX()  << " " << aCluster.sizeY()<< " detid " << detIt->id() << std::endl;	
 						std::cout << "Original Position " << cPos << std::endl;
@@ -115,10 +115,10 @@ const TrackerGeometry * trackerGeometry = tracker.product();*/
 //							filler.push_back(SiPixelCluster(SiPixelCluster::PixelPos(pixels[i].x,pixels[i].y),pixels[i].adc));
 					  		std::cout << (int)pixels[i].x << " " <<  pixels[i].y  << " " << pixels[i].adc << std::endl;		
 							//split if: too long or too much charge or too wide or gap in Y
-							if(isize > 1 && charge > 10000)
+							if(isize > maxSizeY+1 && charge > 10000)
 //							if(isize > 0  && (pixels[i].y-ymin > maxSizeY || charge/maxSizeY > 20000 || pixels[i].x-xmin > 2 || (isize>0 && pixels[i].y-pixels[i-1].y>1 ) ))  
 							{
-									std::cout << "split!" << std::endl;
+									std::cout << "split!  isize:" << isize << " > " << maxSizeY+1 << " and charge : " << charge << " Z/rho: " << jetZOverRho <<  std::endl;
 									if(charge < 10000) { std::cout << " to recover" << std::endl;   }
 									else 
 									{
