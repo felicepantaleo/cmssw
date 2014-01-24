@@ -27,6 +27,10 @@ bool TrackVertexArbitration::trackFilterArbitrator(const reco::TrackRef &track) 
                 return false;
         if (track->hitPattern().numberOfValidPixelHits() < 1)
                 return false;
+//AR:
+        if (track->hitPattern().numberOfValidPixelHits() < 2 && track->hitPattern().numberOfValidHits() < (int)10 )
+                return false;
+
 	if (maxPixelResidual>0 && fabs(track->residualX(0)) >=maxPixelResidual) 
 		return false;
 	if (maxPixelResidual > 0 && fabs(track->residualY(0)) >=maxPixelResidual) 

@@ -3,9 +3,9 @@ import FWCore.ParameterSet.Config as cms
 combinedSVRecoVertexVariables = cms.PSet(
     flightDistance3dVal = cms.PSet(
         logScale = cms.bool(True),
-        nBins = cms.uint32(50),
-        max = cms.double(10.0),
-        min = cms.double(0.01)
+        nBins = cms.uint32(100),
+        max = cms.double(20.0),
+        min = cms.double(0.0001)
     ),
     flightDistance3dSig = cms.PSet(
         logScale = cms.bool(True),
@@ -15,15 +15,15 @@ combinedSVRecoVertexVariables = cms.PSet(
     ),
     flightDistance2dVal = cms.PSet(
         logScale = cms.bool(True),
-        nBins = cms.uint32(50),
-        max = cms.double(2.5),
-        min = cms.double(0.01)
+        nBins = cms.uint32(500),
+        max = cms.double(25),
+        min = cms.double(0.0001)
     ),
     jetNSecondaryVertices = cms.PSet(
         logScale = cms.bool(True),
-        nBins = cms.uint32(50),
-        max = cms.double(10.0),
-        min = cms.double(0.0)
+        nBins = cms.uint32(11),
+        max = cms.double(10.5),
+        min = cms.double(-.5)
     ),
     flightDistance2dSig = cms.PSet(
         logScale = cms.bool(True),

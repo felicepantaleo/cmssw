@@ -54,7 +54,7 @@ void TrackCollectionCleaner::produce(edm::Event &event, const edm::EventSetup &e
         {
          for(std::vector<reco::TrackBaseRef>::const_iterator iter = pv->tracks_begin();
             iter != pv->tracks_end(); iter++) {
-                if (pv->trackWeight(*iter) >= 0.5)
+                if (pv->trackWeight(*iter) >= 0.)
                         pvTracks.insert(iter->castTo<reco::TrackRef>());
          }
 	}
