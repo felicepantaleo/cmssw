@@ -40,10 +40,9 @@ class JetCoreClusterSplitter : public edm::EDProducer
 		void produce(edm::Event &iEvent, const edm::EventSetup &iSetup) ;
 
 	private:
-		bool split(const SiPixelCluster & aCluster, edmNew::DetSetVector<SiPixelCluster>::FastFiller & filler, float expectedADC);
-		std::vector<SiPixelCluster> recursiveSplit(const SiPixelCluster & aCluster, float threshold, int depth);
-		std::vector<SiPixelCluster> reDoClustering(const SiPixelCluster & aCluster, float threshold);
+		bool split(const SiPixelCluster & aCluster, edmNew::DetSetVector<SiPixelCluster>::FastFiller & filler, float expectedADC,int sizeY);
 		void print(const SiPixelArrayBuffer & b, const SiPixelCluster & aCluster );
+		std::vector<SiPixelCluster> fittingSplit(const SiPixelCluster & aCluster, float expectedADC,int sizeY);
 
 		std::string pixelCPE_; 
 		edm::InputTag pixelClusters_;
@@ -118,7 +117,7 @@ JetCoreClusterSplitter::produce(edm::Event& iEvent, const edm::EventSetup& iSetu
 					if(Geom::deltaR(jetDir,clusterDir) < 0.05 && aCluster.charge() > 30000 && (aCluster.sizeX() > 2 || ((unsigned int)aCluster.sizeY()) > maxSizeY+1) )
 					{
 						std::cout << "CHECK FOR SPLITTING: charge and deltaR " <<aCluster.charge() << " " << Geom::deltaR(jetDir,clusterDir) << " size x y"<< aCluster.sizeX()  << " " << aCluster.sizeY()<< " detid " << detIt->id() << std::endl;	
-						if(split(aCluster,filler,sqrt(1.08+jetZOverRho*jetZOverRho)*26000)) hasBeenSplit=true;
+						if(split(aCluster,filler,sqrt(1.08+jetZOverRho*jetZOverRho)*26000,maxSizeY)) hasBeenSplit=true;
 						std::cout << "IDEAL was : "  << std::endl; 
 						int xmin=aCluster.minPixelRow();                        
 						int ymin=aCluster.minPixelCol();                                
@@ -155,7 +154,13 @@ JetCoreClusterSplitter::produce(edm::Event& iEvent, const edm::EventSetup& iSetu
 
 							}
 							std::cout << std::endl;         
-						}                       
+						}
+						int h=0;
+						 for(edmNew::DetSet<SiPixelCluster>::const_iterator clusterIt = myDet->begin(); clusterIt != myDet->end() ; clusterIt++,h++)
+                                                                {
+									if(sh[h]) std::cout << "IDEAL POS: " << h << " x: "  << std::setprecision(2) << clusterIt->x() << " y: " << clusterIt->y() << " c: " << clusterIt->charge() << std::endl;
+                                                                }
+                       
 
 
 
@@ -224,7 +229,13 @@ JetCoreClusterSplitter::produce(edm::Event& iEvent, const edm::EventSetup& iSetu
 				}
 			}
 			if(!hasBeenSplit)
-				 filler.push_back(aCluster);	
+			{
+				//blowup the error
+				SiPixelCluster c=aCluster;
+//				c.setSplitClusterErrorX(c.sizeX()*100./3.);
+//				c.setSplitClusterErrorY(c.sizeY()*150./3.);
+				 filler.push_back(c);	
+			}
 
 		}
 	}
@@ -233,13 +244,14 @@ JetCoreClusterSplitter::produce(edm::Event& iEvent, const edm::EventSetup& iSetu
 
 
 
-bool JetCoreClusterSplitter::split(const SiPixelCluster & aCluster, edmNew::DetSetVector<SiPixelCluster>::FastFiller & filler, float expectedADC)
+bool JetCoreClusterSplitter::split(const SiPixelCluster & aCluster, edmNew::DetSetVector<SiPixelCluster>::FastFiller & filler, float expectedADC,int sizeY)
 {
-	std::vector<SiPixelCluster> sp=recursiveSplit(aCluster,expectedADC,0);
+	std::vector<SiPixelCluster> sp=fittingSplit(aCluster,expectedADC,sizeY);
 	
 
 	for(unsigned int i = 0; i < sp.size();i++ )
 	{
+		std::cout << "NEW POS: " << i << " x: "  << std::setprecision(2) << sp[i].x() << " y: " << sp[i].y() << " c: " << sp[i].charge() << std::endl;
 		filler.push_back(sp[i]);
 	}
 
@@ -278,186 +290,211 @@ bool JetCoreClusterSplitter::split(const SiPixelCluster & aCluster, edmNew::DetS
 	return (sp.size() > 0);
 }
 
-
-std::vector<SiPixelCluster> JetCoreClusterSplitter::recursiveSplit(const SiPixelCluster & aCluster, float expectedADC, int depth)
+std::vector<SiPixelCluster> JetCoreClusterSplitter::fittingSplit(const SiPixelCluster & aCluster, float expectedADC,int sizeY)
 {
-	depth++;
-	unsigned int expectedClusters = floor(aCluster.charge() / expectedADC +0.5) ;	
-	std::cout << "depth " << depth << " expectedADC " << expectedADC << " charge: " << aCluster.charge()  <<  "exClusters " << expectedClusters <<  std::endl;
-	std::vector<SiPixelCluster> tempClusters=reDoClustering(aCluster,expectedADC*0.7);
-	if(tempClusters.size() >= expectedClusters) return tempClusters;
+	unsigned int expectedClusters = floor(aCluster.charge() / expectedADC +0.5) ;
 	std::vector<SiPixelCluster> output;
-	int reclusteredCharge=0;
-	for(unsigned int i=0;i<tempClusters.size();i++)
-	{
-		reclusteredCharge+=tempClusters[i].charge();
-	}
-	//	int lostCharge=aCluster.charge()-reclusteredCharge;
-	int newExpected=reclusteredCharge/expectedClusters;
-
-	int overlapsOnSinglePixel=0;
-	int furtherSplitted=0;
-	int furtherSplittedIn=0;
-	int unsplitted=0;
-	std::cout << "From splitter Nclus: " << tempClusters.size() << " newExpected " << newExpected << std::endl;
-	for(unsigned int i=0;i<tempClusters.size();i++)
-	{
-		std::cout <<  i << " cluster size and charge " << tempClusters[i].size() << " " << tempClusters[i].charge()  << std::endl;
-		if(tempClusters[i].size()==1 && tempClusters[i].charge() > 1.7*newExpected)
-		{
-			SiPixelCluster::PixelPos pix(tempClusters[i].pixels()[0].x,tempClusters[i].pixels()[0].y);
-			int n=floor(tempClusters[i].charge()/newExpected);
-			int adcPerCl = tempClusters[i].charge()/n;
-			for(int j=0; j < n;j++)
-			{
-				SiPixelCluster cluster( pix, adcPerCl );
-				output.push_back(cluster);
-				overlapsOnSinglePixel++;
-			}
-		}else if(tempClusters[i].charge() > 1.7*newExpected)
-		{
-			std::vector<SiPixelCluster> sp=recursiveSplit(tempClusters[i],newExpected,depth);
-			output.insert(output.end(), sp.begin(), sp.end());
-			furtherSplitted++;
-			furtherSplittedIn+=sp.size();
-		}
-		else
-		{
-			output.push_back(tempClusters[i]);
-			unsplitted++;
-		}
-	}	 
-	std::string s(depth,' ');
-	std::cout << s << "Expected : " << expectedClusters << " total : "  << output.size() << "  notsplittable : " << unsplitted << " further splitted: " << furtherSplitted << " in " << furtherSplittedIn << " overlaps on 1 pixel : " << overlapsOnSinglePixel  << std::endl; 	  
-	/*    tempClusters.push_back(aCluster);	 
-	      while(tempClusters.size()==1 && tempClusters[0].size() > 1)
-	      { 
-	      tempClusters=reDoClustering(tempClusters[0],expectedADC*0.7);
-	      }	*/
-
-	return output;
-
-
-
-}
-
-std::vector<SiPixelCluster>  JetCoreClusterSplitter::reDoClustering(const SiPixelCluster & aCluster, float threshold)
-{
-	std::vector<SiPixelCluster> output;
-	SiPixelArrayBuffer               theBuffer;
-	theBuffer.setSize(500,500); 
-	std::vector<SiPixelCluster::PixelPos>  theSeeds;
-	//Copy to buffer the content of the cluster to split, create seeds and find minimum adc
-	int minAdc=100000;
-	int minX=0,minY=0;
+	if(expectedClusters==1) {
+		output.push_back(aCluster);	
+		return output;
+	}	
+	int xmin=aCluster.minPixelRow();
+	int ymin=aCluster.minPixelCol();
+	int xmax=aCluster.maxPixelRow();
+	int ymax=aCluster.maxPixelCol();
+	if(expectedClusters > 5) expectedClusters=5;
+//return std::vector<SiPixelCluster>(); 
 	std::vector<SiPixelCluster::Pixel> pixels = aCluster.pixels();
+
+	int deltax=xmax-xmin+1;
+	int deltay=ymax-ymin-sizeY+1;
+	if (deltay < 1) deltay=1;
+	float perPixel=0.25*expectedADC/(0.5+sizeY);
+	int npos= pixels.size();
+	//	unsigned long maxComb=pow(expectedClusters, npos);
+	unsigned long maxComb=pow(npos,expectedClusters);
+	float chimin=1e99;
+	unsigned long  bestcomb=0;
+	std::cout << "Sizey and perPixel " << sizeY << " " << perPixel << std::endl;
+	if(maxComb > 100000) {std::cout << "toomany" << std::endl; return std::vector<SiPixelCluster>();
+	}
+	
+        SiPixelArrayBuffer               theOriginalBuffer;
+ 	theOriginalBuffer.setSize(500,500);
+        for(unsigned int i = 0; i < pixels.size(); i++)
+                {
+                        int x=pixels[i].x ;
+                        int y=pixels[i].y ;
+                        int adc=pixels[i].adc;
+                        theOriginalBuffer.set_adc( x, y, adc);
+                }
+
+
+	for(unsigned long combination=0;combination<maxComb;combination++)	
+	{
+		float chi2=0;
+		int clbase=1;
+		SiPixelArrayBuffer               theBuffer;
+		theBuffer.setSize(500,500);
+
+		for(unsigned int i = 0; i < pixels.size(); i++)
+		{
+			int x=pixels[i].x ;
+			int y=pixels[i].y ;
+			int adc=pixels[i].adc;
+			theBuffer.set_adc( x, y, adc);
+		}
+		//print(theBuffer,aCluster);
+
+		//std::cout << "Combination " << combination << std::endl;
+		for(unsigned int cl=0;cl<expectedClusters;cl++){
+			int pi=((combination / clbase)%npos);
+			int clx=pixels[pi].x;
+			int cly=pixels[pi].y;
+		//	std::cout << "Cluster  "<< cl << " x,y " << clx -xmin <<", " << cly-ymin<< " clbase " << clbase << std::endl;
+			clbase*=npos;
+			for(int x=xmin-1;x<=xmax+1;x++) {
+				for(int y=ymin-1;y<=ymax+1;y++) {
+					if(x<0||y<0) continue;
+					int fact=0;
+					if(x==clx) fact=2;
+					if(x+1==clx || x-1==clx) fact=1;
+					if(!(y>=cly && y <= cly+sizeY)) fact=0;
+					if(x==clx && (y==cly-1 || y == cly+sizeY+1)) fact=1;
+					theBuffer.set_adc(x,y,theBuffer(x,y)-fact*perPixel);
+					//std::cout << "residual in "<< x-xmin <<","<< y-ymin<< " " << res << "  fact " << fact << " exp:"<< fact*perPixel <<std::endl;
+				}
+			}
+		}
+		//print(theBuffer,aCluster);
+		for(int x=xmin-1;x<=xmax+1;x++) {
+			for(int y=ymin;y<=ymax;y++) {
+				//				std::cout << theBuffer(x,y)/1000 << " " ;
+				float res=theBuffer(x,y);
+				float charge=theOriginalBuffer(x,y)-theBuffer(x,y); //charge assigned to this pixel
+				if(res< 0 ) { //threshold effect
+					if(res > -10000){
+						if(res<-5000) res+=5000;
+						else  res=0;
+					}
+				}
+				if(res> 0 && charge > 10000 ) { //reduce weights of landau tails
+					res*=0.7;
+				}
+
+
+				chi2+=res*res;
+				//std::cout << "chi2 " << chi2 << " xy" << x<< " " << y << " res,res2,charge" << res << " ," <<res*res<< ", " <<charge  << std::endl;
+			}
+			//		    std::cout << std::endl;
+		}
+
+//		std::cout<<"Combination " << combination << std::endl;
+//		print(theBuffer,aCluster);
+//		std::cout << "chi2 " << chi2 << std::endl;
+
+		if(chi2<chimin)
+		{
+			chimin=chi2;
+			bestcomb=combination;
+		}
+
+
+
+
+	}
+	SiPixelArrayBuffer               theWeights;
+	theWeights.setSize(500,500);
+
+	std::cout << "best combination chi: " << chimin << " co " << bestcomb<< std::endl;
+	int clbase=1;
+	SiPixelArrayBuffer               theBuffer;
+	theBuffer.setSize(500,500);
+	SiPixelArrayBuffer               theBufferResidual;
+	theBufferResidual.setSize(500,500);
+
 	for(unsigned int i = 0; i < pixels.size(); i++)
 	{
 		int x=pixels[i].x ;
 		int y=pixels[i].y ;
 		int adc=pixels[i].adc;
 		theBuffer.set_adc( x, y, adc);
-		if ( adc >= 5000 ) 
-		{ 
-			theSeeds.push_back( SiPixelCluster::PixelPos(x,y) );
-		}
-		if(adc < minAdc) {minAdc=adc; minX=x;minY=y;}
-
+		theBufferResidual.set_adc( x, y, adc);
 	}
-	std::cout << "Input buffer" << std::endl;
-        print(theBuffer,aCluster);
-
-	std::cout << "Minadc " << minAdc << " at " << minX<<" , " << minY <<  std::endl;
-	if(minAdc> threshold)
-	{
-		std::cout << "Adding this minadc " << std::endl;
-		SiPixelCluster::PixelPos newpix(minX,minY);
-		SiPixelCluster cluster( newpix,threshold );
-		output.push_back(cluster);
-		theBuffer.set_adc( minX, minY, minAdc-threshold);
-
-	}
-	float shareHolders=0;
-	for(int x=minX-1;x<=minX+1;x++){
-		for(int y=minY-1;y<=minY+1;y++){
-			if(x<0 || x > 155 || y < 0 || y > 416) continue;
-
-			if(theBuffer(x,y) > minAdc && (x!=minX  || y!=minY)){
-				if(x!=minX && y!= minY) shareHolders++; else shareHolders+=2;
-			}
-		}
-	}
-	if(shareHolders)
-	{
-		int chargePerShare=theBuffer(minX,minY)/shareHolders;
-		std::cout << "Nshares " << shareHolders << " charge per share " << chargePerShare << std::endl;
-		for(int x=minX-1;x<=minX+1;x++){
-			for(int y=minY-1;y<=minY+1;y++)
-			{
-				if(x<0 || x > 155 || y < 0 || y > 416) continue;
-				if((theBuffer(x,y) > minAdc)&& (x!=minX  || y!=minY))
-				{
-					if(x!=minX && y!= minY)
-					{  
-						int newVal=chargePerShare+theBuffer(x,y);
-						if(newVal>65535) newVal=65535;
-						theBuffer.set_adc(x,y,newVal);
-					}
-					else { 
-						int newVal=chargePerShare*2+theBuffer(x,y);
-						if(newVal>65535) newVal=65535;
-						theBuffer.set_adc(x,y,newVal);
-					}
-				}
-			}
-		}
-	}
-
-	std::cout << "After removal and sharing" << std::endl;
 	print(theBuffer,aCluster);
-
-	//do actual clustering for each seed
-	for (unsigned int i = 0; i < theSeeds.size(); i++) {
-		std::stack<SiPixelCluster::PixelPos, vector<SiPixelCluster::PixelPos> > pixel_stack;
-		const SiPixelCluster::PixelPos & pix = theSeeds[i];
-		int seed_adc = theBuffer(pix.row(), pix.col());
-		if(seed_adc <= minAdc) continue;
-//		std::cout << "processing seed " << i << " adc: " << seed_adc <<  std::endl; 
-		theBuffer.set_adc( pix, 1); //mark as used
-		SiPixelCluster cluster( pix, seed_adc ); // create protocluster
-//		std::cout << "ccc " <<  cluster.charge() << std::endl;
-
-		pixel_stack.push( pix);
-		while ( ! pixel_stack.empty()) 
-		{
-			//This is the standard algorithm to find and add a pixel
-			SiPixelCluster::PixelPos curpix = pixel_stack.top(); pixel_stack.pop();
-			for ( int r = curpix.row()-1; r <= curpix.row()+1; ++r) 
-			{
-				for ( int c = curpix.col()-1; c <= curpix.col()+1; ++c) 
-				{
-					bool isDiagonal = (c!=curpix.col() && r != curpix.row());
-					if (! isDiagonal &&  theBuffer(r,c) > minAdc) // reclustering without smallest signal 
-					{
-						SiPixelCluster::PixelPos newpix(r,c);
-						cluster.add( newpix, theBuffer(r,c));
-						theBuffer.set_adc( newpix, 1);
-						pixel_stack.push( newpix);
-//						std::cout << "cc " <<  cluster.charge() << std::endl;
-					}
+	//fill weights
+	for(unsigned int cl=0;cl<expectedClusters;cl++){
+		int pi=((bestcomb / clbase)%npos);
+		int clx=pixels[pi].x;
+		int cly=pixels[pi].y;
+		clbase*=npos;
+//		std::cout << "cl " << cl << " center in " <<  clx-xmin << " " << cly-ymin << std::endl;
+		for(int x=xmin-1;x<=xmax+1;x++) {
+			for(int y=ymin-1;y<=ymax+1;y++) {
+				if(x<0||y<0) continue;
+				int fact=0;
+				if(x==clx) fact=2;
+				if(x+1==clx || x-1==clx) fact=1;
+				if(!(y>=cly && y <= cly+sizeY)) fact=0;
+				if(x==clx && (y==cly-1 || y == cly+sizeY+1)) fact=1;
+				if(fact)
+				{	
+					//			std::cout << "theWeights " << theWeights(x,y) << " fact: " << fact<< " x y " << x << " " << y<<   std::endl;
+					theWeights.set_adc(x,y,theWeights(x,y)+fact);
+					//			std::cout << "theWeightsAfter " << theWeights(x,y) << " fact: " << fact<< " x y " << x << " " << y<<   std::endl;
+					//std::cout << "residual in "<< x-xmin <<","<< y-ymin<< " " << res << "  fact " << fact << " exp:"<< fact*perPixel <<std::endl;
 				}
 			}
 		}
 
-//		std::cout << "c " <<  cluster.charge() << "  > " << threshold		<< std::endl;
-		if(cluster.charge() > threshold){
-//			std::cout << "Cluster: " << cluster.charge() << " #" << output.size() << std::endl;
-			output.push_back(cluster);
-		}
-
 	}
+	//really fill clusters
+	clbase=1;
+	for(unsigned int cl=0;cl<expectedClusters;cl++){
+		int pi=((bestcomb / clbase)%npos);
+		int clx=pixels[pi].x;
+		int cly=pixels[pi].y;
+		clbase*=npos;
+		SiPixelCluster * cluster=0;
+		for(int x=xmin-1;x<=xmax+1;x++) {
+			for(int y=ymin-1;y<=ymax+1;y++) {
+				if(x<0||y<0) continue;
+				int fact=0;
+				if(x==clx) fact=2;
+				if(x+1==clx || x-1==clx) fact=1;
+				if(!(y>=cly && y <= cly+sizeY)) fact=0;
+				if(x==clx && (y==cly-1 || y == cly+sizeY+1)) fact=1;
+				if(fact){
+					//			std::cout << "HEREtheWeights " << theWeights(x,y) << " fact: " << fact<< " x y " << x << " " << y<<   std::endl;
+					int charge=theBuffer(x,y)*fact/theWeights(x,y);
+					if(charge>0){
+						theBufferResidual.set_adc(x,y,theBufferResidual(x,y)-charge);
+						if(cluster){
+							SiPixelCluster::PixelPos newpix(x,y);
+							cluster->add( newpix, charge);
+						}
+						else
+						{
+							SiPixelCluster::PixelPos newpix(x,y);
+							cluster = new  SiPixelCluster( newpix, charge ); // create protocluster
+						}
+					}
+				}	
+			}
+		}
+		if(cluster){ 
+			output.push_back(*cluster);
+			delete cluster;
+		}
+	}
+	std::cout << "Unused charge" << std::endl;	
+	print(theBufferResidual,aCluster);
+
 	return output;
+
+
 }
+
 void JetCoreClusterSplitter::print(const SiPixelArrayBuffer & b, const SiPixelCluster & c )
 {
 	int xmin=c.minPixelRow();
