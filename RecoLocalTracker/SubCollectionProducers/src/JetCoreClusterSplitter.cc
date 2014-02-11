@@ -31,6 +31,7 @@ std::ostream& bin(T& value, std::ostream &o)
 	return o;
 }
 
+
 class JetCoreClusterSplitter : public edm::EDProducer 
 {
 
@@ -116,7 +117,7 @@ JetCoreClusterSplitter::produce(edm::Event& iEvent, const edm::EventSetup& iSetu
 					if(maxSizeY < 1) maxSizeY=1;
 					if(Geom::deltaR(jetDir,clusterDir) < 0.05 && aCluster.charge() > 30000 && (aCluster.sizeX() > 2 || ((unsigned int)aCluster.sizeY()) > maxSizeY+1) )
 					{
-						std::cout << "CHECK FOR SPLITTING: charge and deltaR " <<aCluster.charge() << " " << Geom::deltaR(jetDir,clusterDir) << " size x y"<< aCluster.sizeX()  << " " << aCluster.sizeY()<< " detid " << detIt->id() << std::endl;	
+						std::cout << "CHECK FOR OLD SPLITTING: charge and deltaR " <<aCluster.charge() << " " << Geom::deltaR(jetDir,clusterDir) << " size x y"<< aCluster.sizeX()  << " " << aCluster.sizeY()<< " detid " << detIt->id() << std::endl;	
 						if(split(aCluster,filler,sqrt(1.08+jetZOverRho*jetZOverRho)*26000,maxSizeY)) hasBeenSplit=true;
 						std::cout << "IDEAL was : "  << std::endl; 
 						int xmin=aCluster.minPixelRow();                        
@@ -158,6 +159,7 @@ JetCoreClusterSplitter::produce(edm::Event& iEvent, const edm::EventSetup& iSetu
 						int h=0;
 						 for(edmNew::DetSet<SiPixelCluster>::const_iterator clusterIt = myDet->begin(); clusterIt != myDet->end() ; clusterIt++,h++)
                                                                 {
+
 									if(sh[h]) std::cout << "IDEAL POS: " << h << " x: "  << std::setprecision(2) << clusterIt->x() << " y: " << clusterIt->y() << " c: " << clusterIt->charge() << std::endl;
                                                                 }
                        
@@ -247,6 +249,12 @@ JetCoreClusterSplitter::produce(edm::Event& iEvent, const edm::EventSetup& iSetu
 bool JetCoreClusterSplitter::split(const SiPixelCluster & aCluster, edmNew::DetSetVector<SiPixelCluster>::FastFiller & filler, float expectedADC,int sizeY)
 {
 	std::vector<SiPixelCluster> sp=fittingSplit(aCluster,expectedADC,sizeY);
+	
+//	std::multimap<float, std::pair<int,int> > distances;
+//	std::map<int,bool> usedReco;
+//	std::map<int,bool> usedIdeal;
+//	for()
+
 	
 
 	for(unsigned int i = 0; i < sp.size();i++ )
@@ -359,8 +367,8 @@ std::vector<SiPixelCluster> JetCoreClusterSplitter::fittingSplit(const SiPixelCl
 					int fact=0;
 					if(x==clx) fact=2;
 					if(x+1==clx || x-1==clx) fact=1;
-					if(!(y>=cly && y <= cly+sizeY)) fact=0;
-					if(x==clx && (y==cly-1 || y == cly+sizeY+1)) fact=1;
+					if(!(y>=cly && y < cly+sizeY)) fact=0;
+					if(x==clx && (y==cly-1 || y == cly+sizeY)) fact=1;
 					theBuffer.set_adc(x,y,theBuffer(x,y)-fact*perPixel);
 					//std::cout << "residual in "<< x-xmin <<","<< y-ymin<< " " << res << "  fact " << fact << " exp:"<< fact*perPixel <<std::endl;
 				}
@@ -368,7 +376,7 @@ std::vector<SiPixelCluster> JetCoreClusterSplitter::fittingSplit(const SiPixelCl
 		}
 		//print(theBuffer,aCluster);
 		for(int x=xmin-1;x<=xmax+1;x++) {
-			for(int y=ymin;y<=ymax;y++) {
+			for(int y=ymin-1;y<=ymax+1;y++) {
 				//				std::cout << theBuffer(x,y)/1000 << " " ;
 				float res=theBuffer(x,y);
 				float charge=theOriginalBuffer(x,y)-theBuffer(x,y); //charge assigned to this pixel
@@ -378,7 +386,7 @@ std::vector<SiPixelCluster> JetCoreClusterSplitter::fittingSplit(const SiPixelCl
 						else  res=0;
 					}
 				}
-				if(res> 0 && charge > 10000 ) { //reduce weights of landau tails
+				if(res> 0 && charge > 7000 ) { //reduce weights of landau tails
 					res*=0.7;
 				}
 

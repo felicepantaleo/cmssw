@@ -40,7 +40,8 @@ class JetCoreClusterSplitter2 : public edm::EDProducer
 		void produce(edm::Event &iEvent, const edm::EventSetup &iSetup) ;
 
 	private:
-		bool split(const SiPixelCluster & aCluster, edmNew::DetSetVector<SiPixelCluster>::FastFiller & filler, float expectedADC,int sizeY,float jetZOverRho );
+		bool split(const SiPixelCluster & aCluster, edmNew::DetSetVector<SiPixelCluster>::FastFiller & filler, float expectedADC,int sizeY,float jetZOverRho, const edmNew::DetSet<SiPixelCluster> & );
+		float distanceCluster(const SiPixelCluster & cluster,const edmNew::DetSet<SiPixelCluster> & idealClusters);
 		void print(const SiPixelArrayBuffer & b, const SiPixelCluster & aCluster, int div=1000 );
 		std::vector<SiPixelCluster> fittingSplit(const SiPixelCluster & aCluster, float expectedADC,int sizeY,float jetZOverRho);
 		bool nextCombination(std::vector<int> & comb,int npos);
@@ -83,8 +84,9 @@ JetCoreClusterSplitter2::~JetCoreClusterSplitter2()
 {
 }
 
-	void
-JetCoreClusterSplitter2::produce(edm::Event& iEvent, const edm::EventSetup& iSetup)
+
+
+void JetCoreClusterSplitter2::produce(edm::Event& iEvent, const edm::EventSetup& iSetup)
 {
 	using namespace edm;
 	edm::ESHandle<GlobalTrackingGeometry> geometry;
@@ -136,7 +138,9 @@ JetCoreClusterSplitter2::produce(edm::Event& iEvent, const edm::EventSetup& iSet
 					if(Geom::deltaR(jetDir,clusterDir) < 0.05 && aCluster.charge() > 30000 && (aCluster.sizeX() > 2 || ((unsigned int)aCluster.sizeY()) > maxSizeY+1) )
 					{
 						std::cout << "CHECK FOR NEW SPLITTING: charge and deltaR " <<aCluster.charge() << " " << Geom::deltaR(jetDir,clusterDir) << " size x y"<< aCluster.sizeX()  << " " << aCluster.sizeY()<< " detid " << detIt->id() << std::endl;	
-						if(split(aCluster,filler,sqrt(1.08+jetZOverRho*jetZOverRho)*26000,maxSizeY,jetZOverRho)) hasBeenSplit=true;
+						SiPixelClusterCollectionNew::const_iterator myDet =  inputPixelClustersIDEAL->find(detIt->id());
+						const edmNew::DetSet<SiPixelCluster> & idealClusters  = (*myDet);
+						if(split(aCluster,filler,sqrt(1.08+jetZOverRho*jetZOverRho)*26000,maxSizeY,jetZOverRho,idealClusters)) hasBeenSplit=true;
 						std::cout << "IDEAL was : "  << std::endl; 
 						int xmin=aCluster.minPixelRow();                        
 						int ymin=aCluster.minPixelCol();                                
@@ -144,7 +148,6 @@ JetCoreClusterSplitter2::produce(edm::Event& iEvent, const edm::EventSetup& iSet
 						int ymax=aCluster.maxPixelCol(); 
 						int last=1;
 						std::map<int,int> sh;  
-						SiPixelClusterCollectionNew::const_iterator myDet =  inputPixelClustersIDEAL->find(detIt->id());
 						for(int x=xmin; x<= xmax;x++){                                          
 							for(int y=ymin; y<= ymax;y++)                                   
 							{                                                                       
@@ -175,7 +178,7 @@ JetCoreClusterSplitter2::produce(edm::Event& iEvent, const edm::EventSetup& iSet
 							std::cout << std::endl;         
 						}
 						int h=0;
-						 for(edmNew::DetSet<SiPixelCluster>::const_iterator clusterIt = myDet->begin(); clusterIt != myDet->end() ; clusterIt++,h++)
+						for(edmNew::DetSet<SiPixelCluster>::const_iterator clusterIt = myDet->begin(); clusterIt != myDet->end() ; clusterIt++,h++)
                                                                 {
 									if(sh[h]) std::cout << "IDEAL POS: " << h << " x: "  << std::setprecision(2) << clusterIt->x() << " y: " << clusterIt->y() << " c: " << clusterIt->charge() << std::endl;
                                                                 }
@@ -263,14 +266,26 @@ JetCoreClusterSplitter2::produce(edm::Event& iEvent, const edm::EventSetup& iSet
 
 
 
-bool JetCoreClusterSplitter2::split(const SiPixelCluster & aCluster, edmNew::DetSetVector<SiPixelCluster>::FastFiller & filler, float expectedADC,int sizeY,float jetZOverRho)
+float JetCoreClusterSplitter2::distanceCluster(const SiPixelCluster & cluster,const edmNew::DetSet<SiPixelCluster> & idealClusters)
+{
+float minDistance=1e99;
+for(edmNew::DetSet<SiPixelCluster>::const_iterator ideal=idealClusters.begin(); ideal <  idealClusters.end() ; ideal++)
+{
+	float distance = sqrt( (cluster.x()-ideal->x())*(cluster.x()-ideal->x())  +   (cluster.y()-ideal->y())*(cluster.y()-ideal->y())*1.5*1.5 );
+	if(distance<minDistance) minDistance=distance;
+}
+return minDistance;
+}
+
+bool JetCoreClusterSplitter2::split(const SiPixelCluster & aCluster, edmNew::DetSetVector<SiPixelCluster>::FastFiller & filler, float expectedADC,int sizeY,float jetZOverRho,const edmNew::DetSet<SiPixelCluster> & idealClusters)
 {
 	std::vector<SiPixelCluster> sp=fittingSplit(aCluster,expectedADC,sizeY,jetZOverRho);
 	
 
 	for(unsigned int i = 0; i < sp.size();i++ )
 	{
-		std::cout << "NEW POS: " << i << " x: "  << std::setprecision(2) << sp[i].x() << " y: " << sp[i].y() << " c: " << sp[i].charge() << std::endl;
+		float distance = JetCoreClusterSplitter2::distanceCluster(sp[i],idealClusters);
+		std::cout << "NEW POS: " << i << " x: "  << std::setprecision(2) << sp[i].x() << " y: " << sp[i].y() << " c: " << sp[i].charge() << " distance=" << 100*distance << " um"  << std::endl;
 		filler.push_back(sp[i]);
 	}
 
