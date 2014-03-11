@@ -61,4 +61,6 @@ class TrackVertexArbitration{
         double					distCut;
         double					sigCut;
 	double					dLenFraction;
+   	double					maxPixelResidual;
+	double					minDRCut;
 };

@@ -8,7 +8,10 @@ trackVertexArbitrator = cms.EDProducer("TrackVertexArbitrator",
        dLenFraction = cms.double(0.333),
        dRCut = cms.double(0.4),
        distCut = cms.double(0.04),
-       sigCut = cms.double(5)
+       sigCut = cms.double(5),
+       maxPixelResidual = cms.double(-1),
+       minDRCut = cms.double(0.4 ) #0.15
+
 )
 
 

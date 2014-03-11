@@ -41,6 +41,8 @@ class TrackIPProducer : public edm::EDProducer {
     bool  m_directionWithTracks;
     bool  m_directionWithGhostTrack;
     bool  m_useTrackQuality;
+    bool  m_selectTracksFromExternalSV;  
+    edm::InputTag m_extSVCollection; 
 };
 #endif
 

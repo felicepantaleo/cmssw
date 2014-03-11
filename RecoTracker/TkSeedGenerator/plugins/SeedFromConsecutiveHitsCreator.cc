@@ -36,6 +36,34 @@ const TrajectorySeed * SeedFromConsecutiveHitsCreator::trajectorySeed(
 
   CurvilinearTrajectoryError error = initialError(region,  sinTheta);
   FreeTrajectoryState fts(kine, error);
+  if(region.direction().x()!=0)
+  {
+	//FIXME: make itconfigurable	 
+	if(region.direction().perp() < 20) return 0;
+   	GlobalVector direction=region.direction()/region.direction().mag();
+   	GlobalVector momentum=direction*fts.momentum().mag();
+   	GlobalPoint position=region.origin()+5*direction;
+   	GlobalTrajectoryParameters newKine(position,momentum,fts.charge(),&fts.parameters().magneticField());
+  	GlobalError vertexErr( sqr(region.originRBound()), 0, sqr(region.originRBound()),
+                   0, 0, sqr(region.originZBound()));
+
+  	float ptMin = region.ptMin();
+  	AlgebraicSymMatrix55 C = ROOT::Math::SMatrixIdentity();
+
+  	float sin2th = sqr(sinTheta);
+  	float minC00 = 0.4;
+  	C[0][0] = std::max(sin2th/sqr(ptMin), minC00);
+  	float zErr = vertexErr.czz();
+  	float transverseErr = vertexErr.cxx(); // assume equal cxx cyy
+	//FIXME: take it from region  
+	C[1][1] = 0.05;
+  	C[2][2] = 0.05;
+  	C[3][3] = transverseErr;
+  	C[4][4] = zErr*sin2th + transverseErr*(1-sin2th);
+   	CurvilinearTrajectoryError newError(C);
+  	fts =  FreeTrajectoryState(newKine,newError);
+  }
+
 
   return buildSeed(seedCollection,hits,fts,es,filter); 
 }

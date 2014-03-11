@@ -50,7 +50,9 @@ class TracksClusteringFromDisplacedSeed {
         double 					clusterMaxSignificance;
         double 					clusterScale;
         double 					clusterMinAngleCosine;
-
-
+	bool 					angleScalingWithGamma;
+	double 					maxCosineCut;
+	double					maxPixelResidual;
+	double					minPtForMissingPXB1;
 };
 

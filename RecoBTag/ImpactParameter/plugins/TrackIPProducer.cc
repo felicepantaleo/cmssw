@@ -81,6 +81,11 @@ TrackIPProducer::TrackIPProducer(const edm::ParameterSet& iConfig) :
   m_directionWithTracks     = m_config.getParameter<bool>("jetDirectionUsingTracks");
   m_directionWithGhostTrack = m_config.getParameter<bool>("jetDirectionUsingGhostTrack");
   m_useTrackQuality         = m_config.getParameter<bool>("useTrackQuality");
+  m_selectTracksFromExternalSV = false;
+  if(m_config.existsAs<bool>("selectTracksFromExternalSV")) m_selectTracksFromExternalSV = m_config.getParameter<bool> ("selectTracksFromExternalSV");
+        if(m_selectTracksFromExternalSV) {
+           m_extSVCollection  = m_config.getParameter<edm::InputTag>("extSVCollection");
+        }   
 
   if (m_computeGhostTrack)
     produces<reco::TrackCollection>("ghostTracks");
@@ -123,6 +128,20 @@ TrackIPProducer::produce(edm::Event& iEvent, const edm::EventSetup& iSetup)
      ghostTrackRefProd = iEvent.getRefBeforePut<TrackCollection>("ghostTracks");
    }
 
+   //get all trackrefs associated to external SV
+   std::set<reco::TrackRef> extSVTracks;
+   if(m_selectTracksFromExternalSV)
+   {
+     Handle<reco::VertexCollection> extSV;
+     iEvent.getByLabel(m_extSVCollection, extSV);
+     for(reco::VertexCollection::const_iterator it = extSV->begin() ; it != extSV->end(); it++)
+     {
+        for(std::vector<reco::TrackBaseRef>::const_iterator iter = it->tracks_begin(); iter != it->tracks_end(); iter++) 
+        {
+                if (it->trackWeight(*iter) >= 0.5) extSVTracks.insert(iter->castTo<reco::TrackRef>());
+        }
+     }
+   }
    // use first pv of the collection
    Vertex dummy;
    const Vertex *pv = &dummy;
@@ -170,12 +189,14 @@ TrackIPProducer::produce(edm::Event& iEvent, const edm::EventSetup& iSetup)
                " chi2 " <<  track.normalizedChi2()<<
                " #pixel " <<    track.hitPattern().numberOfValidPixelHits()<< endl;
 */
-       if (track.pt() > m_cutMinPt &&
+//	std::cout << "Used in IVF? " << extSVTracks.count(*itTrack)  << std::endl;
+       if (extSVTracks.count(*itTrack) >0 ||    // wildcard for tracks used in external vertices 
+          (track.pt() > m_cutMinPt &&
            track.hitPattern().numberOfValidHits() >= m_cutTotalHits &&         // min num tracker hits
            track.hitPattern().numberOfValidPixelHits() >= m_cutPixelHits &&
            track.normalizedChi2() < m_cutMaxChiSquared &&
            std::abs(track.dxy(pv->position())) < m_cutMaxTIP &&
-           std::abs(track.dz(pv->position())) < m_cutMaxLIP) {
+           std::abs(track.dz(pv->position())) < m_cutMaxLIP)) {
          selectedTracks.push_back(*itTrack);
          transientTracks.push_back(transientTrack);
        }

@@ -46,6 +46,8 @@
 
 #include "DataFormats/GeometryVector/interface/VectorUtil.h"
 
+#include "RecoVertex/VertexTools/interface/VertexDistance3D.h"
+
 using namespace reco;
 
 namespace {
@@ -90,6 +92,7 @@ class SecondaryVertexProducer : public edm::EDProducer {
 	edm::ParameterSet		vtxRecoPSet;
 	bool				useGhostTrack;
 	bool				withPVError;
+	bool				rejectTwo;
 	double				minTrackWeight;
 	VertexFilter			vertexFilter;
 	VertexSorting			vertexSorting;
@@ -147,6 +150,7 @@ SecondaryVertexProducer::SecondaryVertexProducer(
 	vtxRecoPSet(params.getParameter<edm::ParameterSet>("vertexReco")),
 	useGhostTrack(vtxRecoPSet.getParameter<std::string>("finder") == "gtvr"),
 	withPVError(params.getParameter<bool>("usePVError")),
+	rejectTwo(params.getParameter<bool>("rejectTwo")),
 	minTrackWeight(params.getParameter<double>("minimumTrackWeight")),
 	vertexFilter(params.getParameter<edm::ParameterSet>("vertexCuts")),
 	vertexSorting(params.getParameter<edm::ParameterSet>("vertexSelection"))
@@ -469,16 +473,45 @@ void SecondaryVertexProducer::produce(edm::Event &event,
 
 		// clean up now unneeded collections
              }else{
+		  float maxDist = 0.;
                   for(size_t iExtSv = 0; iExtSv < extSecVertex->size(); iExtSv++){
 		      const reco::Vertex & extVertex = (*extSecVertex)[iExtSv];
 //    	              GlobalVector vtxDir = GlobalVector(extVertex.p4().X(),extVertex.p4().Y(),extVertex.p4().Z());
 //                     if(Geom::deltaR(extVertex.position() - pv.position(), vtxDir)>0.2) continue; //pointing angle
 //		      std::cout << " dR " << iExtSv << " " << Geom::deltaR( ( extVertex.position() - pv.position() ), jetDir ) << "eta: " << ( extVertex.position() - pv.position()).eta() << " vs " << jetDir.eta() << " phi: "  << ( extVertex.position() - pv.position()).phi() << " vs  " << jetDir.phi() <<  std::endl; 
 	              if( Geom::deltaR( ( extVertex.position() - pv.position() ), jetDir ) >  extSVDeltaRToJet || extVertex.p4().M() < 0.3)
-                	continue;
-//		      std::cout << " SV added " << iExtSv << std::endl; 
- 		      extAssoCollection.push_back( extVertex );
-                   }
+			      continue;
+		      //		      std::cout << " SV added " << iExtSv << std::endl; 
+	              VertexDistance3D dist;
+		      float dist3DSig=dist.distance( extVertex, pv ).significance();
+		      if(extAssoCollection.size()>0 && rejectTwo)
+		      {
+			if(dist3DSig > maxDist) {
+			   if(maxDist > 5) {
+				   extAssoCollection.push_back( extVertex );
+				   std::cout << "keeping1 vertex with " << dist3DSig << " vs " << maxDist << std::endl;
+
+			   }
+				else
+			   {
+				   std::cout << "replacing vertex  " << dist3DSig << " vs " << maxDist << std::endl;
+					extAssoCollection[0]=extVertex;
+			   }		
+		        }
+			else
+			{
+			      if(dist3DSig > 5) {
+				   std::cout << "keeping2 vertex with " << dist3DSig << " vs " << maxDist << std::endl;
+                                   extAssoCollection.push_back( extVertex );
+				}
+			}
+		      }	
+		      else 
+		      {
+			      extAssoCollection.push_back( extVertex );
+		      }
+		      if(dist3DSig > maxDist) maxDist=dist3DSig;
+		  }
                    SVBuilder svBuilder(pv, jetDir, withPVError);
 	           std::remove_copy_if(boost::make_transform_iterator( extAssoCollection.begin(), svBuilder),
                                 boost::make_transform_iterator(extAssoCollection.end(), svBuilder),
