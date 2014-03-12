@@ -1,5 +1,6 @@
 #include "RecoVertex/AdaptiveVertexFinder/interface/TrackVertexArbitratration.h"
 #include "DataFormats/GeometryVector/interface/VectorUtil.h"
+//#define VTXDEBUG 1
 using namespace reco;
 
 TrackVertexArbitration::TrackVertexArbitration(const edm::ParameterSet &params) :
@@ -10,7 +11,10 @@ TrackVertexArbitration::TrackVertexArbitration(const edm::ParameterSet &params) 
 	dRCut                     (params.getParameter<double>("dRCut")),
 	distCut                   (params.getParameter<double>("distCut")),
 	sigCut                    (params.getParameter<double>("sigCut")),
-	dLenFraction              (params.getParameter<double>("dLenFraction"))
+	dLenFraction              (params.getParameter<double>("dLenFraction")),
+        maxPixelResidual(params.getParameter<double>("maxPixelResidual")),
+        minDRCut(params.getParameter<double>("minDRCut"))
+
 {
 	
 }
@@ -23,7 +27,14 @@ bool TrackVertexArbitration::trackFilterArbitrator(const reco::TrackRef &track) 
                 return false;
         if (track->hitPattern().numberOfValidPixelHits() < 1)
                 return false;
+//AR:
+        if (track->hitPattern().numberOfValidPixelHits() < 2 && track->hitPattern().numberOfValidHits() < (int)10 )
+                return false;
 
+	if (maxPixelResidual>0 && fabs(track->residualX(0)) >=maxPixelResidual) 
+		return false;
+	if (maxPixelResidual > 0 && fabs(track->residualY(0)) >=maxPixelResidual) 
+		return false;
         return true;
 }
 
@@ -60,10 +71,14 @@ reco::VertexCollection  TrackVertexArbitration::trackVertexArbitrator(
 
        VertexDistance3D vdist;
 
+
 for(std::vector<reco::Vertex>::const_iterator sv = secondaryVertices.begin();
 	    sv != secondaryVertices.end(); ++sv) {
+	    float gamma=sv->p4().Gamma();	
+	    float dRCut1 = 3./gamma;
+	    if(dRCut1 > dRCut) dRCut1=dRCut;
+	    if(dRCut1 < minDRCut) dRCut1=minDRCut;
 /*          recoVertices->push_back(*sv);
-        
 
        for(std::vector<reco::Vertex>::iterator sv = recoVertices->begin();
 	    sv != recoVertices->end(); ++sv) {
@@ -81,8 +96,7 @@ for(std::vector<reco::Vertex>::const_iterator sv = secondaryVertices.begin();
           //  track != tracks->end(); ++track) {
 
             //    TrackRef ref(tracks, track - tracks->begin());
-	        if (!trackFilterArbitrator(ref))                         continue;
-
+	        if(!trackFilterArbitrator(ref))                         continue;
                 TransientTrack tt = trackBuilder->build(ref);
                 tt.setBeamSpot(*beamSpot);
 	        float w = sv->trackWeight(ref);
@@ -90,12 +104,12 @@ for(std::vector<reco::Vertex>::const_iterator sv = secondaryVertices.begin();
                 std::pair<bool,Measurement1D> itpv = IPTools::absoluteTransverseImpactParameter(tt,pv);
                 std::pair<bool,Measurement1D> isv = IPTools::absoluteImpactParameter3D(tt,*sv);
 		float dR = Geom::deltaR(flightDir,tt.track()); //.eta(), flightDir.phi(), tt.track().eta(), tt.track().phi());
-
+		float scalePVsig=1.;	 //0.5
                 if( w > 0 || ( isv.second.significance() < sigCut && isv.second.value() < distCut && isv.second.value() < dlen.value()*dLenFraction ) )
                 {
 
-                  if(( isv.second.value() < ipv.second.value()  ) && isv.second.value() < distCut && isv.second.value() < dlen.value()*dLenFraction 
-                  && dR < dRCut  ) 
+                  if(( isv.second.value() < ipv.second.value()*scalePVsig  ) && isv.second.value() < distCut && isv.second.value() < dlen.value()*dLenFraction 
+                  && dR < dRCut1  ) 
                   {
 #ifdef VTXDEBUG
                      if(w > 0.5) std::cout << " = ";
@@ -105,17 +119,17 @@ for(std::vector<reco::Vertex>::const_iterator sv = secondaryVertices.begin();
                   } else
                   {
 #ifdef VTXDEBUG
-                     if(w > 0.5 && isv.second.value() > ipv.second.value() ) std::cout << " - ";
+                     if(w > 0.5 && isv.second.value() > ipv.second.value()*scalePVsig ) std::cout << " - ";
                   else std::cout << "   ";
 #endif
                      //add also the tracks used in previous fitting that are still closer to Sv than Pv 
-                     if(w > 0.5 && isv.second.value() <= ipv.second.value() && dR < dRCut) {  
+                     if(w > 0.5 && isv.second.value() <= ipv.second.value()*scalePVsig && dR < dRCut1) {  
                        selTracks.push_back(tt);
 #ifdef VTXDEBUG
                        std::cout << " = ";
 #endif
                      }
-                     if(w > 0.5 && isv.second.value() <= ipv.second.value() && dR >= dRCut) {
+                     if(w > 0.5 && isv.second.value() <= ipv.second.value()*scalePVsig && dR >= dRCut1) {
 #ifdef VTXDEBUG
                        std::cout << " - ";
 #endif
@@ -138,7 +152,7 @@ for(std::vector<reco::Vertex>::const_iterator sv = secondaryVertices.begin();
 #ifdef VTXDEBUG
 
                   std::cout << " . t : " << itrack << " ref " << ref.key()<<  " w: " << w 
-                  << " svip: " << isv.second.significance() << " " << isv.second.value()  
+                  << " svip: " << isv.second.significance() << " " << isv.second.value() << " res " << tt.track().residualX(0)   << "," << tt.track().residualY(0) 
                   << " pvip: " << ipv.second.significance() << " " << ipv.second.value()  << " dr: "   << dR << std::endl;
 #endif
 

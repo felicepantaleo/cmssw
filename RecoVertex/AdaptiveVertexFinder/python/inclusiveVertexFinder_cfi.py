@@ -16,6 +16,10 @@ inclusiveVertexFinder  = cms.EDProducer("InclusiveVertexFinder",
            clusterMaxSignificance = cms.double(4.5), #4.5 sigma
            clusterScale = cms.double(1), 
            clusterMinAngleCosine = cms.double(0.5), # only forward decays
+	   angleScalingWithGamma = cms.bool(False),
+	   maxCosineCut = cms.double(0.5),
+	   maxPixelResidual = cms.double(-1), #-1 = no check, run on AOD too
+	   minPtForMissingPXB1 = cms.double(0)
        ),
 
        vertexMinAngleCosine = cms.double(0.95), # scalar prod direction of tracks and flight dir

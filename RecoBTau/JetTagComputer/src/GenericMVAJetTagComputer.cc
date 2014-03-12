@@ -73,6 +73,8 @@ float GenericMVAJetTagComputer::discriminator(const TagInfoHelper &info) const
 
 	if (!computer)
 		return -10.0;
+//AR: new line to avoid NOVERTEX/PSEUDOVERTEX with values above 0.9
+//        if(index > 0) return computer->eval(variables)*0.9;
 
 	return computer->eval(variables);
 }
