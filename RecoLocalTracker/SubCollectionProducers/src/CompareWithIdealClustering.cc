@@ -44,8 +44,9 @@ class CompareWithIdealClustering : public edm::EDProducer
 
 	private:
 		std::string pixelCPE_; 
-		edm::InputTag pixelClusters_;
 		edm::InputTag vertices_;
+		edm::InputTag pixelClusters_;
+
 
 };
 
@@ -116,12 +117,12 @@ void CompareWithIdealClustering::produce(edm::Event& iEvent, const edm::EventSet
 		int countMatching02=0;
 		int countNoMatching=0;
 
-		int countMatchingIdeal002=0;
-		int countMatchingIdeal005=0;
-		int countMatchingIdeal01=0;
-		int countMatchingIdeal015=0;
-		int countMatchingIdeal02=0;
-		int countNoMatchingIdeal=0;
+//		int countMatchingIdeal002=0;
+//		int countMatchingIdeal005=0;
+//		int countMatchingIdeal01=0;
+//		int countMatchingIdeal015=0;
+//		int countMatchingIdeal02=0;
+//		int countNoMatchingIdeal=0;
 	
 		int countClusterIdeal=0;
 		int countClusterSplitted=0;
@@ -146,8 +147,9 @@ void CompareWithIdealClustering::produce(edm::Event& iEvent, const edm::EventSet
 			for(std::vector<reco::CaloJet>::const_iterator jit = jets->begin() ; jit != jets->end() && !found ; jit++)
 			{
 				if(jit->pt() > 100)
-				{				
-					float jetZOverRho = jit->momentum().Z()/jit->momentum().Rho();
+				{
+				// FP				
+				//	float jetZOverRho = jit->momentum().Z()/jit->momentum().Rho();
 					jetDir = GlobalVector(jit->momentum().x(),jit->momentum().y(),jit->momentum().z());
 					if(Geom::deltaR(jetDir,clusterDir) < 0.05   ) 
 					{
@@ -170,7 +172,8 @@ void CompareWithIdealClustering::produce(edm::Event& iEvent, const edm::EventSet
 					//cluster = ideal, clusterIt = splitted
 					
 					GlobalVector clusterDir = posCluster -ppv;			
-					bool found=false;
+				// FP
+				   found=false;
 					if(Geom::deltaR(jetDir,clusterDir) < 0.05  && aCluster.sizeX() < 4 ) 
 					distance.insert(pair<float,std::pair<int,int> >(distanceValue,myPair));
 				}

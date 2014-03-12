@@ -91,11 +91,12 @@ class BTracksProducer : public edm::EDProducer
 		TrackClassifier trackclassifier_;	
 
 		//Int_t numberVertexClassifier_;
+		edm::InputTag simG4_;
 		edm::InputTag trackingTruth_;
 		// edm::InputTag svTagInfoProducer_;
 		edm::InputTag tracks_;
 		std::string dqmLabel;
-		edm::InputTag simG4_;
+	
 	        bool allSim_;
 
 };
@@ -132,13 +133,13 @@ void BTracksProducer::produce(edm::Event& event, const edm::EventSetup& setup)
 {
    Handle<HepMCProduct> MCEvt;
    event.getByLabel("generator", MCEvt);
-   const HepMC::GenEvent* evt = MCEvt->GetEvent();
+ //  const HepMC::GenEvent* evt = MCEvt->GetEvent();
 
 
   //RECO TO SIM 
   trackclassifier_.newEvent(event, setup);  
 
-  TrackHistory const & flavortracer = trackclassifier_.history();
+ // TrackHistory const & flavortracer = trackclassifier_.history();
   edm::Handle<reco::GenParticleCollection> genParticles;
   event.getByLabel("genParticles", genParticles);
  
@@ -203,7 +204,7 @@ void BTracksProducer::produce(edm::Event& event, const edm::EventSetup& setup)
    Handle<edm::SimVertexContainer> simVtcs;
    event.getByLabel( simG4_, simVtcs);
   //jet association
-   int indexs =0;
+  // int indexs =0;
    for (std::size_t index = 0; index < TPCollection->size(); ++index){
      TrackingParticleRef trackingParticle(TPCollection, index);
      trackclassifier_.evaluate(trackingParticle);
@@ -215,7 +216,7 @@ void BTracksProducer::produce(edm::Event& event, const edm::EventSetup& setup)
 	//trk_type_a[indexs] = g4T->type();
 	     }
 	 */
-          const TrackingVertexRef&  pv =  (*trackingParticle).parentVertex() ;
+        //  const TrackingVertexRef&  pv =  (*trackingParticle).parentVertex() ;
 
 
             TrackingVertexRefVector::iterator  iTV  = (*trackingParticle).decayVertices_begin();

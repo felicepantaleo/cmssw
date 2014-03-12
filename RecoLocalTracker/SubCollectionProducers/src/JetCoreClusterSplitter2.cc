@@ -435,8 +435,8 @@ std::vector<SiPixelCluster> JetCoreClusterSplitter2::fittingSplit(const SiPixelC
 //return std::vector<SiPixelCluster>(); 
 	std::vector<SiPixelCluster::Pixel> pixels = aCluster.pixels();
 	sort(pixels.begin(),pixels.end(),SortPixels);
-
-	int deltax=xmax-xmin+1;
+   // FP
+	//int deltax=xmax-xmin+1;
 	int deltay=ymax-ymin-sizeY+1;
 	if (deltay < 1) deltay=1;
 	float perPixel=expectedADC;/// become per unit weight 1./(0.5+sizeY)/4.;
@@ -509,7 +509,8 @@ std::vector<SiPixelCluster> JetCoreClusterSplitter2::fittingSplit(const SiPixelC
 		//	for(unsigned long combination=0;combination<maxComb;combination++)	
 	{
 		float chi2=0;
-		int clbase=1;
+		// FP
+		//int clbase=1;
 		SiPixelArrayBuffer               theBuffer;
 		theBuffer.setSize(500,500);
 

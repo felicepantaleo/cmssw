@@ -314,7 +314,7 @@ std::vector<SiPixelCluster> JetCoreClusterSplitter::fittingSplit(const SiPixelCl
 //return std::vector<SiPixelCluster>(); 
 	std::vector<SiPixelCluster::Pixel> pixels = aCluster.pixels();
 
-	int deltax=xmax-xmin+1;
+	//int deltax=xmax-xmin+1;
 	int deltay=ymax-ymin-sizeY+1;
 	if (deltay < 1) deltay=1;
 	float perPixel=0.25*expectedADC/(0.5+sizeY);

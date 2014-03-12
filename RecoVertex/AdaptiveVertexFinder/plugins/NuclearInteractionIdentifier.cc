@@ -96,7 +96,7 @@ void NuclearInteractionIdentifier::produce(edm::Event &event, const edm::EventSe
                const reco::Vertex & extVertex = sv;
                GlobalVector vtxDir = GlobalVector(extVertex.p4().X(),extVertex.p4().Y(),extVertex.p4().Z());
 	       float deltaR = Geom::deltaR(extVertex.position() - pv.position(), vtxDir);
-	       float phi= extVertex.position().phi(); 
+	     //  float phi= extVertex.position().phi(); 
 //               std::cout << "Vtx id: " << ivtx <<" pos: " << extVertex.position() << " fdist: " << flightDistance2D << " nctau: " << nctau << " ntr: " << ntracks << " mass: " << mass << " nctauK: " << nctauK << " DR: " << deltaR << " charge prod: "<< (*sv.tracks_begin())->charge()*((*(sv.tracks_begin()+1))->charge()) << std::endl;
               if( (fabs(z) < 29 &&  flightDistance2D0 > 2.5 && nctau > 3 )                      
                    or (fabs(z) < 29 &&  flightDistance2D0 > 2.0 && nctau > 5 && ntracks > 2 )
