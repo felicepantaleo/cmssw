@@ -106,6 +106,7 @@ void JetCoreClusterSplitter2::produce(edm::Event& iEvent,
     iSetup.get<TrackerDigiGeometryRecord>().get(tracker);
     const TrackerGeometry * trackerGeometry = tracker.product();*/
 
+
   Handle<edmNew::DetSetVector<SiPixelCluster> > inputPixelClusters;
   iEvent.getByLabel(pixelClusters_, inputPixelClusters);
   Handle<edmNew::DetSetVector<SiPixelCluster> > inputPixelClustersIDEAL;
@@ -124,27 +125,40 @@ void JetCoreClusterSplitter2::produce(edm::Event& iEvent,
   std::auto_ptr<edmNew::DetSetVector<SiPixelCluster> > output(
       new edmNew::DetSetVector<SiPixelCluster>());
 
+  // ogni modulo del detector ha il suo array di clusters.
+
   edmNew::DetSetVector<SiPixelCluster>::const_iterator detIt =
       inputPixelClusters->begin();
+  //Si loopa sui moduli
+  //inputPixelClusters contiene i puntatori agli array dei moduli
   for (; detIt != inputPixelClusters->end(); detIt++) {
+	 //detIt->id() e' l'id del detector
     edmNew::DetSetVector<SiPixelCluster>::FastFiller filler(*output,
                                                             detIt->id());
     const edmNew::DetSet<SiPixelCluster>& detset = *detIt;
+    // geometria del detector vuole il codice del detector
     const GeomDet* det = geometry->idToDet(detset.id());
+    // si loopa sui clusters
     for (edmNew::DetSet<SiPixelCluster>::const_iterator cluster =
              detset.begin();
          cluster != detset.end(); cluster++) {
       const SiPixelCluster& aCluster = *cluster;
       bool hasBeenSplit = false;
+      // bisogna passare dalla geometria locale a quella globale
       GlobalPoint cPos = det->surface().toGlobal(
+
           pp->localParametersV(aCluster,
                                (*geometry->idToDetUnit(detIt->id())))[0].first);
+      // ppv e' il vertice primario
       GlobalPoint ppv(pv.position().x(), pv.position().y(), pv.position().z());
+      // vettore direzione del cluster
       GlobalVector clusterDir = cPos - ppv;
       for (std::vector<reco::CaloJet>::const_iterator jit = jets->begin();
            jit != jets->end(); jit++) {
+    	  // only high pt jets are considered
         if (jit->pt() > 100) {
           float jetZOverRho = jit->momentum().Z() / jit->momentum().Rho();
+          // in the endcap it is rho/z
           if (fabs(cPos.z()) > 30)
             jetZOverRho = jit->momentum().Rho() / jit->momentum().Z();
           GlobalVector jetDir(jit->momentum().x(), jit->momentum().y(),
@@ -156,8 +170,10 @@ void JetCoreClusterSplitter2::produce(edm::Event& iEvent,
 
           //					unsigned int
           //maxSizeY=fabs(jetZOverRho*1.75)+0.5;
-
+          // expected size y
           if (maxSizeY < 1) maxSizeY = 1;
+          // Only the core of the Jet is considered
+          // only anomalous clusters are considered (high charge, or size y higher than expected
           if (Geom::deltaR(jetDir, clusterDir) < 0.05 &&
               aCluster.charge() > 30000 &&
               (aCluster.sizeX() > 2 ||
@@ -168,10 +184,15 @@ void JetCoreClusterSplitter2::produce(edm::Event& iEvent,
                       << aCluster.sizeX() << " " << aCluster.sizeY()
                       << " detid " << detIt->id() << std::endl;
             std::cout << "jetZOverRho=" << jetZOverRho << std::endl;
+
+            // MC Truth
+            //inputpixelclusterideal e' un array di cluster e find ci ritorna
+            // l'array di cluster che sono sul modulo
             SiPixelClusterCollectionNew::const_iterator myDet =
                 inputPixelClustersIDEAL->find(detIt->id());
             clock_t init = clock(), final;
             const edmNew::DetSet<SiPixelCluster>& idealClusters = (*myDet);
+            // jetZOverRho serve perche' se va obliquo lascia piu' carica
             if (split(aCluster, filler,
                       sqrt(1.08 + jetZOverRho * jetZOverRho) * 26000, maxSizeY,
                       jetZOverRho, idealClusters)) {
@@ -436,6 +457,12 @@ fact=1;
                                 if(x==clx && y==cly-1 ) fact=1;
 return fact/(11.*sizeY+2);
 }*/
+
+//clx posizione in interi del centro del cluster
+// x y posizione del pixel in ingresso
+// sizeY attesa del cluster
+// direction numero da 0 a 4 /2 da sopra o sotto
+// bintheta e' la JetZOverRho espressa in bin
 float JetCoreClusterSplitter2::pixelWeight(int clx, int cly, int x, int y,
                                            int sizeY, int direction,
                                            int bintheta) {
@@ -471,13 +498,20 @@ float JetCoreClusterSplitter2::pixelWeight(int clx, int cly, int x, int y,
   // if(y-cly<0) return 0;
   // if(x-clx>=10) return 0;
   // if(y-cly>20) return 0;
+
+  // clx e' la posizione x del cluster, e binx ti dice la regione da 1 a 5
   unsigned int binX = clx * 5. / 160;
   // int mapcharge[21][5][3][20][20];
   sizeY = sizeY + (direction - 1);
+
+  // fact e' la percentuale di carica attesa in quel pixel dato un cluster
+  // mapcharge e' la carica media rilasciata da un cluster in quel pixel
+  // count e' il numero totale di cluster su quel pixel
   float fact = 1. * mapcharge[bintheta][binX][direction][x - clx + 10 + caseX]
                              [y - cly + (sizeY - 1) / 2] /
                totalcharge[bintheta][binX][direction] *
                count[bintheta][binX][direction];
+
   // float
   // fact=1.*mapcharge[bintheta][binX][direction][x-clx+10][y-cly]/totalcharge[bintheta][binX][direction]*count[bintheta][binX][direction];
   // std::cout << "bin " << bintheta <<  ", " << binX  <<  ", " << x-clx+10  <<
@@ -491,11 +525,14 @@ std::vector<SiPixelCluster> JetCoreClusterSplitter2::fittingSplit(
     const SiPixelCluster& aCluster, float expectedADC, int sizeY,
     float jetZOverRho) {
   const float diecimila = 10000;
-
+// numero di cluster attesi
   unsigned int expectedClusters = floor(aCluster.charge() / expectedADC + 0.5);
+// output e' una collezione di clusters
   std::vector<SiPixelCluster> output;
+// non dovrebbe mai capitare, se capita c'e' un problema
   if (expectedClusters == 0) {
     std::cout << "ZERO????" << std::endl;
+
   }
   if (expectedClusters <= 1) {
     output.push_back(aCluster);
@@ -511,6 +548,8 @@ std::vector<SiPixelCluster> JetCoreClusterSplitter2::fittingSplit(
 
   if (expectedClusters > 5) expectedClusters = 5;
   // return std::vector<SiPixelCluster>();
+
+  //contiene i pixels che si sono accesi
   std::vector<SiPixelCluster::Pixel> pixels = aCluster.pixels();
   sort(pixels.begin(), pixels.end(), SortPixels);
   // FP
@@ -518,10 +557,12 @@ std::vector<SiPixelCluster> JetCoreClusterSplitter2::fittingSplit(
   int deltay = ymax - ymin - sizeY + 1;
   if (deltay < 1) deltay = 1;
   float perPixel = expectedADC;  /// become per unit weight 1./(0.5+sizeY)/4.;
+  // nDirections sono 4: sotto o sopra, e i due interi intorno a sizeY attesa (che e' un float)
   int npos = pixels.size() * nDirections;
   //	unsigned long maxComb=pow(expectedClusters, npos);
 
   unsigned long maxComb = pow(npos, expectedClusters);
+  // si divide per i! per considerare solo le combinazioni
   for (unsigned int i = 1; i <= expectedClusters; i++) maxComb /= i;
   float chimin = 1e99;
   std::cout << "Sizey and perPixel " << sizeY << " " << perPixel << std::endl;
@@ -544,30 +585,7 @@ std::vector<SiPixelCluster> JetCoreClusterSplitter2::fittingSplit(
               << " elapsed time=" << 0.000437043 * maxComb << endl;
   }
 
-  if (maxComb > limitComb) {
-    std::cout << "toomany" << std::endl;
-    int xmin = aCluster.minPixelRow();
-    int ymin = aCluster.minPixelCol();
-    int xmax = aCluster.maxPixelRow();
-    int ymax = aCluster.maxPixelCol();
-    std::cout << "Order of hits in the TOOMANY:" << std::endl;
-    for (int x = xmin; x <= xmax; x++) {
-      for (int y = ymin; y <= ymax; y++) {
-        int flag = 0;
-        std::vector<SiPixelCluster::Pixel> pixels = aCluster.pixels();
-        for (unsigned int j = 0; j < pixels.size(); j++) {
-          if (pixels[j].x == x && pixels[j].y == y) flag = j;
-        }
-
-        std::cout << " " << std::setiosflags(std::ios::fixed)
-                  << std::setprecision(0) << std::setw(7) << std::left << flag;
-      }
-      std::cout << std::endl;
-    }
-
-    return std::vector<SiPixelCluster>();
-  }
-
+// rettangolo carica
   SiPixelArrayBuffer theOriginalBuffer;
   theOriginalBuffer.setSize(500, 500);
   for (unsigned int i = 0; i < pixels.size(); i++) {
@@ -601,6 +619,7 @@ std::vector<SiPixelCluster> JetCoreClusterSplitter2::fittingSplit(
     // int remainingFreePositions = npos;
     float prob = 0;
     for (unsigned int cl = 0; cl < expectedClusters; cl++) {
+    	// posizione del cluster
       int pi = comb[cl];  //((combination / clbase)%remainingFreePositions);
       int clx = pixels[pi / nDirections].x;
       int cly = pixels[pi / nDirections].y;
@@ -621,6 +640,9 @@ std::vector<SiPixelCluster> JetCoreClusterSplitter2::fittingSplit(
           //fact*perPixel <<std::endl;
         }
       }
+      // Dato che testiamo due possibili posizioni in y del cluster (quello atteso e
+      // quello atteso + 1, dobbiamo favorire quello atteso
+      // si guarda quante volte ha colpito size Y+1
       prob += count[binjetZOverRho][int((clx) * 5. / 160)][direction % 2 + 1];
     }
     // print(theBuffer,aCluster);
@@ -710,8 +732,7 @@ std::vector<SiPixelCluster> JetCoreClusterSplitter2::fittingSplit(
 
   // End: get and print the residual
 
-  SiPixelArrayBuffer theWeights;
-  theWeights.setSize(500, 500);
+
 
   std::cout << "best combination chi: " << chimin << " co ";
   for (unsigned int ii = 0; ii < bestcomb.size(); ii++) {
@@ -733,6 +754,11 @@ std::vector<SiPixelCluster> JetCoreClusterSplitter2::fittingSplit(
     theBufferResidual.set_adc(x, y, adc);
   }
   print(theBuffer, aCluster);
+
+  // troviamo quanto un pixel appartenga ad uno o all'altro cluster
+  // si calcola la carica attesa di un pixel associata ad ogni cluster
+  SiPixelArrayBuffer theWeights;
+  theWeights.setSize(500, 500);
   // fill weights
   int remainingFreePositions = npos;
   for (unsigned int cl = 0; cl < expectedClusters; cl++) {
@@ -763,6 +789,7 @@ std::vector<SiPixelCluster> JetCoreClusterSplitter2::fittingSplit(
     }
   }
 
+  //stampiamo i pesi
   for (unsigned int cl = 0; cl < expectedClusters; cl++) {
     std::cout << "Cluster " << cl << " weight map" << std::endl;
     int pi = bestcomb[cl];  //((combination / clbase)%remainingFreePositions);
@@ -792,7 +819,7 @@ std::vector<SiPixelCluster> JetCoreClusterSplitter2::fittingSplit(
     }
     std::setprecision(0);
   }
-  // really fill clusters
+  // really fill clusters with pixels
   clbase = 1;
   remainingFreePositions = npos;
   for (unsigned int cl = 0; cl < expectedClusters; cl++) {
