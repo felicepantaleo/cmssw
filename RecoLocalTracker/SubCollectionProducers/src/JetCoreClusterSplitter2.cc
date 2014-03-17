@@ -43,11 +43,7 @@ const int BinsY = 20;
 const int BinsJetOverRho = 21;
 const float jetZOverRhoWidth = 0.5;
 
-// const int BinsJetOverRho=100;
-// const float jetZOverRhoWidth=0.2;
 
-// const int BinsJetOverRho=200;
-// const float jetZOverRhoWidth=0.1;
 
 extern "C" { void cudaClusterSplitter_(void); }
 
@@ -71,7 +67,7 @@ class JetCoreClusterSplitter2 : public edm::EDProducer {
                                            float expectedADC, int sizeY,
                                            float jetZOverRho);
   bool nextCombination(std::vector<int>& comb, int npos);
-  float combinations(float npos, float expectedClusters);
+  unsigned int combinations(unsigned int npos, unsigned int expectedClusters);
   float pixelWeight(int clx, int cly, int x, int y, int sizeY, int direction,
                     int bintheta);
   float pixelWeight2(int clx, int cly, int x, int y, int sizeY, int direction);
@@ -302,16 +298,12 @@ void JetCoreClusterSplitter2::produce(edm::Event& iEvent,
                 const edm::EventSetup& iSetup) unsigned int charge = 0;
             SiPixelCluster* cluster = 0;
             for (unsigned int i = 0; i < pixels.size(); i++) {
-              //							if(pixels[i].adc>10000)
-              //							filler.push_back(SiPixelCluster(SiPixelCluster::PixelPos(pixels[i].x,pixels[i].y),pixels[i].adc));
+
               std::cout << (int)pixels[i].x << " " << pixels[i].y << " "
                         << pixels[i].adc << std::endl;
               // split if: too long or too much charge or too wide or gap in Y
               if (isize > maxSizeY + 1 && charge > 10000)
-              //							if(isize
-              //> 0  && (pixels[i].y-ymin > maxSizeY || charge/maxSizeY > 20000
-              //|| pixels[i].x-xmin > 2 || (isize>0 &&
-              //pixels[i].y-pixels[i-1].y>1 ) ))
+
               {
                 std::cout << "split!  isize:" << isize << " > " << maxSizeY + 1
                           << " and charge : " << charge
@@ -371,8 +363,7 @@ void JetCoreClusterSplitter2::produce(edm::Event& iEvent,
       if (!hasBeenSplit) {
         // blowup the error
         SiPixelCluster c = aCluster;
-        //				c.setSplitClusterErrorX(c.sizeX()*100./3.);
-        //				c.setSplitClusterErrorY(c.sizeY()*150./3.);
+
         filler.push_back(c);
       }
     }
@@ -430,11 +421,7 @@ bool JetCoreClusterSplitter2::split(
 
       std::cout << " ";
       bin(flag, std::cout);
-      // std::setiosflags(std::ios::fixed)
-      //                                << std::setprecision(0)
-      //                              << std::setw(7)
-      //                            << std::left ; bin( flag,std::cout);
-      //                                << std::left << hex << flag;
+
     }
     std::cout << std::endl;
   }
@@ -464,37 +451,6 @@ float JetCoreClusterSplitter2::pixelWeight2(int clx, int cly, int x, int y,
   // return fact/(0.5+sizeY)/4.;
 }
 
-/*float JetCoreClusterSplitter2::pixelWeight(int clx, int cly, int x, int y,int
-sizeY,int direction)
-{
- float fact=0;
-                               if(x==clx &&  (y>=cly && y < y+sizeY) ) fact=8;
-                                if(x==clx+1 && direction  &&
-(y>=cly+(sizeY+1)/2) && y < cly+sizeY ) fact=2;
-                                if(x==clx-1 && ! direction  &&
-(y>=cly+(sizeY+1)/2) && y < cly+sizeY ) fact=2;
-                                if(x==clx+1 && !direction  &&
-(y>=cly+(sizeY+1)/2) && y < cly+sizeY ) fact=1;
-                                if(x==clx-1 && direction  &&
-(y>=cly+(sizeY+1)/2) && y < cly+sizeY ) fact=1;
-//                              if(x==clx &&  (y>= cly+(sizeY+1)/2)  && y <
-cly+sizeY ) fact=1;
-                                if(x==clx+1 && direction  &&  (y>=cly &&
-y<cly+(sizeY+1)/2)  ) fact=2;
-                                if(x==clx-1 && ! direction  &&  (y>=cly &&
-y<cly+(sizeY+1)/2) ) fact=2;
-                                if(x==clx+1 && !direction  &&  (y>=cly &&
-y<cly+(sizeY+1)/2)  ) fact=1;
-                                if(x==clx-1 &&  direction  &&  (y>=cly &&
-y<cly+(sizeY+1)/2) ) fact=1;
-//                                if(x==clx+1 && direction && y==cly+sizeY )
-fact=1;
-                                if(x==clx-1 &&  ! direction && y==cly+sizeY )
-fact=1;
-                                if(x==clx && y==cly-1 ) fact=1;
-return fact/(11.*sizeY+2);
-}*/
-
 // clx posizione in interi del centro del cluster
 // x y posizione del pixel in ingresso
 // sizeY attesa del cluster
@@ -511,8 +467,6 @@ float JetCoreClusterSplitter2::pixelWeight(int clx, int cly, int x, int y,
   if (x - clx + 10 >= BinsX) return 0;
   if (y - cly + (sizeY + 1) / 2 >= BinsY) return 0;
 
-  // if(direction>2) {cout<<"*** BUG direction>2 *****"; return 0;}
-  // if(direction<0) {cout<<"*** BUG direction<0 *****"; return 0;}
 
   if (bintheta < 0) {
     cout << "Forced bintheta=0. It was " << bintheta;
@@ -528,17 +482,7 @@ float JetCoreClusterSplitter2::pixelWeight(int clx, int cly, int x, int y,
 
   direction = direction + 1;
 
-  // if(x-clx<=-10) x=clx-10;
-  // if(y-cly<=0) y=cly;
-  // if(x-clx>10) x=clx+9;
-  // if(y-cly>20) y=cly+19;
-
-  // if(x-clx<-10) return 0;
-  // if(y-cly<0) return 0;
-  // if(x-clx>=10) return 0;
-  // if(y-cly>20) return 0;
   unsigned int binX = clx * BinsXposition / 160;
-  // int mapcharge[BinsJetOverRho][5][3][20][20];
   sizeY = sizeY + (direction - 1);
   // fact e' la percentuale di carica attesa in quel pixel dato un cluster
   // mapcharge e' la carica media rilasciata da un cluster in quel pixel
@@ -547,24 +491,16 @@ float JetCoreClusterSplitter2::pixelWeight(int clx, int cly, int x, int y,
                              [y - cly + (sizeY - 1) / 2] /
                totalcharge[bintheta][binX][direction] *
                count[bintheta][binX][direction];
-  // float
-  // fact=1.*mapcharge[bintheta][binX][direction][x-clx+10][y-cly]/totalcharge[bintheta][binX][direction]*count[bintheta][binX][direction];
-  // std::cout << "bin " << bintheta <<  ", " << binX  <<  ", " << x-clx+10  <<
-  // ", " << y-cly+10 << " map " <<
-  // mapcharge[bintheta][binX][x-clx+10][y-cly+10] << " tot " <<
-  // totalcharge[bintheta][binX] << " fact " << fact << std::endl;
+
   return fact;
 }
-float JetCoreClusterSplitter2::combinations(float npos,
-                                            float expectedClusters) {
+unsigned int JetCoreClusterSplitter2::combinations(unsigned int npos,
+		unsigned int expectedClusters) {
   // combination with repetition ( n+k-1  over k )
-  float up = npos + expectedClusters - 1;
-  float down = expectedClusters;
-  float fdown = 1, prod = 1;
+	unsigned int up = npos + expectedClusters - 1;
+	unsigned int down = expectedClusters;
+	unsigned int fdown = 1, prod = 1;
   for (unsigned int i = npos; i <= up; i++) prod *= i;
-  // float fup=1,fdown=1,fup_down=1;
-  //    for(unsigned int i=1; i <= up; i++)  fup*=i;
-  //  for(unsigned int i=1; i <= up-down; i++)  fup_down*=i;
 
   for (unsigned int i = 1; i <= down; i++) fdown *= i;
   return prod / fdown;
@@ -601,62 +537,40 @@ std::vector<SiPixelCluster> JetCoreClusterSplitter2::fittingSplit(
   float chiN = -1;
   float chimin = 1e99;
   if (meanExp > 7) meanExp = 7;
-  //	if(meanExp > 4) meanExp=4;
-  //	if(meanExp > 5) meanExp=5;
-  //	unsigned int start = meanExp;
-  //	if(start > 2) start-=1;
-  //	start=meanExp;
+
   bool forced = false;
   for (unsigned int expectedClusters = meanExp - 1; expectedClusters <= meanExp;
        expectedClusters++) {
     float chiminlocal = 1e99;
-    // return std::vector<SiPixelCluster>();
     nDirections = 4;
-    //		int deltax=xmax-xmin+1;
     int deltay = ymax - ymin - sizeY + 1;
     if (deltay < 1) deltay = 1;
-    //		float perPixel=expectedADC;/// become per unit weight
-    //1./(0.5+sizeY)/4.;
+
     int npos = pixels.size() * nDirections;
-    //	unsigned long maxComb=pow(expectedClusters, npos);
-    //		float approxComb=pow(npos,expectedClusters);
-    //		for(unsigned int i=1; i <= expectedClusters; i++) approxComb/=i;
+
     float approxComb = combinations(npos, expectedClusters);
     unsigned long maxComb = approxComb;
     unsigned int limitComb = 10000;
     if (approxComb > 1e9) maxComb = limitComb + 1;
 
-    //		std::cout << "Sizey and perPixel " << sizeY << " " << perPixel <<
-    //std::endl;
-    //	if(maxComb > 100000*8) {
 
-    //	unsigned int limitComb=10000*pow(2,expectedClusters);
     std::cout << "combination=" << maxComb << "(" << approxComb
               << ") npos=" << npos << "expectedClusters=" << expectedClusters
               << " elapsed time=" << 0.000437043 * maxComb << endl;
     if (maxComb > limitComb) {
       forced = true;
-      //			nDirections=2;
       nDirections = 4;
       npos = pixels.size() * nDirections;
       maxComb = combinations(npos, expectedClusters);
 
-      //		std::cout << "toomany combination=" << maxComb << "
-      //npos="<<npos << "expectedClusters="<<expectedClusters<<endl;
-      //	float f=1;
-      //	for(unsigned int i=1; i <= expectedClusters; i++)  f*=i;
+
       while (combinations(npos, expectedClusters) > limitComb &&
              npos > int(nDirections)) {
         npos -= nDirections;
       }
-      //			int pixelLimit =
-      //pow(float(limitComb)*f,1.0/expectedClusters)/nDirections;
-      //			int pixelLimit =
-      //log(float(limitComb)*f)/log(expectedClusters)/nDirections;
-      //			npos=pixelLimit*nDirections;
+
       maxComb = combinations(npos, expectedClusters);
 
-      //			maxComb=pow(expectedClusters,npos)/f;
       std::cout << "Forced: combination=" << maxComb << " npos=" << npos
                 << "expectedClusters=" << expectedClusters
                 << " elapsed time=" << 0.000437043 * maxComb << endl;
@@ -696,17 +610,11 @@ std::vector<SiPixelCluster> JetCoreClusterSplitter2::fittingSplit(
     }
 
     std::vector<int> comb(expectedClusters);
-    //		std::vector<int> bestcomb(expectedClusters);
     int cc = 0;
     while (nextCombination(comb, npos))
-    //	for(unsigned long combination=0;combination<maxComb;combination++)
     {
       cc++;
-      /*			if(cc%100 == 0 || cc < 10) {std::cout <<
-         "current comb" << cc << ": " ;
-                              for(unsigned int y=0;y< comb.size();y++) std::cout
-         << " " << comb[y];
-                              std::cout<< std::endl;}*/
+
       float chi2 = 0;
       //		int clbase=1;
       SiPixelArrayBuffer theBuffer;
@@ -725,16 +633,14 @@ std::vector<SiPixelCluster> JetCoreClusterSplitter2::fittingSplit(
       // int remainingFreePositions = npos;
       float prob = 0;
       for (unsigned int cl = 0; cl < expectedClusters; cl++) {
-        int pi = comb[cl];  //((combination / clbase)%remainingFreePositions);
+        int pi = comb[cl];
         // nDirections sono 4: sotto o sopra, e i due interi intorno a sizeY
         // attesa (che e' un float)
 
         int clx = pixels[pi / nDirections].x;
         int cly = pixels[pi / nDirections].y;
         int direction = pi % nDirections;
-        // std::cout << "Cluster  "<< cl << " pi " << pi/2 << " dir " <<
-        // direction  << " x,y " << clx -xmin <<", " << cly-ymin<< " clbase " <<
-        // clbase << std::endl;
+
         for (int x = xmin - 5; x <= xmax + 5; x++) {
           for (int y = ymin - (sizeY + 1) / 2; y <= ymax + (sizeY + 1) / 2;
                y++) {
@@ -744,9 +650,7 @@ std::vector<SiPixelCluster> JetCoreClusterSplitter2::fittingSplit(
             if (fact > 0) {
               theBuffer.set_adc(x, y, theBuffer(x, y) - fact * expectedADC);
             }
-            //		std::cout << "residual in "<< x-xmin <<","<< y-ymin<< " " <<
-            //theBuffer(x,y)-fact*perPixel << "  fact " << fact << " exp:"<<
-            //fact*perPixel <<std::endl;
+
           }
         }
         // Dato che testiamo due possibili posizioni in y del cluster (quello
@@ -758,8 +662,7 @@ std::vector<SiPixelCluster> JetCoreClusterSplitter2::fittingSplit(
       // print(theBuffer,aCluster);
       for (int x = xmin - 5; x <= xmax + 5; x++) {
         for (int y = ymin - (sizeY + 1) / 2; y <= ymax + (sizeY + 1) / 2; y++) {
-          //				std::cout << theBuffer(x,y)/1000 << " "
-          //;
+
           float res = theBuffer(x, y);
           float charge = theOriginalBuffer(x, y) -
                          theBuffer(x, y);  // charge assigned to this pixel
@@ -785,27 +688,16 @@ std::vector<SiPixelCluster> JetCoreClusterSplitter2::fittingSplit(
 
           if (chargeMeasured <= 2000) chargeMeasured = 2000;
           if (fabs(charge) < 2000) charge = 2000;
-          //					chi2+=std::abs(res)/charge;
-          //					if(res > 30000 && charge > 10000)
-          //res=30000;
-          //					chi2+=(res*res)/charge;
+
           chi2 += (res * res) / (charge * charge);
-          //					chi2+=(res*res)/(2000*2000);
-          //					chi2+=(res*res)/(chargeMeasured*chargeMeasured);
-          // std::cout << "chi2 " << chi2 << " xy" << x<< " " << y << "
-          // res,res2,charge" << res << " ," <<res*res<< ", " <<charge  <<
-          // std::endl;
+
         }
-        //		    std::cout << std::endl;
       }
       prob /= expectedClusters;
       chi2 /= prob;
-      //		std::cout<<"Combination " << combination << std::endl;
-      //		print(theBuffer,aCluster);
-      //		std::cout << "chi2 " << chi2 << std::endl;
+
       if (chi2 < chiminlocal) {
         chiminlocal = chi2;
-        //			bestcomb=comb;
       }
       if (chi2 < chimin) {
         chiN = chi2 * prob / aCluster.size();
@@ -817,10 +709,7 @@ std::vector<SiPixelCluster> JetCoreClusterSplitter2::fittingSplit(
     std::cout << " chiN " << chiN << " sizeY  " << sizeY << " exADC "
               << expectedADC << std::endl;
     std::cout << " chi " << std::setprecision(7) << chiminlocal << std::endl;
-  }  // endo of several expected for
-     //	if(chiN>30)  {               output.push_back(aCluster);
-     //		return output;
-     //	}
+  }
   if (forced)
     finalizeSplitting(bestcomb, bestExpCluster, pixels, aCluster, expectedADC,
                       sizeY, jetZOverRho);
@@ -831,7 +720,6 @@ std::vector<SiPixelCluster> JetCoreClusterSplitter2::fittingSplit(
   std::cout << " Difference clusters: " << int(bestExpCluster) - int(meanExp)
             << std::endl;
   unsigned int expectedClusters = bestExpCluster;
-  //	expectedClusters = floor(aCluster.charge() / expectedADC +0.5) ; //TEST
   // get and print the residual
   for (unsigned int i = 0; i < pixels.size(); i++) {
     int x = pixels[i].x;
@@ -841,7 +729,7 @@ std::vector<SiPixelCluster> JetCoreClusterSplitter2::fittingSplit(
   }
 
   for (unsigned int cl = 0; cl < expectedClusters; cl++) {
-    int pi = bestcomb[cl];  //((combination / clbase)%remainingFreePositions);
+    int pi = bestcomb[cl];
     int clx = pixels[pi / nDirections].x;
     int cly = pixels[pi / nDirections].y;
     int direction = pi % nDirections;
@@ -859,7 +747,7 @@ std::vector<SiPixelCluster> JetCoreClusterSplitter2::fittingSplit(
 
   cout << endl << "clx-xmin,cly-ymin = ";
   for (unsigned int cl = 0; cl < expectedClusters; cl++) {
-    int pi = bestcomb[cl];  //((combination / clbase)%remainingFreePositions);
+    int pi = bestcomb[cl];
     int clx = pixels[pi / nDirections].x - xmin;
     int cly = pixels[pi / nDirections].y - ymin;
     cout << clx << "," << cly << ";";
@@ -880,7 +768,7 @@ std::vector<SiPixelCluster> JetCoreClusterSplitter2::fittingSplit(
   }
   std::cout << std::endl;
 
-  //	int clbase=1;
+
   SiPixelArrayBuffer theBuffer;
   theBuffer.setSize(500, 500);
   SiPixelArrayBuffer theBufferResidual;
@@ -894,31 +782,24 @@ std::vector<SiPixelCluster> JetCoreClusterSplitter2::fittingSplit(
     theBufferResidual.set_adc(x, y, adc);
   }
   print(theBuffer, aCluster);
-  // fill weights
-  //	int remainingFreePositions = npos;
+
   for (unsigned int cl = 0; cl < expectedClusters; cl++) {
     int pi = bestcomb[cl];
     int clx = pixels[pi / nDirections].x;
     int cly = pixels[pi / nDirections].y;
     int direction = pi % nDirections;
-    //		remainingFreePositions=pi+1; // cl_i+1 <= cl_i
-    //		clbase*=remainingFreePositions;
+
     for (int x = xmin - 5; x <= xmax + 5; x++) {
       for (int y = ymin - (sizeY + 1) / 2; y <= ymax + (sizeY + 1) / 2 + 1;
            y++) {
         if (x < 0 || y < 0) continue;
         float fact =
             pixelWeight(clx, cly, x, y, sizeY, direction, binjetZOverRho);
-        //				std::cout << "Fact " << fact <<   " x,y " << x
-        //-xmin <<", " <<y-ymin<<std::endl;
+
         if (fact > 0.05) {
-          //			std::cout << "theWeights " << theWeights(x,y) << " fact:
-          //" << fact<< " x y " << x << " " << y<<   std::endl;
+
           theWeights.set_adc(x, y, theWeights(x, y) + fact * diecimila);
-          //			std::cout << "theWeightsAfter " << theWeights(x,y) << "
-          //fact: " << fact<< " x y " << x << " " << y<<   std::endl;
-          // std::cout << "residual in "<< x-xmin <<","<< y-ymin<< " " << res <<
-          // "  fact " << fact << " exp:"<< fact*perPixel <<std::endl;
+
         }
       }
     }
@@ -1017,6 +898,9 @@ bool JetCoreClusterSplitter2::nextCombination(std::vector<int>& comb,
       return false;
     }
   }
+//  for( std::vector<char>::const_iterator i = comb.begin(); i != comb.end(); ++i)
+//      std::cout << *i << ' ';
+//  std::cout<< " "<< std::endl;
   return true;
 }
 void JetCoreClusterSplitter2::print(const SiPixelArrayBuffer& b,
@@ -1146,12 +1030,7 @@ void JetCoreClusterSplitter2::finalizeSplitting(
       for (int dX = -1; dX <= 1; dX++) {
         for (int dY = -1; dY <= 1; dY++) {
           if ((posX + dX) < 0 || (posY + dY) < 0) continue;
-          //		bool found=false;
-          //		unsigned int pix = 0;
-          //		for(; pix < pixels.size() && !found; pix++)
-          //if(posX+dX==pixels[pix].x && posY+dY==pixels[pix].y)
-          //found=true;
-          //		if(!found) continue;
+
           if (dX == 0 && dY == 0 && !first) continue;
           float chi2 = 0;
           for (int x = xmin - 5; x <= xmax + 5; x++) {
@@ -1232,8 +1111,7 @@ void JetCoreClusterSplitter2::finalizeSplitting(
       }
     }
     pix--;
-    //	if(!found) cout<<"*****BUG PIXEL NOT FOUND**** in(x,y)="<< clx << " " <<
-    //cly <<endl;
+
     if (!found) {
       SiPixelCluster::Pixel newpixel = SiPixelCluster::Pixel();
       newpixel.x = clx;
@@ -1250,14 +1128,8 @@ void JetCoreClusterSplitter2::finalizeSplitting(
 
 void JetCoreClusterSplitter2::cudawClusterSplitter() { cudaClusterSplitter_(); }
 
-//#include
-//"RecoLocalTracker/SubCollectionProducers/interface/charge100BinSizeY.h"
-//#include
-//"RecoLocalTracker/SubCollectionProducers/interface/charge200BinSizeY.h"
+
 #include "RecoLocalTracker/SubCollectionProducers/interface/chargeNewSizeY.h"
-//#include "RecoLocalTracker/SubCollectionProducers/interface/chargeOK.h"
-//#include
-//"RecoLocalTracker/SubCollectionProducers/interface/chargeNoECXmin0p5NewSizeYWithXmed.h"
 
 #include "FWCore/PluginManager/interface/ModuleDef.h"
 #include "FWCore/Framework/interface/MakerMacros.h"
