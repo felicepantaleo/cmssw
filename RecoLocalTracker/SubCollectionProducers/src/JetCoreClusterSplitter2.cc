@@ -117,12 +117,11 @@ bool SortPixels(const SiPixelCluster::Pixel& i,
 
 void JetCoreClusterSplitter2::produce(edm::Event& iEvent,
                                       const edm::EventSetup& iSetup) {
+
+
   using namespace edm;
   edm::ESHandle<GlobalTrackingGeometry> geometry;
   iSetup.get<GlobalTrackingGeometryRecord>().get(geometry);
-  /*edm::ESHandle<TrackerGeometry> tracker;
-    iSetup.get<TrackerDigiGeometryRecord>().get(tracker);
-    const TrackerGeometry * trackerGeometry = tracker.product();*/
 
   Handle<edmNew::DetSetVector<SiPixelCluster> > inputPixelClusters;
   iEvent.getByLabel(pixelClusters_, inputPixelClusters);
@@ -203,9 +202,9 @@ void JetCoreClusterSplitter2::produce(edm::Event& iEvent,
               aCluster.charge() > 30000 &&
               (aCluster.sizeX() > 2 ||
                ((unsigned int)aCluster.sizeY()) > maxSizeY + 1)) {
-            std::cout << "CHECK FOR NEW SPLITTING: charge and deltaR "
+            std::cout << "\n\nCHECK FOR NEW SPLITTING: charge and deltaR "
                       << aCluster.charge() << " "
-                      << Geom::deltaR(jetDir, clusterDir) << " size x y"
+                      << Geom::deltaR(jetDir, clusterDir) << " size x y "
                       << aCluster.sizeX() << " " << aCluster.sizeY()
                       << " detid " << detIt->id() << std::endl;
             std::cout << "jetZOverRho=" << jetZOverRho << std::endl;
@@ -214,7 +213,6 @@ void JetCoreClusterSplitter2::produce(edm::Event& iEvent,
             // l'array di cluster che sono sul modulo
             SiPixelClusterCollectionNew::const_iterator myDet =
                 inputPixelClustersIDEAL->find(detIt->id());
-            clock_t init = clock(), final;
             const edmNew::DetSet<SiPixelCluster>& idealClusters = (*myDet);
             // jetZOverRho serve perche' se va obliquo lascia piu' carica
 
@@ -230,9 +228,6 @@ void JetCoreClusterSplitter2::produce(edm::Event& iEvent,
                       sqrt(1.08 + jetZOverRho * jetZOverRho) * 26000, maxSizeY,
                       jetZOverRho, idealClusters)) {
               hasBeenSplit = true;
-              final = clock() - init;
-              cout << "Time used: (s) "
-                   << (double)final / ((double)CLOCKS_PER_SEC) << endl;
             }
             std::cout << "IDEAL was : " << std::endl;
             int xmin = aCluster.minPixelRow();
@@ -284,79 +279,7 @@ void JetCoreClusterSplitter2::produce(edm::Event& iEvent,
                           << " c: " << clusterIt->charge() << std::endl;
             }
 
-#ifdef aDUMB_ALGORITHM
-            std::cout << "Original Position " << cPos << std::endl;
-            std::vector<SiPixelCluster::Pixel> pixels = aCluster.pixels();
-            unsigned int isize = 0;
-            uint16_t adcs[100];
-            uint16_t xpos[100];
-            uint16_t ypos[100];
-            uint16_t xmin;
-            uint16_t ymin;
-            JetCoreClusterSplitter2::produce(
-                edm::Event & iEvent,
-                const edm::EventSetup& iSetup) unsigned int charge = 0;
-            SiPixelCluster* cluster = 0;
-            for (unsigned int i = 0; i < pixels.size(); i++) {
 
-              std::cout << (int)pixels[i].x << " " << pixels[i].y << " "
-                        << pixels[i].adc << std::endl;
-              // split if: too long or too much charge or too wide or gap in Y
-              if (isize > maxSizeY + 1 && charge > 10000)
-
-              {
-                std::cout << "split!  isize:" << isize << " > " << maxSizeY + 1
-                          << " and charge : " << charge
-                          << " Z/rho: " << jetZOverRho << std::endl;
-                if (charge < 10000) {
-                  std::cout << " to recover" << std::endl;
-                } else {
-                  hasBeenSplit = 1;
-                  if (cluster) {
-                    filler.push_back(*cluster);
-                    std::vector<SiPixelCluster::Pixel> pixels2 =
-                        cluster->pixels();
-                    for (unsigned int i = 0; i < pixels2.size(); i++) {
-                      std::cout << "    NC " << (int)pixels2[i].x << " "
-                                << pixels2[i].y << " " << pixels2[i].adc
-                                << std::endl;
-                    }
-                    std::cout
-                        << "  NC pos: "
-                        << det->surface().toGlobal(
-                               pp->localParametersV(*cluster,
-                                                    (*geometry->idToDetUnit(
-                                                        detIt->id())))[0].first)
-                        << std::endl;
-                  }
-                }
-                if (cluster) delete cluster;
-                cluster = 0;
-                isize = 0;
-                charge = 0;
-              }
-              if (isize == 0) {
-                xmin = pixels[i].x;
-                ymin = pixels[i].y;
-              }
-              xpos[isize] = pixels[i].x;
-              ypos[isize] = pixels[i].y;
-              adcs[isize] = pixels[i].adc;
-              charge += pixels[i].adc;
-              if (cluster == 0)
-                cluster = new SiPixelCluster(
-                    SiPixelCluster::PixelPos(pixels[i].x, pixels[i].y),
-                    pixels[i].adc);
-              else
-                cluster->add(SiPixelCluster::PixelPos(pixels[i].x, pixels[i].y),
-                             pixels[i].adc);
-              isize++;
-            }
-            if (cluster) {
-              if (hasBeenSplit) filler.push_back(*cluster);
-              delete cluster;
-            }
-#endif
           }
         }
       }
@@ -512,7 +435,7 @@ std::vector<SiPixelCluster> JetCoreClusterSplitter2::fittingSplit(
   const float diecimila = 10000;
 
   //	unsigned int meanExp = floor(aCluster.charge() / expectedADC +0.5) ;
-  unsigned int meanExp = floor(aCluster.charge() / expectedADC + 0.5);
+  unsigned int meanExp = ceil(aCluster.charge() / expectedADC);
   // output e' una collezione di clusters
 
   std::vector<SiPixelCluster> output;
@@ -547,6 +470,7 @@ std::vector<SiPixelCluster> JetCoreClusterSplitter2::fittingSplit(
     if (deltay < 1) deltay = 1;
 
     int npos = pixels.size() * nDirections;
+#ifdef COMBINATION_CUT_
 
     float approxComb = combinations(npos, expectedClusters);
     unsigned long maxComb = approxComb;
@@ -559,7 +483,6 @@ std::vector<SiPixelCluster> JetCoreClusterSplitter2::fittingSplit(
               << " elapsed time=" << 0.000437043 * maxComb << endl;
     if (maxComb > limitComb) {
       forced = true;
-      nDirections = 4;
       npos = pixels.size() * nDirections;
       maxComb = combinations(npos, expectedClusters);
 
@@ -599,7 +522,7 @@ std::vector<SiPixelCluster> JetCoreClusterSplitter2::fittingSplit(
       }
       return std::vector<SiPixelCluster>();
     }
-
+#endif
     SiPixelArrayBuffer theOriginalBuffer;
     theOriginalBuffer.setSize(500, 500);
     for (unsigned int i = 0; i < pixels.size(); i++) {
@@ -610,10 +533,10 @@ std::vector<SiPixelCluster> JetCoreClusterSplitter2::fittingSplit(
     }
 
     std::vector<int> comb(expectedClusters);
-    int cc = 0;
+
+// need to parallelize this while loop
     while (nextCombination(comb, npos))
     {
-      cc++;
 
       float chi2 = 0;
       //		int clbase=1;
@@ -898,9 +821,10 @@ bool JetCoreClusterSplitter2::nextCombination(std::vector<int>& comb,
       return false;
     }
   }
-//  for( std::vector<char>::const_iterator i = comb.begin(); i != comb.end(); ++i)
-//      std::cout << *i << ' ';
-//  std::cout<< " "<< std::endl;
+  std::cout << "nposizioni: " << npos << " combinazione: " << std::endl;
+  for( std::vector<int>::const_iterator i = comb.begin(); i != comb.end(); ++i)
+      std::cout << *i << ' ';
+  std::cout<< " "<< std::endl;
   return true;
 }
 void JetCoreClusterSplitter2::print(const SiPixelArrayBuffer& b,
