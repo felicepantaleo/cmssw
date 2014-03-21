@@ -78,11 +78,16 @@ class JetCoreClusterSplitter2 : public edm::EDProducer {
                          const SiPixelCluster& aCluster, float expectedADC,
                          int sizeY, float jetZOverRho);
 
+  texture<float, 1, cudaReadModeElementType> gpu_mapcharge;
+  int* mapcharge_array;
+  int * gpu_originalADC;
+  int * originalADC;
   void cudawClusterSplitter(void);
 
   std::string pixelCPE_;
   edm::InputTag pixelClusters_;
   edm::InputTag vertices_;
+
   int mapcharge[BinsJetOverRho][BinsXposition][BinsDirections][BinsX][BinsY];
   int count[BinsJetOverRho][BinsXposition][BinsDirections];
   int totalcharge[BinsJetOverRho][BinsXposition][BinsDirections];
@@ -96,15 +101,54 @@ JetCoreClusterSplitter2::JetCoreClusterSplitter2(
       vertices_(iConfig.getParameter<edm::InputTag>("vertices")) {
   nDirections = 4;
 
+	cudaMallocHost((void**)&originalADC, 250000*sizeof(int));
+	cudaMalloc((void**)&gpu_originalADC, 250000*sizeof(int));
+	mapcharge_array = (int*)malloc(BinsJetOverRho*BinsXposition*BinsDirections*BinsX*BinsY*sizeof(int));
+
   for (int a = 0; a < BinsJetOverRho; a++)
     for (int b = 0; b < BinsXposition; b++)
       for (int e = 0; e < BinsDirections; e++) {
         count[a][b][e] = 0;
         totalcharge[a][b][e] = 0;
         for (int c = 0; c < BinsX; c++)
-          for (int d = 0; d < 20; d++) mapcharge[a][b][e][c][d] = 0;
+          for (int d = 0; d < 20; d++)
+        	  {
+        	  	  mapcharge[a][b][e][c][d] = 0;
+        	  }
       }
   initCharge();
+  for (int a = 0; a < BinsJetOverRho; a++)
+    for (int b = 0; b < BinsXposition; b++)
+      for (int e = 0; e < BinsDirections; e++) {
+        count[a][b][e] = 0;
+        totalcharge[a][b][e] = 0;
+        for (int c = 0; c < BinsX; c++)
+          for (int d = 0; d < 20; d++)
+        	  {
+        	  	mapcharge_array[d+BinsY*c+BinsX*BinsY*e+BinsDirections*BinsX*BinsY*b+BinsXposition*BinsDirections*BinsX*BinsY*a] = mapcharge[a][b][e][c][d];
+        	  }
+      }
+
+
+
+   //set up the texture
+   cudaChannelFormatDesc cf = cudaCreateChannelDesc<float>();
+   cudaArray *texArray = 0;
+
+   cudaMallocArray(&texArray, &cf, TEXTURE_SIZE);
+
+   cudaMemcpyToArray(texArray, 0,0, mapcharge_array, TEXTURE_SIZE*sizeof(int), cudaMemcpyHostToDevice);
+
+
+   // specify mutable texture reference parameters
+   gpu_mapcharge.normalized = false;
+   gpu_mapcharge.filterMode = cudaFilterModeLinear;
+   gpu_mapcharge.addressMode[0] = cudaAddressModeClamp;
+   gpu_mapcharge.addressMode[1] = cudaAddressModeClamp;
+
+   // bind texture reference to array
+   cudaBindTextureToArray(gpu_mapcharge, texArray);
+
   produces<edmNew::DetSetVector<SiPixelCluster> >();
 }
 
@@ -113,6 +157,10 @@ JetCoreClusterSplitter2::~JetCoreClusterSplitter2() {}
 bool SortPixels(const SiPixelCluster::Pixel& i,
                 const SiPixelCluster::Pixel& j) {
   return (i.adc > j.adc);
+
+
+	free(originalADC);
+	cudaFreeHost(gpu_originalADC);
 }
 
 void JetCoreClusterSplitter2::produce(edm::Event& iEvent,
@@ -523,14 +571,36 @@ std::vector<SiPixelCluster> JetCoreClusterSplitter2::fittingSplit(
       return std::vector<SiPixelCluster>();
     }
 #endif
-    SiPixelArrayBuffer theOriginalBuffer;
-    theOriginalBuffer.setSize(500, 500);
-    for (unsigned int i = 0; i < pixels.size(); i++) {
-      int x = pixels[i].x;
-      int y = pixels[i].y;
-      int adc = pixels[i].adc;
-      theOriginalBuffer.set_adc(x, y, adc);
-    }
+
+	// FP: GPU if expected Clusters > 2
+	if(expectedClusters > 2)
+	{
+	    // FP: copy only the initial adc array to the GPU
+
+
+	    for (unsigned int i = 0; i < pixels.size(); i++) {
+	    	originalADC[pixels[i].x + 500*pixels[i].y]= pixels[i].adc;
+	    }
+	    cudaMemcpyAsync(gpu_originalADC,originalADC,250000*sizeof(int), cudaMemcpyHostToDevice,0);
+
+
+	    //Kernel goes here
+	    cudawClusterSplitter();
+
+
+
+
+	}
+	else
+	{
+	    SiPixelArrayBuffer theOriginalBuffer(500, 500);
+
+	    for (unsigned int i = 0; i < pixels.size(); i++) {
+	      int x = pixels[i].x;
+	      int y = pixels[i].y;
+	      int adc = pixels[i].adc;
+	      theOriginalBuffer.set_adc(x, y, adc);
+	    }
 
     std::vector<int> comb(expectedClusters);
 
@@ -539,21 +609,15 @@ std::vector<SiPixelCluster> JetCoreClusterSplitter2::fittingSplit(
     {
 
       float chi2 = 0;
-      //		int clbase=1;
       SiPixelArrayBuffer theBuffer;
       theBuffer.setSize(500, 500);
-
       for (unsigned int i = 0; i < pixels.size(); i++) {
         int x = pixels[i].x;
         int y = pixels[i].y;
         int adc = pixels[i].adc;
         theBuffer.set_adc(x, y, adc);
       }
-      // print(theBuffer,aCluster);
 
-      // std::cout << "Combination " << combination << std::endl;
-
-      // int remainingFreePositions = npos;
       float prob = 0;
       for (unsigned int cl = 0; cl < expectedClusters; cl++) {
         int pi = comb[cl];
@@ -629,6 +693,7 @@ std::vector<SiPixelCluster> JetCoreClusterSplitter2::fittingSplit(
         bestExpCluster = expectedClusters;
       }
     }
+  }
     std::cout << " chiN " << chiN << " sizeY  " << sizeY << " exADC "
               << expectedADC << std::endl;
     std::cout << " chi " << std::setprecision(7) << chiminlocal << std::endl;
@@ -852,13 +917,6 @@ void JetCoreClusterSplitter2::print(const SiPixelArrayBuffer& b,
   }
 }
 
-//#include "RecoLocalTracker/SubCollectionProducers/interface/best_charge.h"
-//#include "RecoLocalTracker/SubCollectionProducers/interface/chargeNoEC.h"
-//#include "RecoLocalTracker/SubCollectionProducers/interface/charge2.h"
-//#include "RecoLocalTracker/SubCollectionProducers/interface/charge.h"
-//#include "RecoLocalTracker/SubCollectionProducers/interface/chargeNoECXmin.h"
-//#include
-//"RecoLocalTracker/SubCollectionProducers/interface/chargeNoECXmin0p5.h"
 
 void JetCoreClusterSplitter2::finalizeSplitting(
     std::vector<int>& bestcomb, unsigned int& expectedClusters,
