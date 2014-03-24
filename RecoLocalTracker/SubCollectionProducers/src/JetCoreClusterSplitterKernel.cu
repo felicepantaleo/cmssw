@@ -1,23 +1,23 @@
-//__global__ void shiftPitchLinear(Element* element)
-//{
-//  int xid = blockIdx.x * blockDim.x + threadIdx.x;
-//  if(xid < element->length)
-//     element->timestamp[xid] += 1+tex1D(texRef, element->xHit[xid] + 64*element->yHit[xid]);
-//}
-
-
+texture<float, 1, cudaReadModeElementType>tex;
 
 __global__ void kernel (void)
 {
-    float chi2 = 0;
+	  int i = blockIdx.x *blockDim.x + threadIdx.x;
+	  float x = tex1Dfetch(tex, i);
+
 
 }
 
 
-extern "C" void cudaClusterSplitter_(void) {
+extern "C" void cudaClusterSplitter_(int* gpu_mapcharge) {
 
-    kernel<<<1,1>>>();
-    return;
+	// bind texture to buffer
+	cudaBindTexture(0, tex, gpu_mapcharge, 168000*sizeof(int));
+	dim3 block(128,1,1);
+	dim3 grid(block.x,1,1);
+    kernel<<<grid,block>>>();
+    cudaUnbindTexture(tex);
+
 
 
 }

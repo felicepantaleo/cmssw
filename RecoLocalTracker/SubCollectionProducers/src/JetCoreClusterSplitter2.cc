@@ -25,6 +25,7 @@
 #include <algorithm>
 
 #include <cuda_runtime.h>
+#include <cuda.h>
 
 using namespace std;
 template <typename T>
@@ -45,7 +46,8 @@ const float jetZOverRhoWidth = 0.5;
 
 
 
-extern "C" { void cudaClusterSplitter_(void); }
+
+extern "C" { void cudaClusterSplitter_(int*); }
 
 class JetCoreClusterSplitter2 : public edm::EDProducer {
 
@@ -78,11 +80,12 @@ class JetCoreClusterSplitter2 : public edm::EDProducer {
                          const SiPixelCluster& aCluster, float expectedADC,
                          int sizeY, float jetZOverRho);
 
-  texture<float, 1, cudaReadModeElementType> gpu_mapcharge;
   int* mapcharge_array;
+  int* gpu_mapcharge_array;
   int * gpu_originalADC;
   int * originalADC;
-  void cudawClusterSplitter(void);
+  void cudawClusterSplitter(int*);
+
 
   std::string pixelCPE_;
   edm::InputTag pixelClusters_;
@@ -103,7 +106,11 @@ JetCoreClusterSplitter2::JetCoreClusterSplitter2(
 
 	cudaMallocHost((void**)&originalADC, 250000*sizeof(int));
 	cudaMalloc((void**)&gpu_originalADC, 250000*sizeof(int));
-	mapcharge_array = (int*)malloc(BinsJetOverRho*BinsXposition*BinsDirections*BinsX*BinsY*sizeof(int));
+	cudaMallocHost((void**)&mapcharge_array, BinsJetOverRho*BinsXposition*BinsDirections*BinsX*BinsY*sizeof(int));
+	cudaMalloc(&gpu_mapcharge_array,BinsJetOverRho*BinsXposition*BinsDirections*BinsX*BinsY*sizeof(int));
+
+
+
 
   for (int a = 0; a < BinsJetOverRho; a++)
     for (int b = 0; b < BinsXposition; b++)
@@ -130,37 +137,27 @@ JetCoreClusterSplitter2::JetCoreClusterSplitter2(
       }
 
 
-
-   //set up the texture
-   cudaChannelFormatDesc cf = cudaCreateChannelDesc<float>();
-   cudaArray *texArray = 0;
-
-   cudaMallocArray(&texArray, &cf, TEXTURE_SIZE);
-
-   cudaMemcpyToArray(texArray, 0,0, mapcharge_array, TEXTURE_SIZE*sizeof(int), cudaMemcpyHostToDevice);
+	cudaMemcpyAsync(gpu_mapcharge_array,mapcharge_array,BinsJetOverRho*BinsXposition*BinsDirections*BinsX*BinsY*sizeof(int), cudaMemcpyHostToDevice,0);
 
 
-   // specify mutable texture reference parameters
-   gpu_mapcharge.normalized = false;
-   gpu_mapcharge.filterMode = cudaFilterModeLinear;
-   gpu_mapcharge.addressMode[0] = cudaAddressModeClamp;
-   gpu_mapcharge.addressMode[1] = cudaAddressModeClamp;
-
-   // bind texture reference to array
-   cudaBindTextureToArray(gpu_mapcharge, texArray);
 
   produces<edmNew::DetSetVector<SiPixelCluster> >();
 }
 
-JetCoreClusterSplitter2::~JetCoreClusterSplitter2() {}
+JetCoreClusterSplitter2::~JetCoreClusterSplitter2() {
+	cudaFreeHost(originalADC);
+	cudaFreeHost(mapcharge_array);
+	cudaFree(gpu_originalADC);
+	cudaFree(gpu_mapcharge_array);
+
+}
 
 bool SortPixels(const SiPixelCluster::Pixel& i,
                 const SiPixelCluster::Pixel& j) {
   return (i.adc > j.adc);
 
 
-	free(originalADC);
-	cudaFreeHost(gpu_originalADC);
+
 }
 
 void JetCoreClusterSplitter2::produce(edm::Event& iEvent,
@@ -585,7 +582,7 @@ std::vector<SiPixelCluster> JetCoreClusterSplitter2::fittingSplit(
 
 
 	    //Kernel goes here
-	    cudawClusterSplitter();
+	    cudawClusterSplitter(gpu_mapcharge_array);
 
 
 
@@ -1108,7 +1105,7 @@ void JetCoreClusterSplitter2::finalizeSplitting(
   }
 }
 
-void JetCoreClusterSplitter2::cudawClusterSplitter() { cudaClusterSplitter_(); }
+void JetCoreClusterSplitter2::cudawClusterSplitter(int* tex) { cudaClusterSplitter_(tex); }
 
 
 #include "RecoLocalTracker/SubCollectionProducers/interface/chargeNewSizeY.h"
