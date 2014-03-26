@@ -3371,6 +3371,4 @@ totalcharge[20][3][0]=314107;
 totalcharge[20][3][1]=958576;
 totalcharge[20][3][2]=292136;
 totalcharge[20][4][2]=134512;
-
-
 }

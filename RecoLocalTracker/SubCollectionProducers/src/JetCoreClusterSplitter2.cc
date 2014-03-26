@@ -20,6 +20,7 @@
 #include "DataFormats/JetReco/interface/CaloJet.h"
 
 #include "RecoLocalTracker/SiPixelClusterizer/interface/SiPixelArrayBuffer.h"
+#include "RecoLocalTracker/SubCollectionProducer/interface/GPUPixelSoA.h"
 #include <stack>
 #include <time.h>
 #include <algorithm>
@@ -82,8 +83,14 @@ class JetCoreClusterSplitter2 : public edm::EDProducer {
 
   int* mapcharge_array;
   int* gpu_mapcharge_array;
-  int * gpu_originalADC;
-  int * originalADC;
+  int* count_array;
+  int* gpu_count_array;
+  int* totalcharge_array;
+  int* gpu_totalcharge_array;
+  uint16_t * gpu_originalADC;
+  uint16_t * originalADC;
+  GPUPixelSoA* struct_pixel;
+  GPUPixelSoA* gpu_pixel;
   void cudawClusterSplitter(int*);
 
 
@@ -93,6 +100,8 @@ class JetCoreClusterSplitter2 : public edm::EDProducer {
 
   int mapcharge[BinsJetOverRho][BinsXposition][BinsDirections][BinsX][BinsY];
   int count[BinsJetOverRho][BinsXposition][BinsDirections];
+
+
   int totalcharge[BinsJetOverRho][BinsXposition][BinsDirections];
   int nDirections;
 };
@@ -102,12 +111,20 @@ JetCoreClusterSplitter2::JetCoreClusterSplitter2(
     : pixelCPE_(iConfig.getParameter<std::string>("pixelCPE")),
       pixelClusters_(iConfig.getParameter<edm::InputTag>("pixelClusters")),
       vertices_(iConfig.getParameter<edm::InputTag>("vertices")) {
-  nDirections = 4;
+
+	nDirections = 4;
 
 	cudaMallocHost((void**)&originalADC, 250000*sizeof(int));
 	cudaMalloc((void**)&gpu_originalADC, 250000*sizeof(int));
 	cudaMallocHost((void**)&mapcharge_array, BinsJetOverRho*BinsXposition*BinsDirections*BinsX*BinsY*sizeof(int));
 	cudaMalloc(&gpu_mapcharge_array,BinsJetOverRho*BinsXposition*BinsDirections*BinsX*BinsY*sizeof(int));
+
+	cudaMallocHost((void**)&count_array, BinsJetOverRho*BinsXposition*BinsDirections*sizeof(int) );
+	cudaMalloc((void**)&gpu_count_array, BinsJetOverRho*BinsXposition*BinsDirections*sizeof(int) );
+
+
+	cudaMallocHost((void**)&totalcharge_array, BinsJetOverRho*BinsXposition*BinsDirections*sizeof(int) );
+	cudaMalloc((void**)&gpu_totalcharge_array, BinsJetOverRho*BinsXposition*BinsDirections*sizeof(int) );
 
 
 
@@ -127,17 +144,20 @@ JetCoreClusterSplitter2::JetCoreClusterSplitter2(
   for (int a = 0; a < BinsJetOverRho; a++)
     for (int b = 0; b < BinsXposition; b++)
       for (int e = 0; e < BinsDirections; e++) {
-        count[a][b][e] = 0;
-        totalcharge[a][b][e] = 0;
+  	  	totalcharge_array[e + b*BinsDirections + a*BinsXposition*BinsDirections] = totalcharge[a][b][e];
+  	  	count_array[e + b*BinsDirections + a*BinsXposition*BinsDirections] = count[a][b][e];
         for (int c = 0; c < BinsX; c++)
           for (int d = 0; d < 20; d++)
         	  {
         	  	mapcharge_array[d+BinsY*c+BinsX*BinsY*e+BinsDirections*BinsX*BinsY*b+BinsXposition*BinsDirections*BinsX*BinsY*a] = mapcharge[a][b][e][c][d];
+
         	  }
       }
 
 
 	cudaMemcpyAsync(gpu_mapcharge_array,mapcharge_array,BinsJetOverRho*BinsXposition*BinsDirections*BinsX*BinsY*sizeof(int), cudaMemcpyHostToDevice,0);
+	cudaMemcpyAsync(gpu_count_array,count_array,BinsJetOverRho*BinsXposition*BinsDirections*sizeof(int), cudaMemcpyHostToDevice,0);
+	cudaMemcpyAsync(gpu_totalcharge_array,totalcharge_array,BinsJetOverRho*BinsXposition*BinsDirections*sizeof(int), cudaMemcpyHostToDevice,0);
 
 
 
@@ -155,8 +175,6 @@ JetCoreClusterSplitter2::~JetCoreClusterSplitter2() {
 bool SortPixels(const SiPixelCluster::Pixel& i,
                 const SiPixelCluster::Pixel& j) {
   return (i.adc > j.adc);
-
-
 
 }
 
@@ -291,12 +309,15 @@ void JetCoreClusterSplitter2::produce(edm::Event& iEvent,
 
                   std::vector<SiPixelCluster::Pixel> pixels =
                       clusterIt->pixels();
+
                   for (unsigned int j = 0; j < pixels.size(); j++) {
                     if (pixels[j].x == x && pixels[j].y == y) {
                       if (!sh[h]) {
                         sh[h] = last;
                         last++;
                       }
+
+
                       flag |= (1 << (sh[h] - 1));
                     }
                   }
@@ -502,6 +523,25 @@ std::vector<SiPixelCluster> JetCoreClusterSplitter2::fittingSplit(
   unsigned int bestExpCluster = meanExp;
   std::vector<SiPixelCluster::Pixel> pixels = aCluster.pixels();
   sort(pixels.begin(), pixels.end(), SortPixels);
+
+  cudaMallocHost((void**)&struct_pixel, pixels.size()*sizeof(GPUPixelSoA));
+  cudaMalloc((void**)&gpu_pixel, pixel.size()*sizeof(GPUPixelSoA));
+
+  size_t pixelNumberCut = pixel.size()>64? 64: pixel.size();
+  for (int pixel_index = 0; pixel_index< pixelNumberCut; ++pixel_index)
+  {
+	  struct_pixel.x[pixel_index] = pixel[pixel_index].x;
+	  struct_pixel.y[pixel_index] = pixel[pixel_index].y;
+	  struct_pixel.adc[pixel_index] = pixel[pixel_index].adc;
+  }
+  for (int pixel_index = pixelNumberCut; pixel_index< 64; ++pixel_index )
+  {
+	  struct_pixel.x[pixel_index] = 0;
+	  struct_pixel.y[pixel_index] = 0;
+	  struct_pixel.adc[pixel_index] = 0;
+  }
+
+
   float chiN = -1;
   float chimin = 1e99;
   if (meanExp > 7) meanExp = 7;
@@ -572,20 +612,39 @@ std::vector<SiPixelCluster> JetCoreClusterSplitter2::fittingSplit(
 	// FP: GPU if expected Clusters > 2
 	if(expectedClusters > 2)
 	{
+		  PixelClusterUtils* dataNeededOnGPU;
+//		  PixelClusterUtils* gpu_dataNeededOnGPU;
+		  cudaMallocHost((void**)&dataNeededOnGPU, sizeof(PixelClusterUtils));
+		  dataNeededOnGPU->xmin = xmin;
+		  dataNeededOnGPU->xmax = xmax;
+		  dataNeededOnGPU->ymin = ymin;
+		  dataNeededOnGPU->ymax = ymax;
+		  dataNeededOnGPU->binjetZOverRho = binjetZOverRho;
+		  dataNeededOnGPU->size_y = sizeY;
+		  dataNeededOnGPU->BinsXposition = BinsXposition;
+		  dataNeededOnGPU->BinsDirections = BinsDirections;
+		  dataNeededOnGPU->BinsX = BinsX;
+		  dataNeededOnGPU->BinsY = BinsY;
+		  dataNeededOnGPU->BinsJetOverRho = BinsJetOverRho;
+		  dataNeededOnGPU->jetZOverRhoWidth = jetZOverRhoWidth;
+		  dataNeededOnGPU->expectedADC = expectedADC;
+
+//		  cudaMalloc((void**)&gpu_dataNeededOnGPU, sizeof(PixelClusterUtils));
+//		  cudaMemcpyAsync(gpu_dataNeededOnGPU, dataNeededOnGPU, sizeof(PixelClusterUtils), cudaMemcpyHostToDevice, 0);
+
+
 	    // FP: copy only the initial adc array to the GPU
 
-
+		for (unsigned int i = 0; i < 250000; ++i)
+			originalADC[i] = 0;
 	    for (unsigned int i = 0; i < pixels.size(); i++) {
 	    	originalADC[pixels[i].x + 500*pixels[i].y]= pixels[i].adc;
 	    }
-	    cudaMemcpyAsync(gpu_originalADC,originalADC,250000*sizeof(int), cudaMemcpyHostToDevice,0);
+	    cudaMemcpyAsync(gpu_originalADC,originalADC,250000*sizeof(uint16_t), cudaMemcpyHostToDevice,0);
 
 
 	    //Kernel goes here
-	    cudawClusterSplitter(gpu_mapcharge_array);
-
-
-
+	    cudawClusterSplitter(gpu_mapcharge_array,gpu_originalADC, gpu_dataNeededOnGPU);
 
 	}
 	else
@@ -614,6 +673,7 @@ std::vector<SiPixelCluster> JetCoreClusterSplitter2::fittingSplit(
         int adc = pixels[i].adc;
         theBuffer.set_adc(x, y, adc);
       }
+
 
       float prob = 0;
       for (unsigned int cl = 0; cl < expectedClusters; cl++) {
@@ -1105,7 +1165,7 @@ void JetCoreClusterSplitter2::finalizeSplitting(
   }
 }
 
-void JetCoreClusterSplitter2::cudawClusterSplitter(int* tex) { cudaClusterSplitter_(tex); }
+void JetCoreClusterSplitter2::cudawClusterSplitter(int* tex, int numClusters, int numPositions) { cudaClusterSplitter_(tex, numClusters, numPositions); }
 
 
 #include "RecoLocalTracker/SubCollectionProducers/interface/chargeNewSizeY.h"
