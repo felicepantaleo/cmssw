@@ -524,10 +524,13 @@ std::vector<SiPixelCluster> JetCoreClusterSplitter2::fittingSplit(
   std::vector<SiPixelCluster::Pixel> pixels = aCluster.pixels();
   sort(pixels.begin(), pixels.end(), SortPixels);
 
-  cudaMallocHost((void**)&struct_pixel, pixels.size()*sizeof(GPUPixelSoA));
-  cudaMalloc((void**)&gpu_pixel, pixel.size()*sizeof(GPUPixelSoA));
 
-  size_t pixelNumberCut = pixel.size()>64? 64: pixel.size();
+  size_t pixelNumberCut = pixels.size()>64? 64: pixel.size();
+
+
+  cudaMallocHost((void**)&struct_pixel, pixels.size()*sizeof(GPUPixelSoA));
+  cudaMalloc((void**)&gpu_pixel, pixels.size()*sizeof(GPUPixelSoA));
+
   for (int pixel_index = 0; pixel_index< pixelNumberCut; ++pixel_index)
   {
 	  struct_pixel.x[pixel_index] = pixel[pixel_index].x;
@@ -612,8 +615,8 @@ std::vector<SiPixelCluster> JetCoreClusterSplitter2::fittingSplit(
 	// FP: GPU if expected Clusters > 2
 	if(expectedClusters > 2)
 	{
+		// no need to copy
 		  PixelClusterUtils* dataNeededOnGPU;
-//		  PixelClusterUtils* gpu_dataNeededOnGPU;
 		  cudaMallocHost((void**)&dataNeededOnGPU, sizeof(PixelClusterUtils));
 		  dataNeededOnGPU->xmin = xmin;
 		  dataNeededOnGPU->xmax = xmax;

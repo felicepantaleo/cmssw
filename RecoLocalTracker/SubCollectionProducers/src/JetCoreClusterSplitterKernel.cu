@@ -166,36 +166,37 @@ minReduce(float *g_idata, float *g_odata, unsigned int n)
 		g_odata[blockIdx.x] = sdata[0];
 }
 
+
+
 __global__ void kernel3(GPUPixelSoA* pixels, int* mapcharge, int* count,
-		int* totalcharge, int numPositions, float* blocksChi2s)
+		int* totalcharge, int numPositions, float* blocksChi2s, float* reducedChi2s)
 {
 	__shared__ float chi2 = FLT_MAX;
 	__syncthreads();
+	const unsigned int numClusters = 3;
 	if(blockIdx.x < numPositions && blockIdx.y <= blockIdx.x && blockIdx.z <= blockIdx.x)
 	{
 		__shared__ float prob = 0.;
-		__shared__ float chi2 = 0.;
 		__shared__ unsigned int comb[3];
 		__shared__ int clusterPosX;
 		__shared__ int clusterPosY;
 		__shared__ int direction;
+		chi2 = 0.;
+
 		comb[0] = blockIdx.x;
 		comb[1] = blockIdx.y;
 		comb[2] = blockIdx.z;
-		//	combination[0] = blockIdx.x;
-		//	combination[1] = blockIdx.y;
-		//	combination[2] = threadIdx.x;
+
 		int x = threadIdx.x;
 		int y = threadIdx.y;
 		// TODO: invece di caricare tutti gli adc (anche quelli zero) converrebbe caricare solo quelli diversi da zero
 		uint16_t originaladc = originalADC[blockDim.x*threadIdx.y + threadIdx.x];
 		uint16_t adc = originaladc;
 
-		for (unsigned int clusterIdx = 0; clusterIdx < 3; clusterIdx++)
+		for (unsigned int clusterIdx = 0; clusterIdx < numClusters; clusterIdx++)
 		{
 			if(threadIdx.x == 0 && threadIdx.y == 0)
 			{
-
 				clusterPosX = pixels.x[comb[clusterIdx] / 4];
 				clusterPosY = pixels.y[comb[clusterIdx] / 4];
 				direction = comb[clusterIdx] % 4;
@@ -203,8 +204,8 @@ __global__ void kernel3(GPUPixelSoA* pixels, int* mapcharge, int* count,
 			__syncthreads();
 
 			if((x >= utility.xmin - 5) && (x>=0) && (x<= utility.xmax + 5) && (x<500)
-					&& (y>= utility.ymin - (utility.size_y +1)/2) && y>=0
-					&& (y<=utility.ymax + (utility.size_y +1)/2) && y < 500 )
+					&& (y>= utility.ymin - (utility.size_y + 1)/2) && y>=0
+					&& (y<=utility.ymax + (utility.size_y + 1)/2) && y < 500 )
 			{
 				float fact = pixelWeight(mapcharge, count, totalcharge, clusterPosX, clusterPosY, x, y, direction);
 
@@ -212,7 +213,8 @@ __global__ void kernel3(GPUPixelSoA* pixels, int* mapcharge, int* count,
 					adc -= fact * utility.expectedADC;
 			}
 
-			atomicAdd(&prob, count[direction%2+1 + clusterPosX / 32 *utility.BinsDirections + utility.binjetZOverRho*utility.BinsXposition*utility.BinsDirections]);
+			atomicAdd(&prob, count[direction%2+1 + clusterPosX / 32 *utility.BinsDirections +
+			                       utility.binjetZOverRho*utility.BinsXposition*utility.BinsDirections]);
 		}
 		if((x >= utility.xmin - 5) && (x>=0) && (x<= utility.xmax + 5) && (x<500)
 				&& (y>= utility.ymin - (utility.size_y +1)/2) && y>=0
@@ -224,7 +226,7 @@ __global__ void kernel3(GPUPixelSoA* pixels, int* mapcharge, int* count,
 
 
 
-			if (chargeMeasured < 5000 && charge < 5000) {  // threshold effect
+			if (charge < 5000 && chargeMeasured < 5000 ) {  // threshold effect
 				res = 0;
 			}
 
@@ -241,9 +243,12 @@ __global__ void kernel3(GPUPixelSoA* pixels, int* mapcharge, int* count,
 
 		if(threadIdx.x == 0 && threadIdx.y == 0)
 		{
-			prob = prob/3; // 3 is the number of expected clusters
+			prob = prob/numClusters;
 			chi2 = chi2/prob;
+			blocksChi2s[blockIdx.x + blockIdx.y*blockDim.x + blockIdx.z*blockDim.x*blockDim.y] = chi2;
 		}
+
+		__syncthreads();
 
 
 	}
@@ -260,12 +265,17 @@ extern "C" void cudaClusterSplitter_(GPUPixelSoA* pixels, uint16_t* originalADC,
 	cudaMemcpyToSymbol(  utility,  constantDataNeededOnGPU,   sizeof(PixelClusterUtils) );
 	if(numClusters == 3)
 	{
+		float* blocksChi2s;
+		cudaMalloc((void**)&blocksChi2s, (64<<numClusters)*sizeof(float));
 		dim3 block(128,1,1);
 		dim3 grid(block.x,1,1);
 		kernel3<<<grid,block>>>(originalADC, numPositions);
 
-	}
+		//TODO: evaluate the amount of shared memory needed
+		int numblocksReduction = 2 << (6*numClusters-10);
+		minReduce<<<numblocksReduction,2048,2048 * sizeof(float),0>>>(blocksChi2s, reducedChi2, blockDim.x*blockDim.y*blockDim.z);
 
+	}
 	//   cudaUnbindTexture(tex);
 
 }
@@ -283,4 +293,4 @@ if (chi2 < chimin) {
 	bestcomb = comb;
 	bestExpCluster = expectedClusters;
 }
-}
+
