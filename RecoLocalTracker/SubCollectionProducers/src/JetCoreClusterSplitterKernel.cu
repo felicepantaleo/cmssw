@@ -4,10 +4,7 @@
 
 //texture<float, 1, cudaReadModeElementType> tex;
 
-struct Chi2Comb {
-	int16_t chi2;
-	int8_t comb[6];
-};
+
 
 
 __constant__ PixelClusterUtils utility;
@@ -670,7 +667,7 @@ __global__ void kernel6(GPUPixelSoA* pixels, int* originalADC, int* mapcharge, i
 
 }
 
-extern "C" void cudaClusterSplitter_(GPUPixelSoA* pixels, int* originalADC, int* gpu_mapcharge, int* gpu_count_array,
+extern "C" Chi2Comb cudaClusterSplitter_(GPUPixelSoA* pixels, int* originalADC, int* gpu_mapcharge, int* gpu_count_array,
 		int* gpu_totalcharge_array, PixelClusterUtils* constantDataNeededOnGPU, unsigned int numClusters, int numPositions) {
 
 	// bind texture to buffer
@@ -718,9 +715,12 @@ extern "C" void cudaClusterSplitter_(GPUPixelSoA* pixels, int* originalADC, int*
 				gpu_count_array, gpu_totalcharge_array, numPositions, gpu_bestChi2Combination);
 	}
 	cudaMemcpyAsync(host_bestChi2Combination, gpu_bestChi2Combination,sizeof(Chi2Comb), cudaMemcpyDeviceToHost, 0);
+
 	cudaDeviceSynchronize();
+	Chi2Comb bestcomb = *host_bestChi2Combination;
 	cudaFreeHost(host_bestChi2Combination);
 	cudaFree(gpu_bestChi2Combination);
 	//   cudaUnbindTexture(tex);
+	return bestcomb;
 
 }

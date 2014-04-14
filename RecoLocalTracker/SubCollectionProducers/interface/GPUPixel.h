@@ -27,3 +27,8 @@ struct PixelClusterUtils
 	float expectedADC;
 
 };
+
+struct Chi2Comb {
+	int16_t chi2;
+	int8_t comb[6];
+};

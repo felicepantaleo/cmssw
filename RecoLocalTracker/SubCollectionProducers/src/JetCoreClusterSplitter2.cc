@@ -51,7 +51,7 @@ const float jetZOverRhoWidth = 0.5;
 
 
 
-extern "C" { void cudaClusterSplitter_(GPUPixelSoA*, int*, int* , int* ,
+extern "C" { Chi2Comb cudaClusterSplitter_(GPUPixelSoA*, int*, int* , int* ,
 		int* , PixelClusterUtils* ,
 		unsigned int , int ); }
 
@@ -98,7 +98,7 @@ private:
 	GPUPixelSoA* gpu_pixel;
 
 
-	void cudawClusterSplitter(GPUPixelSoA*, int*, int* , int* ,int* , PixelClusterUtils*, unsigned int , int);
+	Chi2Comb cudawClusterSplitter(GPUPixelSoA*, int*, int* , int* ,int* , PixelClusterUtils*, unsigned int , int);
 
 
 	std::string pixelCPE_;
@@ -668,8 +668,20 @@ std::vector<SiPixelCluster> JetCoreClusterSplitter2::fittingSplit(
 			//	    		int* gpu_totalcharge_array, PixelClusterUtils* constantDataNeededOnGPU,
 			//	    		int numClusters, int numPositions
 			//Kernel goes here
-			cudawClusterSplitter(gpu_pixel,gpu_originalADC, gpu_mapcharge_array, gpu_count_array, gpu_totalcharge_array, dataNeededOnGPU,
+			Chi2Comb combination = cudawClusterSplitter(gpu_pixel,gpu_originalADC, gpu_mapcharge_array, gpu_count_array, gpu_totalcharge_array, dataNeededOnGPU,
 					expectedClusters, npos);
+
+
+			if (combination.chi2 < chiminlocal) {
+				chiminlocal = combination.chi2;
+			}
+			if (combination.chi2 < chimin) {
+				chimin = combination.chi2;
+				bestcomb.resize(expectedClusters);
+				for(unsigned int idx = 0; idx < expectedClusters; ++idx)
+					bestcomb[idx] = combination.comb[idx];
+				bestExpCluster = expectedClusters;
+			}
 			cudaFreeHost(dataNeededOnGPU);
 
 		}
@@ -1196,11 +1208,11 @@ void JetCoreClusterSplitter2::finalizeSplitting(
 
 
 
-void JetCoreClusterSplitter2::cudawClusterSplitter(GPUPixelSoA* pixels, int* originalADC,
+Chi2Comb JetCoreClusterSplitter2::cudawClusterSplitter(GPUPixelSoA* pixels, int* originalADC,
 		int* gpu_mapcharge, int* gpu_count_array,
 		int* gpu_totalcharge_array, PixelClusterUtils* constantDataNeededOnGPU,
 		unsigned int numClusters, int numPositions)
-{ cudaClusterSplitter_( pixels,  originalADC , gpu_mapcharge, gpu_count_array,
+{ return cudaClusterSplitter_( pixels,  originalADC , gpu_mapcharge, gpu_count_array,
 		gpu_totalcharge_array, constantDataNeededOnGPU, numClusters,  numPositions); }
 
 #include "RecoLocalTracker/SubCollectionProducers/interface/chargeNewSizeY.h"
