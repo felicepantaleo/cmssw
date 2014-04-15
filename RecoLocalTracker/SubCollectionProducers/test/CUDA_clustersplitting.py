@@ -36,13 +36,13 @@ process.load("RecoVertex.AdaptiveVertexFinder.inclusiveVertexing_cff")
 
 process.nuclearInteractionIdentifier = cms.EDProducer("NuclearInteractionIdentifier",
      primaryVertices = cms.InputTag("offlinePrimaryVertices"),
-     secondaryVertices = cms.InputTag("inclusiveMergedVertices"),
+     secondaryVertices = cms.InputTag("inclusiveSecondaryVertices"),
      beamSpot = cms.InputTag("offlineBeamSpot")
 )
 
-process.cleanedInclusiveMergedVertices = cms.EDProducer("VertexCleaner",
+process.cleanedinclusiveSecondaryVertices = cms.EDProducer("VertexCleaner",
         primaryVertices= cms.InputTag("nuclearInteractionIdentifier"),
-        secondaryVertices = cms.InputTag("inclusiveMergedVertices"),
+        secondaryVertices = cms.InputTag("inclusiveSecondaryVertices"),
         maxFraction = cms.double(0.0)
 )
 
@@ -58,9 +58,9 @@ process.ak5JetCleanedTracksAssociatorAtVertex.tracks = cms.InputTag("trackCollec
 process.inclusiveVertexFinder2 = process.inclusiveVertexFinder.clone(tracks = cms.InputTag("trackCollectionCleaner"))
 process.vertexMerger2 = process.vertexMerger.clone(secondaryVertices = cms.InputTag("inclusiveVertexFinder2"))
 process.trackVertexArbitrator2=process.trackVertexArbitrator.clone(tracks = cms.InputTag("trackCollectionCleaner"),secondaryVertices = cms.InputTag("vertexMerger2"))
-process.inclusiveMergedVertices2= process.inclusiveMergedVertices.clone(secondaryVertices = cms.InputTag("trackVertexArbitrator2"))
+process.inclusiveSecondaryVertices2= process.inclusiveSecondaryVertices.clone(secondaryVertices = cms.InputTag("trackVertexArbitrator2"))
 
-process.inclusiveVertexing2 = cms.Sequence(process.inclusiveVertexFinder2*process.vertexMerger2*process.trackVertexArbitrator2*process.inclusiveMergedVertices2)
+process.inclusiveVertexing2 = cms.Sequence(process.inclusiveVertexFinder2*process.vertexMerger2*process.trackVertexArbitrator2*process.inclusiveSecondaryVertices2)
 
 process.offlinePrimaryVertices2 = process.offlinePrimaryVertices.clone(TrackLabel=cms.InputTag("trackCollectionCleaner"))
 process.inclusiveVertexFinder2.primaryVertices = cms.InputTag("offlinePrimaryVertices2")
@@ -72,7 +72,7 @@ process.cleanedImpactParameterTagInfos.primaryVertex = cms.InputTag("offlinePrim
 
 
 process.cleanedInclusiveSecondaryVertexFinderTagInfos = process.inclusiveSecondaryVertexFinderTagInfos.clone(
-        extSVCollection = cms.InputTag("inclusiveMergedVertices2"),
+        extSVCollection = cms.InputTag("inclusiveSecondaryVertices2"),
         trackIPTagInfos = cms.InputTag("cleanedImpactParameterTagInfos")
 )
 process.cleanedCombinedInclusiveSecondaryVertexBJetTags = process.combinedInclusiveSecondaryVertexBJetTags.clone(
@@ -83,9 +83,9 @@ process.cleanedCombinedInclusiveSecondaryVertexBJetTags = process.combinedInclus
 
 
 #feed IVF vertices to IPTagInfo in order to let IVF tracks be selected 
-#process.impactParameterTagInfos.extSVCollection = cms.InputTag("inclusiveMergedVertices")
+#process.impactParameterTagInfos.extSVCollection = cms.InputTag("inclusiveSecondaryVertices")
 #process.impactParameterTagInfos.selectTracksFromExternalSV = cms.bool(True)
-#process.cleanedImpactParameterTagInfos.extSVCollection = cms.InputTag("inclusiveMergedVertices2")
+#process.cleanedImpactParameterTagInfos.extSVCollection = cms.InputTag("inclusiveSecondaryVertices2")
 #process.cleanedImpactParameterTagInfos.selectTracksFromExternalSV = cms.bool(True)
 
 #process.inclusiveSecondaryVertexFinderTagInfos.vertexCuts.distVal2dMax = 8
@@ -266,7 +266,7 @@ process.tobTecStepTrajectoryBuilder.maxCand=400
 
 
 #redo tracking + nominal btagging (with IVF used in IP TagInfo too) + NI-cleaned btagging
-#process.reco = cms.Sequence(process.siPixelClusters+process.siPixelRecHits+process.siStripMatchedRecHits+process.pixelTracks+process.ckftracks_wodEdX+process.offlinePrimaryVertices+process.ak5JetTracksAssociatorAtVertex+process.inclusiveVertexing+process.btagging  * process.inclusiveSecondaryVertexFinderTagInfos * process.combinedInclusiveSecondaryVertexBJetTags * process.nuclearInteractionIdentifier * process.cleanedInclusiveMergedVertices * process.trackCollectionCleaner * process.offlinePrimaryVertices2 * process.inclusiveVertexing2 * process.ak5JetCleanedTracksAssociatorAtVertex * process.cleanedImpactParameterTagInfos * process.cleanedInclusiveSecondaryVertexFinderTagInfos * process.cleanedCombinedInclusiveSecondaryVertexBJetTags)
+#process.reco = cms.Sequence(process.siPixelClusters+process.siPixelRecHits+process.siStripMatchedRecHits+process.pixelTracks+process.ckftracks_wodEdX+process.offlinePrimaryVertices+process.ak5JetTracksAssociatorAtVertex+process.inclusiveVertexing+process.btagging  * process.inclusiveSecondaryVertexFinderTagInfos * process.combinedInclusiveSecondaryVertexBJetTags * process.nuclearInteractionIdentifier * process.cleanedinclusiveSecondaryVertices * process.trackCollectionCleaner * process.offlinePrimaryVertices2 * process.inclusiveVertexing2 * process.ak5JetCleanedTracksAssociatorAtVertex * process.cleanedImpactParameterTagInfos * process.cleanedInclusiveSecondaryVertexFinderTagInfos * process.cleanedCombinedInclusiveSecondaryVertexBJetTags)
 
 #do IVF and btag on OLD reco
 #process.reco = cms.Path(process.IdealsiPixelClusters + process.siPixelClusters + process.compareRECO + process.compareOldSplit + process.compare + process.siPixelClusters2 + process.compare2)
