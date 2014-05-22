@@ -76,7 +76,7 @@ private:
 			float jetZOverRho);
 	bool nextCombination(std::vector<int>& comb, int npos);
 	unsigned int combinations(unsigned int npos, unsigned int expectedClusters);
-	float pixelWeight(int clx, int cly, int x, int y, int sizeY, int direction,
+	float pixelWeight(int clx, int cly, int x, int y,int sizeY, int direction,
 			int bintheta);
 	float pixelWeight2(int clx, int cly, int x, int y, int sizeY, int direction);
 	void initCharge();
@@ -280,9 +280,8 @@ void JetCoreClusterSplitter2::produce(edm::Event& iEvent,
 							aCluster.charge() > 30000 &&
 							(aCluster.sizeX() > 2 ||
 									((unsigned int)aCluster.sizeY()) > maxSizeY + 1)) {
-						std::cout << "\n\nCHECK FOR NEW SPLITTING: charge and deltaR "
-								<< aCluster.charge() << " "
-								<< Geom::deltaR(jetDir, clusterDir) << " size x y "
+						std::cout << "\n\nCHECK FOR NEW SPLITTING: charge" << aCluster.charge() << " and deltaR "
+								<< Geom::deltaR(jetDir, clusterDir) << " sizeX and sizeY "
 								<< aCluster.sizeX() << " " << aCluster.sizeY()
 								<< " detid " << detIt->id() << std::endl;
 						std::cout << "jetZOverRho=" << jetZOverRho << std::endl;
@@ -462,31 +461,19 @@ float JetCoreClusterSplitter2::pixelWeight2(int clx, int cly, int x, int y,
 // bintheta e' la JetZOverRho espressa in bin
 // clx e' la posizione x del cluster, e binx ti dice la regione da 1 a 5
 
-float JetCoreClusterSplitter2::pixelWeight(int clx, int cly, int x, int y,
-		int sizeY, int direction,
-		int bintheta) {
+float JetCoreClusterSplitter2::pixelWeight(int clx, int cly, int x, int y, int sizeY, int direction, int bintheta)
+{
 
 	if (x - clx + 10 < -BinsX) return 0;
 	if (y - cly + (sizeY + 1) / 2 < 0) return 0;
 	if (x - clx + 10 >= BinsX) return 0;
 	if (y - cly + (sizeY + 1) / 2 >= BinsY) return 0;
 
-
-	if (bintheta < 0) {
-		cout << "Forced bintheta=0. It was " << bintheta;
-		bintheta = 0;
-	}
-	if (bintheta >= BinsJetOverRho) {
-		cout << "Forced bintheta=BinsJetOverRho-1. It was " << bintheta;
-		bintheta = BinsJetOverRho - 1;
-	}
-
 	int caseX = direction / 2;
-	direction = direction % 2;
+	direction = direction % 2 + 1;
+	int binX = int(clx * BinsXposition / 160);
 
-	direction = direction + 1;
 
-	unsigned int binX = clx * BinsXposition / 160;
 	sizeY = sizeY + (direction - 1);
 	// fact e' la percentuale di carica attesa in quel pixel dato un cluster
 	// mapcharge e' la carica media rilasciata da un cluster in quel pixel
@@ -535,37 +522,58 @@ std::vector<SiPixelCluster> JetCoreClusterSplitter2::fittingSplit(
 	if (binjetZOverRho < 0) binjetZOverRho = 0;
 	if (binjetZOverRho > BinsJetOverRho - 1) binjetZOverRho = BinsJetOverRho - 1;
 	std::vector<int> bestcomb;
+	bool forced = false;
+
 	unsigned int bestExpCluster = meanExp;
 	std::vector<SiPixelCluster::Pixel> pixels = aCluster.pixels();
 	sort(pixels.begin(), pixels.end(), SortPixels);
-	std::vector<SiPixelCluster::Pixel> pixels_resized = pixels;
+//	std::vector<SiPixelCluster::Pixel> pixels_resized = pixels;
+	size_t pixelNumberCut = pixels.size();
 
-	size_t pixelNumberCut = pixels_resized.size()>16? 16: pixels_resized.size();
-	pixels_resized.resize(pixelNumberCut);
+	if(pixelNumberCut>16)
+	{
+		pixelNumberCut = 16;
+		forced = true;
+	}
 
-	cudaMallocHost((void**)&struct_pixel, sizeof(GPUPixelSoA));
-	cudaMalloc((void**)&gpu_pixel, sizeof(GPUPixelSoA));
-	struct_pixel->n = pixelNumberCut;
-	for (unsigned int pixel_index = 0; pixel_index< pixelNumberCut; ++pixel_index)
+
+
+	//	if (pixels_resized.size()>6)
+//	{
+//		pixelNumberCut = 6;
+//		forced = true;
+//		pixels_resized.resize(pixelNumberCut);
+//
+//	}
+//	else
+//	{
+//		forced = false;
+//		pixelNumberCut = pixels_resized.size();
+//	}
+
+	cudaMallocHost((void**)&struct_pixel, pixels.size()*sizeof(GPUPixelSoA));
+	cudaMalloc((void**)&gpu_pixel, pixels.size()*sizeof(GPUPixelSoA));
+
+
+	for (unsigned int pixel_index = 0; pixel_index< pixels.size(); ++pixel_index)
 	{
-		struct_pixel->x[pixel_index] = pixels_resized[pixel_index].x;
-		struct_pixel->y[pixel_index] = pixels_resized[pixel_index].y;
-		struct_pixel->adc[pixel_index] = pixels_resized[pixel_index].adc;
+		struct_pixel[pixel_index].x = pixels[pixel_index].x;
+		struct_pixel[pixel_index].y = pixels[pixel_index].y;
+		struct_pixel[pixel_index].adc = pixels[pixel_index].adc;
 	}
-	for (unsigned int pixel_index = pixelNumberCut; pixel_index< 16; ++pixel_index )
-	{
-		struct_pixel->x[pixel_index] = 0;
-		struct_pixel->y[pixel_index] = 0;
-		struct_pixel->adc[pixel_index] = 0;
-	}
+//	for (unsigned int pixel_index = pixelNumberCut; pixel_index< 16; ++pixel_index )
+//	{
+//		struct_pixel->x[pixel_index] = 0;
+//		struct_pixel->y[pixel_index] = 0;
+//		struct_pixel->adc[pixel_index] = 0;
+//	}
 
 	//  assert(struct_pixel->n <= 16);
 
-	float chiN = -1;
+//	float chiN = -1;
 	float chimin = 1e99;
 	if (meanExp > 6) meanExp = 6;
 
-	bool forced = false;
 	for (unsigned int expectedClusters = meanExp - 1; expectedClusters <= meanExp;
 			expectedClusters++) {
 		float chiminlocal = 1e99;
@@ -629,9 +637,10 @@ std::vector<SiPixelCluster> JetCoreClusterSplitter2::fittingSplit(
 #endif
 
 		// FP: GPU if expected Clusters > 2
-		if(expectedClusters > 2)
+//		if(expectedClusters > 2)
+		if(0)
 		{
-			cudaMemcpyAsync(gpu_pixel, struct_pixel, sizeof(GPUPixelSoA), cudaMemcpyHostToDevice, 0);
+			cudaMemcpyAsync(gpu_pixel, struct_pixel, pixels.size()*sizeof(GPUPixelSoA), cudaMemcpyHostToDevice, 0);
 
 			// no need to copy
 			PixelClusterUtils* dataNeededOnGPU;
@@ -660,7 +669,9 @@ std::vector<SiPixelCluster> JetCoreClusterSplitter2::fittingSplit(
 				originalADC[i] = 0;
 			for (unsigned int i = 0; i < pixels.size(); i++) {
 				originalADC[pixels[i].x + 500*pixels[i].y]= pixels[i].adc;
+//				std::cout <<  pixels[i].x << "\t" << pixels[i].y << "\t" <<originalADC[pixels[i].x + 500*pixels[i].y] << std::endl;
 			}
+
 			cudaMemcpyAsync(gpu_originalADC,originalADC,250000*sizeof(int), cudaMemcpyHostToDevice,0);
 
 			//	    GPUPixelSoA* pixels, int* originalADC,
@@ -672,14 +683,14 @@ std::vector<SiPixelCluster> JetCoreClusterSplitter2::fittingSplit(
 					expectedClusters, npos);
 
 
-			if (combination.chi2 < chiminlocal) {
-				chiminlocal = combination.chi2;
+			if (combination.chi2/1024.f < chiminlocal) {
+				chiminlocal = combination.chi2/1024.f;
 			}
-			if (combination.chi2 < chimin) {
-				chimin = combination.chi2;
+			if (combination.chi2/1024.f < chimin) {
+				chimin = combination.chi2/1024.f;
 				bestcomb.resize(expectedClusters);
 				for(unsigned int idx = 0; idx < expectedClusters; ++idx)
-					bestcomb[idx] = combination.comb[idx];
+					bestcomb[idx] = (int)(combination.comb[idx]);
 				bestExpCluster = expectedClusters;
 			}
 			cudaFreeHost(dataNeededOnGPU);
@@ -687,94 +698,81 @@ std::vector<SiPixelCluster> JetCoreClusterSplitter2::fittingSplit(
 		}
 		else
 		{
-			SiPixelArrayBuffer theOriginalBuffer(500, 500);
 
-			for (unsigned int i = 0; i < pixels.size(); i++) {
-				int x = pixels[i].x;
-				int y = pixels[i].y;
-				int adc = pixels[i].adc;
-				theOriginalBuffer.set_adc(x, y, adc);
-			}
+
 
 			std::vector<int> comb(expectedClusters);
 
 			// need to parallelize this while loop
 			while (nextCombination(comb, npos))
 			{
+				// INIZIO NEW!
 
-				float chi2 = 0;
-				SiPixelArrayBuffer theBuffer;
-				theBuffer.setSize(500, 500);
-				for (unsigned int i = 0; i < pixels.size(); i++) {
-					int x = pixels[i].x;
-					int y = pixels[i].y;
-					int adc = pixels[i].adc;
-					theBuffer.set_adc(x, y, adc);
+				float chi2=0;
+
+				float prob = 0.f;
+
+				for (unsigned int clusterIdx = 0; clusterIdx < expectedClusters; ++clusterIdx)
+				{
+
+					int clusterPosX = pixels[comb[clusterIdx] / nDirections].x;
+
+					int direction = comb[clusterIdx] % nDirections;
+					prob += count_array[direction%2+1 + clusterPosX / 32 *BinsDirections +
+					              binjetZOverRho*BinsXposition*BinsDirections];
 				}
 
 
-				float prob = 0;
-				for (unsigned int cl = 0; cl < expectedClusters; cl++) {
-					int pi = comb[cl];
-					// nDirections sono 4: sotto o sopra, e i due interi intorno a sizeY
-					// attesa (che e' un float)
+				for (int x = xmin - 5; x <= xmax + 5; x++)
+				{
+					for (int y = ymin - (sizeY + 1) / 2; y <= ymax + (sizeY + 1) / 2; y++)
+					{
+						int originaladc = 0;
+						int adc = 0;
+						//					CUPRINTF("\nHEY %d!!!!!!\n", x);
+						for (unsigned int clusterIdx = 0; clusterIdx < expectedClusters; ++clusterIdx)
+						{
 
-					int clx = pixels[pi / nDirections].x;
-					int cly = pixels[pi / nDirections].y;
-					int direction = pi % nDirections;
+							int clusterPosX =  pixels[comb[clusterIdx] / 4].x;
+							int clusterPosY =  pixels[comb[clusterIdx] / 4].y;
+							int direction = comb[clusterIdx] % 4;
+							if(clusterIdx == 0)
+							{
+								originaladc = originalADC[500*y + x];
+								adc = originaladc;
 
-					for (int x = xmin - 5; x <= xmax + 5; x++) {
-						for (int y = ymin - (sizeY + 1) / 2; y <= ymax + (sizeY + 1) / 2;
-								y++) {
-							if (x < 0 || y < 0) continue;
-							float fact =
-									pixelWeight(clx, cly, x, y, sizeY, direction, binjetZOverRho);
-							if (fact > 0) {
-								theBuffer.set_adc(x, y, theBuffer(x, y) - fact * expectedADC);
 							}
+							float fact = pixelWeight(clusterPosX, clusterPosY, x, y,sizeY, direction, binjetZOverRho);
 
+
+							if (fact > 0)
+								adc -= fact * expectedADC;
+
+							if(clusterIdx == expectedClusters-1)
+							{
+								float res = adc;
+								float charge = (originaladc - adc) > 0? (originaladc - adc): -(originaladc - adc) ; // charge assigned to this pixel
+								float chargeMeasured = originaladc;
+
+
+
+								if (charge < 5000 && chargeMeasured < 5000 )
+								{  // threshold effect
+									res = 0;
+								}
+
+								if (chargeMeasured <= 2000) chargeMeasured = 2000;
+								if (charge < 2000) charge = 2000;
+
+
+								chi2 +=((res * res) / (charge * charge));
+
+							}
 						}
 					}
-					// Dato che testiamo due possibili posizioni in y del cluster (quello
-					// atteso e
-					// quello atteso + 1, dobbiamo favorire quello atteso
-					// si guarda quante volte ha colpito size Y+1
-					prob += count[binjetZOverRho][int((clx) * 5. / 160)][direction % 2 + 1];
+
 				}
-				// print(theBuffer,aCluster);
-				for (int x = xmin - 5; x <= xmax + 5; x++) {
-					for (int y = ymin - (sizeY + 1) / 2; y <= ymax + (sizeY + 1) / 2; y++) {
 
-						float res = theBuffer(x, y);
-						float charge = theOriginalBuffer(x, y) -
-								theBuffer(x, y);  // charge assigned to this pixel
-						float chargeMeasured =
-								theOriginalBuffer(x, y);  // charge assigned to this pixel
-
-						//					if(res< 0 ) { //threshold effect
-						//						if(res > -10000){
-						//							if(res<-5000)
-						//res+=5000;
-						//							else  res=0;
-						//						}
-						//					}
-						//									if(res> 0 && charge > 7000 ) {
-						////reduce weights of landau tails
-						//										res*=0.7;
-						//									}
-
-						if (chargeMeasured < 5000 && abs(charge) < 5000) {  // threshold
-							// effect
-							res = 0;
-						}
-
-						if (chargeMeasured <= 2000) chargeMeasured = 2000;
-						if (fabs(charge) < 2000) charge = 2000;
-
-						chi2 += (res * res) / (charge * charge);
-
-					}
-				}
 				prob /= expectedClusters;
 				chi2 /= prob;
 
@@ -782,16 +780,22 @@ std::vector<SiPixelCluster> JetCoreClusterSplitter2::fittingSplit(
 					chiminlocal = chi2;
 				}
 				if (chi2 < chimin) {
-					chiN = chi2 * prob / aCluster.size();
+//					chiN = chi2 * prob / aCluster.size();
 					chimin = chi2;
 					bestcomb = comb;
 					bestExpCluster = expectedClusters;
 				}
 			}
 		}
-		std::cout << " chiN " << chiN << " sizeY  " << sizeY << " exADC "
-				<< expectedADC << std::endl;
-		std::cout << " chi " << std::setprecision(7) << chiminlocal << std::endl;
+
+		for(unsigned int index = 0; index<bestExpCluster; ++index)
+		{
+
+			printf(" %d ", bestcomb[index]);
+		}
+		std::cout << "with chi2 " << std::setprecision(7) << chiminlocal << std::endl;
+
+
 	}
 
 	cudaFree(gpu_pixel);
@@ -984,10 +988,10 @@ bool JetCoreClusterSplitter2::nextCombination(std::vector<int>& comb,
 			return false;
 		}
 	}
-	std::cout << "nposizioni: " << npos << " combinazione: " << std::endl;
-	for( std::vector<int>::const_iterator i = comb.begin(); i != comb.end(); ++i)
-		std::cout << *i << ' ';
-	std::cout<< " "<< std::endl;
+//	std::cout << "nposizioni: " << npos << " combinazione: " << std::endl;
+//	for( std::vector<int>::const_iterator i = comb.begin(); i != comb.end(); ++i)
+//		std::cout << *i << ' ';
+//	std::cout<< " "<< std::endl;
 	return true;
 }
 void JetCoreClusterSplitter2::print(const SiPixelArrayBuffer& b,

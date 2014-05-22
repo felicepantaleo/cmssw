@@ -220,7 +220,7 @@ void CompareWithIdealClustering::produce(edm::Event& iEvent, const edm::EventSet
         	countClusterSplitted=usedSplit.size();
 
 
-		cout<<"\n";
+//		cout<<"\n";
 		int totalSplitted=countClusterSplitted;
 		int totalIdeal=countClusterIdeal;
 
@@ -249,9 +249,9 @@ void CompareWithIdealClustering::produce(edm::Event& iEvent, const edm::EventSet
 		cout<<"\n Final comparer: bad matching (>0.02cm)\t= % "<<(float)AllEvents_countNoMatching*100 /AllEvents_totalIdeal;
 		cout<<"\n Final comparer: ideal not matched (lost)\t= % "<<(float)(AllEvents_totalIdeal - AllEvents_totalMatched )*100 /AllEvents_totalIdeal;
 		cout<<"\n Final comparer: splitted not matched (fake)\t= % "<<(float)(AllEvents_totalSplitted - AllEvents_totalMatched )*100 /AllEvents_totalSplitted;
-		cout<<"\n Final comparer: squared mean error = (um) "<<(float)10000.*sqrt(AllEvents_totalSquareddistanceValue) /AllEvents_totalMatched;
+		cout<<"\n Final comparer: squared mean error = (um) "<<(float)10000.*sqrt(AllEvents_totalSquareddistanceValue) /AllEvents_totalMatched << endl;
 		
-		cout<<"\n";
+//		cout<<"\n";
 
 	}
 	iEvent.put(output);
