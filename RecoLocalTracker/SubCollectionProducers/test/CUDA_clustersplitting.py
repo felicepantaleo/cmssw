@@ -29,6 +29,10 @@ process.source = cms.Source("PoolSource",
 #    skipEvents =  cms.untracked.uint32(58),
     fileNames = cms.untracked.vstring()
 )
+process.options = cms.untracked.PSet(numberOfThreads = cms.untracked.uint32(8),
+                                       sizeOfStackForThreadsInKB = cms.untracked.uint32(10*1024),
+                                       numberOfStreams = cms.untracked.uint32(0))
+
 
 process.GlobalTag.globaltag = 'START53_V27::All'
 

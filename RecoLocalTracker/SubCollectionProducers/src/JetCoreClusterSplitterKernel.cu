@@ -1572,7 +1572,7 @@ __global__ void kernel6threads(GPUPixelSoA* pixels, int* originalADC, int* mapch
 //}
 
 extern "C" Chi2Comb cudaClusterSplitter_(GPUPixelSoA* pixels, int* originalADC, int* gpu_mapcharge, int* gpu_count_array,
-		int* gpu_totalcharge_array, PixelClusterUtils* constantDataNeededOnGPU, unsigned int numClusters, int numPositions) {
+		int* gpu_totalcharge_array, PixelClusterUtils* constantDataNeededOnGPU, unsigned int numClusters, int numPositions, cudaStream_t& CUDAstream) {
 
 	// bind texture to buffer
 	//	cudaBindTexture(0, tex, gpu_mapcharge, 168000*sizeof(int));
@@ -1585,7 +1585,7 @@ extern "C" Chi2Comb cudaClusterSplitter_(GPUPixelSoA* pixels, int* originalADC, 
 	host_bestChi2Combination->chi2 = USHRT_MAX;
 	for(int i = 0; i<6; ++i)
 		host_bestChi2Combination->comb[i] = -1;
-	cudaMemcpyAsync(gpu_bestChi2Combination, host_bestChi2Combination,sizeof(Chi2Comb), cudaMemcpyHostToDevice, 0);
+	cudaMemcpyAsync(gpu_bestChi2Combination, host_bestChi2Combination,sizeof(Chi2Comb), cudaMemcpyHostToDevice, CUDAstream);
 
 
 	size_t SmemSize = 2*sizeof(Chi2Comb)*numPositions;
@@ -1597,7 +1597,7 @@ extern "C" Chi2Comb cudaClusterSplitter_(GPUPixelSoA* pixels, int* originalADC, 
 
 		dim3 block(64,1,1);
 		dim3 grid(numPositions,numPositions,1);
-		kernel3threads<<<grid,block,SmemSize,0>>>(pixels, originalADC, gpu_mapcharge,
+		kernel3threads<<<grid,block,SmemSize,CUDAstream>>>(pixels, originalADC, gpu_mapcharge,
 				gpu_count_array, gpu_totalcharge_array, numPositions, gpu_bestChi2Combination);
 		//		//TODO: evaluate the amount of shared memory needed
 		//		int numblocksReduction = 2 << (6*numClusters-10);
@@ -1607,25 +1607,25 @@ extern "C" Chi2Comb cudaClusterSplitter_(GPUPixelSoA* pixels, int* originalADC, 
 	{
 		dim3 block(64,1,1);
 		dim3 grid(numPositions,numPositions,numPositions);
-		kernel4threads<<<grid,block,SmemSize,0>>>(pixels, originalADC, gpu_mapcharge,
+		kernel4threads<<<grid,block,SmemSize,CUDAstream>>>(pixels, originalADC, gpu_mapcharge,
 				gpu_count_array, gpu_totalcharge_array, numPositions, gpu_bestChi2Combination);
 	}
 	else if (numClusters == 5)
 	{
 		dim3 block(64,1,1);
 		dim3 grid(numPositions,numPositions,numPositions);
-		kernel5threads<<<grid,block,SmemSize,0>>>(pixels, originalADC, gpu_mapcharge,
+		kernel5threads<<<grid,block,SmemSize,CUDAstream>>>(pixels, originalADC, gpu_mapcharge,
 				gpu_count_array, gpu_totalcharge_array, numPositions, gpu_bestChi2Combination);
 	}
 	else if (numClusters == 6)
 	{
 		dim3 block(64,1,1);
 		dim3 grid(numPositions,numPositions,numPositions);
-		kernel6threads<<<grid,block,SmemSize,0>>>(pixels, originalADC, gpu_mapcharge,
+		kernel6threads<<<grid,block,SmemSize,CUDAstream>>>(pixels, originalADC, gpu_mapcharge,
 				gpu_count_array, gpu_totalcharge_array, numPositions, gpu_bestChi2Combination);
 	}
-	cudaMemcpyAsync(host_bestChi2Combination, gpu_bestChi2Combination,sizeof(Chi2Comb), cudaMemcpyDeviceToHost, 0);
-	cudaStreamSynchronize(0);
+	cudaMemcpyAsync(host_bestChi2Combination, gpu_bestChi2Combination,sizeof(Chi2Comb), cudaMemcpyDeviceToHost, CUDAstream);
+	cudaStreamSynchronize(CUDAstream);
 	Chi2Comb bestcomb;
 	bestcomb.chi2 =  host_bestChi2Combination->chi2;
 	printf("Best comb chi2: %hd \n", host_bestChi2Combination->chi2);
