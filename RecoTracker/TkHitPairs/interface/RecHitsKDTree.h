@@ -32,16 +32,17 @@ public:
     float eta() const {return theEta;}
     Hit const & hit() const { return theHit;}
     
-     void doubUpAdd (int up)  {doubHitsUp.push_back(up);}
-     void doubLowAdd (int low) {doubHitsLow.push_back(low);}
+     //Adding outer/innter cells hits indeces
+     void connectedOuterCellsHitAdd (int up)  {theConnectedOuterCells.push_back(up);} 
+     void connectedInnerCellsHitAdd (int low) {theConnectedInnerCells.push_back(low);}
         
   private:
     Hit   theHit;
     float thePhi;
     float theEta;
     
-    std::vector<int> doubHitsUp;   //Hits on the upper layer linked with a doublet
-    std::vector<int> doubHitsLow;  //Hits on the lower layer linked with a doublet
+    std::vector<int> theConnectedOuterCells;   //Hits on the upper layer linked with a cell
+    std::vector<int> theConnectedInnerCells;  //Hits on the lower layer linked with a cell
   };
 
   struct HitLessPhi {
@@ -154,15 +155,15 @@ public:
 
   void add (int il, int ol) { 
   		indeces.push_back(il);
-  		hit(indeces.back(),0).doubUpAdd(ol);
+  		hit(indeces.back(),0).connectedOuterCellsHitAdd(ol);
   		
   		indeces.push_back(ol);
-  		hit(indeces.back(),1).doubHitsLow(il);
+  		hit(indeces.back(),1).connectedInnerCellsHitAdd(il);
   }
   
-  //Passing doublet index returns his index vector 
-  std::vector<int> findUpper (int i) const {return layers[1]->theHits[indeces[2*i+1]].hit().doubHitsUp;}
-  std::vector<int> findLower (int i) const {return layers[0]->theHits[indeces[2*i+0]].hit().doubHitsLow;}
+  //Passing cells index returns his index vector 
+  std::vector<int> findConnectedOuterCellsHits (int i) const {return layers[1]->theHits[indeces[2*i+1]].hit().theConnectedOuterCells;}
+  std::vector<int> findConnectedInnerCellsHits (int i) const {return layers[0]->theHits[indeces[2*i+0]].hit().theConnectedInnerCells;}
 
   DetLayer const * detLayer(layer l) const { return layers[l]->layer; }
 
