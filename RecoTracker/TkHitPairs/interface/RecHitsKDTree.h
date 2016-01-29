@@ -31,14 +31,24 @@ public:
     float phi() const {return thePhi;}
     float eta() const {return theEta;}
     Hit const & hit() const { return theHit;}
+    
+     void doubUpAdd (int up)  {doubHitsUp.push_back(up);}
+     void doubLowAdd (int low) {doubHitsLow.push_back(low);}
+        
   private:
     Hit   theHit;
     float thePhi;
     float theEta;
+    
+    std::vector<int> doubHitsUp;   //Hits on the upper layer linked with a doublet
+    std::vector<int> doubHitsLow;  //Hits on the lower layer linked with a doublet
   };
 
   struct HitLessPhi {
-    bool operator()( const HitWithPhi& a, const HitWithPhi& b) { return a.phi() < b.phi(); }
+    bool operator()( const HitWithEtaPhi& a, const HitWithEtaPhi& b) { return a.phi() < b.phi(); }
+  };
+  struct HitLessEta {
+    bool operator()( const HitWithEtaPhi& a, const HitWithEtaPhi& b) { return a.eta() < b.eta(); }
   };
 
 //  typedef std::vector<HitWithPhi>::const_iterator      HitIter;
@@ -46,7 +56,7 @@ public:
 
   using DoubleRange = std::array<int,4>;
 
-  RecHitsSortedInPhi(const std::vector<Hit>& hits, GlobalPoint const & origin, DetLayer const * il);
+  RecHitsKDTree(const std::vector<Hit>& hits, GlobalPoint const & origin, DetLayer const * il);
 
   bool empty() const { return theHits.empty(); }
   std::size_t size() const { return theHits.size();}
@@ -90,7 +100,7 @@ public:
 
   mutable GlobalPoint theOrigin;
 
-  std::vector<HitWithPhi> theHits;
+  std::vector<HitWithEtaPhi> theHits;
 
   DetLayer const * layer;
   bool isBarrel;
@@ -127,11 +137,11 @@ class HitDoublets {
 public:
   enum layer { inner=0, outer=1};
 
-  using Hit=RecHitsSortedInPhi::Hit;
+  using Hit=RecHitsKDTree::Hit;
 
 
-  HitDoublets(  RecHitsSortedInPhi const & in,
-		RecHitsSortedInPhi const & out) :
+  HitDoublets(  RecHitsKDTree const & in,
+		RecHitsKDTree const & out) :
     layers{{&in,&out}}{}
 
   HitDoublets(HitDoublets && rh) : layers(std::move(rh.layers)), indeces(std::move(rh.indeces)){}
@@ -142,7 +152,17 @@ public:
   void clear() { indeces.clear();}
   void shrink_to_fit() { indeces.shrink_to_fit();}
 
-  void add (int il, int ol) { indeces.push_back(il);indeces.push_back(ol);}
+  void add (int il, int ol) { 
+  		indeces.push_back(il);
+  		hit(indeces.back(),0).doubUpAdd(ol);
+  		
+  		indeces.push_back(ol);
+  		hit(indeces.back(),1).doubHitsLow(il);
+  }
+  
+  //Passing doublet index returns his index vector 
+  std::vector<int> findUpper (int i) const {return layers[1]->theHits[indeces[2*i+1]].hit().doubHitsUp;}
+  std::vector<int> findLower (int i) const {return layers[0]->theHits[indeces[2*i+0]].hit().doubHitsLow;}
 
   DetLayer const * detLayer(layer l) const { return layers[l]->layer; }
 
@@ -156,7 +176,7 @@ public:
 
 private:
 
-  std::array<RecHitsSortedInPhi const *,2> layers;
+  std::array<RecHitsKDTree const *,2> layers;
 
 
   std::vector<int> indeces;
