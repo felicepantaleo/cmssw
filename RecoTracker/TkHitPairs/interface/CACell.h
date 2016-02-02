@@ -19,7 +19,7 @@ class Cell
 {
 public:
 	Cell() { }
-	Cell(const RecHitsKDTree* hitsKDTree, int innerHitId, int outerHitId,  int idInCellArray, int layerId) : theCAState(0), theInnerHitId(innerHitId), theOuterHitId(outerHitId), theId(idInCellArray), theLayerId(layerId), hasFriends(false) {
+	Cell(const RecHitsKDTree* hitsKDTree, int innerHitId, int outerHitId,  int idInCellArray, int layerId) : theKDTree(hitsKDTree),theCAState(0), theInnerHitId(innerHitId), theOuterHitId(outerHitId), theId(idInCellArray), theLayerId(layerId), hasFriends(false) {
 
 
 
@@ -168,6 +168,65 @@ public:
 		}
 
 	}
+	
+	//Returns the angle between the cell and the radius of the inner hit
+  float cellPhiAngle(){
+
+	  //Hits parameters
+	  float phi1 = theKDTree->hits[theInnerHitId].phi();
+	  float phi2 = theKDTree->hits[theOuterHitId].phi();
+	  float r1 =  theKDTree->hits[theInnerHitId].rv();
+	  float r2 = theKDTree->hits[theOuterHitId].rv();
+
+	  float gamma = std::atan((r2*std::sin(phi2)-r1*std::sin(phi1))/(r2*std::cos(phi2)-r1*std::cos(phi1)));
+
+	  return M_PI-gamma-phi1;
+  }
+
+/Returns the z of the intersection of the beam axis with of the extension of the cell
+  float cellZOnBeam(float beamPhi,float beamR){
+
+	  float phi1 = theKDTree->hits[theInnerHitId].phi();
+	  float phi2 = theKDTree->hits[theOuterHitId].phi();
+	  float z1 = theKDTree->hits[theInnerHitId].z();
+	  float z2 = theKDTree->hits[theOuterHitId].z();
+	  float y1 =  theKDTree->hits[theInnerHitId].y();
+	  float y2 = theKDTree->hits[theOuterHitId].y();
+
+	  float beamHeight = beamR*std::sin(beamPhi);
+
+	  return (beamHeight-y2)*(z2-z1)/(y2-y1))+z2;
+
+    }
+
+//Returns the radius of the circumference tangent to the cell in its midpoint
+  float cellAxesCircleRadius(float beamPhi,float beamR){
+
+	  float x1 = theKDTree->hits[theInnerHitId].x();
+	  float x2 = theKDTree->hits[theOuterHitId].x();
+	  float y1 = theKDTree->hits[theInnerHitId].y();
+	  float y2 = theKDTree->hits[theOuterHitId].y();
+
+	  float midpointCellX = (x1+x2)/2.0;
+	  float midpointBeamX = (x1+std::cos(beamPhi))/2.0;
+
+	  float midpointCellY = (y1+y2;)/2.0
+	  float midpointBeamY = (y1+beamR*std::sin(beamPhi))/2.0;
+
+	  float slopeOrthogonalXYCell = -(x1-x2)/(y1-y2);
+	  float slopeOrthogonalXYBeam = -(x1-x2)/(y1-y2);
+
+	  float interceptOrthogonalXYCell = midpointCellY-slopeOrthogonalXYCell*midpointCellX;
+	  float interceptOrthogonalXYBeam = midpointBeamY-slopeOrthogonalXYBeam*midpointBeamX;
+
+	  float intersectionPointX = -(interceptOrthogonalXYCell-interceptOrthogonalXYBeam)/(slopeOrthogonalXYCell-slopeOrthogonalXYBeam);
+	  float intersectionPointY = slopeOrthogonalXYCell*intersectionPointX+interceptOrthogonalXYCell;
+
+	  return std::sqrt((intersectionPointX-midpointCellX)*(intersectionPointX-midpointCellX)+(intersectionPointY-midpointCellY)*(intersectionPointY-midpointCellY));
+
+    }
+	
+	
 
 
 	tbb::concurrent_vector<int> theInnerNeighbors;
@@ -181,6 +240,7 @@ public:
 	short int theCAState;
 	bool isHighPtCell;
 	bool hasFriends;
+	RecHitsKDTree* theKDTree;
 
 };
 
