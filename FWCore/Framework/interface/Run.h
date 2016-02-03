@@ -42,7 +42,7 @@ namespace edm {
 
   class Run : public RunBase {
   public:
-    Run(RunPrincipal& rp, ModuleDescription const& md,
+    Run(RunPrincipal const& rp, ModuleDescription const& md,
         ModuleCallingContext const*);
     ~Run();
 
@@ -153,13 +153,10 @@ namespace edm {
     RunPrincipal const&
     runPrincipal() const;
 
-    RunPrincipal&
-    runPrincipal();
-
     // Override version from RunBase class
     virtual BasicHandle getByLabelImpl(std::type_info const& iWrapperType, std::type_info const& iProductType, InputTag const& iTag) const;
 
-    typedef std::vector<std::pair<std::unique_ptr<WrapperBase>, BranchDescription const*> > ProductPtrVec;
+    typedef std::vector<std::pair<edm::propagate_const<std::unique_ptr<WrapperBase>>, BranchDescription const*>> ProductPtrVec;
     ProductPtrVec& putProducts() {return putProducts_;}
     ProductPtrVec const& putProducts() const {return putProducts_;}
 
@@ -181,7 +178,7 @@ namespace edm {
     typedef std::set<BranchID> BranchIDSet;
     mutable BranchIDSet gotBranchIDs_;
     ModuleCallingContext const* moduleCallingContext_;
-    SharedResourcesAcquirer* sharedResourcesAcquirer_;
+    SharedResourcesAcquirer* sharedResourcesAcquirer_; // We do not use propagate_const because the acquirer is itself mutable.
 
     static const std::string emptyString_;
   };

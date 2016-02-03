@@ -15,7 +15,6 @@ from Modules import _Module
 from SequenceTypes import *
 from SequenceTypes import _ModuleSequenceType, _Sequenceable  #extend needs it
 from SequenceVisitors import PathValidator, EndPathValidator
-from Utilities import *
 import DictTypes
 
 from ExceptionHandling import *
@@ -517,6 +516,7 @@ class Process(object):
         self.__dict__['_Process__InExtendCall'] = True
 
         seqs = dict()
+        mods = []
         for name in dir(other):
             #'from XX import *' ignores these, and so should we.
             if name.startswith('_'):
@@ -537,7 +537,7 @@ class Process(object):
             elif isinstance(item,_Unlabelable):
                 self.add_(item)
             elif isinstance(item,ProcessModifier):
-                item.apply(self)
+                mods.append(item)
             elif isinstance(item,ProcessFragment):
                 self.extend(item)
 
@@ -554,6 +554,11 @@ class Process(object):
                 self.__setObjectLabel(newSeq, name)
                 #now put in proper bucket
                 newSeq._place(name,self)
+
+        #apply modifiers now that all names have been added
+        for item in mods:
+            item.apply(self)
+
         self.__dict__['_Process__InExtendCall'] = False
 
     def _dumpConfigNamedList(self,items,typeName,options):
@@ -707,6 +712,8 @@ class Process(object):
             result += "process.source = "+self.source_().dumpPython(options)
         if self.looper_():
             result += "process.looper = "+self.looper_().dumpPython()
+        result+=self._dumpPythonList(self.psets, options)
+        result+=self._dumpPythonList(self.vpsets, options)
         result+=self._dumpPythonSubProcesses(self.subProcesses_(), options)
         result+=self._dumpPythonList(self.producers_(), options)
         result+=self._dumpPythonList(self.filters_() , options)
@@ -720,8 +727,6 @@ class Process(object):
         result+=self._dumpPythonList(self.es_sources_(), options)
         result+=self._dumpPython(self.es_prefers_(), options)
         result+=self._dumpPythonList(self.aliases_(), options)
-        result+=self._dumpPythonList(self.psets, options)
-        result+=self._dumpPythonList(self.vpsets, options)
         if self.schedule:
             pathNames = ['process.'+p.label_() for p in self.schedule]
             result +='process.schedule = cms.Schedule(*[ ' + ', '.join(pathNames) + ' ])\n'
@@ -1105,6 +1110,27 @@ class _ParameterModifier(object):
     for k,v in self.__args.iteritems():
       setattr(obj,k,v)
 
+class _AndModifier(object):
+  """A modifier which only applies if multiple Modifiers are chosen"""
+  def __init__(self, lhs, rhs):
+    self.__lhs = lhs
+    self.__rhs = rhs
+  def isChosen(self):
+    return self.__lhs.isChosen() and self.__rhs.isChosen()
+  def toModify(self,obj, func=None,**kw):
+    if not self.isChosen():
+      return
+    self.__lhs.toModify(obj,func, **kw)
+  def makeProcessModifier(self,func):
+    """This is used to create a ProcessModifer that can perform actions on the process as a whole.
+        This takes as argument a callable object (e.g. function) that takes as its sole argument an instance of Process.
+        In order to work, the value returned from this function must be assigned to a uniquely named variable."""
+    return ProcessModifier(self,func)
+  def __and__(self, other):
+    return _AndModifier(self,other)
+
+
+
 class Modifier(object):
   """This class is used to define standard modifications to a Process.
   An instance of this class is declared to denote a specific modification,e.g. era2017 could
@@ -1144,6 +1170,9 @@ class Modifier(object):
     self.__chosen = True
   def isChosen(self):
     return self.__chosen
+  def __and__(self, other):
+    return _AndModifier(self,other)
+
 
 class ModifierChain(object):
     """A Modifier made up of a list of Modifiers
@@ -1958,6 +1987,25 @@ process.addSubProcess(cms.SubProcess(process = childProcess, SelectEvents = cms.
             p.extend(testProcMod)
             self.assert_(not hasattr(p,"a"))
             self.assertEqual(p.b.fred.value(),3)
-
+            #check combining
+            m1 = Modifier()
+            m2 = Modifier()
+            p = Process("test",m1)
+            p.a = EDAnalyzer("MyAnalyzer", fred = int32(1), wilma = int32(1))
+            (m1 & m2).toModify(p.a, fred = int32(2))
+            self.assertEqual(p.a.fred, 1)
+            m1 = Modifier()
+            m2 = Modifier()
+            p = Process("test",m1,m2)
+            p.a = EDAnalyzer("MyAnalyzer", fred = int32(1), wilma = int32(1))
+            (m1 & m2).toModify(p.a, fred = int32(2))
+            self.assertEqual(p.a.fred, 2)
+            m1 = Modifier()
+            m2 = Modifier()
+            m3 = Modifier()
+            p = Process("test",m1,m2,m3)
+            p.a = EDAnalyzer("MyAnalyzer", fred = int32(1), wilma = int32(1))
+            (m1 & m2 & m3).toModify(p.a, fred = int32(2))
+            self.assertEqual(p.a.fred, 2)
 
     unittest.main()

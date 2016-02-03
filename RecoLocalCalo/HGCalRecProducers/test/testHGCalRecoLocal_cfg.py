@@ -11,8 +11,8 @@ process.load('Configuration.EventContent.EventContent_cff')
 process.load('FWCore.MessageService.MessageLogger_cfi')
 process.load('Configuration.EventContent.EventContent_cff')
 process.load('SimGeneral.MixingModule.mixNoPU_cfi')
-process.load('Configuration.Geometry.GeometryExtended2023DevReco_cff')
-process.load('Configuration.Geometry.GeometryExtended2023Dev_cff')
+process.load('Configuration.Geometry.GeometryExtended2023Reco_cff')
+process.load('Configuration.Geometry.GeometryExtended2023_cff')
 process.load('Configuration.StandardSequences.MagneticField_38T_PostLS1_cff')
 process.load('Configuration.StandardSequences.Generator_cff')
 process.load('IOMC.EventVertexGenerators.VtxSmearedGauss_cfi')
@@ -36,6 +36,10 @@ process.load("RecoLocalCalo.HGCalRecProducers.HGCalRecHit_cfi")
 process.HGCalRecHit.HGCEEuncalibRecHitCollection  = 'HGCalUncalibRecHit:HGCEEUncalibRecHits'
 process.HGCalRecHit.HGCHEFuncalibRecHitCollection = 'HGCalUncalibRecHit:HGCHEFUncalibRecHits'
 process.HGCalRecHit.HGCHEBuncalibRecHitCollection = 'HGCalUncalibRecHit:HGCHEBUncalibRecHits'
+
+#PF Rec Hit
+process.load("RecoParticleFlow.PFClusterProducer.particleFlowRecHitHGC_cff") 
+
 
 process.HGCalRecoLocal = cms.Sequence(process.HGCalUncalibRecHit +
                                       process.HGCalRecHit)
@@ -66,7 +70,8 @@ process.output = cms.OutputModule("PoolOutputModule",
         'drop *',
         'keep *_mix_*_*',
         'keep *_HGCalUncalibRecHit_*_*',
-        'keep *_HGCalRecHit_*_*'
+        'keep *_HGCalRecHit_*_*',
+        'keep *_particleFlowRecHitHGC_*_*'
         ),
     fileName = cms.untracked.string('file:testHGCalLocalReco.root'),
     dataset = cms.untracked.PSet(
@@ -110,7 +115,7 @@ process.genfiltersummary_step = cms.EndPath(process.genFilterSummary)
 process.digitisation_step = cms.Path(process.pdigi_valid)
 process.L1simulation_step = cms.Path(process.SimL1Emulator)
 process.digi2raw_step = cms.Path(process.DigiToRaw)
-process.recotest_step = cms.Path(process.HGCalRecoLocal)
+process.recotest_step = cms.Path(process.HGCalRecoLocal+process.particleFlowRecHitHGC)
 process.out_step = cms.EndPath(process.output)
 
 # Schedule definition

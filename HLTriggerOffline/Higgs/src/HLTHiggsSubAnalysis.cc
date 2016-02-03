@@ -133,6 +133,30 @@ HLTHiggsSubAnalysis::HLTHiggsSubAnalysis(const edm::ParameterSet & pset,
                         <<  (9 + _minCandidates) << ".";
             exit(-1);
         }
+        if( (_NminOneCuts[0] || _NminOneCuts[1]) &&  _minCandidates  < 4 )
+        {
+            edm::LogError("HiggsValidation") << "In HLTHiggsSubAnalysis::HLTHiggsSubAnalysis, " 
+                        << "Incoherence found in the python configuration file!!\nThe SubAnalysis '" 
+                        << _analysisname << "' has a vector NminOneCuts with a dEtaqq of mqq cut on the least b-tagged jets of the first 4 jets while only requiring " 
+                        <<  _minCandidates << " jets.";
+            exit(-1);
+        }
+        if( _NminOneCuts[5] && _minCandidates < 3 )
+        {
+            edm::LogError("HiggsValidation") << "In HLTHiggsSubAnalysis::HLTHiggsSubAnalysis, " 
+                        << "Incoherence found in the python configuration file!!\nThe SubAnalysis '" 
+                        << _analysisname << "' has a vector NminOneCuts with a CSV3 cut while only requiring " 
+                        <<  _minCandidates << " jets.";
+            exit(-1);
+        }
+        if( (_NminOneCuts[2] || _NminOneCuts[4]) &&  _minCandidates < 2 )
+        {
+            edm::LogError("HiggsValidation") << "In HLTHiggsSubAnalysis::HLTHiggsSubAnalysis, " 
+                        << "Incoherence found in the python configuration file!!\nThe SubAnalysis '" 
+                        << _analysisname << "' has a vector NminOneCuts with a dPhibb or CSV2 cut using the second most b-tagged jet while only requiring " 
+                        <<  _minCandidates << " jet.";
+            exit(-1);
+        }
         for(std::vector<double>::const_iterator it = _NminOneCuts.begin(); it != _NminOneCuts.end(); ++it)
         {
             if( *it ) {
@@ -1134,38 +1158,46 @@ void HLTHiggsSubAnalysis::passJetCuts(std::vector<MatchStruct> * matches, std::m
     std::sort(matches->begin(), matches->begin()+NbTag, matchesByDescendingBtag());
 
     if( _NminOneCuts[0] ) {
-        dEtaqq =  fabs((*matches)[2].eta - (*matches)[3].eta);
-        if( dEtaqq > _NminOneCuts[0] ) jetCutResult["dEtaqq"] = true;
-        else jetCutResult["dEtaqq"] = false;
+      jetCutResult["dEtaqq"] = false;
+      if (matches->size() > 2){
+	dEtaqq =  fabs((*matches)[2].eta - (*matches)[3].eta);
+	if( dEtaqq > _NminOneCuts[0] ) jetCutResult["dEtaqq"] = true;
+      }
     }
     
     if( _NminOneCuts[1] ) {
-        mqq = ((*matches)[2].lorentzVector + (*matches)[3].lorentzVector).M();
-        if( mqq > _NminOneCuts[1] ) jetCutResult["mqq"] = true;
-        else jetCutResult["mqq"] = false;
+      jetCutResult["mqq"] = false;
+      if (matches->size() > 2){
+	mqq = ((*matches)[2].lorentzVector + (*matches)[3].lorentzVector).M();
+	if( mqq > _NminOneCuts[1] ) jetCutResult["mqq"] = true;
+      }
     }
     
     if( _NminOneCuts[2] ) {
-        dPhibb = fmod(fabs((*matches)[0].phi - (*matches)[1].phi),3.1416);
-        if( dPhibb < _NminOneCuts[2] ) jetCutResult["dPhibb"] = true;
-        else jetCutResult["dPhibb"] = false;
+      jetCutResult["dPhibb"] = false;
+      if (matches->size() > 1){
+	dPhibb = fmod(fabs((*matches)[0].phi - (*matches)[1].phi),3.1416);
+	if( dPhibb < _NminOneCuts[2] ) jetCutResult["dPhibb"] = true;
+      }
     }
 
     if( _NminOneCuts[4] ) {
-        CSV2 = (*matches)[1].bTag;
-        std::string nameCSV2plot = "CSV2";
-
-        if( CSV2 > _NminOneCuts[4] ) jetCutResult[nameCSV2plot] = true;
-        else jetCutResult[nameCSV2plot] = false;
-        }
+      std::string nameCSV2plot = "CSV2";	
+      jetCutResult[nameCSV2plot] = false;
+      if (matches->size() > 1){
+	CSV2 = (*matches)[1].bTag;
+	if( CSV2 > _NminOneCuts[4] ) jetCutResult[nameCSV2plot] = true;
+      }
+    }
 
     if( _NminOneCuts[5] ) {
-        CSV3 = (*matches)[2].bTag;
-        std::string nameCSV3plot = "CSV3";
-
-        if( CSV3 > _NminOneCuts[5] ) jetCutResult[nameCSV3plot] = true;
-        else jetCutResult[nameCSV3plot] = false;
-        }
+      std::string nameCSV3plot = "CSV3";	
+      jetCutResult[nameCSV3plot] = false;
+      if (matches->size() > 2){
+	CSV3 = (*matches)[2].bTag;
+	if( CSV3 > _NminOneCuts[5] ) jetCutResult[nameCSV3plot] = true;
+      }
+    }
 
 
     if( _NminOneCuts[3] ) {

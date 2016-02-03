@@ -1091,7 +1091,6 @@ class ConfigBuilder(object):
 	if self._options.fast:
 		self.SIMDefaultCFF = 'FastSimulation.Configuration.SimIdeal_cff'
 		self.RECODefaultCFF= 'FastSimulation.Configuration.Reconstruction_AftMix_cff'
-                self.EVTCONTDefaultCFF = "FastSimulation.Configuration.EventContent_cff"
                 self.VALIDATIONDefaultCFF = "FastSimulation.Configuration.Validation_cff"
 		self.RECOBEFMIXDefaultCFF = 'FastSimulation.Configuration.Reconstruction_BefMix_cff'
 		self.RECOBEFMIXDefaultSeq = 'reconstruction_befmix'
@@ -1922,14 +1921,16 @@ class ConfigBuilder(object):
 
         self.loadDefaultOrSpecifiedCFF(sequence,self.DQMOFFLINEDefaultCFF)
         sequenceList=sequence.split('.')[-1].split('+')
+        postSequenceList=sequence.split('.')[-1].split('+')
 	from DQMOffline.Configuration.autoDQM import autoDQM
 	self.expandMapping(sequenceList,autoDQM,index=0)
+	self.expandMapping(postSequenceList,autoDQM,index=1)
 	
 	if len(set(sequenceList))!=len(sequenceList):
 		sequenceList=list(set(sequenceList))
 		print "Duplicate entries for DQM:, using",sequenceList
+
 	pathName='dqmoffline_step'
-	
 	for (i,sequence) in enumerate(sequenceList):
 		if (i!=0):
 			pathName='dqmoffline_%d_step'%(i)
@@ -1946,6 +1947,19 @@ class ConfigBuilder(object):
 			setattr(self.process,pathName, cms.Path( getattr(self.process, sequence) ) ) 
 		self.schedule.append(getattr(self.process,pathName))
 
+	pathName='dqmofflineOnPAT_step'
+	for (i,sequence) in enumerate(postSequenceList):
+                if (i!=0):
+                        pathName='dqmofflineOnPAT_%d_step'%(i)
+
+		# if both MINIAOD and DQM are run in the same process, schedule DQM in an EndPath
+		if 'PAT' in self.stepMap.keys():
+			# need to put DQM in an EndPath, to access the miniAOD filter results
+			setattr(self.process,pathName, cms.EndPath( getattr(self.process, sequence ) ) )
+		else:
+			# schedule DQM as a standard Path
+			setattr(self.process,pathName, cms.Path( getattr(self.process, sequence) ) )
+		self.schedule.append(getattr(self.process,pathName))
 
     def prepare_HARVESTING(self, sequence = None):
         """ Enrich the process with harvesting step """

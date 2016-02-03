@@ -19,6 +19,7 @@ is the DataBlock.
 #include "DataFormats/Provenance/interface/EventSelectionID.h"
 #include "FWCore/Utilities/interface/StreamID.h"
 #include "FWCore/Utilities/interface/Signal.h"
+#include "FWCore/Utilities/interface/get_underlying_safe.h"
 #include "FWCore/Framework/interface/Principal.h"
 
 #include <map>
@@ -72,7 +73,7 @@ namespace edm {
                             ProcessHistoryRegistry const& processHistoryRegistry,
                             EventSelectionIDVector&& eventSelectionIDs,
                             BranchListIndexes&& branchListIndexes,
-                            ProductProvenanceRetriever& provRetriever,
+                            ProductProvenanceRetriever const& provRetriever,
                             DelayedReader* reader = nullptr);
 
     
@@ -86,7 +87,7 @@ namespace edm {
       return *luminosityBlockPrincipal_;
     }
 
-    bool luminosityBlockPrincipalPtrValid() {
+    bool luminosityBlockPrincipalPtrValid() const {
       return (luminosityBlockPrincipal_) ? true : false;
     }
 
@@ -134,10 +135,10 @@ namespace edm {
 
     RunPrincipal const& runPrincipal() const;
 
-    std::shared_ptr<ProductProvenanceRetriever> productProvenanceRetrieverPtr() const {return provRetrieverPtr_;}
+    ProductProvenanceRetriever const* productProvenanceRetrieverPtr() const {return provRetrieverPtr_.get();}
 
     void setUnscheduledHandler(std::shared_ptr<UnscheduledHandler> iHandler);
-    std::shared_ptr<UnscheduledHandler> unscheduledHandler() const;
+    std::shared_ptr<const UnscheduledHandler> unscheduledHandler() const;
 
     EventSelectionIDVector const& eventSelectionIDs() const;
 
@@ -152,12 +153,12 @@ namespace edm {
     void put(
         BranchDescription const& bd,
         std::unique_ptr<WrapperBase> edp,
-        ProductProvenance const& productProvenance);
+        ProductProvenance const& productProvenance) const;
 
     void putOnRead(
         BranchDescription const& bd,
         std::unique_ptr<WrapperBase> edp,
-        ProductProvenance const& productProvenance);
+        ProductProvenance const& productProvenance) const;
 
     virtual WrapperBase const* getIt(ProductID const& pid) const override;
     virtual WrapperBase const* getThinnedProduct(ProductID const& pid, unsigned int& key) const override;
@@ -167,8 +168,8 @@ namespace edm {
 
     ProductID branchIDToProductID(BranchID const& bid) const;
 
-    void mergeProvenanceRetrievers(EventPrincipal const& other) {
-      provRetrieverPtr_->mergeProvenanceRetrievers(other.productProvenanceRetrieverPtr());
+    void mergeProvenanceRetrievers(EventPrincipal& other) {
+      provRetrieverPtr_->mergeProvenanceRetrievers(other.provRetrieverPtr());
     }
 
     using Base::getProvenance;
@@ -191,17 +192,20 @@ namespace edm {
 
     virtual unsigned int transitionIndex_() const override;
     
+    std::shared_ptr<ProductProvenanceRetriever const> provRetrieverPtr() const {return get_underlying_safe(provRetrieverPtr_);}
+    std::shared_ptr<ProductProvenanceRetriever>& provRetrieverPtr() {return get_underlying_safe(provRetrieverPtr_);}
+
   private:
 
     EventAuxiliary aux_;
 
-    std::shared_ptr<LuminosityBlockPrincipal> luminosityBlockPrincipal_;
+    edm::propagate_const<std::shared_ptr<LuminosityBlockPrincipal>> luminosityBlockPrincipal_;
 
     // Pointer to the 'retriever' that will get provenance information from the persistent store.
-    std::shared_ptr<ProductProvenanceRetriever> provRetrieverPtr_;
+    edm::propagate_const<std::shared_ptr<ProductProvenanceRetriever>> provRetrieverPtr_;
 
     // Handler for unscheduled modules
-    std::shared_ptr<UnscheduledHandler> unscheduledHandler_;
+    std::shared_ptr<UnscheduledHandler const> unscheduledHandler_;
 
     EventSelectionIDVector eventSelectionIDs_;
 

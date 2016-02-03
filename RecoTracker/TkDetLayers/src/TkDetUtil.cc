@@ -12,7 +12,7 @@ namespace tkDetUtil {
   {
     const Plane& startPlane = det->surface();  
     auto maxDistance =  est.maximalLocalDisplacement( tsos, startPlane);
-    return calculatePhiWindow( maxDistance, tsos, startPlane);
+    return std::copysign(calculatePhiWindow(maxDistance, tsos, startPlane),maxDistance.x()); 
   }
 
 
@@ -23,11 +23,11 @@ namespace tkDetUtil {
   {
     MeasurementEstimator::Local2DVector maxDistance(std::abs(imaxDistance.x()),std::abs(imaxDistance.y()));
 
-    constexpr float tollerance=1.e-6;
+    constexpr float tolerance=1.e-6;
     LocalPoint start = ts.localPosition();
     //     std::cout << "plane z " << plane.normalVector() << std::endl;
     float dphi=0;
-    if likely(std::abs(1.f-std::abs(plane.normalVector().z()))<tollerance) {
+    if likely(std::abs(1.f-std::abs(plane.normalVector().z()))<tolerance) {
       auto ori = plane.toLocal(GlobalPoint(0.,0.,0.));
       auto xc = std::abs(start.x() - ori.x());
       auto yc = std::abs(start.y() - ori.y());
@@ -40,7 +40,10 @@ namespace tkDetUtil {
       auto y1 = hori ? yc - maxDistance.y() :  xc - maxDistance.x();
       auto x1 = hori ? xc + maxDistance.x() : -yc + maxDistance.y();
 
-      dphi = std::acos( (x0*x1+y0*y1)/std::sqrt((x0*x0+y0*y0)*(x1*x1+y1*y1)) );
+      auto sp = (x0*x1+y0*y1)/std::sqrt((x0*x0+y0*y0)*(x1*x1+y1*y1));
+      sp = std::min(std::max(sp,-1.f),1.f);
+      dphi = std::acos(sp);      
+
       return dphi;
     }
     

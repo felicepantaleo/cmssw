@@ -120,7 +120,7 @@ namespace edm {
           input_.processConfiguration(),
           logicalFileName(),
           filePtr,
-          eventSkipperByID_,
+          eventSkipperByID(),
           initialNumberOfEventsToSkip_ != 0,
           remainingEvents(),
           remainingLuminosityBlocks(),
@@ -128,14 +128,14 @@ namespace edm {
           treeCacheSize_,
           input_.treeMaxVirtualSize(),
           input_.processingMode(),
-          input_.setRun(),
+          input_.runHelper(),
           noEventSort_,
           input_.productSelectorRules(),
           InputType::Primary,
           input_.branchIDListHelper(),
           input_.thinnedAssociationsHelper(),
-          std::vector<BranchID>(), // associationsFromSecondary_
-          duplicateChecker_,
+          nullptr, // associationsFromSecondary
+          duplicateChecker(),
           input_.dropDescendants(),
           input_.processHistoryRegistryForUpdate(),
           indexesIntoFiles(),
@@ -273,8 +273,7 @@ namespace edm {
       IndexIntoFile::IndexIntoFileItr originalPosition = rootFile()->indexIntoFileIter();
 
       // Look for item (run/lumi/event) in files previously opened without reopening unnecessary files.
-      typedef std::vector<std::shared_ptr<IndexIntoFile> >::const_iterator Iter;
-      for(Iter it = indexesIntoFiles().begin(), itEnd = indexesIntoFiles().end(); it != itEnd; ++it) {
+      for(auto it = indexesIntoFiles().begin(), itEnd = indexesIntoFiles().end(); it != itEnd; ++it) {
         if(*it && (*it)->containsItem(eventID.run(), eventID.luminosityBlock(), eventID.event())) {
           // We found it. Close the currently open file, and open the correct one.
           setAtFileSequenceNumber(it - indexesIntoFiles().begin());
@@ -287,7 +286,7 @@ namespace edm {
         }
       }
       // Look for item in files not yet opened.
-      for(Iter it = indexesIntoFiles().begin(), itEnd = indexesIntoFiles().end(); it != itEnd; ++it) {
+      for(auto it = indexesIntoFiles().begin(), itEnd = indexesIntoFiles().end(); it != itEnd; ++it) {
         if(!*it) {
           setAtFileSequenceNumber(it - indexesIntoFiles().begin());
           initFile(false);

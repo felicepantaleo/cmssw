@@ -37,6 +37,7 @@ For its usage, see "FWCore/Framework/interface/PrincipalGetAdapter.h"
 #include "FWCore/Utilities/interface/EDGetToken.h"
 #include "FWCore/Utilities/interface/ProductKindOfType.h"
 #include "FWCore/Utilities/interface/StreamID.h"
+#include "FWCore/Utilities/interface/propagate_const.h"
 
 #include <memory>
 #include <string>
@@ -63,7 +64,7 @@ namespace edm {
 
   class Event : public EventBase {
   public:
-    Event(EventPrincipal& ep, ModuleDescription const& md,
+    Event(EventPrincipal const& ep, ModuleDescription const& md,
           ModuleCallingContext const*);
     virtual ~Event();
     
@@ -225,7 +226,7 @@ namespace edm {
 
     void labelsForToken(EDGetToken const& iToken, ProductLabels& oLabels) const { provRecorder_.labelsForToken(iToken, oLabels); }
 
-    typedef std::vector<std::pair<std::unique_ptr<WrapperBase>, BranchDescription const*> > ProductPtrVec;
+    typedef std::vector<std::pair<edm::propagate_const<std::unique_ptr<WrapperBase>>, BranchDescription const*> > ProductPtrVec;
 
     EDProductGetter const&
     productGetter() const;
@@ -236,9 +237,6 @@ namespace edm {
 
     EventPrincipal const&
     eventPrincipal() const;
-
-    EventPrincipal&
-    eventPrincipal();
 
     ProductID
     makeProductID(BranchDescription const& desc) const;
@@ -407,7 +405,7 @@ namespace edm {
   template<typename PROD>
   RefProd<PROD>
   Event::getRefBeforePut(std::string const& productInstanceName) {
-    PROD* p = 0;
+    PROD* p = nullptr;
     BranchDescription const& desc =
       provRecorder_.getBranchDescription(TypeID(*p), productInstanceName);
 

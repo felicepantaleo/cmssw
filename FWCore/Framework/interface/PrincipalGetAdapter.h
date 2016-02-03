@@ -106,6 +106,7 @@ edm::Ref<AppleCollection> ref(refApples, index);
 #include "FWCore/Utilities/interface/EDGetToken.h"
 #include "FWCore/Utilities/interface/ProductKindOfType.h"
 #include "FWCore/Utilities/interface/ProductLabels.h"
+#include "FWCore/Utilities/interface/propagate_const.h"
 
 
 namespace edm {
@@ -127,7 +128,7 @@ namespace edm {
   }
   class PrincipalGetAdapter {
   public:
-    PrincipalGetAdapter(Principal & pcpl,
+    PrincipalGetAdapter(Principal const& pcpl,
 		 ModuleDescription const& md);
 
     ~PrincipalGetAdapter();
@@ -159,7 +160,6 @@ namespace edm {
     ProcessHistory const&
     processHistory() const;
 
-    Principal& principal() {return principal_;}
     Principal const& principal() const {return principal_;}
 
     BranchDescription const&
@@ -229,14 +229,14 @@ namespace edm {
 
     // Each PrincipalGetAdapter must have an associated Principal, used as the
     // source of all 'gets' and the target of 'puts'.
-    Principal & principal_;
+    Principal const& principal_;
 
     // Each PrincipalGetAdapter must have a description of the module executing the
     // "transaction" which the PrincipalGetAdapter represents.
     ModuleDescription const& md_;
     
     EDConsumerBase const* consumer_;
-    SharedResourcesAcquirer* resourcesAcquirer_;
+    SharedResourcesAcquirer* resourcesAcquirer_; // We do not use propagate_const because the acquirer is itself mutable.
   };
 
   template <typename PROD>

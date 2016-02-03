@@ -11,6 +11,7 @@ EmbeddedRootSource: This is an InputSource
 #include "FWCore/Framework/interface/Frameworkfwd.h"
 #include "FWCore/Framework/interface/ProductSelectorRules.h"
 #include "FWCore/Sources/interface/VectorInputSource.h"
+#include "FWCore/Utilities/interface/propagate_const.h"
 #include "IOPool/Common/interface/RootServiceChecker.h"
 
 #include <array>
@@ -26,6 +27,7 @@ namespace edm {
 
   class ConfigurationDescriptions;
   class FileCatalogItem;
+  class RunHelperBase;
   class RootEmbeddedFileSequence;
   struct VectorInputSourceDescription;
 
@@ -42,6 +44,7 @@ namespace edm {
     unsigned int nStreams() const {return nStreams_;}
     int treeMaxVirtualSize() const {return treeMaxVirtualSize_;}
     ProductSelectorRules const& productSelectorRules() const {return productSelectorRules_;}
+    RunHelperBase* runHelper() {return runHelper_.get();}
 
     static void fillDescriptions(ConfigurationDescriptions & descriptions);
 
@@ -60,9 +63,10 @@ namespace edm {
     bool bypassVersionCheck_;
     int const treeMaxVirtualSize_;
     ProductSelectorRules productSelectorRules_;
+    std::unique_ptr<RunHelperBase> runHelper_;
 
     InputFileCatalog catalog_;
-    std::unique_ptr<RootEmbeddedFileSequence> fileSequence_;
+    edm::propagate_const<std::unique_ptr<RootEmbeddedFileSequence>> fileSequence_;
     
   }; // class EmbeddedRootSource
 }

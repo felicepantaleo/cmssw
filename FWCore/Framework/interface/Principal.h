@@ -29,6 +29,7 @@ pointer to a ProductHolder, when queried.
 #include "FWCore/Framework/interface/ProductHolder.h"
 #include "FWCore/Utilities/interface/InputTag.h"
 #include "FWCore/Utilities/interface/ProductKindOfType.h"
+#include "FWCore/Utilities/interface/propagate_const.h"
 
 #include "boost/iterator/filter_iterator.hpp"
 
@@ -48,13 +49,14 @@ namespace edm {
   class SharedResourcesAcquirer;
 
   struct FilledProductPtr {
-    bool operator()(std::shared_ptr<ProductHolderBase> const& iObj) { return bool(iObj);}
+    bool operator()(propagate_const<std::shared_ptr<ProductHolderBase>> const& iObj) { return bool(iObj);}
   };
 
   class Principal : public EDProductGetter {
   public:
-    typedef std::vector<std::shared_ptr<ProductHolderBase> > ProductHolderCollection;
+    typedef std::vector<propagate_const<std::shared_ptr<ProductHolderBase>> > ProductHolderCollection;
     typedef boost::filter_iterator<FilledProductPtr, ProductHolderCollection::const_iterator> const_iterator;
+    typedef boost::filter_iterator<FilledProductPtr, ProductHolderCollection::iterator> iterator;
     typedef ProcessHistory::const_iterator ProcessNameConstIterator;
     typedef ProductHolderBase const* ConstProductHolderPtr;
     typedef std::vector<BasicHandle> BasicHandleVec;
@@ -89,7 +91,7 @@ namespace edm {
 
     void clearPrincipal();
 
-    void deleteProduct(BranchID const& id);
+    void deleteProduct(BranchID const& id) const;
     
     EDProductGetter const* prodGetter() const {return this;}
 
@@ -156,11 +158,18 @@ namespace edm {
     // merge Principals containing different products.
     void recombine(Principal& other, std::vector<BranchID> const& bids);
 
+    ProductHolderBase* getModifiableProductHolder(BranchID const& oid) {
+      return const_cast<ProductHolderBase*>( const_cast<const Principal*>(this)->getProductHolder(oid));
+    }
+
     size_t size() const;
 
     // These iterators skip over any null shared pointers
     const_iterator begin() const {return boost::make_filter_iterator<FilledProductPtr>(productHolders_.begin(), productHolders_.end());}
     const_iterator end() const {return  boost::make_filter_iterator<FilledProductPtr>(productHolders_.end(), productHolders_.end());}
+
+    iterator begin() {return boost::make_filter_iterator<FilledProductPtr>(productHolders_.begin(), productHolders_.end());}
+    iterator end() {return  boost::make_filter_iterator<FilledProductPtr>(productHolders_.end(), productHolders_.end());}
 
     Provenance getProvenance(BranchID const& bid,
                              ModuleCallingContext const* mcc) const;
@@ -188,6 +197,8 @@ namespace edm {
       readFromSource_(phb, mcc);
     }
 
+    void readAllFromSourceAndMergeImmediately();
+    
     virtual bool unscheduledFill(std::string const& moduleLabel,
                                  SharedResourcesAcquirer* sra,
                                  ModuleCallingContext const* mcc) const = 0;
@@ -203,18 +214,17 @@ namespace edm {
     // ----- Add a new ProductHolder
     // *this takes ownership of the ProductHolder, which in turn owns its
     // data.
-    void addProduct_(std::auto_ptr<ProductHolderBase> phb);
-    void addProductOrThrow(std::auto_ptr<ProductHolderBase> phb);
+    void addProduct_(std::unique_ptr<ProductHolderBase> phb);
+    void addProductOrThrow(std::unique_ptr<ProductHolderBase> phb);
     ProductHolderBase* getExistingProduct(BranchID const& branchID);
-    ProductHolderBase* getExistingProduct(ProductHolderBase const& phb);
+    ProductHolderBase const* getExistingProduct(BranchID const& branchID) const;
+    ProductHolderBase const* getExistingProduct(ProductHolderBase const& phb) const;
 
     // throws if the pointed to product is already in the Principal.
     void checkUniquenessAndType(WrapperBase const* prod, ProductHolderBase const* productHolder) const;
 
-    void putOrMerge(std::unique_ptr<WrapperBase> prod, ProductHolderBase const* productHolder) const;
-
-    void putOrMerge(std::unique_ptr<WrapperBase> prod, ProductProvenance& prov, ProductHolderBase* productHolder);
-
+    void putOrMerge(BranchDescription const& bd, std::unique_ptr<WrapperBase>  edp) const;
+    
   private:
 
     virtual WrapperBase const* getIt(ProductID const&) const override;
@@ -246,9 +256,13 @@ namespace edm {
                                           ModuleCallingContext const* mcc) const;
 
     virtual void readFromSource_(ProductHolderBase const& /* phb */, ModuleCallingContext const* /* mcc */) const {}
-
+    
+    void resolveProductImmediately(ProductHolderBase& phb);
+    
     virtual bool isComplete_() const {return true;}
-
+    
+    void putOrMerge(std::unique_ptr<WrapperBase> prod, ProductHolderBase const* productHolder) const;
+    
     std::shared_ptr<ProcessHistory const> processHistoryPtr_;
 
     ProcessHistoryID processHistoryID_;
@@ -278,7 +292,7 @@ namespace edm {
     // In use cases where the new process should not be appended to
     // input ProcessHistory, the following pointer should be null.
     // The Principal does not own this object.
-    HistoryAppender* historyAppender_;
+    edm::propagate_const<HistoryAppender*> historyAppender_;
     
     CacheIdentifier_t cacheIdentifier_;
 
@@ -294,10 +308,10 @@ namespace edm {
       return std::shared_ptr<Wrapper<PROD> const>(); 
     }
 
-    if(!(result->wrapper_->dynamicTypeInfo() == typeid(PROD))) {
-      handleimpl::throwConvertTypeError(typeid(PROD), result->wrapper_->dynamicTypeInfo());
+    if(!(result->wrapper()->dynamicTypeInfo() == typeid(PROD))) {
+      handleimpl::throwConvertTypeError(typeid(PROD), result->wrapper()->dynamicTypeInfo());
     }
-    return std::static_pointer_cast<Wrapper<PROD> const>(result->wrapper_);
+    return std::static_pointer_cast<Wrapper<PROD> const>(result->sharedConstWrapper());
   }
 }
 #endif

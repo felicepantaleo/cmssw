@@ -131,6 +131,10 @@ def miniAOD_customizeCommon(process):
 
     #keep this after all addJetCollections otherwise it will attempt computing them also for stuf with no taginfos
     #Some useful BTAG vars
+    if not hasattr( process, 'pfImpactParameterTagInfos' ):
+        process.load('RecoBTag.ImpactParameter.pfImpactParameterTagInfos_cfi')
+    if not hasattr( process, 'pfSecondaryVertexTagInfos' ):
+        process.load('RecoBTag.SecondaryVertex.pfSecondaryVertexTagInfos_cfi')
     process.patJets.userData.userFunctions = cms.vstring(
     '?(tagInfoCandSecondaryVertex("pfSecondaryVertex").nVertices()>0)?(tagInfoCandSecondaryVertex("pfSecondaryVertex").secondaryVertex(0).p4.M):(0)',
     '?(tagInfoCandSecondaryVertex("pfSecondaryVertex").nVertices()>0)?(tagInfoCandSecondaryVertex("pfSecondaryVertex").secondaryVertex(0).numberOfSourceCandidatePtrs):(0)',
@@ -203,13 +207,6 @@ def miniAOD_customizeCommon(process):
     for idmod in photon_ids:
         setupAllVIDIdsInModule(process,idmod,setupVIDPhotonSelection,None,False)
 
-    #----------------------------------------------------------------------------
-    # CV: add old and new tau ID discriminators for CMSSW 7_6_x reminiAOD v2
-    process.load("RecoTauTag.Configuration.RecoPFTauTag_reminiAOD_cff")
-    from PhysicsTools.PatAlgos.tools.tauTools import switchToPFTauHPS76xReMiniAOD
-    switchToPFTauHPS76xReMiniAOD(process)
-    #----------------------------------------------------------------------------
-    
     # Adding puppi jets
     process.load('CommonTools.PileupAlgos.Puppi_cff')
     process.load('RecoJets.JetProducers.ak4PFJetsPuppi_cfi')
