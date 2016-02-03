@@ -146,7 +146,6 @@ public:
         float y2 = theHitsKDTree->hits[theOuterHitId].y();
         
         float slopeXYCell,slopeOrthogonalXYCell,interceptOrthogonalXYCell;
-        
         float slopeXYBeam,slopeOrthogonalXYBeam,interceptOrthogonalXYBeam;
         float intersectionPointX,intersectionPointY;
         
