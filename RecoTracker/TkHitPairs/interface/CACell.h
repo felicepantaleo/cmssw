@@ -147,6 +147,8 @@ public:
         
         float slopeXYCell,slopeOrthogonalXYCell,interceptOrthogonalXYCell;
         float slopeXYBeam,slopeOrthogonalXYBeam,interceptOrthogonalXYBeam;
+        
+        ///
         float intersectionPointX,intersectionPointY;
         
         //Slope of the line orthogonal to the line passing through cell hits - some checks to avoid slope = infinite and if the points are coincident (error)
