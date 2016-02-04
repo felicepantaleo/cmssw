@@ -430,51 +430,27 @@ private:
 };
 
 
-class HitDoublets {
-public:
-	enum layer { inner=0, outer=1};
-
-	using Hit=RecHitsKDTree::Hit;
-
-
-	HitDoublets(  RecHitsKDTree const & in,
-			RecHitsKDTree const & out) :
-				layers{{&in,&out}}{}
-
-				HitDoublets(HitDoublets && rh) : layers(std::move(rh.layers)), indeces(std::move(rh.indeces)){}
-
-				void reserve(std::size_t s) { indeces.reserve(2*s);}
-				std::size_t size() const { return indeces.size()/2;}
-				bool empty() const { return indeces.empty();}
-				void clear() { indeces.clear();}
-				void shrink_to_fit() { indeces.shrink_to_fit();}
-
-				void add (int il, int ol) { indeces.push_back(il);indeces.push_back(ol);}
-
-				DetLayer const * detLayer(layer l) const { return layers[l]->layer; }
-
-				Hit const & hit(int i, layer l) const { return layers[l]->theHits[indeces[2*i+l]].hit();}
-				float       phi(int i, layer l) const { return layers[l]->phi(indeces[2*i+l]);}
-				float       rv(int i, layer l) const { return layers[l]->rv(indeces[2*i+l]);}
-				float        z(int i, layer l) const { return layers[l]->z[indeces[2*i+l]];}
-				float        x(int i, layer l) const { return layers[l]->x[indeces[2*i+l]];}
-				float        y(int i, layer l) const { return layers[l]->y[indeces[2*i+l]];}
-				GlobalPoint gp(int i, layer l) const { return GlobalPoint(x(i,l),y(i,l),z(i,l));}
-
-private:
-
-				std::array<RecHitsSortedInPhi const *,2> layers;
-
-
-				std::vector<int> indeces;
-
-};
-
 
 class CACells
 {
 public:
 	using Hit=RecHitsKDTree::Hit;
+
+	CACells(const const RecHitsKDTree& outerHits, const RecHitsKDTree& innerHits)
+	{
+		for (auto& outerHit: outerHits)
+		{
+
+			auto innerHitsInTheBox = innerHits.searchInTheBox();
+
+			for(auto& innerHit: innerHits)
+			{
+
+			}
+
+
+		}
+	}
 	void neighborSearch(const CACells& CACellsOnOuterLayer)
 	{
 		const float c_maxParAbsDifference[parNum]= {0.06, 0.07};
@@ -486,6 +462,7 @@ public:
 		}
 
 	}
+
 
 	CACell& cell(int id) {
 		return theCACells.at(id);
