@@ -194,6 +194,29 @@ public:
         if(x1>xBeam) theRadius *= -1.0;
         
     }
+    
+    //Returns the z of the intersection of the beam axis with of the line passing through cell hits
+    float cellZOnBeam(float beamPhi,float beamR){
+        
+        //Cell hits z
+        float z1 = theKDTree->hits[theInnerHitId].z();
+        float z2 = theKDTree->hits[theOuterHitId].z();
+        //Vertical Cell in y-z plane
+        if(z1==z2) return z1;
+        
+        //Cell hits y
+        float y1 =  theKDTree->hits[theInnerHitId].y();
+        float y2 = theKDTree->hits[theOuterHitId].y();
+        //Horizontal Cell in y-z plane
+        if(y1==y2) return HUGE_VALF;
+        
+        float phi1 = theKDTree->hits[theInnerHitId].phi();
+        float phi2 = theKDTree->hits[theOuterHitId].phi();
+        float beamHeight = beamR*std::sin(beamPhi);
+        
+        return (beamHeight-y2)*(z2-z1)/(y2-y1))+z2;
+        
+    }
 
 
 	tbb::concurrent_vector<int> theInnerNeighbors;
