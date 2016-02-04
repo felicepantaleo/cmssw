@@ -27,6 +27,10 @@ public:
 	CACell() { }
 	CACell(const RecHitsKDTree* hitsKDTree, int innerHitId, int outerHitId, int layerId, const GlobalPoint& beamSpot ) : theHitsKDTree(hitsKDTree), theCAState(0),
 			theInnerHitId(innerHitId), theOuterHitId(outerHitId), theLayerId(layerId), hasFriends(false) {
+		if(!areAlmostAligned(beamSpot, 1e-3))
+		{
+			cellAxesCircleRadius(beamSpot);
+		}
 
 
 
@@ -39,13 +43,43 @@ public:
 
 	}
 
+	void setCellId(const int id)
+	{
+		theCellId(id);
+		theHitsKDTree[theOuterHitId].pushInnerCell(theCellId);
+		theHitsKDTree[theInnerHitId].pushOuterCell(theCellId);
+	}
+
+
 	void tagNeighbors(const CACells& CACellsOnOuterLayer, float maxDeltaZAtBeamLine, float maxDeltaRadius)
 	{
+		for(auto& outerCellId: theHitsKDTree[theOuterHitId].getOuterCells())
+		{
+			if(areCompatible(CACellsOnOuterLayer[outerCellId],maxDeltaZAtBeamLine,maxDeltaRadius))
+			{
 
 
+				theOuterNeighbors.push_back()
+
+
+
+			}
+		}
 
 	}
 
+	// three points are collinear if the area of the triangle having the points as vertices is 0
+	bool areAlmostAligned(const GlobalPoint& vtxHypothesis, const float epsilon)
+	{
+		auto x1 = theHitsKDTree[theInnerHitId].x();
+		auto y1 = theHitsKDTree[theInnerHitId].y();
+		auto x2 = theHitsKDTree[theOuterHitId].x();
+		auto y2 = theHitsKDTree[theOuterHitId].y();
+		auto x3 = vtxHypothesis.x();
+		auto y3 = vtxHypothesis.y();
+
+		return x1*(y2-y3) + x2*(y3-y1) + x3*(y1-y2)<= epsilon;
+	}
 
 	void isRootCell(tbb::concurrent_vector<int>* rootCells)
 	{
@@ -84,24 +118,30 @@ public:
 		}
 	}
 
+	bool
+	void isHighPt() const
+	{
+		return isHighPtCell;
+	}
 
-	//
-	//
-	//	//check whether a Cell and the root have compatible parameters.
-	//	inline
-	//	bool areCompatible(const Cell& a, const int innerTripletChargeHypothesis)
-	//	{
-	//
-	//		return (a.thechargeHypothesis == innerTripletChargeHypothesis) || (a.thechargeHypothesis == 0) || (innerTripletChargeHypothesis ==0) ;
-	//
-	//	}
-	//
-	//
+	bool areCompatible(const CACell& a, float maxDeltaZAtBeamLine, float maxDeltaRadius)
+	{
+		if((fabs(a.getZAtBeamLine() - zAtBeamLine) > maxDeltaZAtBeamLine))
+			return false;
+		else
+			if (isHighPtCell != a.isHighPt())
+				return false;
+			else
+				if(!isHighPtCell and fabs(a.getRadius()-theRadius)>maxDeltaRadius)
+		return false;
+				else return true;
+	}
+
+
 
 
 	// trying to free the track building process from hardcoded layers, leaving the visit of the graph
 	// based on the neighborhood connections between cells.
-	inline
 	void findTracks ( tbb::concurrent_vector<CATrack>& foundTracks, const tbb::concurrent_vector<CACell>& cells, CATrack& tmpTrack) {
 
 		// the building process for a track ends if:
@@ -353,9 +393,28 @@ public:
     }
 
 
+	float getZAtBeamLine() const
+	{
+		return zAtBeamLine;
+	}
+
+	float getRadius() const
+	{
+		return theRadius;
+
+	}
+
+	float getSigmaR() const
+	{
+		return theSigmaR;
+	}
+
+
+private:
+
 	tbb::concurrent_vector<int> theInnerNeighbors;
 	tbb::concurrent_vector<int> theOuterNeighbors;
-
+	int theCellId;
 	int theInnerHitId;
 	int theOuterHitId;
 	float theRadius;
@@ -372,41 +431,41 @@ public:
 
 class HitDoublets {
 public:
-  enum layer { inner=0, outer=1};
+	enum layer { inner=0, outer=1};
 
-  using Hit=RecHitsKDTree::Hit;
+	using Hit=RecHitsKDTree::Hit;
 
 
-  HitDoublets(  RecHitsKDTree const & in,
-		  RecHitsKDTree const & out) :
-    layers{{&in,&out}}{}
+	HitDoublets(  RecHitsKDTree const & in,
+			RecHitsKDTree const & out) :
+				layers{{&in,&out}}{}
 
-  HitDoublets(HitDoublets && rh) : layers(std::move(rh.layers)), indeces(std::move(rh.indeces)){}
+				HitDoublets(HitDoublets && rh) : layers(std::move(rh.layers)), indeces(std::move(rh.indeces)){}
 
-  void reserve(std::size_t s) { indeces.reserve(2*s);}
-  std::size_t size() const { return indeces.size()/2;}
-  bool empty() const { return indeces.empty();}
-  void clear() { indeces.clear();}
-  void shrink_to_fit() { indeces.shrink_to_fit();}
+				void reserve(std::size_t s) { indeces.reserve(2*s);}
+				std::size_t size() const { return indeces.size()/2;}
+				bool empty() const { return indeces.empty();}
+				void clear() { indeces.clear();}
+				void shrink_to_fit() { indeces.shrink_to_fit();}
 
-  void add (int il, int ol) { indeces.push_back(il);indeces.push_back(ol);}
+				void add (int il, int ol) { indeces.push_back(il);indeces.push_back(ol);}
 
-  DetLayer const * detLayer(layer l) const { return layers[l]->layer; }
+				DetLayer const * detLayer(layer l) const { return layers[l]->layer; }
 
-  Hit const & hit(int i, layer l) const { return layers[l]->theHits[indeces[2*i+l]].hit();}
-  float       phi(int i, layer l) const { return layers[l]->phi(indeces[2*i+l]);}
-  float       rv(int i, layer l) const { return layers[l]->rv(indeces[2*i+l]);}
-  float        z(int i, layer l) const { return layers[l]->z[indeces[2*i+l]];}
-  float        x(int i, layer l) const { return layers[l]->x[indeces[2*i+l]];}
-  float        y(int i, layer l) const { return layers[l]->y[indeces[2*i+l]];}
-  GlobalPoint gp(int i, layer l) const { return GlobalPoint(x(i,l),y(i,l),z(i,l));}
+				Hit const & hit(int i, layer l) const { return layers[l]->theHits[indeces[2*i+l]].hit();}
+				float       phi(int i, layer l) const { return layers[l]->phi(indeces[2*i+l]);}
+				float       rv(int i, layer l) const { return layers[l]->rv(indeces[2*i+l]);}
+				float        z(int i, layer l) const { return layers[l]->z[indeces[2*i+l]];}
+				float        x(int i, layer l) const { return layers[l]->x[indeces[2*i+l]];}
+				float        y(int i, layer l) const { return layers[l]->y[indeces[2*i+l]];}
+				GlobalPoint gp(int i, layer l) const { return GlobalPoint(x(i,l),y(i,l),z(i,l));}
 
 private:
 
-  std::array<RecHitsSortedInPhi const *,2> layers;
+				std::array<RecHitsSortedInPhi const *,2> layers;
 
 
-  std::vector<int> indeces;
+				std::vector<int> indeces;
 
 };
 
@@ -414,50 +473,25 @@ private:
 class CACells
 {
 public:
-	  using Hit=RecHitsKDTree::Hit;
-	  void neighborSearch(const CACells& CACellsOnOuterLayer)
+	using Hit=RecHitsKDTree::Hit;
+	void neighborSearch(const CACells& CACellsOnOuterLayer)
+	{
+		const float c_maxParAbsDifference[parNum]= {0.06, 0.07};
+		//TODO parallelize this
+		for(auto& cell: theCACells )
 		{
-			const float c_maxParAbsDifference[parNum]= {0.06, 0.07};
-//TODO parallelize this
-			for(auto& cell: theCACells )
-			{
-
-				cell.tagNeighbors(CACellsOnOuterLayer, maxDeltaZAtBeamLine, maxDeltaRadius);
-
-			}
-
-			int neighborNum = 0;
-
-			for (auto i= 0; i < outerCells.size(); ++i)
-			{
-				if(thecellsArray[ outerCells[i]].theInnerHitId != theOuterHitId)
-					continue;
-				bool isNeighbor = true;
-				isNeighbor = isNeighbor && (fabs((theparams.thedata[0] - thecellsArray[rightCells.thedata[i]].theparams.thedata[0]))  < c_maxParAbsDifference[0]);
-				isNeighbor = isNeighbor && areAlmostAligned(thehitsArray[theInnerHitId], thehitsArray[theOuterHitId], thehitsArray[thecellsArray[rightCells.thedata[i]].theOuterHitId], 40);
-				if(!isNeighbor)
-					break;
-				double delta = fabs((theparams.thedata[1] - thecellsArray[rightCells.thedata[i]].theparams.thedata[1]));
-				double phiDistance=  delta< 0.5*two_pi ? delta : two_pi-delta;
-				isNeighbor = isNeighbor && (phiDistance < c_maxParAbsDifference[1]);
-				if(!isNeighbor)
-					break;
-
-				// if all the parameters are inside the range the right cell is a right neighbor.
-				// viceversa this cell will be the left neighbors for rightNeighbor(i)
-				if (isNeighbor)
-				{
-					thecellsArray[rightCells.thedata[i]].theInnerNeighbors.push_back(theId);
-					theOuterNeighbors.push_back(thecellsArray[rightCells.thedata[i]].theId);
-					++neighborNum;
-				}
-
-			}
+			cell.tagNeighbors(CACellsOnOuterLayer, maxDeltaZAtBeamLine, maxDeltaRadius);
 
 		}
+
+	}
+
+	CACell& cell(int id) {
+		return theCACells.at(id);
+	}
 private:
 
-	  tbb::concurrent_vector<CACell> theCACells;
+	tbb::concurrent_vector<CACell> theCACells;
 
 
 };

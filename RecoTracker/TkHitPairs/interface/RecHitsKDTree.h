@@ -8,7 +8,8 @@
 #ifndef RECHITSKDTREE_H
 #define RECHITSKDTREE_H
 #include <vector>
-
+// tbb headers
+#include <tbb/concurrent_vector.h>
 #include "DataFormats/TrackerRecHit2D/interface/BaseTrackerRecHit.h"
 #include "TrackingTools/DetLayers/interface/DetLayer.h"
 
@@ -20,112 +21,113 @@
 class RecHitsKDTree {
 public:
 
-  using  Hit = BaseTrackerRecHit const * ;
+	using  Hit = BaseTrackerRecHit const * ;
 
-  // A RecHit extension that caches the phi angle for fast access
-  class HitWithEtaPhi {
-  public:
-	  HitWithEtaPhi( const Hit & hit) : theHit(hit), thePhi(hit->globalPosition().phi()), theEta(hit->globalPosition().eta()) {}
-	  HitWithEtaPhi( const Hit & hit,float eta, float phi ) : theHit(hit), theEta(eta), thePhi(phi) {}
-//	  HitWithEtaPhi( float phi) : theHit(0), thePhi(phi) {}
-    float phi() const {return thePhi;}
-    float eta() const {return theEta;}
-    Hit const & hit() const { return theHit;}
+	// A RecHit extension that caches the phi angle for fast access
+	class HitWithEtaPhi {
+	public:
+		HitWithEtaPhi( const Hit & hit) : theHit(hit), thePhi(hit->globalPosition().phi()), theEta(hit->globalPosition().eta()) {}
+		HitWithEtaPhi( const Hit & hit,float eta, float phi ) : theHit(hit), theEta(eta), thePhi(phi) {}
+		//	  HitWithEtaPhi( float phi) : theHit(0), thePhi(phi) {}
+		float phi() const {return thePhi;}
+		float eta() const {return theEta;}
+		Hit const & hit() const { return theHit;}
 
-     //Adding outer/innter cells hits indeces
-     void connectedOuterCellsHitAdd (int up)  {theConnectedOuterCells.push_back(up);}
-     void connectedInnerCellsHitAdd (int low) {theConnectedInnerCells.push_back(low);}
+		//Adding outer/innter cells hits indeces
+		void pushOuterCell(int cellId) { theConnectedOuterCells.push_back(cellId); }
+		void pushInnerCell(int cellId)  {  theConnectedInnerCells.push_back(cellId); }
 
-  private:
-    Hit   theHit;
-    float thePhi;
-    float theEta;
-
-    std::vector<int> theConnectedOuterCells;   //Hits on the upper layer linked with a cell
-    std::vector<int> theConnectedInnerCells;  //Hits on the lower layer linked with a cell
-  };
-
-  struct HitLessPhi {
-    bool operator()( const HitWithEtaPhi& a, const HitWithEtaPhi& b) { return a.phi() < b.phi(); }
-  };
-  struct HitLessEta {
-    bool operator()( const HitWithEtaPhi& a, const HitWithEtaPhi& b) { return a.eta() < b.eta(); }
-  };
-
-//  typedef std::vector<HitWithPhi>::const_iterator      HitIter;
-//  typedef std::pair<HitIter,HitIter>            Range;
-
-  using DoubleRange = std::array<int,4>;
-
-  RecHitsKDTree(const std::vector<Hit>& hits, GlobalPoint const & origin, DetLayer const * il);
-
-  bool empty() const { return theHits.empty(); }
-  std::size_t size() const { return theHits.size();}
+		tbb::concurrent_vector<int>& getInnerCells() {return theConnectedInnerCells;}
+		tbb::concurrent_vector<int>& getOuterCells() {return theConnectedOuterCells;}
 
 
-  // Returns the hits in the phi range (phi in radians).
-  //  The phi interval ( phiMin, phiMax) defined as the signed path along the
-  //  trigonometric circle from the point at phiMin to the point at phiMax
-  //  must be positive and smaller than pi.
-  //  At least one of phiMin, phiMax must be in (-pi,pi) range.
-  //  Examples of correct intervals: (-3,-2), (-4,-3), (3.1,3.2), (3,-3).
-  //  Examples of WRONG intervals: (-5,-4),(3,2), (4,3), (3.2,3.1), (-3,3), (4,5).
-  //  Example of use: myHits = recHitsSortedInPhi( phi-deltaPhi, phi+deltaPhi);
-  //
+	private:
+		Hit   theHit;
+		float thePhi;
+		float theEta;
+		tbb::concurrent_vector<int> theConnectedOuterCells;   //Hits on the upper layer linked with a cell
+		tbb::concurrent_vector<int> theConnectedInnerCells;  //Hits on the lower layer linked with a cell
+	};
 
-  std::vector<Hit> hits( float etaMin, float etaMax, float phiMin, float phiMax) const;
-  // Same as above but the result is allocated by the caller and passed by reference.
-  //  The caller is responsible for clearing of the container "result".
-  //  This interface is not nice and not safe, but is much faster, since the
-  //  dominant CPU time of the "nice" method hits(phimin,phimax) is spent in
-  //  memory allocation of the result!
-  //
-  void hits( float phiMin, float phiMax, std::vector<Hit>& result) const;
+	struct HitLessPhi {
+		bool operator()( const HitWithEtaPhi& a, const HitWithEtaPhi& b) { return a.phi() < b.phi(); }
+	};
+	struct HitLessEta {
+		bool operator()( const HitWithEtaPhi& a, const HitWithEtaPhi& b) { return a.eta() < b.eta(); }
+	};
 
-  // some above, just double range of indeces..
-  DoubleRange doubleRange(float phiMin, float phiMax) const;
+	//  typedef std::vector<HitWithPhi>::const_iterator      HitIter;
+	//  typedef std::pair<HitIter,HitIter>            Range;
 
-  // Fast access to the hits in the phi interval (phi in radians).
-  //  The arguments must satisfy -pi <= phiMin < phiMax <= pi
-  //  No check is made for this.
-  //
-  Range unsafeRange( float phiMin, float phiMax) const;
+	using DoubleRange = std::array<int,4>;
 
-public:
-  float       phi(int i) const { return theHits[i].phi();}
-  float        gv(int i) const { return isBarrel ? z[i] : gp(i).perp();}  // global v
-  float        rv(int i) const { return isBarrel ? u[i] : v[i];}  // dispaced r
-  GlobalPoint gp(int i) const { return GlobalPoint(x[i],y[i],z[i]);}
+	RecHitsKDTree(const std::vector<Hit>& hits, GlobalPoint const & origin, DetLayer const * il);
+
+	bool empty() const { return theHits.empty(); }
+	std::size_t size() const { return theHits.size();}
+
+
+	// Returns the hits in the phi range (phi in radians).
+	//  The phi interval ( phiMin, phiMax) defined as the signed path along the
+	//  trigonometric circle from the point at phiMin to the point at phiMax
+	//  must be positive and smaller than pi.
+	//  At least one of phiMin, phiMax must be in (-pi,pi) range.
+	//  Examples of correct intervals: (-3,-2), (-4,-3), (3.1,3.2), (3,-3).
+	//  Examples of WRONG intervals: (-5,-4),(3,2), (4,3), (3.2,3.1), (-3,3), (4,5).
+	//  Example of use: myHits = recHitsSortedInPhi( phi-deltaPhi, phi+deltaPhi);
+	//
+
+	std::vector<Hit> hits( float etaMin, float etaMax, float phiMin, float phiMax) const;
+	// Same as above but the result is allocated by the caller and passed by reference.
+	//  The caller is responsible for clearing of the container "result".
+	//  This interface is not nice and not safe, but is much faster, since the
+	//  dominant CPU time of the "nice" method hits(phimin,phimax) is spent in
+	//  memory allocation of the result!
+	//
+	void hits( float phiMin, float phiMax, std::vector<Hit>& result) const;
+
+	// some above, just double range of indeces..
+	DoubleRange doubleRange(float phiMin, float phiMax) const;
+
+	// Fast access to the hits in the phi interval (phi in radians).
+	//  The arguments must satisfy -pi <= phiMin < phiMax <= pi
+	//  No check is made for this.
+	//
+	Range unsafeRange( float phiMin, float phiMax) const;
 
 public:
+	float       phi(int i) const { return theHits[i].phi();}
+	float        gv(int i) const { return isBarrel ? z[i] : gp(i).perp();}  // global v
+	float        rv(int i) const { return isBarrel ? u[i] : v[i];}  // dispaced r
+	GlobalPoint gp(int i) const { return GlobalPoint(x[i],y[i],z[i]);}
 
-  mutable GlobalPoint theOrigin;
+public:
 
-<<<<<<< Updated upstream
-  tbb::concurrent_vector<HitWithEtaPhi> theHits;
-=======
-  std::vector<HitWithEtaPhi> theHits;
->>>>>>> Stashed changes
+	mutable GlobalPoint theOrigin;
 
-  DetLayer const * layer;
-  bool isBarrel;
 
-  tbb::concurrent_vector<float> x;
-  tbb::concurrent_vector<float> y;
-  tbb::concurrent_vector<float> z;
-  tbb::concurrent_vector<float> drphi;
+	tbb::concurrent_vector<HitWithEtaPhi> theHits;
 
-  // barrel: u=r, v=z, forward the opposite...
-  tbb::concurrent_vector<float> u;
-  tbb::concurrent_vector<float> v;
-  tbb::concurrent_vector<float> du;
-  tbb::concurrent_vector<float> dv;
-  tbb::concurrent_vector<float> lphi;
 
-  static void copyResult( const Range& range, std::vector<Hit>& result) {
-    result.reserve(result.size()+(range.second-range.first));
-    for (HitIter i = range.first; i != range.second; i++) result.push_back( i->hit());
-  }
+	DetLayer const * layer;
+	bool isBarrel;
+
+	tbb::concurrent_vector<float> x;
+	tbb::concurrent_vector<float> y;
+	tbb::concurrent_vector<float> z;
+	tbb::concurrent_vector<float> drphi;
+
+	// barrel: u=r, v=z, forward the opposite...
+	tbb::concurrent_vector<float> u;
+	tbb::concurrent_vector<float> v;
+	tbb::concurrent_vector<float> du;
+	tbb::concurrent_vector<float> dv;
+	tbb::concurrent_vector<float> lphi;
+
+	static void copyResult( const Range& range, std::vector<Hit>& result) {
+		result.reserve(result.size()+(range.second-range.first));
+		for (HitIter i = range.first; i != range.second; i++) result.push_back( i->hit());
+	}
 
 };
 
@@ -137,70 +139,60 @@ public:
  *
  */
 
-<<<<<<< Updated upstream
-
-<<<<<<< Updated upstream
-=======
-class HitDoublets {
-=======
-// TODO: This has to become CACell
 class CACells {
->>>>>>> Stashed changes
+
 public:
-  enum layer { inner=0, outer=1};
+	enum layer { inner=0, outer=1};
 
-  using Hit=RecHitsKDTree::Hit;
+	using Hit=RecHitsKDTree::Hit;
 
 
-<<<<<<< Updated upstream
-  HitDoublets(  RecHitsKDTree const & in,
-		  RecHitsKDTree const & out) :
-=======
-  CACells(  RecHitsKDTree const & in,
-		RecHitsKDTree const & out) :
->>>>>>> Stashed changes
-    layers{{&in,&out}}{}
 
-    CACells(CACells && rh) : layers(std::move(rh.layers)), indeces(std::move(rh.indeces)){}
+	CACells(  RecHitsKDTree const & in,
+			RecHitsKDTree const & out) :
 
-  void reserve(std::size_t s) { indeces.reserve(2*s);}
-  std::size_t size() const { return indeces.size()/2;}
-  bool empty() const { return indeces.empty();}
-  void clear() { indeces.clear();}
-  void shrink_to_fit() { indeces.shrink_to_fit();}
+				layers{{&in,&out}}{}
 
-  void add (int il, int ol) {
-  		indeces.push_back(il);
-  		hit(indeces.back(),0).connectedOuterCellsHitAdd(ol);
+				CACells(CACells && rh) : layers(std::move(rh.layers)), indeces(std::move(rh.indeces)){}
 
-  		indeces.push_back(ol);
-  		hit(indeces.back(),1).connectedInnerCellsHitAdd(il);
-  }
+				void reserve(std::size_t s) { indeces.reserve(2*s);}
+				std::size_t size() const { return indeces.size()/2;}
+				bool empty() const { return indeces.empty();}
+				void clear() { indeces.clear();}
+				void shrink_to_fit() { indeces.shrink_to_fit();}
 
-  //Passing cells index returns his index vector
-  std::vector<int> findConnectedOuterCellsHits (int i) const {return layers[1]->theHits[indeces[2*i+1]].hit().theConnectedOuterCells;}
-  std::vector<int> findConnectedInnerCellsHits (int i) const {return layers[0]->theHits[indeces[2*i+0]].hit().theConnectedInnerCells;}
+				void add (int il, int ol) {
+					indeces.push_back(il);
+					hit(indeces.back(),0).connectedOuterCellsHitAdd(ol);
 
-  DetLayer const * detLayer(layer l) const { return layers[l]->layer; }
+					indeces.push_back(ol);
+					hit(indeces.back(),1).connectedInnerCellsHitAdd(il);
+				}
 
-  Hit const & hit(int i, layer l) const { return layers[l]->theHits[indeces[2*i+l]].hit();}
-  float       phi(int i, layer l) const { return layers[l]->phi(indeces[2*i+l]);}
-  float       rv(int i, layer l) const { return layers[l]->rv(indeces[2*i+l]);}
-  float        z(int i, layer l) const { return layers[l]->z[indeces[2*i+l]];}
-  float        x(int i, layer l) const { return layers[l]->x[indeces[2*i+l]];}
-  float        y(int i, layer l) const { return layers[l]->y[indeces[2*i+l]];}
-  GlobalPoint gp(int i, layer l) const { return GlobalPoint(x(i,l),y(i,l),z(i,l));}
+				//Passing cells index returns his index vector
+				std::vector<int> findConnectedOuterCellsHits (int i) const {return layers[1]->theHits[indeces[2*i+1]].hit().theConnectedOuterCells;}
+				std::vector<int> findConnectedInnerCellsHits (int i) const {return layers[0]->theHits[indeces[2*i+0]].hit().theConnectedInnerCells;}
+
+				DetLayer const * detLayer(layer l) const { return layers[l]->layer; }
+
+				Hit const & hit(int i, layer l) const { return layers[l]->theHits[indeces[2*i+l]].hit();}
+				float       phi(int i, layer l) const { return layers[l]->phi(indeces[2*i+l]);}
+				float       rv(int i, layer l) const { return layers[l]->rv(indeces[2*i+l]);}
+				float        z(int i, layer l) const { return layers[l]->z[indeces[2*i+l]];}
+				float        x(int i, layer l) const { return layers[l]->x[indeces[2*i+l]];}
+				float        y(int i, layer l) const { return layers[l]->y[indeces[2*i+l]];}
+				GlobalPoint gp(int i, layer l) const { return GlobalPoint(x(i,l),y(i,l),z(i,l));}
 
 private:
 
-  std::array<RecHitsKDTree const *,2> layers;
+				std::array<RecHitsKDTree const *,2> layers;
 
 
-  std::vector<int> indeces;
+				std::vector<int> indeces;
 
 };
 
->>>>>>> Stashed changes
+
 
 
 #endif /* RECHITSKDTREE_H */
