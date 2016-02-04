@@ -227,14 +227,18 @@ public:
         
         //r alligned hits
         if (phi1==phi2) return 0.0;
+        //NOTA : per l'allienamento in x ci vorrebbe un
         //x alligned hits
-        if (theKDTree->hits[theInnerHitId].x()==theKDTree->hits[theOuterHitId].x()) return Geom::fpi() - phi1;
+        float x1 = theKDTree->hits[theInnerHitId].x();
+        float x2 = theKDTree->hits[theOuterHitId].x();
+        if (x1==x2) return Geom::fpi() - phi1;
         //y alligned hits
-        if (theKDTree->hits[theInnerHitId].y()==theKDTree->hits[theOuterHitId].y()) return phi1;
-        
-        float r1 =  theKDTree->hits[theInnerHitId].rv();
-        float r2 = theKDTree->hits[theOuterHitId].rv();
-        float gamma = std::atan2((r2*std::sin(phi2)-r1*std::sin(phi1))/(r2*std::cos(phi2)-r1*std::cos(phi1)));
+        float y1 = theKDTree->hits[theInnerHitId].y();
+        float y2 = theKDTree->hits[theOuterHitId].y();
+
+        if (y1==y2) return phi1;
+    
+        float gamma = std::atan2((y2-y1)/(x2-x1));
         
         return Geom::fpi()-gamma-phi1;
     }
