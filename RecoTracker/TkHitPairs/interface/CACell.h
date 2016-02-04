@@ -217,6 +217,27 @@ public:
         return (beamHeight-y2)*(z2-z1)/(y2-y1))+z2;
         
     }
+    
+    //Return the angle between the innner hit radius and the line passing through cell hits
+    float cellPhiAngle(){
+        
+        //Hits parameters
+        float phi1 = theKDTree->hits[theInnerHitId].phi();
+        float phi2 = theKDTree->hits[theOuterHitId].phi();
+        
+        //r alligned hits
+        if (phi1==phi2) return 0.0;
+        //x alligned hits
+        if (theKDTree->hits[theInnerHitId].x()==theKDTree->hits[theOuterHitId].x()) return Geom::fpi() - phi1;
+        //y alligned hits
+        if (theKDTree->hits[theInnerHitId].y()==theKDTree->hits[theOuterHitId].y()) return phi1;
+        
+        float r1 =  theKDTree->hits[theInnerHitId].rv();
+        float r2 = theKDTree->hits[theOuterHitId].rv();
+        float gamma = std::atan2((r2*std::sin(phi2)-r1*std::sin(phi1))/(r2*std::cos(phi2)-r1*std::cos(phi1)));
+        
+        return Geom::fpi()-gamma-phi1;
+    }
 
 
 	tbb::concurrent_vector<int> theInnerNeighbors;
