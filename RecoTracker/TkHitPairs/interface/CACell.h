@@ -147,11 +147,12 @@ public:
         float x2 = theHitsKDTree->hits[theOuterHitId].x();
         float y2 = theHitsKDTree->hits[theOuterHitId].y();
         
+        //Trivial check
         if (x1 == x2) && (y1 == y2)) return;
     
         //Rotating the cell line so that it's vertical (reducing the error reducing the slope)
         float deltaPhi = 0.0;
-        deltaPhi = (x2==x1)? Geom::fpi() : std::atan2((y2-y1)/(x2-x1));
+        deltaPhi = (x2==x1)? Geom::fhalfPi() : std::atan2((y2-y1)/(x2-x1));
         deltaPhi *= -1.0;
         deltaPhi += Geom::fhalfPi();
         
