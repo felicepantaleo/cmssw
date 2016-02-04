@@ -30,6 +30,7 @@ public:
 		if(!areAlmostAligned(beamSpot, 1e-3))
 		{
 			cellAxesCircleRadius(beamSpot);
+
 		}
 
 
@@ -238,7 +239,7 @@ public:
     }
     
     //Returns the radius of the circumference through the beamspot and the cell hits (WITH error)
-    void cellAxesCircleRadius(GlobalPoint beamSpot, float tip){
+    void cellAxesCircleRadius(const GlobalPoint& beamSpot, float tip){
         
         theRadius = 0.0;
         theSigma = 0.0;
