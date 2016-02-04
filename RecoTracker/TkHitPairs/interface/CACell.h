@@ -13,7 +13,8 @@
 
 #include "RecHitsKDTree.h"
 #include "DataFormats/GeometryVector/interface/GlobalPoint.h"
-
+#include "DataFormats/GeometryVector/interface/Pi.h"
+#include "DataFormats/GeometryVector/interface/Basic2DVector.h"
 
 
 
@@ -140,10 +141,25 @@ public:
         
         theSigmaR = 0.0; //No tip
         
-        float x1 = theHitsKDTree->hits[theInnerHitId].x();
+        //Outer hit coordinates
         float x2 = theHitsKDTree->hits[theOuterHitId].x();
-        float y1 = theHitsKDTree->hits[theInnerHitId].y();
         float y2 = theHitsKDTree->hits[theOuterHitId].y();
+        //Beamspot coordinates
+        float xBeam = beamSpot.x();
+        float yBeam = beamSpot.y();
+        
+        //Rotating the line between the beamSpot and the outerHit so that it's horizontal (reducing the error reducing the slope)
+        float deltaPhi = 0.0;
+        deltaPhi = (x2==xBeam)? Geom::fpi() : std::atan2((y2-yBeam)/(x2-xBeam));
+        
+        x2 *= theHitsKDTree->hits[theOuterHitId].x()*std::cos(deltaPhi) + theHitsKDTree->hits[theOuterHitId].y()*std::sin(deltaPhi);
+        y2 = 0.0f;
+        xBeam *= beamSpot.x()*std::cos(deltaPhi) + beamSpot.y()*std::sin(deltaPhi);
+        yBeam = 0.0f;
+        
+        //Inner hit coordinates
+        float x1 = theHitsKDTree->hits[theInnerHitId].x()*std::cos(deltaPhi) + theHitsKDTree->hits[theInnerHitId].y()*std::sin(deltaPhi);
+        float y1 = theHitsKDTree->hits[theInnerHitId].y()*std::cos(deltaPhi) - theHitsKDTree->hits[theInnerHitId].x()*std::sin(deltaPhi);
         
         float slopeXYCell,slopeOrthogonalXYCell,interceptOrthogonalXYCell;
         float slopeXYBeam,slopeOrthogonalXYBeam,interceptOrthogonalXYBeam;
@@ -151,18 +167,20 @@ public:
         
         //Slope of the line orthogonal to the line passing through cell hits - some checks to avoid slope = infinite and if the points are coincident (error)
         slopeOrthogonalXYCell = (x1 == x2) ? (y1 == y2) ? return 1 : 0.0 : (y1 == y2) ? HUGE_VALF : -(x1-x2)/(y1-y2);
+        
         //Slope of the line orthogonal to the line passing through the beam spot and the inner hit - some checks to avoid slope = infinite and if the points are coincident (error)
-        slopeOrthogonalXYBeam = (x1 == beamSpot.x()) ? (y1 == beamSpot.y()) ? return 1 : 0.0 : (y1 == beamSpot.y()) ? HUGE_VALF : -(x1-beamSpot.x())/(y1-beamSpot.y());
+        slopeOrthogonalXYBeam = (x1 == xBeam) ? (y1 == yBeam) ? return 1 : 0.0 : (y1 == yBeam) ? HUGE_VALF : -(x1-xBeam)/(y1-yBeam);
         
         
         //Slope of the line passing through cell hits - some checks to avoid slope = infinite
         slopeXYCell = (slopeOrthogonalXYCell == HUGE_VALF) ? 0.0 : (slopeOrthogonalXYCell == 0.0) ? HUGE_VALF : (1.0/slopeOrthogonalXYCell);
+        
         //Slope of the line passing through the beam spot and the inner hit - some checks to avoid slope = infinite
         slopeXYBeam = (slopeOrthogonalXYCell == HUGE_VALF) ? 0.0 : (slopeOrthogonalXYCell == 0.0) ? HUGE_VALF : (1.0/slopeOrthogonalXYCell);
         
         //Midpoints : [theInnerHit,theOuterHit] & [theInnerHit,beamSpot]
         Basic2DVector midpointCell ((x1+x2)/2.0,(y1+y2;)/2.0);
-        Basic2DVector midpointBeam ((x1+beamSpot.x())/2.0,(y1+beamSpot.())/2.0);
+        Basic2DVector midpointBeam ((x1+xBeam)/2.0,(y1+beamSpot.())/2.0);
         
         //X and Y of the intersection point of the two axes and checks on the slope
         intersectionPointX = (slopeOrthogonalXYCell == HUGE_VALF) ? midpointCell.x() : (slopeOrthogonalXYBeam == HUGE_VALF) midpointBeam.x() ? :(midpointCell.y()-midpointBeam.y()-slopeOrthogonalXYCell*midpointCell.x()+slopeOrthogonalXYBeam*midpointCell.y())/(slopeOrthogonalXYBeam-slopeOrthogonalXYCell);
@@ -171,8 +189,9 @@ public:
         
         //The radius : distance between theOuterHit and the intersectionPoint
         theRadius = std::sqrt((intersectionPointX-x2)*(intersectionPointX-x2)+(intersectionPointY-y2)*(intersectionPointY-y2));
+        
         //The radius sign: positive if the curvature is clockwise, negative if the curvature is anticlockwise
-        theRadius *= (slopeXYBeam == HUGE_VALF) ? (x2>beamSpot.x()) ? 1.0 : -1.0 : (y2>slopeXYBeam*(x2-beamSpot.x())+beamSpot.y())? -1.0 : 1.0;
+        if(x1>xBeam) theRadius *= -1.0;
         
     }
 
