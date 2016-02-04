@@ -16,6 +16,8 @@
 #include "DataFormats/GeometryVector/interface/Pi.h"
 #include "DataFormats/GeometryVector/interface/Basic2DVector.h"
 
+#include <cmath>
+
 
 
 
@@ -136,9 +138,10 @@ public:
 
 	}
     
-    //Returns the radius of the circumference through the beamspot and the cell hits
+    //Returns the radius of the circumference through the beamspot and the cell hits (WITHOUT error = 0.0)
     void cellAxesCircleRadius(GlobalPoint beamSpot){
         
+        theRadius = 0.0;
         theSigmaR = 0.0; //No tip
         
         //Cell hits coordinates
@@ -184,13 +187,120 @@ public:
         
         //The intersection point of the two axes and checks on the slope
         Basic2DVector intersectionPoint (0.0,midpointCell.y());
-        intersectionPoint.x() = (slopeOrthogonalXYBeam == HUGE_VALF) ? midpointBeam.x() : (((midpointCell.y() - midpointBeam.x())/slopeXYBeam) + midpointBeam.x());
+        intersectionPoint.v[0] =(slopeOrthogonalXYBeam == HUGE_VALF) ? midpointBeam.x() : (((midpointCell.y() - midpointBeam.x())/slopeXYBeam) + midpointBeam.x());
         
         //The radius : distance between theOuterHit and the intersectionPoint
         theRadius = std::sqrt((intersectionPoint.x()-x2)*(intersectionPoint.x()-x2)+(intersectionPoint.y()-y2)*(intersectionPoint.y()-y2));
         
         //The radius sign: positive if the curvature is clockwise, negative if the curvature is anticlockwise
         if(x1>xBeam) theRadius *= -1.0;
+        
+    }
+    
+    //Returns the radius of the circumference through the beamspot and the cell hits (WITH error)
+    void cellAxesCircleRadius(GlobalPoint beamSpot, float tip){
+        
+        theRadius = 0.0;
+        theSigma = 0.0;
+        
+        //Cell hits coordinates
+        float x1 = theHitsKDTree->hits[theInnerHitId].x();
+        float y1 = theHitsKDTree->hits[theInnerHitId].y();
+        float x2 = theHitsKDTree->hits[theOuterHitId].x();
+        float y2 = theHitsKDTree->hits[theOuterHitId].y();
+        
+        //Trivial check
+        if (x1 == x2) && (y1 == y2)) return;
+        
+        //Rotating the cell line so that it's vertical (reducing the error reducing the slope)
+        float deltaPhi = 0.0;
+        deltaPhi = (x2==x1)? Geom::fhalfPi() : std::atan2((y2-y1)/(x2-x1));
+        deltaPhi *= -1.0;
+        deltaPhi += Geom::fhalfPi();
+        
+        x1 = theHitsKDTree->hits[theInnerHitId].x()*std::cos(deltaPhi) + theHitsKDTree->hits[theInnerHitId].y()*std::sin(deltaPhi);
+        
+        x2 = theHitsKDTree->hits[theOuterHitId].x()*std::cos(deltaPhi) + theHitsKDTree->hits[theOuterHitId].y()*std::sin(deltaPhi);
+        
+        y2 = 0.0f; y1 = 0.0f;
+        
+        xBeam *= beamSpot.x()*std::cos(deltaPhi) + beamSpot.y()*std::sin(deltaPhi);
+        yBeam = 0.0f;
+        
+        //Beamspot coordinates
+        float xBeam = beamSpot.x()*std::cos(deltaPhi) + beamSpot.y()*std::sin(deltaPhi);
+        float yBeam = beamSpot.y()*std::cos(deltaPhi) - beamSpot.x()*std::sin(deltaPhi);
+        
+        float slopeXYCell,slopeOrthogonalXYCell,interceptOrthogonalXYCell;
+        float slopeXYBeam,slopeOrthogonalXYBeam,interceptOrthogonalXYBeam;
+        float intersectionPointX,intersectionPointY;
+        
+        float slopeOrthogonalExtremeRight, slopeOrthogonalExtremeLeft;
+        float diameterLimitDeltaX = 0.0;
+        float radiusErrorNear,radiusErrorFar;
+        
+        //Slope of the line orthogonal to the line passing through the beam spot and the inner hit - some checks to avoid slope = infinite and if the points are coincident (error)
+        slopeOrthogonalXYBeam = (x1 == xBeam) ? (y1 == yBeam) ? return 1 : 0.0 : (y1 == yBeam) ? HUGE_VALF : -(x1-xBeam)/(y1-yBeam);
+        //Slope of the line passing through the beam spot and the inner hit - some checks to avoid slope = infinite
+        slopeXYBeam = (slopeOrthogonalXYCell == HUGE_VALF) ? 0.0 : (slopeOrthogonalXYCell == 0.0) ? HUGE_VALF : (1.0/slopeOrthogonalXYCell);
+        
+        //Midpoints : [theInnerHit,theOuterHit] & [theInnerHit,beamSpot]
+        Basic2DVector midpointCell ((x1+x2)/2.0,(y1+y2;)/2.0);
+        Basic2DVector midpointBeam ((x1+xBeam)/2.0,(y1+beamSpot.())/2.0);
+        
+        //The intersection point of the two axes and checks on the slope
+        Basic2DVector intersectionPoint (0.0,midpointCell.y());
+        intersectionPoint.v[0] = (slopeOrthogonalXYBeam == HUGE_VALF) ? midpointBeam.x() : (((midpointCell.y() - midpointBeam.x())/slopeXYBeam) + midpointBeam.x());
+        
+        //The radius : distance between theOuterHit and the intersectionPoint
+        theRadius = std::sqrt((intersectionPoint.x()-x2)*(intersectionPoint.x()-x2)+(intersectionPoint.y()-y2)*(intersectionPoint.y()-y2));
+        
+        //The radius sign: positive if the curvature is clockwise, negative if the curvature is anticlockwise
+        if(x1>xBeam) theRadius *= -1.0;
+        
+        //////
+        //EVALUATING RADIUS SIGMA
+        //////
+        
+        //Diameter slope = line orthogonal to the line from beam to inner hit slope == slopeOrthogonalXYBeam
+        diameterLimitDeltaX = (slopeOrthogonalXYBeam == HUGE_VALF) ? 0.0 : std::sqrt(tip*tip/(1+slopeOrthogonalXYBeam*slopeOrthogonalXYBeam));
+        
+        //The diameter extremes
+        Basic2DVector diameterExtremeRight(xBeam+diameterLimitDeltaX,0.0);
+        diameterExtremeRight.v[1] = (slopeOrthogonalXYBeam == HUGE_VALF) ? yBeam + tip : yBeam + (diameterExtremeRight.x() - xBeam)*slopeOrthogonalXYBeam;
+        Basic2DVector diameterExtremeLeft(xBeam-diameterLimitDeltaX,0.0);
+        diameterExtremeLeft.v[1] = (slopeOrthogonalXYBeam == HUGE_VALF) ? yBeam - tip : yBeam + (diameterExtremeLeft.x() - xBeam)*slopeOrthogonalXYBeam;
+        
+        //Midpoints of [theInnerHit,theDiameterExtreme(s)]
+        Basic2DVector theHitAndExtremeMidpointRight ((diameterExtremeRight.x()+x1)*0.5,(diameterExtremeRight.y()+y1)*0.5);
+        Basic2DVector theHitAndExtremeMidpointLeft ((diameterExtremeLeft.x()+x1)*0.5,(diameterExtremeLeft.y()+y1)*0.5);
+        
+        //Slope of the line(s) orthogonal to the line(s) [theInnerHit,theDiameterExtreme(s)]
+        slopeOrthogonalExtremeRight = (x1 == diameterExtremeRight.x()) ? (y1 == diameterExtremeRight.y()) ? return : 0.0 : (y1 == diameterExtremeRight.y()) ? HUGE_VALF : -(x1-diameterExtremeRight.x())/(y1-diameterExtremeRight.y());
+        slopeOrthogonalExtremeLeft = (x1 == diameterExtremeLeft.x()) ? (y1 == diameterExtremeLeft.y()) ? return : 0.0 : (y1 == diameterExtremeLeft.y()) ? HUGE_VALF : -(x1-diameterExtremeLeft.x())/(y1-diameterExtremeLeft.y());
+        
+        //Intersection points between the cell axis and the [theInnerHit,theDiameterExtreme(s)] axes
+        Basic2DVector intersectionPointErrorNear (0.0,midpointCell.y());
+        Basic2DVector intersectionPointErrorFar (0.0,midpointCell.y());
+        
+        //Select the point nearer to the cell
+        if (slopeOrthogonalXYBeam>0){
+            
+            intersectionPointErrorNear.v[0]= (((midpointCell.y()-theHitAndExtremeMidpointRight.y())/slopeOrthogonalXYBeam )+theHitAndExtremeMidpointRight.x());
+            intersectionPointErrorFar.v[0]= (((midpointCell.y()-theHitAndExtremeMidpointLeft.y())/slopeOrthogonalXYBeam )+theHitAndExtremeMidpointLeft.x());
+        }else{
+            
+            intersectionPointErrorFar.v[0]= (((midpointCell.y()-theHitAndExtremeMidpointRight.y())/slopeOrthogonalXYBeam )+theHitAndExtremeMidpointRight.x());
+            intersectionPointErrorNear.v[0]= (((midpointCell.y()-theHitAndExtremeMidpointLeft.y())/slopeOrthogonalXYBeam )+theHitAndExtremeMidpointLeft.x());
+            
+        }
+        
+        //As sigmaR is chosen the biggest of the asymmetrical errors
+        radiusErrorNear = fabs(theRadius - sqrt((intersectionPointErrorNear.x()-x2)*(intersectionPointErrorNear.x()-x2)+(intersectionPointErrorNear.y()-y2)*(intersectionPointErrorNear.y()-y2)));
+        
+        radiusErrorFar = fabs(theRadius - sqrt((intersectionPointErrorFar.x()-x2)*(intersectionPointErrorFar.x()-x2)+(intersectionPointErrorFar.y()-y2)*(intersectionPointErrorFar.y()-y2)));
+        
+        theSigmaR = std::max(radiusErrorRight,radiusErrorLeft);
         
     }
     
