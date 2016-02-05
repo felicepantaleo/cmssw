@@ -196,7 +196,7 @@ public:
     
         //Rotating the cell line so that it's vertical (reducing the error reducing the slope)
         float deltaPhi = 0.0;
-        deltaPhi = (x2==x1)? Geom::fhalfPi() : std::atan2((y2-y1)/(x2-x1));
+        deltaPhi = (x2==x1)? Geom::fhalfPi() : std::atan2((y2-y1),(x2-x1));
         deltaPhi *= -1.0;
         deltaPhi += Geom::fhalfPi();
         
@@ -255,7 +255,7 @@ public:
         
         //Rotating the cell line so that it's vertical (reducing the error reducing the slope)
         float deltaPhi = 0.0;
-        deltaPhi = (x2==x1)? Geom::fhalfPi() : std::atan2((y2-y1)/(x2-x1));
+        deltaPhi = (x2==x1)? Geom::fhalfPi() : std::atan2((y2-y1),(x2-x1));
         deltaPhi *= -1.0;
         deltaPhi += Geom::fhalfPi();
         
@@ -388,7 +388,7 @@ public:
 
         if (y1==y2) return phi1;
     
-        float gamma = std::atan2((y2-y1)/(x2-x1));
+        float gamma = std::atan2((y2-y1),(x2-x1));
         
         return Geom::fpi()-gamma-phi1;
     }
