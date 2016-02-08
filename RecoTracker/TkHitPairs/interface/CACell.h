@@ -200,26 +200,24 @@ public:
         deltaPhi *= -1.0;
         deltaPhi += Geom::fhalfPi();
         
-        x1 = theHitsKDTree->theHits[theInnerHitId].x()*std::cos(deltaPhi) + theHitsKDTree->theHits[theInnerHitId].y()*std::sin(deltaPhi);
+        x1 = theHitsKDTree->theHits[theInnerHitId].x()*std::cos(deltaPhi) - theHitsKDTree->theHits[theInnerHitId].y()*std::sin(deltaPhi);
+        x2 = theHitsKDTree->theHits[theOuterHitId].x()*std::cos(deltaPhi) - theHitsKDTree->theHits[theOuterHitId].y()*std::sin(deltaPhi);
         
-        x2 = theHitsKDTree->theHits[theOuterHitId].x()*std::cos(deltaPhi) + theHitsKDTree->theHits[theOuterHitId].y()*std::sin(deltaPhi);
-        
-        y2 = 0.0f; y1 = 0.0f;
+        y1 = theHitsKDTree->theHits[theOuterHitId].y()*std::cos(deltaPhi) + theHitsKDTree->theHits[theOuterHitId].x()*std::sin(deltaPhi);
+        y2 = theHitsKDTree->theHits[theInnerHitId].y()*std::cos(deltaPhi) + theHitsKDTree->theHits[theInnerHitId].x()*std::sin(deltaPhi);
         
         //Beamspot coordinates
-        float xBeam = beamSpot.x()*std::cos(deltaPhi) + beamSpot.y()*std::sin(deltaPhi);
-        float yBeam = beamSpot.y()*std::cos(deltaPhi) - beamSpot.x()*std::sin(deltaPhi);
+        float xBeam = beamSpot.x()*std::cos(deltaPhi) - beamSpot.y()*std::sin(deltaPhi);
+        float yBeam = beamSpot.y()*std::cos(deltaPhi) + beamSpot.x()*std::sin(deltaPhi);
         
         //Trivial check
         if (((x1 == xBeam) && (y1 == yBeam))||((x2 == xBeam) && (y2 == yBeam))) return;
         
-        float slopeOrthogonalXYCell;
-        float slopeXYBeam,slopeOrthogonalXYBeam;
+        float slopeOrthogonalXYBeam;
         
         //Slope of the line orthogonal to the line passing through the beam spot and the inner hit - some checks to avoid slope = infinite and if the points are coincident (error)
         slopeOrthogonalXYBeam = (x1 == xBeam) ?  0.0 : (y1 == yBeam) ? HUGE_VALF : -(x1-xBeam)/(y1-yBeam);
         //Slope of the line passing through the beam spot and the inner hit - some checks to avoid slope = infinite
-        slopeXYBeam = (slopeOrthogonalXYCell == HUGE_VALF) ? 0.0 : (slopeOrthogonalXYCell == 0.0) ? HUGE_VALF : (1.0/slopeOrthogonalXYCell);
         
         //Midpoints : [theInnerHit,theOuterHit] & [theInnerHit,beamSpot]
         Basic2DVectorF midpointCell ((x1+x2)/2.0,(y1+y2)/2.0);
@@ -227,7 +225,7 @@ public:
         
         //The intersection point of the two axes and checks on the slope
         Basic2DVectorF intersectionPoint (0.0,midpointCell.y());
-        intersectionPoint.v[0] =(slopeOrthogonalXYBeam == HUGE_VALF) ? midpointBeam.x() : (((midpointCell.y() - midpointBeam.x())/slopeXYBeam) + midpointBeam.x());
+        intersectionPoint.v[0] =(slopeOrthogonalXYBeam == HUGE_VALF) ? midpointBeam.x() : (((midpointCell.y() - midpointBeam.y())/slopeOrthogonalXYBeam) + midpointBeam.x());
         
         //The radius : distance between theOuterHit and the intersectionPoint
         theRadius = std::sqrt((intersectionPoint.x()-x2)*(intersectionPoint.x()-x2)+(intersectionPoint.y()-y2)*(intersectionPoint.y()-y2));
@@ -258,21 +256,20 @@ public:
         deltaPhi *= -1.0;
         deltaPhi += Geom::fhalfPi();
         
-        x1 = theHitsKDTree->theHits[theInnerHitId].x()*std::cos(deltaPhi) + theHitsKDTree->theHits[theInnerHitId].y()*std::sin(deltaPhi);
+        x1 = theHitsKDTree->theHits[theInnerHitId].x()*std::cos(deltaPhi) - theHitsKDTree->theHits[theInnerHitId].y()*std::sin(deltaPhi);
+        x2 = theHitsKDTree->theHits[theOuterHitId].x()*std::cos(deltaPhi) - theHitsKDTree->theHits[theOuterHitId].y()*std::sin(deltaPhi);
         
-        x2 = theHitsKDTree->theHits[theOuterHitId].x()*std::cos(deltaPhi) + theHitsKDTree->theHits[theOuterHitId].y()*std::sin(deltaPhi);
-        
-        y2 = 0.0f; y1 = 0.0f;
+        y1 = theHitsKDTree->theHits[theOuterHitId].y()*std::cos(deltaPhi) + theHitsKDTree->theHits[theOuterHitId].x()*std::sin(deltaPhi);
+        y2 = theHitsKDTree->theHits[theInnerHitId].y()*std::cos(deltaPhi) + theHitsKDTree->theHits[theInnerHitId].x()*std::sin(deltaPhi);
         
         //Beamspot coordinates
-        float xBeam = beamSpot.x()*std::cos(deltaPhi) + beamSpot.y()*std::sin(deltaPhi);
-        float yBeam = beamSpot.y()*std::cos(deltaPhi) - beamSpot.x()*std::sin(deltaPhi);
+        float xBeam = beamSpot.x()*std::cos(deltaPhi) - beamSpot.y()*std::sin(deltaPhi);
+        float yBeam = beamSpot.y()*std::cos(deltaPhi) + beamSpot.x()*std::sin(deltaPhi);
         
         //Trivial Check
         if (((x1 == xBeam) && (y1 == yBeam))||((x2 == xBeam) && (y2 == yBeam))) return;
         
-        float slopeOrthogonalXYCell;
-        float slopeXYBeam,slopeOrthogonalXYBeam;
+        float slopeOrthogonalXYBeam;
         
         float slopeOrthogonalExtremeRight, slopeOrthogonalExtremeLeft;
         float diameterLimitDeltaX = 0.0;
@@ -281,7 +278,7 @@ public:
         //Slope of the line orthogonal to the line passing through the beam spot and the inner hit - some checks to avoid slope = infinite and if the points are coincident (error)
         slopeOrthogonalXYBeam = (x1 == xBeam) ? 0.0 : (y1 == yBeam) ? HUGE_VALF : -(x1-xBeam)/(y1-yBeam);
         //Slope of the line passing through the beam spot and the inner hit - some checks to avoid slope = infinite
-        slopeXYBeam = (slopeOrthogonalXYCell == HUGE_VALF) ? 0.0 : (slopeOrthogonalXYCell == 0.0) ? HUGE_VALF : (1.0/slopeOrthogonalXYCell);
+        //slopeXYBeam = (slopeOrthogonalXYBeam == HUGE_VALF) ? 0.0 : (slopeOrthogonalXYBeam == 0.0) ? HUGE_VALF : (-1.0/slopeOrthogonalXYBeam);
         
         //Midpoints : [theInnerHit,theOuterHit] & [theInnerHit,beamSpot]
         Basic2DVectorF midpointCell ((x1+x2)/2.0,(y1+y2)/2.0);
@@ -289,7 +286,7 @@ public:
         
         //The intersection point of the two axes and checks on the slope
         Basic2DVectorF intersectionPoint (0.0,midpointCell.y());
-        intersectionPoint.v[0] = (slopeOrthogonalXYBeam == HUGE_VALF) ? midpointBeam.x() : (((midpointCell.y() - midpointBeam.x())/slopeXYBeam) + midpointBeam.x());
+        intersectionPoint.v[0] =(slopeOrthogonalXYBeam == HUGE_VALF) ? midpointBeam.x() : (((midpointCell.y() - midpointBeam.y())/slopeOrthogonalXYBeam) + midpointBeam.x());
         
         //The radius : distance between theOuterHit and the intersectionPoint
         theRadius = std::sqrt((intersectionPoint.x()-x2)*(intersectionPoint.x()-x2)+(intersectionPoint.y()-y2)*(intersectionPoint.y()-y2));
@@ -324,15 +321,14 @@ public:
         Basic2DVectorF intersectionPointErrorNear (0.0,midpointCell.y());
         Basic2DVectorF  intersectionPointErrorFar (0.0,midpointCell.y());
         
-        //Select the point nearer to the cell
         if (slopeOrthogonalXYBeam>0){
             
-            intersectionPointErrorNear.v[0]= (((midpointCell.y()-theHitAndExtremeMidpointRight.y())/slopeOrthogonalXYBeam )+theHitAndExtremeMidpointRight.x());
-            intersectionPointErrorFar.v[0]= (((midpointCell.y()-theHitAndExtremeMidpointLeft.y())/slopeOrthogonalXYBeam )+theHitAndExtremeMidpointLeft.x());
+            intersectionPointErrorNear.v[0]= (((midpointCell.y()-theHitAndExtremeMidpointRight.y())/slopeOrthogonalExtremeRight) + theHitAndExtremeMidpointRight.x());
+            intersectionPointErrorFar.v[0]= (((midpointCell.y()-theHitAndExtremeMidpointLeft.y())/slopeOrthogonalExtremeLeft )+theHitAndExtremeMidpointLeft.x());
         }else{
             
-            intersectionPointErrorFar.v[0]= (((midpointCell.y()-theHitAndExtremeMidpointRight.y())/slopeOrthogonalXYBeam )+theHitAndExtremeMidpointRight.x());
-            intersectionPointErrorNear.v[0]= (((midpointCell.y()-theHitAndExtremeMidpointLeft.y())/slopeOrthogonalXYBeam )+theHitAndExtremeMidpointLeft.x());
+            intersectionPointErrorFar.v[0]= (((midpointCell.y()-theHitAndExtremeMidpointRight.y())/slopeOrthogonalExtremeRight )+theHitAndExtremeMidpointRight.x());
+            intersectionPointErrorNear.v[0]= (((midpointCell.y()-theHitAndExtremeMidpointLeft.y())/slopeOrthogonalExtremeLeft )+theHitAndExtremeMidpointLeft.x());
             
         }
         
