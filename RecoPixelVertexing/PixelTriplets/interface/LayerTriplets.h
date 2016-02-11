@@ -14,8 +14,19 @@ namespace LayerTriplets {
   using Layer = SeedingLayerSetsHits::SeedingLayer;
   using LayerSet = SeedingLayerSetsHits::SeedingLayerSet;
   using LayerSetAndLayers = std::pair<LayerSet, std::vector<Layer> >;
-
+ 
+  using CALayers = std::vector<Layer>;
+  using CALayerPair = std::pair<Layer,Layer>;
+  using CALayerPairs = std::vector<CALayerPair>;
+  using CALayersSet = std::vector<CALayers>;
+  using CALayersSetWithPairs = std::vector<CALayerPairs>;
+    
   std::vector<LayerSetAndLayers> layers(const SeedingLayerSetsHits& sets);
+
+  CALayersSet CAQuadrupleLayers (const SeedingLayerSetsHits& sets);
+  CALayersSetWithPairs CAQuadruplePairsLayers (const SeedingLayerSetsHits& sets);
+  
+    
 }
 
 #endif

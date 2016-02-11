@@ -25,4 +25,41 @@ std::vector<LayerSetAndLayers> layers(const SeedingLayerSetsHits& sets) {
   }
   return result;
 }
+    
+    //Create a vector of 4-layer vectors
+    CALayersSet  CAQuadrupleLayers(const SeedingLayerSetsHits& sets) {
+        CALayersSet  result;
+        if(sets.numberOfLayersInSet() != 4)
+            return result;
+
+        for(LayerSet thisSet: sets){
+            
+            CALayers thisCASet;
+            for (auto iS = 0; iS < thisSet.size(); ++iS) {
+                thisCASet.push_back(thisSet[iS]);
+            }
+            result.push_back(thisCASet);
+        }
+        return result;
+    }
+    
+    //Create a vector of which each memeber is a set of three couple each for a valid combination of layers to form doublets
+    CALayersSetWithPairs  CAQuadruplePairsLayers(const SeedingLayerSetsHits& sets) {
+        CALayersSetWithPairs result;
+        if(sets.numberOfLayersInSet() != 4)
+            return result;
+        
+        for(LayerSet thisSet: sets){
+            CALayerPairs thisCAPairs;
+            for (auto iS = 0; iS < thisSet.size() - 1; ++iS) {
+                CALayerPair bufferPair(thisSet[iS],thisSet[iS+1]);
+                thisCAPairs.push_back(bufferPair);
+            }
+            result.push_back(thisCAPairs);
+        }
+        return result;
+    }
+
+    
+    
 }
