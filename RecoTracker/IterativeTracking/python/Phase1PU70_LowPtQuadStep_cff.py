@@ -16,13 +16,20 @@ lowPtQuadStepClusters = trackClusterRemover.clone(
 # SEEDING LAYERS
 import RecoTracker.TkSeedingLayers.PixelLayerTriplets_cfi
 lowPtQuadStepSeedLayers = RecoTracker.TkSeedingLayers.PixelLayerTriplets_cfi.PixelLayerTriplets.clone(
-    layerList = cms.vstring('BPix1+BPix2+BPix3', 'BPix2+BPix3+BPix4',
-                            'BPix1+BPix3+BPix4', 'BPix1+BPix2+BPix4',
-                            'BPix2+BPix3+FPix1_pos', 'BPix2+BPix3+FPix1_neg',
-                            'BPix1+BPix2+FPix1_pos', 'BPix1+BPix2+FPix1_neg',
-                            'BPix2+FPix1_pos+FPix2_pos', 'BPix2+FPix1_neg+FPix2_neg',
-                            'BPix1+FPix1_pos+FPix2_pos', 'BPix1+FPix1_neg+FPix2_neg',
-                            'FPix1_pos+FPix2_pos+FPix3_pos', 'FPix1_neg+FPix2_neg+FPix3_neg')
+#    layerList = cms.vstring('BPix1+BPix2+BPix3', 'BPix2+BPix3+BPix4',
+#                            'BPix1+BPix3+BPix4', 'BPix1+BPix2+BPix4',
+#                            'BPix2+BPix3+FPix1_pos', 'BPix2+BPix3+FPix1_neg',
+#                            'BPix1+BPix2+FPix1_pos', 'BPix1+BPix2+FPix1_neg',
+#                            'BPix2+FPix1_pos+FPix2_pos', 'BPix2+FPix1_neg+FPix2_neg',
+#                            'BPix1+FPix1_pos+FPix2_pos', 'BPix1+FPix1_neg+FPix2_neg',
+#                            'FPix1_pos+FPix2_pos+FPix3_pos', 'FPix1_neg+FPix2_neg+FPix3_neg')
+                                                                                                      layerList = cms.vstring('BPix1+BPix2+BPix3+BPix4', 'BPix1+BPix2+BPix3+FPix1_pos',
+                                                                                                                              'BPix1+BPix2+BPix3+FPix1_neg','BPix1+BPix2+FPix1_pos+FPix2_pos',
+                                                                                                                              'BPix1+BPix2+FPix1_neg+FPix2_neg','BPix1+FPix1_pos+FPix2_pos+FPix3_pos',
+                                                                                                                              'BPix1+FPix1_neg+FPix2_neg+FPix3_neg','BPix2+FPix1_pos+FPix2_pos+FPix3_pos',
+                                                                                                                              'BPix2+FPix1_neg+FPix2_neg+FPix3_neg','BPix1+BPix2+FPix2_pos+FPix3_pos',
+                                                                                                                              'BPix1+BPix2+FPix2_neg+FPix3_neg','BPix1+BPix2+FPix1_pos+FPix3_pos',
+                                                                                                                              'BPix1+BPix2+FPix1_neg+FPix3_neg')
     )
 lowPtQuadStepSeedLayers.BPix.skipClusters = cms.InputTag('lowPtQuadStepClusters')
 lowPtQuadStepSeedLayers.FPix.skipClusters = cms.InputTag('lowPtQuadStepClusters')
@@ -71,8 +78,8 @@ lowPtQuadStepTrajectoryFilter = TrackingTools.TrajectoryFiltering.TrajectoryFilt
                  cms.PSet(refToPSet_ = cms.string('ClusterShapeTrajectoryFilter'))]
     )
 
-import TrackingTools.KalmanUpdators.Chi2MeasurementEstimator_cfi
-lowPtQuadStepChi2Est = TrackingTools.KalmanUpdators.Chi2MeasurementEstimator_cfi.Chi2MeasurementEstimator.clone(
+import TrackingTools.KalmanUpdators.Chi2MeasurementEstimatorESProducer_cfi
+lowPtQuadStepChi2Est = TrackingTools.KalmanUpdators.Chi2MeasurementEstimatorESProducer_cfi.Chi2MeasurementEstimator.clone(
     ComponentName = cms.string('lowPtQuadStepChi2Est'),
     nSigma = cms.double(3.0),
     MaxChi2 = cms.double(25.0)

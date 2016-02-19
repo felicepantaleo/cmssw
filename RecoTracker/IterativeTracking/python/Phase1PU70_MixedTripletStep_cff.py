@@ -17,12 +17,19 @@ mixedTripletStepClusters = trackClusterRemover.clone(
 
 # SEEDING LAYERS
 mixedTripletStepSeedLayersA = cms.EDProducer("SeedingLayersEDProducer",
-    layerList = cms.vstring('BPix1+BPix2+FPix1_pos', 'BPix1+BPix2+FPix1_neg', 
-                            'BPix1+FPix1_pos+FPix2_pos', 'BPix1+FPix1_neg+FPix2_neg', 
-                            'FPix1_pos+FPix2_pos+FPix3_pos', 'FPix1_neg+FPix2_neg+FPix3_neg', 
-                            'BPix2+FPix1_pos+FPix2_pos', 'BPix2+FPix1_neg+FPix2_neg', 
-                            'BPix1+FPix1_pos+FPix3_pos', 'BPix1+FPix1_neg+FPix3_neg', 
-                            'FPix2_pos+FPix3_pos+TEC1_pos', 'FPix2_neg+FPix3_neg+TEC1_neg'),
+#    layerList = cms.vstring('BPix1+BPix2+FPix1_pos', 'BPix1+BPix2+FPix1_neg', 
+#                            'BPix1+FPix1_pos+FPix2_pos', 'BPix1+FPix1_neg+FPix2_neg', 
+#                            'FPix1_pos+FPix2_pos+FPix3_pos', 'FPix1_neg+FPix2_neg+FPix3_neg', 
+#                            'BPix2+FPix1_pos+FPix2_pos', 'BPix2+FPix1_neg+FPix2_neg', 
+#                            'BPix1+FPix1_pos+FPix3_pos', 'BPix1+FPix1_neg+FPix3_neg', 
+#                            'FPix2_pos+FPix3_pos+TEC1_pos', 'FPix2_neg+FPix3_neg+TEC1_neg'),
+                                             layerList = cms.vstring('BPix1+BPix2+BPix3+BPix4', 'BPix1+BPix2+BPix3+FPix1_pos',
+                                                                     'BPix1+BPix2+BPix3+FPix1_neg','BPix1+BPix2+FPix1_pos+FPix2_pos',
+                                                                     'BPix1+BPix2+FPix1_neg+FPix2_neg','BPix1+FPix1_pos+FPix2_pos+FPix3_pos',
+                                                                     'BPix1+FPix1_neg+FPix2_neg+FPix3_neg','BPix2+FPix1_pos+FPix2_pos+FPix3_pos',
+                                                                     'BPix2+FPix1_neg+FPix2_neg+FPix3_neg','BPix1+BPix2+FPix2_pos+FPix3_pos',
+                                                                     'BPix1+BPix2+FPix2_neg+FPix3_neg','BPix1+BPix2+FPix1_pos+FPix3_pos',
+                                                                     'BPix1+BPix2+FPix1_neg+FPix3_neg')
     BPix = cms.PSet(
         TTRHBuilder = cms.string('WithTrackAngle'),
         HitProducer = cms.string('siPixelRecHits'),
@@ -132,8 +139,8 @@ mixedTripletStepPropagatorOpposite = TrackingTools.MaterialEffects.OppositeMater
     ptMin = 0.1
     )
 
-import TrackingTools.KalmanUpdators.Chi2MeasurementEstimator_cfi
-mixedTripletStepChi2Est = TrackingTools.KalmanUpdators.Chi2MeasurementEstimator_cfi.Chi2MeasurementEstimator.clone(
+import TrackingTools.KalmanUpdators.Chi2MeasurementEstimatorESProducer_cfi
+mixedTripletStepChi2Est = TrackingTools.KalmanUpdators.Chi2MeasurementEstimatorESProducer_cfi.Chi2MeasurementEstimator.clone(
     ComponentName = cms.string('mixedTripletStepChi2Est'),
     nSigma = cms.double(3.0),
     MaxChi2 = cms.double(16.0)

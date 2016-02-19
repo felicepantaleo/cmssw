@@ -20,15 +20,30 @@ detachedQuadStepClusters = trackClusterRemover.clone(
 
 # SEEDING LAYERS
 import RecoTracker.TkSeedingLayers.PixelLayerTriplets_cfi
+#detachedQuadStepSeedLayers = RecoTracker.TkSeedingLayers.PixelLayerTriplets_cfi.PixelLayerTriplets.clone(
+#    layerList = cms.vstring('BPix1+BPix2+BPix3', 'BPix2+BPix3+BPix4',
+#                            'BPix1+BPix3+BPix4', 'BPix1+BPix2+BPix4',
+#                            'BPix2+BPix3+FPix1_pos', 'BPix2+BPix3+FPix1_neg',
+#                            'BPix1+BPix2+FPix1_pos', 'BPix1+BPix2+FPix1_neg',
+#                            'BPix2+FPix1_pos+FPix2_pos', 'BPix2+FPix1_neg+FPix2_neg',
+#                            'BPix1+FPix1_pos+FPix2_pos', 'BPix1+FPix1_neg+FPix2_neg',
+#                            'FPix1_pos+FPix2_pos+FPix3_pos', 'FPix1_neg+FPix2_neg+FPix3_neg')
+#    )
 detachedQuadStepSeedLayers = RecoTracker.TkSeedingLayers.PixelLayerTriplets_cfi.PixelLayerTriplets.clone(
-    layerList = cms.vstring('BPix1+BPix2+BPix3', 'BPix2+BPix3+BPix4',
-                            'BPix1+BPix3+BPix4', 'BPix1+BPix2+BPix4',
-                            'BPix2+BPix3+FPix1_pos', 'BPix2+BPix3+FPix1_neg',
-                            'BPix1+BPix2+FPix1_pos', 'BPix1+BPix2+FPix1_neg',
-                            'BPix2+FPix1_pos+FPix2_pos', 'BPix2+FPix1_neg+FPix2_neg',
-                            'BPix1+FPix1_pos+FPix2_pos', 'BPix1+FPix1_neg+FPix2_neg',
-                            'FPix1_pos+FPix2_pos+FPix3_pos', 'FPix1_neg+FPix2_neg+FPix3_neg')
-    )
+                                                                                                         layerList = cms.vstring('BPix1+BPix2+BPix3+BPix4',
+                                                                                                                                 'BPix1+BPix2+BPix3+FPix1_pos',
+                                                                                                                                 'BPix1+BPix2+BPix3+FPix1_neg',
+                                                                                                                                 'BPix1+BPix2+FPix1_pos+FPix2_pos',
+                                                                                                                                 'BPix1+BPix2+FPix1_neg+FPix2_neg',
+                                                                                                                                 'BPix1+FPix1_pos+FPix2_pos+FPix3_pos',
+                                                                                                                                 'BPix1+FPix1_neg+FPix2_neg+FPix3_neg',
+                                                                                                                                 'BPix2+FPix1_pos+FPix2_pos+FPix3_pos',
+                                                                                                                                 'BPix2+FPix1_neg+FPix2_neg+FPix3_neg',
+                                                                                                                                 'BPix1+BPix2+FPix2_pos+FPix3_pos',
+                                                                                                                                 'BPix1+BPix2+FPix2_neg+FPix3_neg',
+                                                                                                                                 'BPix1+BPix2+FPix1_pos+FPix3_pos',
+                                                                                                                                 'BPix1+BPix2+FPix1_neg+FPix3_neg')                                      )
+
 detachedQuadStepSeedLayers.BPix.skipClusters = cms.InputTag('detachedQuadStepClusters')
 detachedQuadStepSeedLayers.FPix.skipClusters = cms.InputTag('detachedQuadStepClusters')
 
@@ -87,8 +102,8 @@ detachedQuadStepTrajectoryFilter = TrackingTools.TrajectoryFiltering.TrajectoryF
                  cms.PSet(refToPSet_ = cms.string('ClusterShapeTrajectoryFilter'))]
     )
 
-import TrackingTools.KalmanUpdators.Chi2MeasurementEstimator_cfi
-detachedQuadStepChi2Est = TrackingTools.KalmanUpdators.Chi2MeasurementEstimator_cfi.Chi2MeasurementEstimator.clone(
+import TrackingTools.KalmanUpdators.Chi2MeasurementEstimatorESProducer_cfi
+detachedQuadStepChi2Est = TrackingTools.KalmanUpdators.Chi2MeasurementEstimatorESProducer_cfi.Chi2MeasurementEstimator.clone(
     ComponentName = cms.string('detachedQuadStepChi2Est'),
     nSigma = cms.double(3.0),
     MaxChi2 = cms.double(9.0)
