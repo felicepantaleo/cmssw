@@ -29,7 +29,7 @@ mixedTripletStepSeedLayersA = cms.EDProducer("SeedingLayersEDProducer",
                                                                      'BPix1+FPix1_neg+FPix2_neg+FPix3_neg','BPix2+FPix1_pos+FPix2_pos+FPix3_pos',
                                                                      'BPix2+FPix1_neg+FPix2_neg+FPix3_neg','BPix1+BPix2+FPix2_pos+FPix3_pos',
                                                                      'BPix1+BPix2+FPix2_neg+FPix3_neg','BPix1+BPix2+FPix1_pos+FPix3_pos',
-                                                                     'BPix1+BPix2+FPix1_neg+FPix3_neg'),
+                                                                     'BPix1+BPix2+FPix1_neg+FPix3_neg')
     BPix = cms.PSet(
         TTRHBuilder = cms.string('WithTrackAngle'),
         HitProducer = cms.string('siPixelRecHits'),
