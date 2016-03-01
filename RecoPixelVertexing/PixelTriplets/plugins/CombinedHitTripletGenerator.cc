@@ -9,7 +9,12 @@
 #include "FWCore/Framework/interface/Event.h"
 #include "DataFormats/Common/interface/Handle.h"
 
-#uinclude <iostream>
+#include <map>
+#include <iostream>
+#include <string>
+#include <algorithm>
+
+using Hits = std::vector<const BaseTrackerRecHit*>;
 
 CombinedHitTripletGenerator::CombinedHitTripletGenerator(const edm::ParameterSet& cfg, edm::ConsumesCollector& iC) :
   theSeedingLayerToken(iC.consumes<SeedingLayerSetsHits>(cfg.getParameter<edm::InputTag>("SeedingLayers")))
