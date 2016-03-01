@@ -36,6 +36,9 @@ public:
   /// from base class
   virtual void hitTriplets( const TrackingRegion& reg, OrderedHitTriplets & triplets,
       const edm::Event & ev,  const edm::EventSetup& es);
+  
+  //virtual void hitQuadruplets( const TrackingRegion& reg, OrderedHitQuadruplets & qdrs,
+  //                              const edm::Event & ev,  const edm::EventSetup& es) = 0;
 
 private:
   edm::EDGetTokenT<SeedingLayerSetsHits> theSeedingLayerToken;
@@ -43,5 +46,7 @@ private:
   LayerCacheType            theLayerCache;
 
   std::unique_ptr<HitTripletGeneratorFromPairAndLayers> theGenerator;
+  
+    
 };
 #endif
