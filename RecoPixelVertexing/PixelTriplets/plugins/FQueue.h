@@ -105,12 +105,11 @@ public:
 		if (theSize >= theBuffer.size())
 		{
 			auto oldCapacity = theBuffer.size();
-			auto oldTail = theTail;
 			theBuffer.reserve(oldCapacity + theTail);
 
 			if (theFront != 0)
 			{
-				for (int i = 0; i < theTail; ++i)
+				for (unsigned int i = 0; i < theTail; ++i)
 				{
 					theBuffer.push_back(theBuffer[i]);
 				}

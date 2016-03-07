@@ -85,16 +85,22 @@ void PixelTripletHLTGenerator::hitTriplets(const TrackingRegion& region,
   typedef RecHitsSortedInPhi::Hit Hit;
 
   using NodeInfo = KDTreeNodeInfo<unsigned int>;
-  std::vector<NodeInfo > layerTree; // re-used throughout
+
+//  std::vector<NodeInfo > layerTree; // re-used throughout
   std::vector<unsigned int> foundNodes; // re-used thoughout
   foundNodes.reserve(100);
+  using TwoDimFloatTree = FKDTree<float, 2>;
+  declareDynArray(TwoDimFloatTree, size, hitTree);
+//  FKDTree<float, 2> hitTree[size];
 
-  declareDynArray(KDTreeLinkerAlgo<unsigned int>,size, hitTree);
+
+
+//  declareDynArray(KDTreeLinkerAlgo<unsigned int>,size, hitTree);
   float rzError[size]; //save maximum errors
 
 
   const float maxDelphi = region.ptMin() < 0.3f ? float(M_PI)/4.f : float(M_PI)/8.f; // FIXME move to config?? 
-  const float maxphi = M_PI+maxDelphi, minphi = -maxphi; // increase to cater for any range
+//  const float maxphi = M_PI+maxDelphi, minphi = -maxphi; // increase to cater for any range
   const float safePhi = M_PI-maxDelphi; // sideband
 
 
@@ -105,11 +111,10 @@ void PixelTripletHLTGenerator::hitTriplets(const TrackingRegion& region,
     ThirdHitRZPrediction<PixelRecoLineRZ> & pred = preds[il];
     pred.initLayer(thirdLayers[il].detLayer());
     pred.initTolerance(extraHitRZtolerance);
-
+    hitTree[il].resize(hits.size());
     corrections[il].init(es, region.ptMin(), *doublets.detLayer(HitDoublets::inner), *doublets.detLayer(HitDoublets::outer), 
                          *thirdLayers[il].detLayer(), useMScat, useBend);
 
-    layerTree.clear();
     float minv=999999.0f, maxv= -minv; // Initialise to extreme values in case no hits
     float maxErr=0.0f;
     for (unsigned int i=0; i!=hits.size(); ++i) {
@@ -119,14 +124,13 @@ void PixelTripletHLTGenerator::hitTriplets(const TrackingRegion& region,
       minv = std::min(minv,v);  maxv = std::max(maxv,v);
       float myerr = hits.dv[i];
       maxErr = std::max(maxErr,myerr);
-      layerTree.emplace_back(i, angle, v); // save it
+      hitTree[il].push_back(make_FKDPoint(angle, v,i)); // save it
       // populate side-bands
-      if (angle>safePhi) layerTree.emplace_back(i, angle-Geom::ftwoPi(), v);
-      else if (angle<-safePhi) layerTree.emplace_back(i, angle+Geom::ftwoPi(), v);
+      if (angle>safePhi) hitTree[il].push_back(make_FKDPoint(angle-Geom::ftwoPi(), v,i));
+      else if (angle<-safePhi) hitTree[il].push_back(make_FKDPoint( angle+Geom::ftwoPi(), v,i));
     }
-    KDTreeBox phiZ(minphi, maxphi, minv-0.01f, maxv+0.01f);  // declare our bounds
     //add fudge factors in case only one hit and also for floating-point inaccuracy
-    hitTree[il].build(layerTree, phiZ); // make KDtree
+    hitTree[il].build(); // make KDtree
     rzError[il] = maxErr; //save error
     // std::cout << "layer " << thirdLayers[il].detLayer()->seqNum() << " " << layerTree.size() << std::endl; 
   }
@@ -250,15 +254,20 @@ void PixelTripletHLTGenerator::hitTriplets(const TrackingRegion& region,
 	  correction.correctRZRange(regMin);
 	  correction.correctRZRange(regMax);
 	  if (regMax.min() < regMin.min()) { swap(regMax, regMin);}
-	  KDTreeBox phiZ(prmin, prmax, regMin.min()-nSigmaRZ*rzError[il], regMax.max()+nSigmaRZ*rzError[il]);
-	  hitTree[il].search(phiZ, foundNodes);
+
+	  FKDPoint< float, 2> minPoint (prmin, regMin.min()-nSigmaRZ*rzError[il], 0);
+	  FKDPoint< float, 2> maxPoint (prmax, regMax.max()+nSigmaRZ*rzError[il], 0);
+
+//	  KDTreeBox phiZ(prmin, prmax, regMin.min()-nSigmaRZ*rzError[il], regMax.max()+nSigmaRZ*rzError[il]);
+	  hitTree[il].search_in_the_box(minPoint, maxPoint);
 	}
       else
 	{
-	  KDTreeBox phiZ(prmin, prmax,
-			 rzRange.min()-regOffset-nSigmaRZ*rzError[il],
-			 rzRange.max()+regOffset+nSigmaRZ*rzError[il]);
-	  hitTree[il].search(phiZ, foundNodes);
+
+    	  FKDPoint< float, 2> minPoint (prmin, rzRange.min()-regOffset-nSigmaRZ*rzError[il], 0);
+    	  FKDPoint< float, 2> maxPoint (prmax, rzRange.max()+regOffset+nSigmaRZ*rzError[il], 0);
+
+    	  hitTree[il].search_in_the_box(minPoint, maxPoint);
 	}
 
       // std::cout << ip << ": " << thirdLayers[il].detLayer()->seqNum() << " " << foundNodes.size() << " " << prmin << " " << prmax << std::endl;

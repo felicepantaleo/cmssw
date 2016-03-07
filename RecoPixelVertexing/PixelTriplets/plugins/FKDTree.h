@@ -18,7 +18,7 @@ class FKDTree
 
 public:
 
-	FKDTree(const long int nPoints)
+	FKDTree(const unsigned int nPoints)
 	{
 		theNumberOfPoints = nPoints;
 		theDepth = std::floor(log2(nPoints));
@@ -31,7 +31,7 @@ public:
 
 	}
 
-	FKDTree(const long int nPoints,
+	FKDTree(const unsigned int nPoints,
 			const std::vector<FKDPoint<TYPE, numberOfDimensions> >& points)
 	{
 		theNumberOfPoints = nPoints;
@@ -57,9 +57,27 @@ public:
 		thePoints.clear();
 	}
 
-	FKDTree(unsigned int capacity);
+	FKDTree(const FKDTree<TYPE, numberOfDimensions>& other)
+	{
+		theNumberOfPoints(other.theNumberOfPoints);
+		theDepth(other.theDepth);
 
-	FKDTree(const FKDTree<TYPE, numberOfDimensions>& v);
+		theIntervalLength.clear();
+		theIntervalMin.clear();
+		theIds.clear();
+		thePoints.clear();
+		for (auto& x : theDimensions)
+			x.clear();
+
+		theIntervalLength = other.theIntervalLength;
+		theIntervalMin = other.theIntervalMin;
+		theIds = other.theIds;
+
+		thePoints = other.thePoints;
+		for (int i = 0; i < numberOfDimensions; ++i)
+			theDimensions = other.theDimensions;
+
+	}
 
 	FKDTree(FKDTree<TYPE, numberOfDimensions> && other)
 	{
@@ -109,6 +127,37 @@ public:
 		return *this;
 
 	}
+
+	void resize(unsigned int nPoints)
+	{
+		theNumberOfPoints = nPoints;
+		theDepth = std::floor(log2(nPoints));
+		for (auto& x : theDimensions)
+			x.resize(theNumberOfPoints);
+		theIntervalLength.resize(theNumberOfPoints, 0);
+		theIntervalMin.resize(theNumberOfPoints, 0);
+		theIds.resize(theNumberOfPoints);
+		thePoints.reserve(theNumberOfPoints);
+	}
+
+	void clear()
+	{
+		theNumberOfPoints = 0;
+		theDepth = 0;
+		for (auto& x : theDimensions)
+			x.clear();
+		theIntervalLength.clear();
+		theIntervalMin.clear();
+		theIds.clear();
+		thePoints.clear();
+	}
+
+
+	bool empty()
+	{
+		return theNumberOfPoints ==0;
+	}
+
 
 	void push_back(const FKDPoint<TYPE, numberOfDimensions>& point)
 	{
@@ -367,7 +416,6 @@ public:
 
 		dimension = theDepth % numberOfDimensions;
 		unsigned int firstIndexInDepth = (1 << theDepth) - 1;
-		unsigned int indexInArray = firstIndexInDepth;
 		for (unsigned int indexInArray = firstIndexInDepth;
 				indexInArray < theNumberOfPoints; ++indexInArray)
 		{

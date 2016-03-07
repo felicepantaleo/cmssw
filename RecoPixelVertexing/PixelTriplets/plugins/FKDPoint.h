@@ -15,7 +15,7 @@ public:
 	}
 
 	FKDPoint(const FKDPoint<TYPE, numberOfDimensions>& other) :
-			theId(other.theId), theElements(other.theElements)
+		theElements(other.theElements),theId(other.theId)
 	{
 
 	}
