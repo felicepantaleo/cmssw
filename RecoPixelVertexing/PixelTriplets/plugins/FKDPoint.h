@@ -1,13 +1,6 @@
-/*
- * FFKDPoint.h
- *
- *  Created on: Feb 10, 2016
- *      Author: fpantale
- */
 
 #ifndef FKDTREE_KDPOINT_H_
 #define FKDTREE_KDPOINT_H_
-#include <type_traits>
 #include <array>
 #include <utility>
 
