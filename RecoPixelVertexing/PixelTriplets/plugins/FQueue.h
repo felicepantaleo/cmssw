@@ -1,16 +1,8 @@
-/*
- * Queue.h
- *
- *  Created on: Mar 1, 2016
- *      Author: fpantale
- */
-
 #ifndef FKDTREE_QUEUE_H_
 #define FKDTREE_QUEUE_H_
 
 #include <vector>
 template<class T>
-
 class FQueue
 {
 public:
