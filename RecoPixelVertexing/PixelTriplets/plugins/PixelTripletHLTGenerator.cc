@@ -115,13 +115,11 @@ void PixelTripletHLTGenerator::hitTriplets(const TrackingRegion& region,
     corrections[il].init(es, region.ptMin(), *doublets.detLayer(HitDoublets::inner), *doublets.detLayer(HitDoublets::outer), 
                          *thirdLayers[il].detLayer(), useMScat, useBend);
 
-    float minv=999999.0f, maxv= -minv; // Initialise to extreme values in case no hits
     float maxErr=0.0f;
     for (unsigned int i=0; i!=hits.size(); ++i) {
       auto angle = hits.phi(i);
       auto v =  hits.gv(i);
       //use (phi,r) for endcaps rather than (phi,z)
-      minv = std::min(minv,v);  maxv = std::max(maxv,v);
       float myerr = hits.dv[i];
       maxErr = std::max(maxErr,myerr);
       hitTree[il].push_back(make_FKDPoint(angle, v,i)); // save it
