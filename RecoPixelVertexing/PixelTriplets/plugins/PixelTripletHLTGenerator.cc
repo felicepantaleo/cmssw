@@ -257,7 +257,7 @@ void PixelTripletHLTGenerator::hitTriplets(const TrackingRegion& region,
 	  FKDPoint< float, 2> maxPoint (prmax, regMax.max()+nSigmaRZ*rzError[il], 0);
 
 //	  KDTreeBox phiZ(prmin, prmax, regMin.min()-nSigmaRZ*rzError[il], regMax.max()+nSigmaRZ*rzError[il]);
-	  hitTree[il].search_in_the_box(minPoint, maxPoint);
+	  foundNodes = hitTree[il].search_in_the_box(minPoint, maxPoint);
 	}
       else
 	{
@@ -265,7 +265,7 @@ void PixelTripletHLTGenerator::hitTriplets(const TrackingRegion& region,
     	  FKDPoint< float, 2> minPoint (prmin, rzRange.min()-regOffset-nSigmaRZ*rzError[il], 0);
     	  FKDPoint< float, 2> maxPoint (prmax, rzRange.max()+regOffset+nSigmaRZ*rzError[il], 0);
 
-    	  hitTree[il].search_in_the_box(minPoint, maxPoint);
+    	  foundNodes = hitTree[il].search_in_the_box(minPoint, maxPoint);
 	}
 
       // std::cout << ip << ": " << thirdLayers[il].detLayer()->seqNum() << " " << foundNodes.size() << " " << prmin << " " << prmax << std::endl;
