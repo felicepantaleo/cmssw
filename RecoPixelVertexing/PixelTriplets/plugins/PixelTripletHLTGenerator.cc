@@ -89,9 +89,8 @@ void PixelTripletHLTGenerator::hitTriplets(const TrackingRegion& region,
 //  std::vector<NodeInfo > layerTree; // re-used throughout
   std::vector<unsigned int> foundNodes; // re-used thoughout
   foundNodes.reserve(100);
-  using TwoDimFloatTree = FKDTree<float, 2>;
-  declareDynArray(TwoDimFloatTree, size, hitTree);
-//  FKDTree<float, 2> hitTree[size];
+  FKDTree<float, 2> hitTree[size];
+
 
 
 

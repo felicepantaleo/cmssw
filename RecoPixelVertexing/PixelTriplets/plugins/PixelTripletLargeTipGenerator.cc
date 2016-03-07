@@ -13,9 +13,10 @@
 #include "RecoTracker/TkHitPairs/interface/RecHitsSortedInPhi.h"
 
 #include "MatchedHitRZCorrectionFromBending.h"
-#include "RecoPixelVertexing/PixelTriplets/plugins/KDTreeLinkerAlgo.h" //amend to point at our version...
-#include "RecoPixelVertexing/PixelTriplets/plugins/KDTreeLinkerTools.h"
-
+//#include "RecoPixelVertexing/PixelTriplets/plugins/KDTreeLinkerAlgo.h" //amend to point at our version...
+//#include "RecoPixelVertexing/PixelTriplets/plugins/KDTreeLinkerTools.h"
+#include "RecoPixelVertexing/PixelTriplets/plugins/FKDTree.h"
+#include "RecoPixelVertexing/PixelTriplets/plugins/FKDPoint.h"
 #include <algorithm>
 #include <iostream>
 #include <vector>
@@ -95,18 +96,20 @@ void PixelTripletLargeTipGenerator::hitTriplets(const TrackingRegion& region,
   int size = thirdLayers.size();
 
 
-  using NodeInfo = KDTreeNodeInfo<unsigned int>;
-  std::vector<NodeInfo > layerTree; // re-used throughout
+//  using NodeInfo = KDTreeNodeInfo<unsigned int>;
+//  std::vector<NodeInfo > layerTree; // re-used throughout
   std::vector<unsigned int> foundNodes; // re-used throughout
-  foundNodes.reserve(100);
 
-  declareDynArray(KDTreeLinkerAlgo<unsigned int>, size, hitTree);
+
+  foundNodes.reserve(100);
+  FKDTree<float, 2> hitTree[size];
+
+//  declareDynArray(KDTreeLinkerAlgo<unsigned int>, size, hitTree);
   declareDynArray(LayerRZPredictions, size, mapPred);
 
   float rzError[size]; //save maximum errors
 
   const float maxDelphi = region.ptMin() < 0.3f ? float(M_PI)/4.f : float(M_PI)/8.f; // FIXME move to config??
-  const float maxphi = M_PI+maxDelphi, minphi = -maxphi; // increase to cater for any range
   const float safePhi = M_PI-maxDelphi; // sideband
 
 
@@ -127,25 +130,23 @@ void PixelTripletLargeTipGenerator::hitTriplets(const TrackingRegion& region,
     predRZ.rzPositionFixup = MatchedHitRZCorrectionFromBending(layer,tTopo);
     predRZ.correction.init(es, region.ptMin(), *doublets.detLayer(HitDoublets::inner), *doublets.detLayer(HitDoublets::outer), *thirdLayers[il].detLayer(), useMScat, false);
 
-
-    layerTree.clear();
-    float minv=999999.0; float maxv = -999999.0; // Initialise to extreme values in case no hits
     float maxErr=0.0f;
     for (unsigned int i=0; i!=hits.size(); ++i) {
       auto angle = hits.phi(i);
       auto v =  hits.gv(i);
+
+      hitTree[il].resize(hits.size());
+
       //use (phi,r) for endcaps rather than (phi,z)
-      minv = std::min(minv,v);  maxv = std::max(maxv,v);
       float myerr = hits.dv[i];
       maxErr = std::max(maxErr,myerr);
-      layerTree.emplace_back(i, angle, v); // save it
+      hitTree[il].push_back(make_FKDPoint(angle, v,i)); // save it
       // populate side-bands
-      if (angle>safePhi) layerTree.emplace_back(i, angle-Geom::ftwoPi(), v);
-      else if (angle<-safePhi) layerTree.emplace_back(i, angle+Geom::ftwoPi(), v);
+      if (angle>safePhi) hitTree[il].push_back(make_FKDPoint(angle-Geom::ftwoPi(), v,i));
+      else if (angle<-safePhi) hitTree[il].push_back(make_FKDPoint( angle+Geom::ftwoPi(), v,i));
     }
-    KDTreeBox phiZ(minphi, maxphi, minv-0.01f, maxv+0.01f);  // declare our bounds
     //add fudge factors in case only one hit and also for floating-point inaccuracy
-    hitTree[il].build(layerTree, phiZ); // make KDtree
+    hitTree[il].build(); // make KDtree
     rzError[il] = maxErr; //save error
   }
 
@@ -302,16 +303,17 @@ void PixelTripletLargeTipGenerator::hitTriplets(const TrackingRegion& region,
 	correction.correctRZRange(regMin);
 	correction.correctRZRange(regMax);
 	if (regMax.min() < regMin.min()) { std::swap(regMax, regMin);}
-	KDTreeBox phiZ(prmin, prmax,
-		       regMin.min()-fnSigmaRZ*rzError[il],
-		       regMax.max()+fnSigmaRZ*rzError[il]);
-	hitTree[il].search(phiZ, foundNodes);
+	  FKDPoint< float, 2> minPoint (prmin, regMin.min()-nSigmaRZ*rzError[il], 0);
+	  FKDPoint< float, 2> maxPoint (prmax, regMax.max()+nSigmaRZ*rzError[il], 0);
+	  foundNodes = hitTree[il].search_in_the_box(minPoint, maxPoint);
       }
       else {
-	KDTreeBox phiZ(prmin, prmax,
-		       rzRange.min()-fnSigmaRZ*rzError[il],
-		       rzRange.max()+fnSigmaRZ*rzError[il]);
-	hitTree[il].search(phiZ, foundNodes);
+
+    	  FKDPoint< float, 2> minPoint (prmin, rzRange.min()-fnSigmaRZ*rzError[il], 0);
+    	  FKDPoint< float, 2> maxPoint (prmax, rzRange.max()+fnSigmaRZ*rzError[il], 0);
+
+    	  foundNodes = hitTree[il].search_in_the_box(minPoint, maxPoint);
+
       }
       
       MatchedHitRZCorrectionFromBending l2rzFixup(doublets.hit(ip,HitDoublets::outer)->det()->geographicalId(), tTopo);
