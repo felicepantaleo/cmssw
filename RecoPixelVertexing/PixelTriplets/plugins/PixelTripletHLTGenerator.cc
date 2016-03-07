@@ -20,6 +20,9 @@
 #include "RecoPixelVertexing/PixelTriplets/plugins/KDTreeLinkerAlgo.h" //amend to point at your copy...
 #include "RecoPixelVertexing/PixelTriplets/plugins/KDTreeLinkerTools.h"
 
+#include "RecoPixelVertexing/PixelTriplets/plugins/FKDTree.h"
+#include "RecoPixelVertexing/PixelTriplets/plugins/FKDPoint.h"
+
 #include "CommonTools/Utils/interface/DynArray.h"
 
 #include "DataFormats/Math/interface/normalizedPhi.h"
