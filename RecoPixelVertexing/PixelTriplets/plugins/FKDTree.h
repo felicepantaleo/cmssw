@@ -7,7 +7,6 @@
 #include <cmath>
 #include <utility>
 #include <iostream>
-#include <deque>
 #include <cassert>
 
 #include "FKDPoint.h"
