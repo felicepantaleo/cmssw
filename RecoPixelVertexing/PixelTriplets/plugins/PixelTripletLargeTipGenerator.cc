@@ -135,7 +135,7 @@ void PixelTripletLargeTipGenerator::hitTriplets(const TrackingRegion& region,
       auto angle = hits.phi(i);
       auto v =  hits.gv(i);
 
-      hitTree[il].resize(hits.size());
+      hitTree[il].reserve(hits.size()+(int)(2*hits.size()*safePhi/Geom::ftwoPi()));
 
       //use (phi,r) for endcaps rather than (phi,z)
       float myerr = hits.dv[i];
