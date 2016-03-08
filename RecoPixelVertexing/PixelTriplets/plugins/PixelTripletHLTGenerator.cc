@@ -110,7 +110,7 @@ void PixelTripletHLTGenerator::hitTriplets(const TrackingRegion& region,
     ThirdHitRZPrediction<PixelRecoLineRZ> & pred = preds[il];
     pred.initLayer(thirdLayers[il].detLayer());
     pred.initTolerance(extraHitRZtolerance);
-    hitTree[il].resize(2*hits.size());
+    hitTree[il].reserve(hits.size()+(int)(2*hits.size()*safePhi/Geom::ftwoPi()));
     corrections[il].init(es, region.ptMin(), *doublets.detLayer(HitDoublets::inner), *doublets.detLayer(HitDoublets::outer), 
                          *thirdLayers[il].detLayer(), useMScat, useBend);
 

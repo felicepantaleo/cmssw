@@ -20,22 +20,36 @@ public:
 
 	FKDTree(const unsigned int nPoints)
 	{
-		theNumberOfPoints = nPoints;
-		theDepth = std::floor(log2(nPoints));
+		theNumberOfPoints = 0;
+		theDepth = 0;
 		for (auto& x : theDimensions)
-			x.resize(theNumberOfPoints);
-		theIntervalLength.resize(theNumberOfPoints, 0);
-		theIntervalMin.resize(theNumberOfPoints, 0);
-		theIds.resize(theNumberOfPoints);
+			x.reserve(theNumberOfPoints);
+		theIntervalLength.reserve(theNumberOfPoints);
+		theIntervalMin.reserve(theNumberOfPoints);
+		theIds.reserve(theNumberOfPoints);
 		thePoints.reserve(theNumberOfPoints);
 
 	}
 
-	FKDTree(const unsigned int nPoints,
-			const std::vector<FKDPoint<TYPE, numberOfDimensions> >& points)
+
+
+
+	void reserve(const unsigned int nPoints)
 	{
-		theNumberOfPoints = nPoints;
-		theDepth = std::floor(log2(nPoints));
+		for (auto& x : theDimensions)
+			x.reserve(nPoints);
+		theIntervalLength.reserve(nPoints);
+		theIntervalMin.reserve(nPoints);
+		theIds.reserve(nPoints);
+		thePoints.reserve(nPoints);
+
+	}
+
+
+	FKDTree(const std::vector<FKDPoint<TYPE, numberOfDimensions> >& points)
+	{
+		theNumberOfPoints = points.size();
+		theDepth = std::floor(log2(theNumberOfPoints));
 		for (auto& x : theDimensions)
 			x.resize(theNumberOfPoints);
 		theIntervalLength.resize(theNumberOfPoints, 0);
@@ -162,15 +176,17 @@ public:
 	void push_back(const FKDPoint<TYPE, numberOfDimensions>& point)
 	{
 
+		theNumberOfPoints++;
 		thePoints.push_back(point);
 		for (int i = 0; i < numberOfDimensions; ++i)
 			theDimensions.at(i).push_back(point[i]);
 		theIds.push_back(point.getId());
+
 	}
 
 	void push_back(FKDPoint<TYPE, numberOfDimensions> && point)
 	{
-
+		theNumberOfPoints++;
 		thePoints.push_back(point);
 		for (int i = 0; i < numberOfDimensions; ++i)
 			theDimensions.at(i).push_back(point[i]);
@@ -361,6 +377,15 @@ public:
 	}
 	void build()
 	{
+		theDepth = std::floor(log2(theNumberOfPoints));
+		for (auto& x : theDimensions)
+			x.resize(theNumberOfPoints);
+		theIntervalLength.resize(theNumberOfPoints, 0);
+		theIntervalMin.resize(theNumberOfPoints, 0);
+		theIds.resize(theNumberOfPoints);
+		thePoints.reserve(theNumberOfPoints);
+
+
 		//gather kdtree building
 		int dimension;
 		theIntervalMin[0] = 0;
