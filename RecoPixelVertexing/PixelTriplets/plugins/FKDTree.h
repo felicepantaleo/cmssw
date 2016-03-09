@@ -8,7 +8,7 @@
 #include <utility>
 #include <iostream>
 #include <cassert>
-
+#include <deque>
 #include "FKDPoint.h"
 #include "FQueue.h"
 
@@ -28,11 +28,7 @@ public:
 		theIntervalMin.reserve(theNumberOfPoints);
 		theIds.reserve(theNumberOfPoints);
 		thePoints.reserve(theNumberOfPoints);
-
 	}
-
-
-
 
 	void reserve(const unsigned int nPoints)
 	{
@@ -44,7 +40,6 @@ public:
 		thePoints.reserve(nPoints);
 
 	}
-
 
 	FKDTree(const std::vector<FKDPoint<TYPE, numberOfDimensions> >& points)
 	{
@@ -69,6 +64,7 @@ public:
 		theIntervalMin.clear();
 		theIds.clear();
 		thePoints.clear();
+		theIndecesToVisit.clear();
 	}
 
 	FKDTree(const FKDTree<TYPE, numberOfDimensions>& other)
@@ -156,6 +152,7 @@ public:
 
 	void clear()
 	{
+
 		theNumberOfPoints = 0;
 		theDepth = 0;
 		for (auto& x : theDimensions)
@@ -166,12 +163,10 @@ public:
 		thePoints.clear();
 	}
 
-
 	bool empty()
 	{
-		return theNumberOfPoints ==0;
+		return theNumberOfPoints == 0;
 	}
-
 
 	void push_back(const FKDPoint<TYPE, numberOfDimensions>& point)
 	{
@@ -224,32 +219,29 @@ public:
 		return point;
 	}
 
-	std::vector<unsigned int> search_in_the_box(
-			const FKDPoint<TYPE, numberOfDimensions>& minPoint,
-			const FKDPoint<TYPE, numberOfDimensions>& maxPoint) const
+	void search_in_the_box(const FKDPoint<TYPE, numberOfDimensions>& minPoint,
+			const FKDPoint<TYPE, numberOfDimensions>& maxPoint,
+			std::vector<unsigned int>& foundPoints)
 	{
-		FQueue<unsigned int> indecesToVisit(128);
-		std::vector<unsigned int> result;
-		result.reserve(16);
-		indecesToVisit.push_back(0);
-
+		theIndecesToVisit.clear();
+		theIndecesToVisit.push_back(0);
 		for (int depth = 0; depth < theDepth + 1; ++depth)
 		{
 
 			int dimension = depth % numberOfDimensions;
 			unsigned int numberOfIndecesToVisitThisDepth =
-					indecesToVisit.size();
+					theIndecesToVisit.size();
 			for (unsigned int visitedIndecesThisDepth = 0;
 					visitedIndecesThisDepth < numberOfIndecesToVisitThisDepth;
 					visitedIndecesThisDepth++)
 			{
 
-				unsigned int index = indecesToVisit[visitedIndecesThisDepth];
+				unsigned int index = theIndecesToVisit[visitedIndecesThisDepth];
 				bool intersection = intersects(index, minPoint, maxPoint,
 						dimension);
 
 				if (intersection && is_in_the_box(index, minPoint, maxPoint))
-					result.push_back(theIds[index]);
+					foundPoints.emplace_back(theIds[index]);
 
 				bool isLowerThanBoxMin = theDimensions[dimension][index]
 						< minPoint[dimension];
@@ -264,16 +256,50 @@ public:
 
 					if (indexToAdd < theNumberOfPoints)
 					{
-						indecesToVisit.push_back(indexToAdd);
+						theIndecesToVisit.push_back(indexToAdd);
 					}
 
 				}
 
 			}
 
-			indecesToVisit.pop_front(numberOfIndecesToVisitThisDepth);
+			theIndecesToVisit.pop_front(numberOfIndecesToVisitThisDepth);
 		}
-		return result;
+	}
+
+
+	void search_in_the_box_recursive(const FKDPoint<TYPE, numberOfDimensions>& minPoint,
+			const FKDPoint<TYPE, numberOfDimensions>& maxPoint, std::vector<unsigned int>& foundPoints,unsigned int index=0, int dimension=0) const
+	{
+
+		unsigned int firstSonToVisitNext = leftSonIndex(index);
+		int maxNumberOfSonsToVisitNext = (firstSonToVisitNext < theNumberOfPoints) + ((firstSonToVisitNext+1) < theNumberOfPoints);
+		bool intersection = intersects(index, minPoint, maxPoint,
+				dimension);
+		int numberOfSonsToVisitNext;
+		if (intersection)
+		{
+			if(is_in_the_box(index, minPoint, maxPoint))
+			{
+				foundPoints.emplace_back(theIds[index]);
+			}
+			numberOfSonsToVisitNext = maxNumberOfSonsToVisitNext;
+		}
+		else
+		{
+			numberOfSonsToVisitNext = std::min(maxNumberOfSonsToVisitNext,1);
+			firstSonToVisitNext += (theDimensions[dimension][index]< minPoint[dimension]);
+
+		}
+
+		if(numberOfSonsToVisitNext != 0)
+
+		{
+		auto nextDimension = (dimension+1) % numberOfDimensions;
+		for(int whichSon = 0; whichSon < numberOfSonsToVisitNext; ++whichSon)
+			search_in_the_box_recursive(minPoint, maxPoint, foundPoints,firstSonToVisitNext+whichSon,nextDimension);
+		}
+
 	}
 
 	bool test_correct_build(unsigned int index = 0, int dimension = 0) const
@@ -312,7 +338,6 @@ public:
 				}
 				else
 					return false;
-
 			}
 
 		}
@@ -385,7 +410,6 @@ public:
 		theIds.resize(theNumberOfPoints);
 		thePoints.reserve(theNumberOfPoints);
 
-
 		//gather kdtree building
 		int dimension;
 		theIntervalMin[0] = 0;
@@ -396,7 +420,8 @@ public:
 
 			dimension = depth % numberOfDimensions;
 			unsigned int firstIndexInDepth = (1 << depth) - 1;
-			for (int indexInDepth = 0; indexInDepth < (1 << depth); ++indexInDepth)
+			for (int indexInDepth = 0; indexInDepth < (1 << depth);
+					++indexInDepth)
 			{
 				unsigned int indexInArray = firstIndexInDepth + indexInDepth;
 				unsigned int leftSonIndexInArray = 2 * indexInArray + 1;
@@ -404,7 +429,8 @@ public:
 
 				unsigned int whichElementInInterval = partition_complete_kdtree(
 						theIntervalLength[indexInArray]);
-				std::nth_element(thePoints.begin() + theIntervalMin[indexInArray],
+				std::nth_element(
+						thePoints.begin() + theIntervalMin[indexInArray],
 						thePoints.begin() + theIntervalMin[indexInArray]
 								+ whichElementInInterval,
 						thePoints.begin() + theIntervalMin[indexInArray]
@@ -424,14 +450,15 @@ public:
 				{
 					theIntervalMin[leftSonIndexInArray] =
 							theIntervalMin[indexInArray];
-					theIntervalLength[leftSonIndexInArray] = whichElementInInterval;
+					theIntervalLength[leftSonIndexInArray] =
+							whichElementInInterval;
 				}
 
 				if (rightSonIndexInArray < theNumberOfPoints)
 				{
 					theIntervalMin[rightSonIndexInArray] =
-							theIntervalMin[indexInArray] + whichElementInInterval
-									+ 1;
+							theIntervalMin[indexInArray]
+									+ whichElementInInterval + 1;
 					theIntervalLength[rightSonIndexInArray] =
 							(theIntervalLength[indexInArray] - 1
 									- whichElementInInterval);
@@ -444,7 +471,8 @@ public:
 		for (unsigned int indexInArray = firstIndexInDepth;
 				indexInArray < theNumberOfPoints; ++indexInArray)
 		{
-			add_at_position(thePoints[theIntervalMin[indexInArray]], indexInArray);
+			add_at_position(thePoints[theIntervalMin[indexInArray]],
+					indexInArray);
 
 		}
 
@@ -488,25 +516,26 @@ private:
 			const FKDPoint<TYPE, numberOfDimensions>& minPoint,
 			const FKDPoint<TYPE, numberOfDimensions>& maxPoint) const
 	{
-		bool inTheBox = true;
+
 		for (int i = 0; i < numberOfDimensions; ++i)
 		{
-			inTheBox &= (theDimensions[i][index] <= maxPoint[i]
-					&& theDimensions[i][index] >= minPoint[i]);
+			if (!(theDimensions[i][index] <= maxPoint[i]
+					&& theDimensions[i][index] >= minPoint[i]))
+				return false;
 		}
 
-		return inTheBox;
+		return true;
 	}
 
-	long int theNumberOfPoints;
+	unsigned int theNumberOfPoints;
 	int theDepth;
 	std::vector<FKDPoint<TYPE, numberOfDimensions> > thePoints;
 	std::array<std::vector<TYPE>, numberOfDimensions> theDimensions;
+	FQueue<unsigned int> theIndecesToVisit;
 	std::vector<unsigned int> theIntervalLength;
 	std::vector<unsigned int> theIntervalMin;
 	std::vector<unsigned int> theIds;
 
 };
-
 
 #endif /* FKDTREE_FKDTREE_H_ */

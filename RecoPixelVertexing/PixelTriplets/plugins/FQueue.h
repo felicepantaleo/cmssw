@@ -8,12 +8,9 @@ class FQueue
 public:
 	FQueue()
 	{
-
 		theSize = 0;
-		theBuffer(0);
 		theFront = 0;
 		theTail = 0;
-
 	}
 
 	FQueue(unsigned int initialCapacity)
@@ -164,7 +161,6 @@ public:
 
 	void clear()
 	{
-		theBuffer.clear();
 		theSize = 0;
 		theFront = 0;
 		theTail = 0;

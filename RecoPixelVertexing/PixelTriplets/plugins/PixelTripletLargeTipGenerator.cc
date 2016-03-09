@@ -305,14 +305,14 @@ void PixelTripletLargeTipGenerator::hitTriplets(const TrackingRegion& region,
 	if (regMax.min() < regMin.min()) { std::swap(regMax, regMin);}
 	  FKDPoint< float, 2> minPoint (prmin, regMin.min()-nSigmaRZ*rzError[il], 0);
 	  FKDPoint< float, 2> maxPoint (prmax, regMax.max()+nSigmaRZ*rzError[il], 0);
-	  foundNodes = hitTree[il].search_in_the_box(minPoint, maxPoint);
+	  hitTree[il].search_in_the_box_recursive(minPoint, maxPoint,foundNodes);
       }
       else {
 
     	  FKDPoint< float, 2> minPoint (prmin, rzRange.min()-fnSigmaRZ*rzError[il], 0);
     	  FKDPoint< float, 2> maxPoint (prmax, rzRange.max()+fnSigmaRZ*rzError[il], 0);
 
-    	  foundNodes = hitTree[il].search_in_the_box(minPoint, maxPoint);
+    	  hitTree[il].search_in_the_box_recursive(minPoint, maxPoint,foundNodes);
 
       }
       

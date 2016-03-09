@@ -3,6 +3,7 @@
 #define FKDTREE_KDPOINT_H_
 #include <array>
 #include <utility>
+#include <iostream>
 
 template<class TYPE, int numberOfDimensions>
 class FKDPoint
