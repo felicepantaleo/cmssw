@@ -287,9 +287,10 @@ public:
 		}
 		else
 		{
-			numberOfSonsToVisitNext = std::min(maxNumberOfSonsToVisitNext,1);
-			firstSonToVisitNext += (theDimensions[dimension][index]< minPoint[dimension]);
-
+			bool isLowerThanBoxMin = theDimensions[dimension][index]
+					< minPoint[dimension];
+			numberOfSonsToVisitNext = isLowerThanBoxMin && (maxNumberOfSonsToVisitNext==1)? 0: std::min(maxNumberOfSonsToVisitNext,1);
+			firstSonToVisitNext += isLowerThanBoxMin;
 		}
 
 		if(numberOfSonsToVisitNext != 0)

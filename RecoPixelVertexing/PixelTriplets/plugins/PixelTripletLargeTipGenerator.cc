@@ -103,7 +103,8 @@ void PixelTripletLargeTipGenerator::hitTriplets(const TrackingRegion& region,
 
   foundNodes.reserve(100);
   FKDTree<float, 2> hitTree[size];
-
+  FKDPoint<float, 2> minPoint;
+  FKDPoint<float, 2> maxPoint;
 //  declareDynArray(KDTreeLinkerAlgo<unsigned int>, size, hitTree);
   declareDynArray(LayerRZPredictions, size, mapPred);
 
@@ -303,14 +304,14 @@ void PixelTripletLargeTipGenerator::hitTriplets(const TrackingRegion& region,
 	correction.correctRZRange(regMin);
 	correction.correctRZRange(regMax);
 	if (regMax.min() < regMin.min()) { std::swap(regMax, regMin);}
-	  FKDPoint< float, 2> minPoint (prmin, regMin.min()-nSigmaRZ*rzError[il], 0);
-	  FKDPoint< float, 2> maxPoint (prmax, regMax.max()+nSigmaRZ*rzError[il], 0);
+	  setDimensions(minPoint, prmin, regMin.min()-fnSigmaRZ*rzError[il]);
+	  setDimensions(maxPoint, prmax, regMax.max()+fnSigmaRZ*rzError[il]);
 	  hitTree[il].search_in_the_box_recursive(minPoint, maxPoint,foundNodes);
       }
       else {
 
-    	  FKDPoint< float, 2> minPoint (prmin, rzRange.min()-fnSigmaRZ*rzError[il], 0);
-    	  FKDPoint< float, 2> maxPoint (prmax, rzRange.max()+fnSigmaRZ*rzError[il], 0);
+    	  setDimensions(minPoint, prmin, rzRange.min()-fnSigmaRZ*rzError[il]);
+    	  setDimensions(maxPoint, prmax, rzRange.max()+fnSigmaRZ*rzError[il]);
 
     	  hitTree[il].search_in_the_box_recursive(minPoint, maxPoint,foundNodes);
 

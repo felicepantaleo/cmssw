@@ -144,4 +144,12 @@ FKDPoint<TYPE, 4> make_FKDPoint(TYPE x, TYPE y, TYPE z, TYPE w, unsigned int id)
 	return result;
 }
 
+
+template<typename TYPE>
+void setDimensions(FKDPoint<TYPE, 2>& point, TYPE x, TYPE y)
+{
+	point.setDimension(0, x);
+	point.setDimension(1, y);
+}
+
 #endif /* FKDTREE_KDPOINT_H_ */
