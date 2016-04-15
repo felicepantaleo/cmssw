@@ -18,9 +18,6 @@
 
 #include <cmath>
 
-
-
-
 class CACell
 {
 public:
@@ -424,49 +421,6 @@ private:
 };
 
 
-
-class CACells
-{
-public:
-	using Hit=RecHitsKDTree::Hit;
-
-	CACells(const const RecHitsKDTree& outerHits, const RecHitsKDTree& innerHits)
-	{
-		for (auto& outerHit: outerHits)
-		{
-
-			auto innerHitsInTheBox = innerHits.searchInTheBox();
-
-			for(auto& innerHit: innerHits)
-			{
-
-			}
-
-
-		}
-	}
-	void neighborSearch(const CACells& CACellsOnOuterLayer)
-	{
-		const float c_maxParAbsDifference[parNum]= {0.06, 0.07};
-		//TODO parallelize this
-		for(auto& cell: theCACells )
-		{
-			cell.tagNeighbors(CACellsOnOuterLayer, maxDeltaZAtBeamLine, maxDeltaRadius);
-
-		}
-
-	}
-
-
-	CACell& cell(int id) {
-		return theCACells.at(id);
-	}
-private:
-
-	tbb::concurrent_vector<CACell> theCACells;
-
-
-};
 
 
 #endif /*CACELL_H_ */
