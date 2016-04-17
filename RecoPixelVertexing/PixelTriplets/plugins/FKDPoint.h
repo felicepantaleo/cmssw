@@ -87,7 +87,7 @@ public:
 		return theId;
 	}
 
-	void print()
+	void print() const
 	{
 		std::cout << "point id: " << theId << std::endl;
 		for (auto i : theElements)
@@ -146,13 +146,13 @@ FKDPoint<TYPE, 4> make_FKDPoint(TYPE x, TYPE y, TYPE z, TYPE w, unsigned int id)
 
 
 template<typename TYPE>
-void setDimensions(FKDPoint<TYPE, 2>& point, TYPE x, TYPE y)
+void setDimensions(FKDPoint<TYPE, 2>& point, const TYPE& x, const TYPE& y)
 {
 	point.setDimension(0, x);
 	point.setDimension(1, y);
 }
 template<typename TYPE>
-void setDimensions(FKDPoint<TYPE, 3>& point, TYPE x, TYPE y, TYPE z)
+void setDimensions(FKDPoint<TYPE, 3>& point, const TYPE& x, const TYPE& y, const TYPE& z)
 {
 	point.setDimension(0, x);
 	point.setDimension(1, y);

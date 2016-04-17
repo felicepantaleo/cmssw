@@ -56,6 +56,8 @@ public:
 			theFront = other.theFront;
 			theTail = other.theTail;
 			theBuffer = other.theBuffer;
+			theCapacity = theBuffer.size();
+
 			other.theSize = 0;
 			other.theFront = 0;
 			other.theTail = 0;

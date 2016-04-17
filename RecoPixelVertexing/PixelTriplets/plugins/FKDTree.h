@@ -68,6 +68,7 @@ public:
 		theIntervalMin.clear();
 		theIds.clear();
 		thePoints.clear();
+		theIndecesToVisit.clear();
 	}
 
 	FKDTree(const FKDTree<TYPE, numberOfDimensions>& other)
@@ -91,6 +92,7 @@ public:
 			theDimensions = other.theDimensions;
 
 	}
+
 
 	FKDTree(FKDTree<TYPE, numberOfDimensions> && other)
 	{
@@ -153,9 +155,14 @@ public:
 		thePoints.reserve(theNumberOfPoints);
 	}
 
+	unsigned int size()
+	{
+		return theNumberOfPoints;
+	}
+
 	void clear()
 	{
-
+		theIndecesToVisit.clear();
 		theNumberOfPoints = 0;
 		theDepth = 0;
 		for (auto& x : theDimensions)
@@ -399,10 +406,11 @@ public:
 			}
 
 		}
+		return true;
 
 	}
 
-	bool test_correct_search(const std::vector<unsigned int> foundPoints,
+	bool test_correct_search(const std::vector<unsigned int>& foundPoints,
 			const FKDPoint<TYPE, numberOfDimensions>& minPoint,
 			const FKDPoint<TYPE, numberOfDimensions>& maxPoint) const
 	{
@@ -437,6 +445,12 @@ public:
 							<< " was wrongly found to be outside the box."
 							<< std::endl;
 
+				std::cerr << "Point " <<std::endl;
+				thePoints[i].print();
+				std::cerr << "minPoint " <<std::endl;
+				minPoint.print();
+				std::cerr << "maxPoint " <<std::endl;
+				maxPoint.print();
 				testGood &= false;
 
 			}

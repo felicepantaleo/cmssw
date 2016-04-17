@@ -17,8 +17,6 @@
 #include "RecoTracker/TkSeedingLayers/interface/SeedComparitor.h"
 
 #include "DataFormats/GeometryVector/interface/Pi.h"
-#include "RecoPixelVertexing/PixelTriplets/plugins/KDTreeLinkerAlgo.h" //amend to point at your copy...
-#include "RecoPixelVertexing/PixelTriplets/plugins/KDTreeLinkerTools.h"
 #include "RecoPixelVertexing/PixelTriplets/plugins/FKDTree.h"
 #include "RecoPixelVertexing/PixelTriplets/plugins/FKDPoint.h"
 #include "CommonTools/Utils/interface/DynArray.h"
@@ -129,7 +127,6 @@ void PixelTripletHLTGenerator::hitTriplets(const TrackingRegion& region,
       				else if (angle < -safePhi)
       					hitTree[il].push_back(make_FKDPoint(angle + Geom::ftwoPi(), v, i));
 
-
     }
 	hitTree[il].build(); // build KDtree
 
@@ -140,8 +137,9 @@ void PixelTripletHLTGenerator::hitTriplets(const TrackingRegion& region,
   float imppar = region.originRBound();
   float imppartmp = region.originRBound()+region.origin().perp();
   float curv = PixelRecoUtilities::curvature(1.f/region.ptMin(), es);
-  
-  for (std::size_t ip =0;  ip!=doublets.size(); ip++) {
+	auto numberOfDoublets = doublets.size();
+
+  for (std::size_t ip =0;  ip<numberOfDoublets; ip++) {
     auto xi = doublets.x(ip,HitDoublets::inner);
     auto yi = doublets.y(ip,HitDoublets::inner);
     auto zi = doublets.z(ip,HitDoublets::inner);
@@ -274,9 +272,8 @@ void PixelTripletHLTGenerator::hitTriplets(const TrackingRegion& region,
 
 	}
  	  hitTree[il].search_in_the_box_branchless(
-			  minPoint, minPoint,
+			  minPoint, maxPoint,
 				foundNodes);
-
       // std::cout << ip << ": " << thirdLayers[il].detLayer()->seqNum() << " " << foundNodes.size() << " " << prmin << " " << prmax << std::endl;
 
 

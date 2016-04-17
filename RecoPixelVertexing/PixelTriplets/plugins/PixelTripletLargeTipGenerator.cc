@@ -13,8 +13,6 @@
 #include "RecoTracker/TkHitPairs/interface/RecHitsSortedInPhi.h"
 
 #include "MatchedHitRZCorrectionFromBending.h"
-#include "RecoPixelVertexing/PixelTriplets/plugins/KDTreeLinkerAlgo.h" //amend to point at our version...
-#include "RecoPixelVertexing/PixelTriplets/plugins/KDTreeLinkerTools.h"
 #include "RecoPixelVertexing/PixelTriplets/plugins/FKDTree.h"
 #include "RecoPixelVertexing/PixelTriplets/plugins/FKDPoint.h"
 #include <algorithm>
@@ -151,8 +149,8 @@ void PixelTripletLargeTipGenerator::hitTriplets(const TrackingRegion& region,
   }
 
   double curv = PixelRecoUtilities::curvature(1. / region.ptMin(), es);
-  
-  for (std::size_t ip =0;  ip!=doublets.size(); ip++) {
+  auto numberOfDoublets = doublets.size();
+  for (std::size_t ip =0;  ip!=numberOfDoublets; ip++) {
     auto xi = doublets.x(ip,HitDoublets::inner);
     auto yi = doublets.y(ip,HitDoublets::inner);
     auto zi = doublets.z(ip,HitDoublets::inner);
@@ -321,7 +319,7 @@ void PixelTripletLargeTipGenerator::hitTriplets(const TrackingRegion& region,
 
       }
 	  hitTree[il].search_in_the_box_branchless(
-			  minPoint, minPoint,
+			  minPoint, maxPoint,
 				foundNodes);
       
       MatchedHitRZCorrectionFromBending l2rzFixup(doublets.hit(ip,HitDoublets::outer)->det()->geographicalId(), tTopo);
