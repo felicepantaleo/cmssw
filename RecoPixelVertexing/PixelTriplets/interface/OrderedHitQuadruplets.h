@@ -9,11 +9,11 @@
 class OrderedHitQuadruplets : public std::vector<OrderedHitQuadruplet>, public OrderedSeedingHits {
 public:
 
-  virtual OrderedHitQuadruplets(){}
+  virtual ~OrderedHitQuadruplets(){}
 
   virtual unsigned int size() const { return std::vector<OrderedHitQuadruplet>::size(); }
 
-  virtual const OrderedHitQuadruplets & operator[](unsigned int i) const {
+  virtual const OrderedHitQuadruplet & operator[](unsigned int i) const {
     return std::vector<OrderedHitQuadruplet>::operator[](i);
   }
 
