@@ -29,11 +29,7 @@
 using pixelrecoutilities::LongitudinalBendingCorrection;
 using Range=PixelRecoRange<float>;
 
-using namespace std;
 using namespace ctfseeding;
-
-using FKDTree = *FKDTree<float,2>;
-
 
 CANtupleHLTGenerator:: CANtupleHLTGenerator(const edm::ParameterSet& cfg, edm::ConsumesCollector& iC)
   : CANtupleGenerator(cfg),
@@ -63,12 +59,33 @@ void CANtupleHLTGenerator::getQuadruplets(const TrackingRegion& region,
 {
     if (theComparitor) theComparitor->init(ev, es);
     
-    vector<FKDTree> layersFKDTree; layersFKDTree.resize(fourLayers.size(),nullptr);
-    
-    for (SeedingLayerSetsHits::SeedingLayerSet::const_iterator layer = fourLayers.begin(); layer != vec.end(); ++layer) {
-        FKDTree = (*theKDTReeCache)(*iter,region,ev,es);
+    std::vector<FKDTree<float,2>* > layersHitsTree;
+    std::vector<CACell> foundCells;
+    std::vector<CACell::CAntuplet> foundQuadruplets;
+    std::vector<unsigned int> indexOfFirstCellOfLayer;
+    std::vector<unsigned int> numberOfCellsPerLayer;
+
+
+	for (auto layer : fourLayers)
+    {
+    	layersHitsTree.push_back((*theKDTreeCache)(layer,region,ev,es));
+
     }
-  
+
+
+    CellularAutomaton ca(layersHitsTree, foundCells, foundQuadruplets);
+    ca.find_cells();
+
+    ca.create_graph();
+
+    ca.evolve();
+    ca.find_root_cells();
+    ca.find_ntuplets();
+
+    ca.filter_ntuplets();
+
+
+
     
   /*
   auto const & doublets = thePairGenerator->doublets(region,ev,es, pairLayers);
