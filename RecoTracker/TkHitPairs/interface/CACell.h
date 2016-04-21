@@ -12,8 +12,9 @@
 #include "DataFormats/GeometryVector/interface/GlobalPoint.h"
 #include "DataFormats/GeometryVector/interface/Pi.h"
 #include "DataFormats/GeometryVector/interface/Basic2DVector.h"
-
+#include "TrackingTools/DetLayers/interface/DetLayer.h"
 #include <cmath>
+#include <array>
 
 class CACell
 {
@@ -23,15 +24,15 @@ class CACell
 
 public:
 	CACell() { }
-	CACell(const RecHitsKDTree* hitsKDTree, int innerHitId, int outerHitId, int layerId, const GlobalPoint& beamSpot ) : theHitsKDTree(hitsKDTree), theCAState(0),
-			theInnerHitId(innerHitId), theOuterHitId(outerHitId), theLayerId(layerId), hasCompatibleNeighbors(false) {
+
+
+
+	CACell(const unsigned int innerHitId, const unsigned int outerHitId, const std::vector<CACell>* cells, const DetLayer* innerLayer, const DetLayer* outerLayer, int layerId, const GlobalPoint* beamSpot ) :
+		theCAState(0), theInnerHitId(innerHitId), theOuterHitId(outerHitId), theLayerId(layerId), hasCompatibleNeighbors(false) {
 		if(!areAlmostAligned(beamSpot, 1e-3))
 		{
 			cellAxesCircleRadius(beamSpot);
-
 		}
-
-
 
 	}
 
@@ -330,10 +331,12 @@ private:
 	float zAtBeamLine;
 
 	std::array<unsigned int,2> theLayersIds;
+
 	unsigned int theCAState;
 	bool isHighPtCell;
 	bool hasSameStateNeighbors;
-
+	DetLayer* theInnerLayer;
+	DetLayer* theOuterLayer
 };
 
 
