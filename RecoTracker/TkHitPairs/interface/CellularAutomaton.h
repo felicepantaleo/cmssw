@@ -1,9 +1,7 @@
 #ifndef RECOTRACKER_TKHITPAIRS_INTERFACE_CELLULARAUTOMATON_H_
 #define RECOTRACKER_TKHITPAIRS_INTERFACE_CELLULARAUTOMATON_H_
-
+#include <array>
 #include "CACell.h"
-#include "tbb.h"
-#include ""
 template<int theNumberOfLayers>
 class CellularAutomaton
 {
@@ -22,7 +20,6 @@ public:
 		for(auto& cell: theCACells )
 		{
 			cell.tagNeighbors(CACellsOnOuterLayer, maxDeltaZAtBeamLine, maxDeltaRadius);
-
 		}
 
 	}
@@ -36,8 +33,8 @@ private:
 
 	tbb::concurrent_vector<CACell> theCACells;
 	std::array<std::size_t,theNumberOfLayers> theFirstCellIdOfLayer;
-	std::concurrent_vector<std::size_t> theRootCells;
-	std::concorrent_vector< std::array<std::size_t, theNumberOfLayers> > theNtuplets;
+	std::vector<std::size_t> theRootCells;
+	std::vector< std::array<std::size_t, theNumberOfLayers> > theNtuplets;
 
 };
 

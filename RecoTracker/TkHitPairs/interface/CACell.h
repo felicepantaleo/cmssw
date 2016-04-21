@@ -7,11 +7,8 @@
 
 #ifndef CACELL_H_
 #define CACELL_H_
-// tbb headers
-#include <tbb/concurrent_vector.h>
 
-//TRIVIAL GIT CHECK
-#include "RecHitsKDTree.h"
+
 #include "DataFormats/GeometryVector/interface/GlobalPoint.h"
 #include "DataFormats/GeometryVector/interface/Pi.h"
 #include "DataFormats/GeometryVector/interface/Basic2DVector.h"
@@ -20,10 +17,14 @@
 
 class CACell
 {
+
+	using CAntuplet = std::vector<CACell>;
+
+
 public:
 	CACell() { }
 	CACell(const RecHitsKDTree* hitsKDTree, int innerHitId, int outerHitId, int layerId, const GlobalPoint& beamSpot ) : theHitsKDTree(hitsKDTree), theCAState(0),
-			theInnerHitId(innerHitId), theOuterHitId(outerHitId), theLayerId(layerId), hasFriends(false) {
+			theInnerHitId(innerHitId), theOuterHitId(outerHitId), theLayerId(layerId), hasCompatibleNeighbors(false) {
 		if(!areAlmostAligned(beamSpot, 1e-3))
 		{
 			cellAxesCircleRadius(beamSpot);
@@ -41,83 +42,35 @@ public:
 
 	}
 
-	void setCellId(const int id)
-	{
-		theCellId(id);
-		theHitsKDTree[theOuterHitId].pushInnerCell(theCellId);
-		theHitsKDTree[theInnerHitId].pushOuterCell(theCellId);
-	}
+	void setCellId(const unsigned int);
 
 
-	void tagNeighbors(const CACells& CACellsOnOuterLayer, float maxDeltaZAtBeamLine, float maxDeltaRadius)
-	{
-		for(auto& outerCellId: theHitsKDTree[theOuterHitId].getOuterCells())
-		{
-			if(areCompatible(CACellsOnOuterLayer[outerCellId],maxDeltaZAtBeamLine,maxDeltaRadius))
-			{
-
-
-				theOuterNeighbors.push_back()
-
-
-
-			}
-		}
-
-	}
-
+	void tagNeighbors();
 	// three points are collinear if the area of the triangle having the points as vertices is 0
-	bool areAlmostAligned(const GlobalPoint& vtxHypothesis, const float epsilon)
-	{
-		auto x1 = theHitsKDTree[theInnerHitId].x();
-		auto y1 = theHitsKDTree[theInnerHitId].y();
-		auto x2 = theHitsKDTree[theOuterHitId].x();
-		auto y2 = theHitsKDTree[theOuterHitId].y();
-		auto x3 = vtxHypothesis.x();
-		auto y3 = vtxHypothesis.y();
+	bool areAlmostAligned(const GlobalPoint&, const float ) const;
 
-		return x1*(y2-y3) + x2*(y3-y1) + x3*(y1-y2)<= epsilon;
-	}
+	void isRootCell(std::vector<unsigned int>& ) const;
 
-	void isRootCell(tbb::concurrent_vector<int>* rootCells)
-	{
-		if(theInnerNeighbors.size()== 0 && theCAState >= 2)
-		{
-			rootCells->push_back(theId);
-		}
-	}
 
 	// if there is at least one left neighbor with the same state (friend), the state has to be increased by 1.
-	int getCAState  () const
+	int getCAState () const
 	{
 		return theCAState;
 	}
 
-	void evolve(const tbb::concurrent_vector<int>* cells) {
-		hasFriends = false;
-		for(auto i =0; i < theOuterNeighbors.size(); ++i)
-		{
-			if(cells->at(theOuterNeighbors.at(i)).getCAState() == theCAState)
-			{
-				hasFriends = true;
-				break;
-			}
-		}
-	}
-
+	void evolve(const std::vector<int>&);
 
 
 	inline
 	void hasSameStateNeighbor()
 	{
-		if(hasFriends)
+		if(hasSameStateNeighbors)
 		{
 			theCAState++;
 		}
 	}
 
-	bool
-	void isHighPt() const
+	bool isHighPt() const
 	{
 		return isHighPtCell;
 	}
@@ -136,46 +89,9 @@ public:
 	}
 
 
-
-
 	// trying to free the track building process from hardcoded layers, leaving the visit of the graph
 	// based on the neighborhood connections between cells.
-	void findTracks ( tbb::concurrent_vector<CATrack>& foundTracks, const tbb::concurrent_vector<CACell>& cells, CATrack& tmpTrack) {
-
-		// the building process for a track ends if:
-		// it has no right neighbor
-		// it has no compatible neighbor
-
-		// the track is then saved if the number of hits it contains is greater than a threshold
-		if(theOuterNeighbors.size() == 0 )
-		{
-			if( tmpTrack.size() >= c_minHitsPerTrack-1)
-				foundTracks.push_back(tmpTrack);
-			else
-				return;
-		}
-		else
-		{
-			bool hasOneCompatibleNeighbor = false;
-			for( auto i=0 ; i < theOuterNeighbors.size(); ++i)
-			{
-				if(tmpTrack.size() <= 2 || areCompatible(cells.at(theOuterNeighbors.at(i)), innermostTripletChargeHypothesis) )
-				{
-					hasOneCompatibleNeighbor = true;
-					tmpTrack.push_back(theOuterNeighbors.at(i));
-					cells.at(theOuterNeighbors.at(i)).findTracks(foundTracks,cells, tmpTrack );
-					tmpTrack.pop_back();
-				}
-			}
-
-			if (!hasOneCompatibleNeighbor && tmpTrack.size() >= c_minHitsPerTrack-1)
-			{
-				foundTracks.push(tmpTrack);
-			}
-		}
-
-	}
-    
+	void findNtuplets ( std::vector<CAntuplet>& , const std::vector<CACell>& , CAntuplet& , const int ) const;
     //Returns the radius of the circumference through the beamspot and the cell hits (WITHOUT error = 0.0)
     void cellAxesCircleRadius(GlobalPoint beamSpot){
         
@@ -404,19 +320,19 @@ public:
 
 private:
 
-	tbb::concurrent_vector<int> theInnerNeighbors;
-	tbb::concurrent_vector<int> theOuterNeighbors;
-	int theCellId;
-	int theInnerHitId;
-	int theOuterHitId;
+	std::vector<unsigned int> theInnerNeighbors;
+	std::vector<unsigned int> theOuterNeighbors;
+	unsigned int theCellId;
+	unsigned int theInnerHitId;
+	unsigned int theOuterHitId;
 	float theRadius;
 	float theSigmaR;
 	float zAtBeamLine;
-	short int theLayerId;
-	short int theCAState;
+
+	std::array<unsigned int,2> theLayersIds;
+	unsigned int theCAState;
 	bool isHighPtCell;
-	bool hasFriends;
-	RecHitsKDTree* theHitsKDTree;
+	bool hasSameStateNeighbors;
 
 };
 
