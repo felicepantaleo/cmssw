@@ -16,15 +16,13 @@
 #include "RecoTracker/TkSeedingLayers/interface/SeedComparitor.h"
 
 #include "DataFormats/GeometryVector/interface/Pi.h"
-#include "RecoPixelVertexing/PixelTriplets/plugins/KDTreeLinkerAlgo.h" //amend to point at your copy...
-#include "RecoPixelVertexing/PixelTriplets/plugins/KDTreeLinkerTools.h"
+#include "FKDTree.h"
 
 #include "CommonTools/Utils/interface/DynArray.h"
 
 #include "DataFormats/Math/interface/normalizedPhi.h"
 
-#include<cstdio>
-#include<iostream>
+#include <iostream>
 
 using pixelrecoutilities::LongitudinalBendingCorrection;
 using Range=PixelRecoRange<float>;
@@ -60,11 +58,10 @@ void CANtupleHLTGenerator::getQuadruplets(const TrackingRegion& region,
     if (theComparitor) theComparitor->init(ev, es);
     
     std::vector<FKDTree<float,2>* > layersHitsTree;
-    std::vector<CACell> foundCells;
+    std::vector<std::vector<CACell>* > foundCellsPerLayer;
     std::vector<CACell::CAntuplet> foundQuadruplets;
     std::vector<unsigned int> indexOfFirstCellOfLayer;
     std::vector<unsigned int> numberOfCellsPerLayer;
-
 
 	for (auto layer : fourLayers)
     {
@@ -73,21 +70,19 @@ void CANtupleHLTGenerator::getQuadruplets(const TrackingRegion& region,
     }
 
 
-    CellularAutomaton ca(layersHitsTree, foundCells, foundQuadruplets);
+    CellularAutomaton ca(layersHitsTree, foundCellsPerLayer, foundQuadruplets);
+
     ca.find_cells();
-
     ca.create_graph();
-
     ca.evolve();
+
     ca.find_root_cells();
+
     ca.find_ntuplets();
 
     ca.filter_ntuplets();
 
-
-
-    
-  /*
+    /*
   auto const & doublets = thePairGenerator->doublets(region,ev,es, pairLayers);
   
     

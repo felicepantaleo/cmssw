@@ -54,6 +54,7 @@ public:
     Tree result;
     if (buffer==nullptr) {
         result.FKDTree<float,2>::make_FKDTreeFromRegionLayer(layer,region,iE,iS);
+        result.FKDTree<float,2>::build();
         buffer = &result;
     /*LogDebug("LayerHitMapCache")<<" I got"<< lhm->all().second-lhm->all().first<<" hits in the cache for: "<<layer.detLayer();*/
       theCache.add(key,buffer);

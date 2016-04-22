@@ -28,13 +28,18 @@ public:
 	CACell& cell(int id) {
 		return theCACells.at(id);
 	}
+
+
 private:
 
 
-	tbb::concurrent_vector<CACell> theCACells;
+	std::vector<CACell> theCACells;
 	std::array<std::size_t,theNumberOfLayers> theFirstCellIdOfLayer;
 	std::vector<std::size_t> theRootCells;
 	std::vector< std::array<std::size_t, theNumberOfLayers> > theNtuplets;
+    std::vector<std::vector<CACell>* > foundCellsPerLayer;
+
+
 
 };
 
