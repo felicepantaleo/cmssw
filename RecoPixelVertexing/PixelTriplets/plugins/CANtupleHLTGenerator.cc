@@ -66,13 +66,13 @@ void CANtupleHLTGenerator::getQuadruplets(const TrackingRegion& region,
 	for (auto layer : fourLayers)
     {
     	layersHitsTree.push_back((*theKDTreeCache)(layer,region,ev,es));
-
     }
+	  auto const & doublets = thePairGenerator->doublets(region,ev,es, pairLayers);
 
 
-    CellularAutomaton ca(layersHitsTree, foundCellsPerLayer, foundQuadruplets);
+    CellularAutomaton ca(layersHitsTree);
 
-    ca.find_cells();
+    ca.find_cells(doublets, foundCellsPerLayer);
     ca.create_graph();
     ca.evolve();
 
