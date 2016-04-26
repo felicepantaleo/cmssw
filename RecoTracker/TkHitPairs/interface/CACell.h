@@ -36,12 +36,6 @@ public:
 
 	}
 
-	CACell(const RecHitsKDTree* hitsKDTree, int innerHitId, int outerHitId, int layerId, const GlobalPoint& beamSpot, const float tip) : theHitsKDTree(hitsKDTree), theCAState(0),
-			theInnerHitId(innerHitId), theOuterHitId(outerHitId), theLayerId(layerId), hasFriends(false) {
-
-
-
-	}
 
 	void setCellId(const unsigned int);
 

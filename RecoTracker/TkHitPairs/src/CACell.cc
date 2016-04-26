@@ -8,15 +8,13 @@ void CACell::setCellId(const unsigned int id)
 }
 
 
-void CACell::tagNeighbors(const CACells& CACellsOnOuterLayer, float maxDeltaZAtBeamLine, float maxDeltaRadius)
+void CACell::tagNeighbor(CACell* otherCell)
 {
-	for(auto& outerCellId: theHitsKDTree[theOuterHitId].getOuterCells())
-	{
+
 		if(areCompatible(CACellsOnOuterLayer[outerCellId],maxDeltaZAtBeamLine,maxDeltaRadius))
 		{
-			theOuterNeighbors.push_back()
+			theOuterNeighbors.push_back();
 		}
-	}
 
 }
 

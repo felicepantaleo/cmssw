@@ -30,26 +30,6 @@ public:
 	int evolve();
 	int find_ntuplets();
 
-	void neighborSearch(const CACells& CACellsOnOuterLayer)
-	{
-
-		const float c_maxParAbsDifference[parNum] =
-		{ 0.06, 0.07 };
-		//TODO parallelize this
-		for (auto& cell : theCACells)
-		{
-			cell.tagNeighbors(CACellsOnOuterLayer, maxDeltaZAtBeamLine,
-					maxDeltaRadius);
-		}
-
-	}
-
-	CACell& cell(int id)
-	{
-		return theCACells.at(id);
-
-
-	}
 
 private:
 	unsigned int theNumberOfLayers;
