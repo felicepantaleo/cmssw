@@ -493,7 +493,7 @@ public:
     }
     
     
-   
+    
     FKDTree<TYPE, numberOfDimensions>& make_FKDTreeFromRegionLayer(const SeedingLayerSetsHits::SeedingLayer& layer, const TrackingRegion & region, const edm::Event & iEvent, const edm::EventSetup & iSetup)
     {
         static_assert( numberOfDimensions == 2, "Dimensions 2" );
@@ -521,7 +521,7 @@ public:
         return result;
         
     }
-
+    
     
 private:
     

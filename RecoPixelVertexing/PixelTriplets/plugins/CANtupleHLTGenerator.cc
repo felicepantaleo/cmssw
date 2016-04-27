@@ -44,12 +44,13 @@ CANtupleHLTGenerator:: CANtupleHLTGenerator(const edm::ParameterSet& cfg, edm::C
   if(comparitorName != "none") {
     theComparitor.reset( SeedComparitorFactory::get()->create( comparitorName, comparitorPSet, iC) );
   }
+    
 }
 
 CANtupleHLTGenerator::~CANtupleHLTGenerator() {}
 
-void CANtupleHLTGenerator::getQuadruplets(const TrackingRegion& region,
-                                          OrderedHitQuadruplets & quads,
+void CANtupleHLTGenerator::getNTuplets(const TrackingRegion& region,
+                                          OrderedHitTriplets & ntuplets,
                                           const edm::Event & ev,
                                           const edm::EventSetup& es,
                                           SeedingLayerSetsHits::SeedingLayerSet fourLayers,
@@ -67,7 +68,10 @@ void CANtupleHLTGenerator::getQuadruplets(const TrackingRegion& region,
     {
     	layersHitsTree.push_back((*theKDTreeCache)(layer,region,ev,es));
     }
-	  auto const & doublets = thePairGenerator->doublets(region,ev,es, pairLayers);
+    
+    theCACellsCache->init(theKDTreeCache);
+    
+    auto const & doublets = thePairGenerator->doublets(region,ev,es, pairLayers);
 
 
     CellularAutomaton ca(layersHitsTree);
