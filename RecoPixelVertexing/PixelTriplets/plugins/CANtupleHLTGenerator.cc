@@ -44,7 +44,6 @@ CANtupleHLTGenerator:: CANtupleHLTGenerator(const edm::ParameterSet& cfg, edm::C
   if(comparitorName != "none") {
     theComparitor.reset( SeedComparitorFactory::get()->create( comparitorName, comparitorPSet, iC) );
   }
-    
 }
 
 CANtupleHLTGenerator::~CANtupleHLTGenerator() {}
@@ -59,6 +58,9 @@ void CANtupleHLTGenerator::getNTuplets(const TrackingRegion& region,
     if (theComparitor) theComparitor->init(ev, es);
     
     std::vector<FKDTree<float,2>* > layersHitsTree;
+    std::vector<vector<FKDTree<float,2>*> > layersHitsTreePairs;
+    std::vector<HitDoubletsCA*> layersDoublets;
+    
     std::vector<std::vector<CACell>* > foundCellsPerLayer;
     std::vector<CACell::CAntuplet> foundQuadruplets;
     std::vector<unsigned int> indexOfFirstCellOfLayer;
@@ -69,10 +71,16 @@ void CANtupleHLTGenerator::getNTuplets(const TrackingRegion& region,
     	layersHitsTree.push_back((*theKDTreeCache)(layer,region,ev,es));
     }
     
-    theCACellsCache->init(theKDTreeCache);
+    for (int j=0;j<layersHitsTree.size()-1;j++)
+    {
+        layersHitsTree[j].FKDTree<float,2>::build();
+    }
     
-    auto const & doublets = thePairGenerator->doublets(region,ev,es, pairLayers);
-
+    for (int j=0;j<layersHitsTree.size()-1;j++)
+    {
+        layersDoublets.push_back((*theDoubletsCache)(fourLayers[j],fourLayers[j+1],layersHitsTree[j],layersHitsTree[j+1],region,ev,es));
+    }
+    
 
     CellularAutomaton ca(layersHitsTree);
 

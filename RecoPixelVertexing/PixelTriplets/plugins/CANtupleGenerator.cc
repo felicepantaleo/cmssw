@@ -13,7 +13,7 @@ CANtupleGenerator(pset.getParameter<unsigned int>("maxElement"))
 
 CANtupleGenerator::~CANtupleGenerator() {}
 
-void CANtupleGenerator::init(LayerFKDTreeCache *kdTReeCache,LayersCACellsCache *caCellsCache) {
+void CANtupleGenerator::init(LayerFKDTreeCache *kdTReeCache,LayerDoubletsCache *doubletsCache) {
     theKDTReeCache = kdTReeCache;
-    theCACellsCache = caCellsCache;
+    theDoubletsCache = doubletsCache;
 }
