@@ -36,8 +36,8 @@ int CellularAutomaton::create_cells(const HitDoublets& doublets, const unsigned 
 
 
 	}
-
-
 }
+
+
 
 

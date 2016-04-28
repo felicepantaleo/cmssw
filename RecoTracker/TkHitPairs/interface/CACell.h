@@ -27,8 +27,8 @@ public:
 
 
 
-	CACell(const unsigned int innerHitId, const unsigned int outerHitId, const std::vector<CACell>* cells, const DetLayer* innerLayer, const DetLayer* outerLayer, int layerId, const GlobalPoint* beamSpot ) :
-		theCAState(0), theInnerHitId(innerHitId), theOuterHitId(outerHitId), theLayerId(layerId), hasCompatibleNeighbors(false) {
+	CACell(const unsigned int innerHitId, const unsigned int outerHitId, const std::vector<CACell>* cells, const SeedingLayer* innerLayer, const SeedingLayer* outerLayer, int layerPairId, const GlobalPoint* beamSpot ) :
+		theCAState(0), theInnerHitId(innerHitId), theOuterHitId(outerHitId), theInnerLayer(innerLayer), theOuterLayer(outerLayer), theLayerPairId(layerPairId), hasCompatibleNeighbors(false), theCAState(0) {
 		if(!areAlmostAligned(beamSpot, 1e-3))
 		{
 			cellAxesCircleRadius(beamSpot);
@@ -324,13 +324,13 @@ private:
 	float theSigmaR;
 	float zAtBeamLine;
 
-	std::array<unsigned int,2> theLayersIds;
-
+	int theLayerPairId;
 	unsigned int theCAState;
 	bool isHighPtCell;
 	bool hasSameStateNeighbors;
-	DetLayer* theInnerLayer;
-	DetLayer* theOuterLayer
+
+	SeedingLayer* theInnerLayer;
+	SeedingLayer* theOuterLayer;
 };
 
 

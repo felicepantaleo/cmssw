@@ -1,17 +1,9 @@
 #include "RecoTracker/TkHitPairs/interface/CACell.h"
 
-void CACell::setCellId(const unsigned int id)
-{
-	theCellId(id);
-	theHitsKDTree[theOuterHitId].pushInnerCell(theCellId);
-	theHitsKDTree[theInnerHitId].pushOuterCell(theCellId);
-}
-
-
 void CACell::tagNeighbor(CACell* otherCell)
 {
 
-		if(areCompatible(CACellsOnOuterLayer[outerCellId],maxDeltaZAtBeamLine,maxDeltaRadius))
+	if(areCompatible(otherCell,maxDeltaZAtBeamLine,maxDeltaRadius))
 		{
 			theOuterNeighbors.push_back();
 		}
@@ -30,8 +22,11 @@ void CACell::evolve(const std::vector<unsigned int>& cells) {
 	}
 }
 
-bool CACell::areAlmostAligned(const GlobalPoint& vtxHypothesis, const float epsilon) const
+bool CACell::areAlignedRZ(Cell* otherCell) const
 {
+	theInnerLayer->
+
+
 	auto x1 = theHitsKDTree[theInnerHitId].x();
 	auto y1 = theHitsKDTree[theInnerHitId].y();
 	auto x2 = theHitsKDTree[theOuterHitId].x();
