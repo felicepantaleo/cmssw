@@ -80,7 +80,7 @@ void CANtupleHLTGenerator::getNTuplets(const TrackingRegion& region,
     {
         layersDoublets.push_back((*theDoubletsCache)(fourLayers[j],fourLayers[j+1],layersHitsTree[j],layersHitsTree[j+1],region,ev,es));
     }
-    
+
 
     CellularAutomaton ca(layersHitsTree);
 

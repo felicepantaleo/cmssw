@@ -13,6 +13,7 @@
 #include "DataFormats/GeometryVector/interface/Pi.h"
 #include "DataFormats/GeometryVector/interface/Basic2DVector.h"
 #include "TrackingTools/DetLayers/interface/DetLayer.h"
+#include "RecoTracker/TkHitPairs/interface/HitDoubletsCA.h"
 #include <cmath>
 #include <array>
 
@@ -27,8 +28,9 @@ public:
 
 
 
-	CACell(const unsigned int innerHitId, const unsigned int outerHitId, const std::vector<CACell>* cells, const SeedingLayer* innerLayer, const SeedingLayer* outerLayer, int layerPairId, const GlobalPoint* beamSpot ) :
-		theCAState(0), theInnerHitId(innerHitId), theOuterHitId(outerHitId), theInnerLayer(innerLayer), theOuterLayer(outerLayer), theLayerPairId(layerPairId), hasCompatibleNeighbors(false), theCAState(0) {
+	CACell(const std::vector<CACell>* cells) :
+		theCAState(0), theInnerHitId(innerHitId), theOuterHitId(outerHitId), theInnerLayer(innerLayer), theOuterLayer(outerLayer), theLayerPairId(layerPairId), hasCompatibleNeighbors(false), theCAState(0)
+	{
 		if(!areAlmostAligned(beamSpot, 1e-3))
 		{
 			cellAxesCircleRadius(beamSpot);
@@ -331,6 +333,7 @@ private:
 
 	SeedingLayer* theInnerLayer;
 	SeedingLayer* theOuterLayer;
+
 };
 
 
