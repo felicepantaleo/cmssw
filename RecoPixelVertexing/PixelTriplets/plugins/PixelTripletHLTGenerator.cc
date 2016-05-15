@@ -19,6 +19,9 @@
 #include "DataFormats/GeometryVector/interface/Pi.h"
 #include "RecoPixelVertexing/PixelTriplets/plugins/KDTreeLinkerAlgo.h" //amend to point at your copy...
 #include "RecoPixelVertexing/PixelTriplets/plugins/KDTreeLinkerTools.h"
+#include "RecoPixelVertexing/PixelTriplets/plugins/FKDTree.h"
+#include "RecoTracker/TkHitPairs/interface/HitDoubletsCA.h"
+#include "RecoTracker/TkHitPairs/interface/HitPairGeneratorFromLayerPairCA.h"
 
 #include "CommonTools/Utils/interface/DynArray.h"
 
@@ -26,6 +29,8 @@
 
 #include<cstdio>
 #include<iostream>
+
+using LayerTree = FKDTree<float,3>;
 
 using pixelrecoutilities::LongitudinalBendingCorrection;
 using Range=PixelRecoRange<float>;
@@ -57,13 +62,42 @@ void PixelTripletHLTGenerator::hitTriplets(const TrackingRegion& region,
 					   OrderedHitTriplets & result,
 					   const edm::Event & ev,
 					   const edm::EventSetup& es,
-					   SeedingLayerSetsHits::SeedingLayerSet pairLayers,
+					   const SeedingLayerSetsHits::SeedingLayerSet& pairLayers,
 					   const std::vector<SeedingLayerSetsHits::SeedingLayer>& thirdLayers)
 {
-
+    
+  std::cout<<"PixelTripletsHLT : in!"<<std::endl;
+  //FeliceKDTree!
+  LayerTree alberoFuori;
+  alberoFuori.FKDTree<float,3>::make_FKDTreeFromRegionLayer(pairLayers[1],region,ev,es);
+  //alberoFuori->FKDTree<float,3>::build();
+  std::cout<<"Built?"<<std::endl;  
+  bool corretto = alberoFuori.FKDTree<float,3>::test_correct_build();
+  if(corretto) std::cout<<"Tree Correctly Built"<<std::endl;
+  HitPairGeneratorFromLayerPairCA caDoubletsGenerator(0,1,10000);
+    
   if (theComparitor) theComparitor->init(ev, es);
   
+  std::cout<<"INNER LAYER :  " <<pairLayers[0].name()<<std::endl;
+  std::cout<<"Thickness :  " <<pairLayers[0].detLayer()->surface().bounds().thickness()<<std::endl;
+  std::cout<<"---------------------------------------"<<std::endl;
+  std::cout<<"OUTER LAYER :  " <<pairLayers[1].name()<<std::endl;
+  std::cout<<"Thickness :  " <<pairLayers[1].detLayer()->surface().bounds().thickness()<<std::endl;
   auto const & doublets = thePairGenerator->doublets(region,ev,es, pairLayers);
+  std::cout<<"Legacy Doublets : done!"<<std::endl;
+  std::cout<<doublets.size()<<" doublets found!"<<std::endl;
+    for(int j=0;j <(int)doublets.size();j++){
+        std::cout<<" [ "<<doublets.innerHitId(j) <<" - "<<doublets.outerHitId(j)<<" ]  ";
+    }
+    
+    printf("\n");
+  
+  auto const & CADoublets = caDoubletsGenerator.doublets(region,ev,es, pairLayers[0],pairLayers[1],alberoFuori);
+  std::cout<<"CA Doublets : done!"<<std::endl;
+  std::cout<<CADoublets.size()<<" CA doublets found!"<<std::endl;
+    for(int j=0;j <(int)CADoublets.size();j++){
+        std::cout<<" [ "<<CADoublets.innerHitId(j) <<" - "<<CADoublets.outerHitId(j)<<" ]  ";
+    }
   
   if (doublets.empty()) return;
 
@@ -286,12 +320,16 @@ void PixelTripletHLTGenerator::hitTriplets(const TrackingRegion& region,
 	if (crossingRange.empty())  continue;
 	
 	float ir = 1.f/hits.rv(KDdata);
+        // limit error to 90 degree
+        constexpr float maxPhiErr = 0.5*M_PI;
 	float phiErr = nSigmaPhi * hits.drphi[KDdata]*ir;
+        phiErr = std::min(maxPhiErr, phiErr);
         bool nook=true;
 	for (int icharge=-1; icharge <=1; icharge+=2) {
 	  Range rangeRPhi = predictionRPhi(hits.rv(KDdata), icharge);
+          if(rangeRPhi.first>rangeRPhi.second) continue; // range is empty
 	  correction.correctRPhiRange(rangeRPhi);
-	  if (checkPhiInRange(p3_phi, rangeRPhi.first*ir-phiErr, rangeRPhi.second*ir+phiErr)) {
+	  if (checkPhiInRange(p3_phi, rangeRPhi.first*ir-phiErr, rangeRPhi.second*ir+phiErr,maxPhiErr)) {
 	    // insert here check with comparitor
 	    OrderedHitTriplet hittriplet( doublets.hit(ip,HitDoublets::inner), doublets.hit(ip,HitDoublets::outer), hits.theHits[KDdata].hit());
 	    if (!theComparitor  || theComparitor->compatible(hittriplet,region) ) {

@@ -8,9 +8,6 @@
 #ifndef FKDTREE_QUEUE_H_
 #define FKDTREE_QUEUE_H_
 
-#include <vector>
-#include <cassert>
-
 template<class T>
 
 class FQueue
