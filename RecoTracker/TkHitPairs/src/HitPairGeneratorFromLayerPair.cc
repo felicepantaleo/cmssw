@@ -58,6 +58,11 @@ namespace {
 	Range allowed = checkRZ->range(innerHitsMap.u[i]);
 	float vErr = nSigmaRZ * innerHitsMap.dv[i];
 	Range hitRZ(innerHitsMap.v[i]-vErr, innerHitsMap.v[i]+vErr);
+          
+          std::cout<<"At : "<<innerHitsMap.u[i]<<" - "<<innerHitsMap.v[i];
+          std::cout<<"Allowed range : "<<allowed.min()<<" - "<<allowed.max();
+          std::cout<<"hitRZ range : "<<hitRZ.min()<<" - "<<hitRZ.max()<<std::endl;
+          
 	Range crossRange = allowed.intersection(hitRZ);
 	ok[i-b] = ! crossRange.empty() ;
       }

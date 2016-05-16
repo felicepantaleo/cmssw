@@ -146,6 +146,9 @@ public:
   void add (int il, int ol) { indeces.push_back(il);indeces.push_back(ol);}
 
   DetLayer const * detLayer(layer l) const { return layers[l]->layer; }
+    
+  int innerHitId(int i) const {return indeces[2*i];}
+  int outerHitId(int i) const {return indeces[2*i+1];}
 
   Hit const & hit(int i, layer l) const { return layers[l]->theHits[indeces[2*i+l]].hit();}
   float       phi(int i, layer l) const { return layers[l]->phi(indeces[2*i+l]);}

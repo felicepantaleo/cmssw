@@ -11,6 +11,7 @@
 #include "FWCore/Framework/interface/EventSetup.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "RecoPixelVertexing/PixelTriplets/interface/HitTripletGeneratorFromPairAndLayers.h"
+#include "RecoTracker/TkHitPairs/interface/HitPairGeneratorFromLayerPairCA.h"
 
 #include <utility>
 #include <vector>

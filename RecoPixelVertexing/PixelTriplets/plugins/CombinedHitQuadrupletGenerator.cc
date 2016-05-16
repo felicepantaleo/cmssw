@@ -5,6 +5,7 @@
 #include "RecoPixelVertexing/PixelTriplets/interface/HitTripletGeneratorFromPairAndLayers.h"
 #include "RecoPixelVertexing/PixelTriplets/interface/HitTripletGeneratorFromPairAndLayersFactory.h"
 #include "RecoTracker/TkHitPairs/interface/HitPairGeneratorFromLayerPair.h"
+#include "RecoTracker/TkHitPairs/interface/HitPairGeneratorFromLayerPairCA.h"
 #include "LayerQuadruplets.h"
 #include "FWCore/Framework/interface/ConsumesCollector.h"
 #include "FWCore/Framework/interface/Event.h"
@@ -27,7 +28,8 @@ CombinedHitQuadrupletGenerator::CombinedHitQuadrupletGenerator(const edm::Parame
   tripletGenerator->init(std::make_unique<HitPairGeneratorFromLayerPair>(0, 1, &theLayerCache), &theLayerCache);
 
   theGenerator.reset(HitQuadrupletGeneratorFromTripletAndLayersFactory::get()->create(generatorName, generatorPSet, iC));
-  theGenerator->init(std::move(tripletGenerator), &theLayerCache);
+  //theGenerator->init(std::move(tripletGenerator), &theLayerCache);
+  theGenerator->init(std::move(tripletGenerator), &theLayerCache,&theKDTreeCache,&theDoubletsCache);
 }
 
 CombinedHitQuadrupletGenerator::~CombinedHitQuadrupletGenerator() {}
@@ -36,6 +38,7 @@ void CombinedHitQuadrupletGenerator::hitQuadruplets(
    const TrackingRegion& region, OrderedHitSeeds & result,
    const edm::Event& ev, const edm::EventSetup& es)
 {
+  OrderedHitSeeds resultCA; //CA RESULTS FOR COMPARISON
   edm::Handle<SeedingLayerSetsHits> hlayers;
   ev.getByToken(theSeedingLayerToken, hlayers);
   const SeedingLayerSetsHits& layers = *hlayers;
@@ -44,7 +47,14 @@ void CombinedHitQuadrupletGenerator::hitQuadruplets(
 
   std::vector<LayerQuadruplets::LayerSetAndLayers> quadlayers = LayerQuadruplets::layers(layers);
   for(const auto& tripletAndLayers: quadlayers) {
-    theGenerator->hitQuadruplets(region, result, ev, es, tripletAndLayers.first, tripletAndLayers.second);
+      theGenerator->hitQuadruplets(region, result, ev, es, tripletAndLayers.first, tripletAndLayers.second);
   }
+  
+  for(int j=0; j<(int)layers.size();j++) { 
+        theGenerator->hitQuadruplets(region, resultCA, ev, es,layers[j]);
+    }
+    
   theLayerCache.clear();
+  theKDTreeCache.clear();
+  theDoubletsCache.clear();
 }
