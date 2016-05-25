@@ -11,6 +11,7 @@
 #include "FWCore/Framework/interface/EventSetup.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "RecoPixelVertexing/PixelTriplets/interface/HitTripletGeneratorFromPairAndLayers.h"
+#include "RecoTracker/TkHitPairs/interface/HitPairGeneratorFromLayerPairCA.h"
 
 #include <utility>
 #include <vector>
@@ -30,15 +31,6 @@ public:
                             const edm::Event & ev, const edm::EventSetup& es,
                             const SeedingLayerSetsHits::SeedingLayerSet& pairLayers,
                             const std::vector<SeedingLayerSetsHits::SeedingLayer>& thirdLayers) override;
-
-    void hitTriplets(
-	const TrackingRegion& region, 
-	OrderedHitTriplets & result,
-	const edm::EventSetup & es,
-	const HitDoublets & doublets,
-	const RecHitsSortedInPhi ** thirdHitMap,
-	const std::vector<const DetLayer *> & thirdLayerDetLayer,
-	const int nThirdLayers)override;
 
 private:
   const bool useFixedPreFiltering;

@@ -11,6 +11,8 @@
 #include "RecoTracker/TkHitPairs/interface/LayerHitMapCache.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/Utilities/interface/EDGetToken.h"
+#include "RecoTracker/TkHitPairs/interface/LayerDoubletsCache.h"
+#include "RecoTracker/TkHitPairs/interface/LayerFKDTreeCache.h"
 
 
 class TrackingRegion;
@@ -22,8 +24,10 @@ namespace edm { class EventSetup; }
 
 class CombinedHitQuadrupletGenerator : public HitQuadrupletGenerator {
 public:
-  typedef LayerHitMapCache  LayerCacheType;
-
+  typedef LayerHitMapCache    LayerCacheType;
+  typedef LayerFKDTreeCache   LayerTreeCacheType;
+  typedef LayerDoubletsCache  LayerDoubletsCacheType;
+    
 public:
 
   CombinedHitQuadrupletGenerator( const edm::ParameterSet& cfg, edm::ConsumesCollector& iC);
@@ -38,6 +42,8 @@ private:
   edm::EDGetTokenT<SeedingLayerSetsHits> theSeedingLayerToken;
 
   LayerCacheType            theLayerCache;
+  LayerTreeCacheType        theKDTreeCache;
+  LayerDoubletsCacheType    theDoubletsCache;
 
   std::unique_ptr<HitQuadrupletGeneratorFromTripletAndLayers> theGenerator;
 };
