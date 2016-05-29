@@ -39,7 +39,7 @@ public:
     
 private:
     std::unique_ptr<SeedComparitor> theComparitor;
-    
+    std::unique_ptr<HitPairGeneratorFromLayerPair> thePairGenerator;
     class QuantityDependsPtEval {
     public:
         QuantityDependsPtEval(float v1, float v2, float c1, float c2):

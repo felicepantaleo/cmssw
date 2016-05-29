@@ -41,7 +41,7 @@ void CACell::update_state()
 
 void CACell::check_alignment_and_tag(CACell* innerCell)
 {
-//  std::cout << "checking alignment" << std::endl;
+  std::cout << "checking alignment" << std::endl;
   if (are_aligned_RZ(innerCell))
   {
     std::cout << "cells " << theCellId << " " << innerCell->get_cell_id() << " are neighbors" << std::endl;
@@ -60,13 +60,16 @@ void CACell::check_alignment_and_tag(CACell* innerCell)
 bool CACell::are_aligned_RZ(const CACell* otherCell) const
 {
 
+//   std::cout << otherCell->get_inner_x();
+   
   auto r1 = get_inner_r();
   auto r2 = get_outer_r();
- std::cout << " got own r" << std::endl;
- std::cout << " the Inner and outer hits id of the other cells are: " << otherCell->get_inner_hit_id()<<  " " << otherCell->get_outer_hit_id()<< std::endl;
-
+  
+// std::cout << " got own r" << std::endl;
+// std::cout << " the Inner and outer hits id of the other cells are: " << otherCell->get_inner_hit_id()<<  " " << otherCell->get_outer_hit_id()<< std::endl;
+// std::cout << otherCell->get_inner_x();
   auto r3 = otherCell->get_inner_r();
-  std::cout << "cells r copied " << r1 << " " << r2 << " " << r3 <<  std::endl;
+//  std::cout << "cells r copied " << r1 << " " << r2 << " " << r3 <<  std::endl;
 
 
   float z1 = get_inner_z();
@@ -74,7 +77,7 @@ bool CACell::are_aligned_RZ(const CACell* otherCell) const
   float z3 = otherCell->get_inner_z();
 //  std::cout << "cells z copied " << z1 << " " << z2 << " " << z3 <<  std::endl;
 
-  std::cout << "result: "  << fabs(z1 * (r2 - r3) + z2 * (r3 - r1) +z3 * (r1 - r2))/(z2*z2 + r2*r2) << std::endl;
+//  std::cout << "result: "  << fabs(z1 * (r2 - r3) + z2 * (r3 - r1) +z3 * (r1 - r2))/(z2*z2 + r2*r2) << std::endl;
   return fabs(z1 * (r2 - r3) + z2 * (r3 - r1) +z3 * (r1 - r2))/(z2*z2 + r2*r2) <= 10.f;
 }
 
@@ -90,7 +93,8 @@ void CACell::find_ntuplets ( std::vector<CAntuplet>& foundNtuplets, CAntuplet& t
   // the building process for a track ends if:
   // it has no right neighbor
   // it has no compatible neighbor
-
+  print_cell();
+  std::cout << "number of cells " << tmpNtuplet.size() << std::endl;
   // the ntuplets is then saved if the number of hits it contains is greater than a threshold
   if (theOuterNeighbors.size() == 0 )
   {
@@ -100,22 +104,22 @@ void CACell::find_ntuplets ( std::vector<CAntuplet>& foundNtuplets, CAntuplet& t
       return;
   } else
   {
-    bool hasOneCompatibleNeighbor = false;
+  //  bool hasOneCompatibleNeighbor = false;
     for ( unsigned int i=0 ; i < theOuterNeighbors.size(); ++i)
     {
-      if (tmpNtuplet.size() <= 2 )
-      {
-        hasOneCompatibleNeighbor = true;
+//      if (tmpNtuplet.size() <= 2 )
+  //    {
+  //      hasOneCompatibleNeighbor = true;
         tmpNtuplet.push_back(*(theOuterNeighbors.at(i)));
         theOuterNeighbors.at(i)->find_ntuplets(foundNtuplets, tmpNtuplet, minHitsPerNtuplet );
         tmpNtuplet.pop_back();
-      }
+//      }
     }
 
-    if (!hasOneCompatibleNeighbor && tmpNtuplet.size() >= minHitsPerNtuplet - 1)
-    {
-      foundNtuplets.push_back(tmpNtuplet);
-    }
+ //   if (!hasOneCompatibleNeighbor && tmpNtuplet.size() >= minHitsPerNtuplet - 1)
+ //   {
+   //   foundNtuplets.push_back(tmpNtuplet);
+   // }
   }
 
 }

@@ -17,6 +17,8 @@
 #include "RecoTracker/TkSeedingLayers/interface/SeedComparitor.h"
 
 #include "RecoTracker/TkHitPairs/interface/HitPairGeneratorFromLayerPairCA.h"
+#include "RecoTracker/TkHitPairs/interface/HitPairGeneratorFromLayerPair.h"
+
 #include "RecoTracker/TkHitPairs/interface/HitDoubletsCA.h"
 #include "CellularAutomaton.h"
 
@@ -298,35 +300,16 @@ PixelQuadrupletGenerator::hitQuadruplets (const TrackingRegion& region, OrderedH
  std::cout << std::endl << "PixelQuadruplets CA : in!" << std::endl;
   if (theComparitor) theComparitor->init (ev, es);
 
-  HitPairGeneratorFromLayerPairCA caDoubletsGenerator (0, 1, 10000);
 
-  //std::vector<FKDTree<float,3>*> layersHitsTree;
-
-  /*
-  bool treesFlags[3];
-  for (int j=0; j<3; j++) {
-      std::cout<<"Checking cache for id : "<<fourLayers[j].index()<<std::endl;
-      if(theKDTreeCache->checkCache(fourLayers[j].index())){
-          std::cout<<"Tree already done "<<std::endl;
-          theKDTreeCache->getCache(fourLayers[j].index(),&trees[j]);
-          std::cout<<"Tree copied "<<std::endl;
-          //layersHitsTree.push_back(&trees[j]);
-      } else {
-          std::cout<<"Tree to be created "<<fourLayers[j].index()<<std::endl;
-          trees[j].LayerTree::make_FKDTreeFromRegionLayer(fourLayers[j],region,ev,es);
-          std::cout<<"Tree created "<<std::endl;
-          theKDTreeCache->writeCache(fourLayers[j].index(),&trees[j]);
-          std::cout<<"Tree cached "<<std::endl;
-          //layersHitsTree.push_back(&trees[j]);
-      }
-  }*/
-
-  LayerTree & innerTree = theKDTreeCache->getTree (fourLayers[0], region, ev, es);
-  LayerTree & middleTree = theKDTreeCache->getTree (fourLayers[1], region, ev, es);
-  LayerTree & outerTree = theKDTreeCache->getTree (fourLayers[2], region, ev, es);
+  HitPairGeneratorFromLayerPair thePairGenerator(0, 1, theLayerCache);
 
 
-  std::vector<unsigned int> idS = innerTree.getIdVector ();
+//  LayerTree & innerTree = theKDTreeCache->getTree (fourLayers[0], region, ev, es);
+//  LayerTree & middleTree = theKDTreeCache->getTree (fourLayers[1], region, ev, es);
+//  LayerTree & outerTree = theKDTreeCache->getTree (fourLayers[2], region, ev, es);
+
+
+//  std::vector<unsigned int> idS = innerTree.getIdVector ();
 
 //  if (innerTree.empty ()) std::cout << "Tree Empty" << std::endl;
 //  else
@@ -349,7 +332,7 @@ PixelQuadrupletGenerator::hitQuadruplets (const TrackingRegion& region, OrderedH
    */
 
 
-  std::vector<const HitDoubletsCA*> layersDoublets;
+  std::vector<const HitDoublets*> layersDoublets;
 
   //    auto const & doublets1 = caDoubletsGenerator.doublets(region,ev,es,fourLayers[0],fourLayers[1],&innerTree);
   //    std::cout<<"INNER LAYER :  " <<fourLayers[0].name()<<"    "<<"OUTER LAYER :  " <<fourLayers[1].name()<<std::endl;
@@ -377,13 +360,14 @@ PixelQuadrupletGenerator::hitQuadruplets (const TrackingRegion& region, OrderedH
   //    for(int j=0;j <(int)doublets3.size();j++){
   //        std::cout<<" [ "<<doublets3.innerHitId(j) <<" - "<<doublets3.outerHitId(j)<<" ]  ";
   //    }
+  
 
   layersDoublets.resize(3);
-  const HitDoubletsCA& doublets0 =  caDoubletsGenerator.doublets (region, ev, es, fourLayers[0], fourLayers[1], &innerTree);
-  const HitDoubletsCA& doublets1 =  caDoubletsGenerator.doublets (region, ev, es, fourLayers[1], fourLayers[2], &middleTree);
-  const HitDoubletsCA& doublets2  = caDoubletsGenerator.doublets (region, ev, es, fourLayers[2], fourLayers[3], &outerTree);
+  HitDoublets doublets0 =  thePairGenerator.doublets(region,ev,es, fourLayers[0],fourLayers[1] );
+  HitDoublets doublets1 =  thePairGenerator.doublets(region,ev,es, fourLayers[1],fourLayers[2] );
+  HitDoublets doublets2  = thePairGenerator.doublets(region,ev,es, fourLayers[2],fourLayers[3] );
   
-    std::cout << doublets0.size() << " " << doublets1.size() << " " << doublets2.size() << std::endl;
+  std::cout << doublets0.size() << " " << doublets1.size() << " " << doublets2.size() << std::endl;
 
   
   layersDoublets[0] = &(doublets0);

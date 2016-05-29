@@ -8,7 +8,7 @@
 #ifndef CACELL_H_
 #define CACELL_H_
 
-#include "RecoTracker/TkHitPairs/interface/HitDoubletsCA.h"
+#include "RecoTracker/TkHitPairs/interface/RecHitsSortedInPhi.h"
 #include "TrackingTools/TransientTrackingRecHit/interface/SeedingLayerSetsHits.h"
 
 #include <cmath>
@@ -16,87 +16,64 @@
 
 class CACell {
 public:
-
+    using Hit=RecHitsSortedInPhi::Hit;
     using CAntuplet = std::vector<CACell>;
 
 
-    CACell(const HitDoubletsCA* doublets, const SeedingLayerSetsHits::SeedingLayer& innerLayer, const SeedingLayerSetsHits::SeedingLayer& outerLayer, const unsigned int cellId, const int innerHitId, const int outerHitId) :
-    theCAState(0), theInnerHitId(innerHitId), theOuterHitId(outerHitId), theCellId(cellId), hasSameStateNeighbors(0), theDoublets(doublets), theInnerLayer(innerLayer), theOuterLayer(outerLayer) {
-
-    }
-       CACell(const HitDoubletsCA* doublets, const SeedingLayerSetsHits::SeedingLayer& innerLayer, const SeedingLayerSetsHits::SeedingLayer& outerLayer, const int innerHitId, const int outerHitId) :
-    theCAState(0), theInnerHitId(innerHitId), theOuterHitId(outerHitId), theCellId(0), hasSameStateNeighbors(0), theDoublets(doublets), theInnerLayer(innerLayer), theOuterLayer(outerLayer) {
+    CACell(const HitDoublets* doublets, int doubletId,  const unsigned int cellId, const int innerHitId, const int outerHitId) :
+    theCAState(0), theInnerHitId(innerHitId), theOuterHitId(outerHitId), theCellId(cellId), hasSameStateNeighbors(0), theDoublets(doublets), theDoubletId(doubletId) {
 
     }
     
-       
+   
        unsigned int get_cell_id () const {
            return theCellId;
+           
        }
        
     Hit const & get_inner_hit() const {
-        return theInnerLayer.hits()[theInnerHitId];
+        return theDoublets->hit(theDoubletId, HitDoublets::inner) ;
     }
 
     Hit const & get_outer_hit() const {
-        return theOuterLayer.hits()[theOuterHitId];
+        return theDoublets->hit(theDoubletId, HitDoublets::outer) ;
     }
 
     float get_inner_x() const {
-        return theInnerLayer.hits()[theInnerHitId]->globalState().position.x();
+
+        return theDoublets->x(theDoubletId, HitDoublets::inner);
     }
 
     float get_outer_x() const {
-        return theOuterLayer.hits()[theOuterHitId]->globalState().position.x();
+        return theDoublets->x(theDoubletId, HitDoublets::outer);
     }
 
     float get_inner_y() const {
-        return theInnerLayer.hits()[theInnerHitId]->globalState().position.y();
+        return  theDoublets->y(theDoubletId, HitDoublets::inner);;
     }
 
     float get_outer_y() const {
-        return theOuterLayer.hits()[theOuterHitId]->globalState().position.y();
+                return theDoublets->y(theDoubletId, HitDoublets::outer);
     }
 
     float get_inner_z() const {
-        return theInnerLayer.hits()[theInnerHitId]->globalState().position.z();
+		return theDoublets->z(theDoubletId, HitDoublets::inner);
     }
 
     float get_outer_z() const {
-        return theOuterLayer.hits()[theOuterHitId]->globalState().position.z();
+       return theDoublets->z(theDoubletId, HitDoublets::outer);
     }
 
     float get_inner_r() const {
-        return theInnerLayer.hits()[theInnerHitId]->globalState().r;
+       return theDoublets->r(theDoubletId, HitDoublets::inner);
     }
 
     float get_outer_r() const {
-        return theOuterLayer.hits()[theOuterHitId]->globalState().r;
+       return theDoublets->r(theDoubletId, HitDoublets::outer);
+       
     }
 
-    float get_inner_phi() const {
-        return theInnerLayer.hits()[theInnerHitId]->globalState().position.phi();
-    }
-
-    float get_outer_phi() const {
-        return theOuterLayer.hits()[theOuterHitId]->globalState().position.phi();
-    }
-
-    float get_inner_eta() const {
-        return theInnerLayer.hits()[theInnerHitId]->globalState().position.eta();
-    }
-
-    float get_outer_eta() const {
-        return theOuterLayer.hits()[theOuterHitId]->globalState().position.eta();
-    }
-
-    GlobalPoint inner_gp() const {
-        return GlobalPoint(get_inner_x(), get_inner_y(), get_inner_z());
-    }
-
-    GlobalPoint outer_gp() const {
-        return GlobalPoint(get_outer_x(), get_outer_y(), get_outer_z());
-    }
+ 
     unsigned int get_inner_hit_id () const { return theInnerHitId; } 
     unsigned int get_outer_hit_id () const { return theOuterHitId; } 
 
@@ -114,7 +91,6 @@ public:
     {
         std::cout << "\nprinting cell: " << theCellId << std::endl;
         std::cout << "CAState and hasSameStateNeighbors: " << theCAState <<" "<<  hasSameStateNeighbors << std::endl;
-
         std::cout << "inner hit Id: "  << theInnerHitId << " outer hit id: " << theOuterHitId << std::endl;
         
         std::cout << "it has inner and outer neighbors " << theInnerNeighbors.size() << " " << theOuterNeighbors.size() << std::endl; 
@@ -158,9 +134,9 @@ private:
 
     unsigned int hasSameStateNeighbors;
 public:
-    const HitDoubletsCA* theDoublets;
-    const SeedingLayerSetsHits::SeedingLayer& theInnerLayer;
-    const SeedingLayerSetsHits::SeedingLayer& theOuterLayer;
+    const HitDoublets* theDoublets;
+	 const int theDoubletId;
+
 
 
 };

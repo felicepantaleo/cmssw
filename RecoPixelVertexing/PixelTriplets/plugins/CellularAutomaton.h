@@ -22,7 +22,7 @@ public:
 
 
 
-    void create_and_connect_cells(std::vector<const HitDoubletsCA*>, const SeedingLayerSetsHits::SeedingLayerSet& );
+    void create_and_connect_cells(std::vector<const HitDoublets*>, const SeedingLayerSetsHits::SeedingLayerSet& );
     void evolve();
     void find_root_cells(const unsigned int);
     void find_ntuplets(std::vector<CACell::CAntuplet>& , const unsigned int );
