@@ -28,8 +28,8 @@ CombinedHitQuadrupletGenerator::CombinedHitQuadrupletGenerator(const edm::Parame
   tripletGenerator->init(std::make_unique<HitPairGeneratorFromLayerPair>(0, 1, &theLayerCache), &theLayerCache);
 
   theGenerator.reset(HitQuadrupletGeneratorFromTripletAndLayersFactory::get()->create(generatorName, generatorPSet, iC));
-  //theGenerator->init(std::move(tripletGenerator), &theLayerCache);
-  theGenerator->init(std::move(tripletGenerator), &theLayerCache,&theKDTreeCache,&theDoubletsCache);
+  theGenerator->init(std::move(tripletGenerator), &theLayerCache);
+//  theGenerator->init(std::move(tripletGenerator), &theLayerCache,&theKDTreeCache,&theDoubletsCache);
 }
 
 CombinedHitQuadrupletGenerator::~CombinedHitQuadrupletGenerator() {}
@@ -47,16 +47,16 @@ void CombinedHitQuadrupletGenerator::hitQuadruplets(
  
   std::vector<LayerQuadruplets::LayerSetAndLayers> quadlayers = LayerQuadruplets::layers(layers);
 //  std::cout<<"HERE IT STARTS ------------------------------------------------------------------------------------"<<std::endl;
-  for(const auto& tripletAndLayers: quadlayers) {
-      theGenerator->hitQuadruplets(region, result, ev, es, tripletAndLayers.first, tripletAndLayers.second);
-  }
+//  for(const auto& tripletAndLayers: quadlayers) {
+  //    theGenerator->hitQuadruplets(region, result, ev, es, tripletAndLayers.first, tripletAndLayers.second);
+//  }
   
   for(int j=0; j<(int)layers.size();j++) { 
-        theGenerator->hitQuadruplets(region, resultCA, ev, es,layers[j]);
+        theGenerator->hitQuadruplets(region, result, ev, es,layers[j]);
     }
 //  std::cout<<"HERE IT ENDS -------------------------------------------------------------------------------------"<<std::endl;
     
   theLayerCache.clear();
-  theKDTreeCache.clear();
-  theDoubletsCache.clear();
+ // theKDTreeCache.clear();
+ // theDoubletsCache.clear();
 }

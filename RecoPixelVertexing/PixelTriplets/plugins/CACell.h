@@ -78,14 +78,17 @@ public:
     unsigned int get_outer_hit_id () const { return theOuterHitId; } 
 
 
-    void check_alignment_and_tag(CACell*);
-    void tag_as_inner_neighbor(CACell*);
-    void tag_as_outer_neighbor(CACell*);
+    void check_alignment_and_tag(CACell*, const float);
 
-    bool are_aligned_RZ(const CACell*) const;
+    void tag_as_outer_neighbor(CACell* otherCell) {  theOuterNeighbors.push_back(otherCell);    }
+
+    void tag_as_inner_neighbor(CACell* otherCell) {  theInnerNeighbors.push_back(otherCell);}
 
 
-    bool is_root_cell(const unsigned int) const;
+    bool are_aligned_RZ(const CACell*, const float) const;
+
+
+
     
     void print_cell() const
     {
@@ -112,12 +115,13 @@ public:
     }
 
     void evolve();
-    void update_state();
-
+    void update_state() {  theCAState +=hasSameStateNeighbors; }
+    bool is_root_cell(const unsigned int minimumCAState) const  {    return (theCAState >= minimumCAState);    }
+      
     // trying to free the track building process from hardcoded layers, leaving the visit of the graph
     // based on the neighborhood connections between cells.
     void find_ntuplets(std::vector<CAntuplet>&, CAntuplet&, const unsigned int) const;
-
+   
 private:
 
     std::vector<CACell*> theInnerNeighbors;

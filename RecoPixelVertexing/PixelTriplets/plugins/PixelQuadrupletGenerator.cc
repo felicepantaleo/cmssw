@@ -79,7 +79,7 @@ PixelQuadrupletGenerator::hitQuadruplets (const TrackingRegion& region, OrderedH
   if (triplets.empty ()) return;
 
   const size_t size = fourthLayers.size ();
-
+	std::cout << "running standard quadruplet step" << std::endl;
   const RecHitsSortedInPhi * fourthHitMap[size];
   typedef RecHitsSortedInPhi::Hit Hit;
 
@@ -379,7 +379,7 @@ PixelQuadrupletGenerator::hitQuadruplets (const TrackingRegion& region, OrderedH
       
 
   
-  ca.create_and_connect_cells (layersDoublets, fourLayers);
+  ca.create_and_connect_cells (layersDoublets, fourLayers, region.ptMin());
   
   ca.evolve();
 

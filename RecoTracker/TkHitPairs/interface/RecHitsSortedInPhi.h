@@ -146,16 +146,16 @@ public:
 
   DetLayer const * detLayer(layer l) const { return layers[l]->layer; }
     
-  int innerHitId(int i) const {return indeces.at(2*i);}
-  int outerHitId(int i) const {return indeces.at(2*i+1);}
+  int innerHitId(int i) const {return indeces[2*i];}
+  int outerHitId(int i) const {return indeces[2*i+1];}
 
-  Hit const & hit(int i, layer l) const { return layers[l]->theHits.at(indeces[2*i+l]).hit();}
+  Hit const & hit(int i, layer l) const { return layers[l]->theHits[indeces[2*i+l]].hit();}
   float       phi(int i, layer l) const { return layers[l]->phi(indeces[2*i+l]);}
-  float       rv(int i, layer l) const { return layers[l]->rv(indeces.at(2*i+l));}
+  float       rv(int i, layer l) const { return layers[l]->rv(indeces[2*i+l]);}
   float		  r(int i, layer l) const { float xp = x(i,l); float yp = y(i,l);  return sqrt (xp*xp + yp*yp);}
-  float        z(int i, layer l) const { return layers[l]->z.at(indeces.at(2*i+l));}
-  float        x(int i, layer l) const { return layers[l]->x.at(indeces.at(2*i+l));}
-  float        y(int i, layer l) const { return layers[l]->y.at(indeces.at(2*i+l));}
+  float        z(int i, layer l) const { return layers[l]->z[indeces[2*i+l]];}
+  float        x(int i, layer l) const { return layers[l]->x[indeces[2*i+l]];}
+  float        y(int i, layer l) const { return layers[l]->y[indeces[2*i+l]];}
   GlobalPoint gp(int i, layer l) const { return GlobalPoint(x(i,l),y(i,l),z(i,l));}
 
 private:

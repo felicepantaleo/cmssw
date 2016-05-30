@@ -1,14 +1,5 @@
 #include "CACell.h"
 
-void CACell::tag_as_outer_neighbor(CACell* otherCell)
-{
-  theOuterNeighbors.push_back(otherCell);
-}
-
-void CACell::tag_as_inner_neighbor(CACell* otherCell)
-{
-  theInnerNeighbors.push_back(otherCell);
-}
 
 void CACell::evolve()
 {
@@ -19,7 +10,7 @@ void CACell::evolve()
   for (unsigned int i =0 ; i< numberOfNeighbors; ++i)
   {
 
-    if (theOuterNeighbors.at(i)->get_CA_state() == theCAState)
+    if (theOuterNeighbors[i]->get_CA_state() == theCAState)
     {
 
 
@@ -32,32 +23,20 @@ void CACell::evolve()
 
 }
 
-void CACell::update_state()
-{
-  theCAState +=hasSameStateNeighbors;
 
 
-}
-
-void CACell::check_alignment_and_tag(CACell* innerCell)
+void CACell::check_alignment_and_tag(CACell* innerCell, const float pt_min)
 {
 
-  if (are_aligned_RZ(innerCell))
+  if (are_aligned_RZ(innerCell, pt_min))
   {
-
-
     tag_as_inner_neighbor(innerCell);
     innerCell->tag_as_outer_neighbor(this);
 
   }
-  else
-  {
-
-
-  }
 }
 
-bool CACell::are_aligned_RZ(const CACell* otherCell) const
+bool CACell::are_aligned_RZ(const CACell* otherCell, const float pt_min) const
 {
 
 
@@ -73,16 +52,13 @@ bool CACell::are_aligned_RZ(const CACell* otherCell) const
   float distance_13_squared = (r1-r3)*(r1-r3) + (z1-z3)*(z1-z3);  
   float tan_12_13 = 2*fabs(z1 * (r2 - r3) + z2 * (r3 - r1) +z3 * (r1 - r2))/distance_13_squared;
     
-  std::cout <<   "result of alignment " <<  tan_12_13  << std::endl;
+//  std::cout <<   "result of alignment " <<  tan_12_13  << std::endl;
 //  
-  return tan_12_13 <= 1e-2;
+  return tan_12_13*pt_min <= 0.1f;
 }
 
-bool CACell::is_root_cell(const unsigned int minimumCAState) const
-{
-  return (theInnerNeighbors.size() == 0 && theCAState >= minimumCAState);
 
-}
+
 
 void CACell::find_ntuplets ( std::vector<CAntuplet>& foundNtuplets, CAntuplet& tmpNtuplet, const unsigned int minHitsPerNtuplet) const
 {
@@ -102,13 +78,14 @@ void CACell::find_ntuplets ( std::vector<CAntuplet>& foundNtuplets, CAntuplet& t
   } else
   {
   //  bool hasOneCompatibleNeighbor = false;
-    for ( unsigned int i=0 ; i < theOuterNeighbors.size(); ++i)
+    unsigned int numberOfOuterNeighbors = theOuterNeighbors.size();
+    for ( unsigned int i=0 ; i < numberOfOuterNeighbors; ++i)
     {
 //      if (tmpNtuplet.size() <= 2 )
   //    {
   //      hasOneCompatibleNeighbor = true;
-        tmpNtuplet.push_back(*(theOuterNeighbors.at(i)));
-        theOuterNeighbors.at(i)->find_ntuplets(foundNtuplets, tmpNtuplet, minHitsPerNtuplet );
+        tmpNtuplet.push_back(*(theOuterNeighbors[i]));
+        theOuterNeighbors[i]->find_ntuplets(foundNtuplets, tmpNtuplet, minHitsPerNtuplet );
         tmpNtuplet.pop_back();
 //      }
     }
