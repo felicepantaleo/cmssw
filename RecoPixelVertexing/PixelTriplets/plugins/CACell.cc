@@ -18,33 +18,33 @@ void CACell::evolve()
   
   for (unsigned int i =0 ; i< numberOfNeighbors; ++i)
   {
-    std::cout << "checking compatibility with cell " << theOuterNeighbors.at(i)->get_cell_id() << std::endl;
+
     if (theOuterNeighbors.at(i)->get_CA_state() == theCAState)
     {
 
-      std::cout << get_cell_id() << " and are found compatible " << theOuterNeighbors.at(i)->get_cell_id() << std::endl;
+
 
       hasSameStateNeighbors = 1;
 
       break;
     }
   }
-  std::cout << "cell " << get_cell_id() << " has evolved." << std::endl;
+
 }
 
 void CACell::update_state()
 {
   theCAState +=hasSameStateNeighbors;
-  std::cout << "cell " << theCellId <<  " has now state " << theCAState  << std::endl;
+
 
 }
 
 void CACell::check_alignment_and_tag(CACell* innerCell)
 {
-  std::cout << "checking alignment" << std::endl;
+
   if (are_aligned_RZ(innerCell))
   {
-    std::cout << "cells " << theCellId << " " << innerCell->get_cell_id() << " are neighbors" << std::endl;
+
 
     tag_as_inner_neighbor(innerCell);
     innerCell->tag_as_outer_neighbor(this);
@@ -52,7 +52,7 @@ void CACell::check_alignment_and_tag(CACell* innerCell)
   }
   else
   {
-        std::cout << "cells are not aligned" << std::endl;
+
 
   }
 }
@@ -60,25 +60,22 @@ void CACell::check_alignment_and_tag(CACell* innerCell)
 bool CACell::are_aligned_RZ(const CACell* otherCell) const
 {
 
-//   std::cout << otherCell->get_inner_x();
-   
-  auto r1 = get_inner_r();
-  auto r2 = get_outer_r();
-  
-// std::cout << " got own r" << std::endl;
-// std::cout << " the Inner and outer hits id of the other cells are: " << otherCell->get_inner_hit_id()<<  " " << otherCell->get_outer_hit_id()<< std::endl;
-// std::cout << otherCell->get_inner_x();
-  auto r3 = otherCell->get_inner_r();
-//  std::cout << "cells r copied " << r1 << " " << r2 << " " << r3 <<  std::endl;
 
+  float r1 = otherCell->get_inner_r();   
+  float r2 = get_inner_r();
+  float r3 = get_outer_r();
+    
 
-  float z1 = get_inner_z();
-  float z2 = get_outer_z();
-  float z3 = otherCell->get_inner_z();
-//  std::cout << "cells z copied " << z1 << " " << z2 << " " << z3 <<  std::endl;
+  float z1 = otherCell->get_inner_z();
+  float z2 = get_inner_z();
+  float z3 = get_outer_z();
 
-//  std::cout << "result: "  << fabs(z1 * (r2 - r3) + z2 * (r3 - r1) +z3 * (r1 - r2))/(z2*z2 + r2*r2) << std::endl;
-  return fabs(z1 * (r2 - r3) + z2 * (r3 - r1) +z3 * (r1 - r2))/(z2*z2 + r2*r2) <= 10.f;
+  float distance_13_squared = (r1-r3)*(r1-r3) + (z1-z3)*(z1-z3);  
+  float tan_12_13 = 2*fabs(z1 * (r2 - r3) + z2 * (r3 - r1) +z3 * (r1 - r2))/distance_13_squared;
+    
+  std::cout <<   "result of alignment " <<  tan_12_13  << std::endl;
+//  
+  return tan_12_13 <= 1e-2;
 }
 
 bool CACell::is_root_cell(const unsigned int minimumCAState) const
@@ -93,8 +90,8 @@ void CACell::find_ntuplets ( std::vector<CAntuplet>& foundNtuplets, CAntuplet& t
   // the building process for a track ends if:
   // it has no right neighbor
   // it has no compatible neighbor
-  print_cell();
-  std::cout << "number of cells " << tmpNtuplet.size() << std::endl;
+  
+
   // the ntuplets is then saved if the number of hits it contains is greater than a threshold
   if (theOuterNeighbors.size() == 0 )
   {

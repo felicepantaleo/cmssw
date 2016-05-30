@@ -152,7 +152,7 @@ public:
   Hit const & hit(int i, layer l) const { return layers[l]->theHits.at(indeces[2*i+l]).hit();}
   float       phi(int i, layer l) const { return layers[l]->phi(indeces[2*i+l]);}
   float       rv(int i, layer l) const { return layers[l]->rv(indeces.at(2*i+l));}
-  float		  r(int i, layer l) const { std::cout << "radius of " << i << std::endl; float xp = x(i,l); float yp = y(i,l);  return sqrt (xp*xp + yp*yp);}
+  float		  r(int i, layer l) const { float xp = x(i,l); float yp = y(i,l);  return sqrt (xp*xp + yp*yp);}
   float        z(int i, layer l) const { return layers[l]->z.at(indeces.at(2*i+l));}
   float        x(int i, layer l) const { return layers[l]->x.at(indeces.at(2*i+l));}
   float        y(int i, layer l) const { return layers[l]->y.at(indeces.at(2*i+l));}

@@ -297,7 +297,7 @@ PixelQuadrupletGenerator::hitQuadruplets (const TrackingRegion& region, OrderedH
                                           const edm::Event& ev, const edm::EventSetup& es,
                                           const SeedingLayerSetsHits::SeedingLayerSet& fourLayers)
 {
- std::cout << std::endl << "PixelQuadruplets CA : in!" << std::endl;
+
   if (theComparitor) theComparitor->init (ev, es);
 
 
@@ -367,7 +367,7 @@ PixelQuadrupletGenerator::hitQuadruplets (const TrackingRegion& region, OrderedH
   HitDoublets doublets1 =  thePairGenerator.doublets(region,ev,es, fourLayers[1],fourLayers[2] );
   HitDoublets doublets2  = thePairGenerator.doublets(region,ev,es, fourLayers[2],fourLayers[3] );
   
-  std::cout << doublets0.size() << " " << doublets1.size() << " " << doublets2.size() << std::endl;
+
 
   
   layersDoublets[0] = &(doublets0);
@@ -387,7 +387,7 @@ PixelQuadrupletGenerator::hitQuadruplets (const TrackingRegion& region, OrderedH
 
   ca.find_ntuplets(foundQuadruplets, 4);
 
-  std::cout << "found quadruplets: " << foundQuadruplets.size() << std::endl;
+
 
   const QuantityDependsPtEval maxChi2Eval = maxChi2.evaluator(es);
 
