@@ -54,7 +54,8 @@ bool CACell::are_aligned_RZ(const CACell* otherCell, const float pt_min) const
     
 //  std::cout <<   "result of alignment " <<  tan_12_13  << std::endl;
 //  
-  return tan_12_13*pt_min <= 0.1f;
+//  return true;
+  return tan_12_13*pt_min <= 0.005f;
 }
 
 
