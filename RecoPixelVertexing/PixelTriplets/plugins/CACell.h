@@ -17,7 +17,7 @@
 class CACell {
 public:
     using Hit=RecHitsSortedInPhi::Hit;
-    using CAntuplet = std::vector<CACell>;
+    using CAntuplet = std::vector<CACell*>;
 
 
     CACell(const HitDoublets* doublets, int doubletId,  const unsigned int cellId, const int innerHitId, const int outerHitId) :
@@ -131,15 +131,15 @@ private:
 
 
 
-    unsigned int theInnerHitId;
-    unsigned int theOuterHitId;
-    unsigned int theCellId;
+    const unsigned int theInnerHitId;
+    const unsigned int theOuterHitId;
+    const unsigned int theCellId;
 
 
     unsigned int hasSameStateNeighbors;
 public:
     const HitDoublets* theDoublets;
-	 const int theDoubletId;
+    const int theDoubletId;
 
 
 

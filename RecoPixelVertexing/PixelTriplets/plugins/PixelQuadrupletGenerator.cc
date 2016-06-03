@@ -79,7 +79,7 @@ PixelQuadrupletGenerator::hitQuadruplets (const TrackingRegion& region, OrderedH
   if (triplets.empty ()) return;
 
   const size_t size = fourthLayers.size ();
-	std::cout << "running standard quadruplet step" << std::endl;
+  std::cout << "running standard quadruplet step" << std::endl;
   const RecHitsSortedInPhi * fourthHitMap[size];
   typedef RecHitsSortedInPhi::Hit Hit;
 
@@ -304,21 +304,21 @@ PixelQuadrupletGenerator::hitQuadruplets (const TrackingRegion& region, OrderedH
   HitPairGeneratorFromLayerPair thePairGenerator(0, 1, theLayerCache);
 
 
-//  LayerTree & innerTree = theKDTreeCache->getTree (fourLayers[0], region, ev, es);
-//  LayerTree & middleTree = theKDTreeCache->getTree (fourLayers[1], region, ev, es);
-//  LayerTree & outerTree = theKDTreeCache->getTree (fourLayers[2], region, ev, es);
+  //  LayerTree & innerTree = theKDTreeCache->getTree (fourLayers[0], region, ev, es);
+  //  LayerTree & middleTree = theKDTreeCache->getTree (fourLayers[1], region, ev, es);
+  //  LayerTree & outerTree = theKDTreeCache->getTree (fourLayers[2], region, ev, es);
 
 
-//  std::vector<unsigned int> idS = innerTree.getIdVector ();
+  //  std::vector<unsigned int> idS = innerTree.getIdVector ();
 
-//  if (innerTree.empty ()) std::cout << "Tree Empty" << std::endl;
-//  else
-//  {
-//    for (int j = 0; j < (int) idS.size (); j++)
-//    {
-//      std::cout << " " << idS[j] << " ";
-//    }
-//  }
+  //  if (innerTree.empty ()) std::cout << "Tree Empty" << std::endl;
+  //  else
+  //  {
+  //    for (int j = 0; j < (int) idS.size (); j++)
+  //    {
+  //      std::cout << " " << idS[j] << " ";
+  //    }
+  //  }
   /*
   LayerTree treeFourth; treeFourth.FKDTree<float,3>::make_FKDTreeFromRegionLayer(fourLayers[3],region,ev,es);
   layersHitsTree.push_back(&treeFourth);*/
@@ -360,30 +360,28 @@ PixelQuadrupletGenerator::hitQuadruplets (const TrackingRegion& region, OrderedH
   //    for(int j=0;j <(int)doublets3.size();j++){
   //        std::cout<<" [ "<<doublets3.innerHitId(j) <<" - "<<doublets3.outerHitId(j)<<" ]  ";
   //    }
-  
+
 
   layersDoublets.resize(3);
-  HitDoublets doublets0 =  thePairGenerator.doublets(region,ev,es, fourLayers[0],fourLayers[1] );
-  HitDoublets doublets1 =  thePairGenerator.doublets(region,ev,es, fourLayers[1],fourLayers[2] );
-  HitDoublets doublets2  = thePairGenerator.doublets(region,ev,es, fourLayers[2],fourLayers[3] );
-  
+  HitDoublets doublets0 =  thePairGenerator.doublets(region, ev, es, fourLayers[0], fourLayers[1] );
+  HitDoublets doublets1 =  thePairGenerator.doublets(region, ev, es, fourLayers[1], fourLayers[2] );
+  HitDoublets doublets2  = thePairGenerator.doublets(region, ev, es, fourLayers[2], fourLayers[3] );
 
 
-  
+
+
   layersDoublets[0] = &(doublets0);
   layersDoublets[1] = &(doublets1);
   layersDoublets[2] = &(doublets2);
 
   std::vector<CACell::CAntuplet> foundQuadruplets;
-  CellularAutomaton ca(4);
-      
+  CellularAutomaton<4> ca;
 
-  
+
+
   ca.create_and_connect_cells (layersDoublets, fourLayers, region.ptMin());
-  
-  ca.evolve();
 
-  ca.find_root_cells(2);
+  ca.evolve();
 
   ca.find_ntuplets(foundQuadruplets, 4);
 
@@ -396,44 +394,45 @@ PixelQuadrupletGenerator::hitQuadruplets (const TrackingRegion& region, OrderedH
   // Loop over quadruplets
   for (const auto& quadruplet : foundQuadruplets)
   {
-    GlobalPoint gp0 = quadruplet[0].get_inner_hit()->globalPosition();
-    GlobalPoint gp1 = quadruplet[1].get_inner_hit()->globalPosition();
-    GlobalPoint gp2 = quadruplet[2].get_inner_hit()->globalPosition();
-    PixelRecoLineRZ line(gp0, gp2);
-    ThirdHitPredictionFromCircle predictionRPhi(gp0, gp2, extraHitRPhitolerance);
-    const float curvature = predictionRPhi.curvature(ThirdHitPredictionFromCircle::Vector2D(gp1.x(), gp1.y()));
-    const float abscurv = std::abs(curvature);
-    const float thisMaxChi2 = maxChi2Eval.value(abscurv);
     auto isBarrel = [](const unsigned id) -> bool
     {
       return id == PixelSubdetector::PixelBarrel;
     };
 
-
     declareDynArray(GlobalPoint, 4, gps);
     declareDynArray(GlobalError, 4, ges);
     declareDynArray(bool, 4, barrels);
 
-    gps[0] = quadruplet[0].get_inner_hit()->globalPosition();
-    ges[0] = quadruplet[0].get_inner_hit()->globalPositionError();
-    barrels[0] = isBarrel(quadruplet[0].get_inner_hit()->geographicalId().subdetId());
+    gps[0] = quadruplet[0]->get_inner_hit()->globalPosition();
+    ges[0] = quadruplet[0]->get_inner_hit()->globalPositionError();
+    barrels[0] = isBarrel(quadruplet[0]->get_inner_hit()->geographicalId().subdetId());
 
-    gps[1] = quadruplet[1].get_inner_hit()->globalPosition();
-    ges[1] = quadruplet[1].get_inner_hit()->globalPositionError();
-    barrels[1] = isBarrel(quadruplet[1].get_inner_hit()->geographicalId().subdetId());
+    gps[1] = quadruplet[1]->get_inner_hit()->globalPosition();
+    ges[1] = quadruplet[1]->get_inner_hit()->globalPositionError();
+    barrels[1] = isBarrel(quadruplet[1]->get_inner_hit()->geographicalId().subdetId());
 
-    gps[2] = quadruplet[2].get_inner_hit()->globalPosition();
-    ges[2] = quadruplet[2].get_inner_hit()->globalPositionError();
-    barrels[2] = isBarrel(quadruplet[2].get_inner_hit()->geographicalId().subdetId());
+    gps[2] = quadruplet[2]->get_inner_hit()->globalPosition();
+    ges[2] = quadruplet[2]->get_inner_hit()->globalPositionError();
+    barrels[2] = isBarrel(quadruplet[2]->get_inner_hit()->geographicalId().subdetId());
 
-    gps[3] = quadruplet[2].get_outer_hit()->globalPosition();
-    ges[3] = quadruplet[2].get_outer_hit()->globalPositionError();
-    barrels[3] = isBarrel(quadruplet[2].get_outer_hit()->geographicalId().subdetId());
+    gps[3] = quadruplet[2]->get_outer_hit()->globalPosition();
+    ges[3] = quadruplet[2]->get_outer_hit()->globalPositionError();
+    barrels[3] = isBarrel(quadruplet[2]->get_outer_hit()->geographicalId().subdetId());
+
+    PixelRecoLineRZ line(gps[0], gps[2]);
+    ThirdHitPredictionFromCircle predictionRPhi(gps[0], gps[2], extraHitRPhitolerance);
+    const float curvature = predictionRPhi.curvature(ThirdHitPredictionFromCircle::Vector2D(gps[1].x(), gps[1].y()));
+    const float abscurv = std::abs(curvature);
+    const float thisMaxChi2 = maxChi2Eval.value(abscurv);
+
+
+
+
 
 
     if (theComparitor)
     {
-      SeedingHitSet tmpTriplet(quadruplet[0].get_inner_hit(), quadruplet[1].get_inner_hit(), quadruplet[2].get_outer_hit());
+      SeedingHitSet tmpTriplet(quadruplet[0]->get_inner_hit(), quadruplet[1]->get_inner_hit(), quadruplet[2]->get_outer_hit());
       if (!theComparitor->compatible(tmpTriplet, region))
       {
         continue;
@@ -482,7 +481,7 @@ PixelQuadrupletGenerator::hitQuadruplets (const TrackingRegion& region, OrderedH
       if (fitFastCircleChi2Cut && chi2 > thisMaxChi2)
         continue;
     }
-    result.emplace_back(quadruplet[0].get_inner_hit(), quadruplet[1].get_inner_hit(), quadruplet[2].get_inner_hit(), quadruplet[2].get_outer_hit());
+    result.emplace_back(quadruplet[0]->get_inner_hit(), quadruplet[1]->get_inner_hit(), quadruplet[2]->get_inner_hit(), quadruplet[2]->get_outer_hit());
 
   }
 }

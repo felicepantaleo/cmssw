@@ -55,7 +55,7 @@ bool CACell::are_aligned_RZ(const CACell* otherCell, const float pt_min) const
 //  std::cout <<   "result of alignment " <<  tan_12_13  << std::endl;
 //  
 //  return true;
-  return tan_12_13*pt_min <= 0.005f;
+  return tan_12_13*pt_min <= 0.001f;
 }
 
 
@@ -85,7 +85,7 @@ void CACell::find_ntuplets ( std::vector<CAntuplet>& foundNtuplets, CAntuplet& t
 //      if (tmpNtuplet.size() <= 2 )
   //    {
   //      hasOneCompatibleNeighbor = true;
-        tmpNtuplet.push_back(*(theOuterNeighbors[i]));
+        tmpNtuplet.push_back((theOuterNeighbors[i]));
         theOuterNeighbors[i]->find_ntuplets(foundNtuplets, tmpNtuplet, minHitsPerNtuplet );
         tmpNtuplet.pop_back();
 //      }

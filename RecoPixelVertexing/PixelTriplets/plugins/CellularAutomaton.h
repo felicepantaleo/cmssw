@@ -4,42 +4,39 @@
 #include "CACell.h"
 #include "TrackingTools/TransientTrackingRecHit/interface/SeedingLayerSetsHits.h"
 
+template<unsigned int theNumberOfLayers>
 class CellularAutomaton {
 public:
 
-    CellularAutomaton() :
-    theNumberOfLayers(4) {
+    CellularAutomaton() 
+    {
 
     }
 
-    CellularAutomaton(const unsigned int numberOfLayers) :
-    theNumberOfLayers(numberOfLayers) {
-
-        isOuterHitOfCell.resize(theNumberOfLayers);
-        theFoundCellsPerLayer.resize(theNumberOfLayers);
-
-    }
 
 
 
     void create_and_connect_cells(std::vector<const HitDoublets*>, const SeedingLayerSetsHits::SeedingLayerSet& , const float);
     void evolve();
-    void find_root_cells(const unsigned int);
     void find_ntuplets(std::vector<CACell::CAntuplet>& , const unsigned int );
 
 
 
 private:
-    const unsigned int theNumberOfLayers;
+
 
 
     //for each hit in each layer, store the pointers of the Cells of which it is outerHit
-    std::vector<std::vector<std::vector<CACell*> > > isOuterHitOfCell;
-    std::vector<std::vector<CACell> > theFoundCellsPerLayer;
+    std::array<std::vector<std::vector<CACell*> > , theNumberOfLayers> isOuterHitOfCell;
+    std::array<std::vector<CACell> , theNumberOfLayers> theFoundCellsPerLayer;
 
     std::vector<CACell*> theRootCells;
     std::vector<std::vector<CACell*> > theNtuplets;
 
 };
+
+
+
+template class CellularAutomaton<4>;
 
 #endif 
