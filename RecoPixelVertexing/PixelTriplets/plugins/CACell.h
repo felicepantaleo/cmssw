@@ -10,6 +10,7 @@
 
 #include "RecoTracker/TkHitPairs/interface/RecHitsSortedInPhi.h"
 #include "TrackingTools/TransientTrackingRecHit/interface/SeedingLayerSetsHits.h"
+#include "DataFormats/Math/interface/deltaPhi.h"
 
 #include <cmath>
 #include <array>
@@ -72,6 +73,15 @@ public:
        return theDoublets->r(theDoubletId, HitDoublets::outer);
        
     }
+    
+        float get_inner_phi() const {
+       return theDoublets->phi(theDoubletId, HitDoublets::inner);
+    }
+
+    float get_outer_phi() const {
+       return theDoublets->phi(theDoubletId, HitDoublets::outer);
+       
+    }
 
  
     unsigned int get_inner_hit_id () const { return theInnerHitId; } 
@@ -86,6 +96,7 @@ public:
 
 
     bool are_aligned_RZ(const CACell*, const float) const;
+    bool have_similar_curvature(const CACell* ) const;
 
 
 
