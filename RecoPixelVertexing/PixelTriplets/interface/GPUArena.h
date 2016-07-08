@@ -150,6 +150,13 @@ class GPUArena {
       checkCudaError(cudaMemcpy(nextFreeChunk_d, &offset, sizeof(int), cudaMemcpyHostToDevice));
     }
 
+    ~GPUArena() {
+      for(int layer = 0; layer < NumLayers; layer++)
+        cudaFree(mappingIdToCurrentChunk[layer]);
+      cudaFree(nextFreeChunk_d);
+      cudaFree(chunks);
+    }
+
     __device__
     int get_num_elements_per_layer(int layer) {
       return numElementsPerLayer[layer];

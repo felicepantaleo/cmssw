@@ -33,6 +33,13 @@ GPULayerHits copy_hits_to_gpu(RecHitsSortedInPhi const & hits) {
 }
 
 inline
+void free_gpu_hits(GPULayerHits & hits) {
+  cudaFree(hits.x); hits.x = nullptr;
+  cudaFree(hits.y); hits.y = nullptr;
+  cudaFree(hits.z); hits.z = nullptr;
+}
+
+inline
 GPULayerDoublets copy_doublets_to_gpu(HitDoublets const & doublets, GPULayerHits const & inner, GPULayerHits const & outer) {
   GPULayerDoublets d_doublets;
   d_doublets.size = doublets.size();
@@ -42,6 +49,11 @@ GPULayerDoublets copy_doublets_to_gpu(HitDoublets const & doublets, GPULayerHits
   cudaMalloc(& d_doublets.indices, memsize);
   cudaMemcpy(d_doublets.indices, doublets.indices().data(), memsize, cudaMemcpyHostToDevice);
   return d_doublets;
+}
+
+inline
+void free_gpu_doublets(GPULayerDoublets & doublets) {
+  cudaFree(doublets.indices); doublets.indices = nullptr;
 }
 
 #endif // not defined RecoPixelVertexing_PixelTriplets_GPUHitsAndDoublets_h

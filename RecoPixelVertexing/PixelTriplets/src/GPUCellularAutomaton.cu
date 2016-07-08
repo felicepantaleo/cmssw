@@ -166,6 +166,9 @@ void GPUCellularAutomaton<theNumberOfLayers, maxNumberOfQuadruplets>::run(
 	quadruplets.resize(h_foundNtuplets->size());
 	memcpy(quadruplets.data(), h_foundNtuplets->m_data, h_foundNtuplets->size() * sizeof(std::array<int, 4>));
 
+  cudaFree(foundNtuplets);
+  for (unsigned int i = 0; i< theNumberOfLayers-1; ++i)
+    cudaFree(theCells[i]);
 }
 
 template class GPUCellularAutomaton<4, 1000> ;
