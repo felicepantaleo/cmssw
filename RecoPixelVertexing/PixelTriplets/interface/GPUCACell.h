@@ -46,6 +46,10 @@ public:
     	theInnerR=hypot (theInnerX, theInnerY);
     	theOuterR=hypot (theOuterX, theOuterY);
 
+    	printf("theInnerHitId %d, theOuterHitId %d, theDoubletId %d, theInnerX %f, theOuterX %f \n",
+    			theInnerHitId , theOuterHitId , theDoubletId , theInnerX , theOuterX);
+
+
     }
 
 
@@ -163,7 +167,7 @@ public:
     __device__
     void find_ntuplets(
         GPUSimpleVector<maxNumberOfQuadruplets,GPUSimpleVector<4, int>>* foundNtuplets, 
-        GPUArena<numberOfLayers-2,4,GPUCACell<numberOfLayers>>& theInnerNeighbors,  
+        GPUArena<numberOfLayers-2,16,GPUCACell<numberOfLayers>>& theInnerNeighbors,
         GPUSimpleVector<4, GPUCACell<4>*>& tmpNtuplet, 
         const unsigned int minHitsPerNtuplet
     ) const {
@@ -172,7 +176,7 @@ public:
         // it has no right neighbor
         // it has no compatible neighbor
         // the ntuplets is then saved if the number of hits it contains is greater than a threshold
-        GPUArenaIterator<4, GPUCACell<numberOfLayers>> innerNeighborsIterator = theInnerNeighbors.iterator(theLayerIdInFourLayers,theDoubletId);
+        GPUArenaIterator<16, GPUCACell<numberOfLayers>> innerNeighborsIterator = theInnerNeighbors.iterator(theLayerIdInFourLayers,theDoubletId);
         GPUCACell<numberOfLayers>* otherCell;
         GPUSimpleVector<4, int> found;
 

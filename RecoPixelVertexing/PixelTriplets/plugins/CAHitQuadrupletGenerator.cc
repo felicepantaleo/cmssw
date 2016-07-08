@@ -132,7 +132,7 @@ CAHitQuadrupletGenerator::findQuadruplets (const TrackingRegion& region, Ordered
   declareDynArray(bool, 4, barrels);
 
   unsigned int numberOfFoundQuadruplets = foundQuadruplets.size();
-
+  std::cout << "I have found " << numberOfFoundQuadruplets << " quadruplets" << std::endl;
   // Loop over quadruplets
   for (unsigned int quadId = 0; quadId < numberOfFoundQuadruplets; ++quadId)
   {

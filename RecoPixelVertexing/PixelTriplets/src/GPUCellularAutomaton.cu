@@ -10,7 +10,7 @@ template<int numberOfLayers>
 __global__
 void kernel_create(const GPULayerDoublets* gpuDoublets,
 		GPUCACell<numberOfLayers>** cells,
-		GPUArena<numberOfLayers-1, 4, GPUCACell<numberOfLayers>> isOuterHitOfCell)
+		GPUArena<numberOfLayers-1, 16, GPUCACell<numberOfLayers>> isOuterHitOfCell)
 {
 
 	unsigned int layerPairIndex = blockIdx.y;
@@ -34,8 +34,8 @@ template<int numberOfLayers>
 __global__
 void kernel_connect(const GPULayerDoublets* gpuDoublets,
 		GPUCACell<numberOfLayers>** cells,
-		GPUArena<numberOfLayers-1, 4, GPUCACell<numberOfLayers>> isOuterHitOfCell,
-		GPUArena<numberOfLayers-2, 4, GPUCACell<numberOfLayers>> innerNeighbors,
+		GPUArena<numberOfLayers-1, 16, GPUCACell<numberOfLayers>> isOuterHitOfCell,
+		GPUArena<numberOfLayers-2, 16, GPUCACell<numberOfLayers>> innerNeighbors,
 		float ptmin,
 		float region_origin_x,
 		float region_origin_y,
@@ -49,7 +49,7 @@ void kernel_connect(const GPULayerDoublets* gpuDoublets,
 	{
 		for (int i = cellIndexInLayerPair; i < gpuDoublets[layerPairIndex].size; i += gridDim.x * blockDim.x)
 		{
-			GPUArenaIterator<4, GPUCACell<numberOfLayers>> innerNeighborsIterator = innerNeighbors.iterator(layerPairIndex,i);
+			GPUArenaIterator<16, GPUCACell<numberOfLayers>> innerNeighborsIterator = innerNeighbors.iterator(layerPairIndex,i);
 			GPUCACell<numberOfLayers>* otherCell;
 			while (innerNeighborsIterator.has_next())
 			{
@@ -68,9 +68,10 @@ __global__
 void kernel_find_ntuplets(const GPULayerDoublets* gpuDoublets,
 		GPUCACell<numberOfLayers>** cells,
 		GPUSimpleVector<maxNumberOfQuadruplets, GPUSimpleVector<4, int>>* foundNtuplets,
-		GPUArena<numberOfLayers-2, 4, GPUCACell<numberOfLayers>> theInnerNeighbors,
+		GPUArena<numberOfLayers-2, 16, GPUCACell<numberOfLayers>> theInnerNeighbors,
 		unsigned int minHitsPerNtuplet)
 {
+
 	unsigned int cellIndexInLastLayerPair = threadIdx.x + blockIdx.x * blockDim.x;
 	constexpr unsigned int lastLayerPairIndex = numberOfLayers - 2;
 
@@ -80,8 +81,11 @@ void kernel_find_ntuplets(const GPULayerDoublets* gpuDoublets,
 			i += gridDim.x * blockDim.x)
 	{
 		stack.reset();
+		printf("foundquadruplets: %d\n", foundNtuplets->size());
+
 		cells[lastLayerPairIndex][i].find_ntuplets(foundNtuplets, theInnerNeighbors, stack, minHitsPerNtuplet);
 	}
+
 
 }
 
@@ -114,7 +118,7 @@ void GPUCellularAutomaton<theNumberOfLayers, maxNumberOfQuadruplets>::run(
 
 	}
 
-	GPUArena<theNumberOfLayers - 1, 4, GPUCACell<theNumberOfLayers>> isOuterHitOfCell(
+	GPUArena<theNumberOfLayers - 1, 16, GPUCACell<theNumberOfLayers>> isOuterHitOfCell(
 			numberOfChunksIn1stArena, numberOfKeysIn1stArena);
 	cudaDeviceSynchronize();
 
@@ -125,7 +129,7 @@ void GPUCellularAutomaton<theNumberOfLayers, maxNumberOfQuadruplets>::run(
 		numberOfKeysIn2ndArena[i - 1] = doublets[i]->size;
 		numberOfChunksIn2ndArena += doublets[i - 1]->size;
 	}
-	GPUArena<theNumberOfLayers - 2, 4, GPUCACell<theNumberOfLayers>> theInnerNeighbors(
+	GPUArena<theNumberOfLayers - 2, 16, GPUCACell<theNumberOfLayers>> theInnerNeighbors(
 			numberOfChunksIn2ndArena, numberOfKeysIn2ndArena);
 	cudaDeviceSynchronize();
 
@@ -158,7 +162,7 @@ void GPUCellularAutomaton<theNumberOfLayers, maxNumberOfQuadruplets>::run(
 
 	kernel_connect<<<dim3(1,2),256>>>(gpu_doublets, theCells, isOuterHitOfCell, theInnerNeighbors, thePtMin, theRegionOriginX, theRegionOriginY, theRegionOriginRadius, theThetaCut, thePhiCut);
 
-	kernel_find_ntuplets<<<1000,256>>>(gpu_doublets, theCells, foundNtuplets, theInnerNeighbors, 4);
+	kernel_find_ntuplets<<<1,256>>>(gpu_doublets, theCells, foundNtuplets, theInnerNeighbors, 4);
 
 	auto h_foundNtuplets = new GPUSimpleVector<maxNumberOfQuadruplets, GPUSimpleVector<4, GPUCACell<4>>>();
 	cudaMemcpy(h_foundNtuplets, foundNtuplets, sizeof(GPUSimpleVector<maxNumberOfQuadruplets, GPUSimpleVector<4, GPUCACell<4>>>), cudaMemcpyDeviceToHost);
@@ -168,7 +172,8 @@ void GPUCellularAutomaton<theNumberOfLayers, maxNumberOfQuadruplets>::run(
 
   cudaFree(foundNtuplets);
   for (unsigned int i = 0; i< theNumberOfLayers-1; ++i)
-    cudaFree(theCells[i]);
+    cudaFree(hostCells[i]);
+  cudaFree(theCells);
 }
 
 template class GPUCellularAutomaton<4, 1000> ;
