@@ -54,7 +54,7 @@ class GPUChunk {
     }
 
     __device__
-    T * & get_element_at(int i) {
+    T * get_element_at(int i) {
       return values[i];
     }
 };
