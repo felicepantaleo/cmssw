@@ -24,13 +24,14 @@ public:
     }
 
     __device__
-	void init(const GPULayerDoublets* doublets, const int layerId, const int doubletId, const int innerHitId, const int outerHitId)
+	void init(const GPULayerDoublets* doublets,  int layerId, int doubletId, int innerHitId, int outerHitId)
     {
-        theCAState = 0;
+
         theInnerHitId = innerHitId;
         theOuterHitId =outerHitId;
-        hasSameStateNeighbors = 0;
+
         theDoublets=doublets;
+
         theDoubletId=doubletId;
         theLayerIdInFourLayers=layerId;
 
@@ -42,9 +43,12 @@ public:
 
         theInnerZ=doublets->layers[0].z[doubletId];
         theOuterZ=doublets->layers[1].z[doubletId];
-
     	theInnerR=hypot (theInnerX, theInnerY);
     	theOuterR=hypot (theOuterX, theOuterY);
+
+    	printf("theInnerHitId %d, theOuterHitId %d, theDoubletId %d, theInnerX %f, theOuterX %f \n",
+    			theInnerHitId , theOuterHitId , theDoubletId , theInnerX , theOuterX);
+
 
     }
 
@@ -151,22 +155,10 @@ public:
         }
 
     }
-    __device__
-    unsigned int get_CA_state() const {
-        return theCAState;
-    }
-
-    // if there is at least one left neighbor with the same state (friend), the state has to be increased by 1.
-    __device__
-    void update_state() {
-        theCAState += hasSameStateNeighbors;
-    }
 
 
-    __device__
-    bool is_root_cell(const unsigned int minimumCAState) const {
-        return (theCAState >= minimumCAState);
-    }
+
+
 
     // trying to free the track building process from hardcoded layers, leaving the visit of the graph
     // based on the neighborhood connections between cells.
@@ -175,7 +167,7 @@ public:
     __device__
     void find_ntuplets(
         GPUSimpleVector<maxNumberOfQuadruplets,GPUSimpleVector<4, int>>* foundNtuplets, 
-        GPUArena<numberOfLayers-2,4,GPUCACell<numberOfLayers>>& theInnerNeighbors,  
+        GPUArena<numberOfLayers-2,16,GPUCACell<numberOfLayers>>& theInnerNeighbors,
         GPUSimpleVector<4, GPUCACell<4>*>& tmpNtuplet, 
         const unsigned int minHitsPerNtuplet
     ) const {
@@ -184,7 +176,7 @@ public:
         // it has no right neighbor
         // it has no compatible neighbor
         // the ntuplets is then saved if the number of hits it contains is greater than a threshold
-        GPUArenaIterator<4, GPUCACell<numberOfLayers>> innerNeighborsIterator = theInnerNeighbors.iterator(theLayerIdInFourLayers,theDoubletId);
+        GPUArenaIterator<16, GPUCACell<numberOfLayers>> innerNeighborsIterator = theInnerNeighbors.iterator(theLayerIdInFourLayers,theDoubletId);
         GPUCACell<numberOfLayers>* otherCell;
         GPUSimpleVector<4, int> found;
 
@@ -217,10 +209,8 @@ public:
 
 private:
 
-    unsigned int theCAState;
     unsigned int theInnerHitId;
     unsigned int theOuterHitId;
-    unsigned int hasSameStateNeighbors;
     const GPULayerDoublets* theDoublets;
     int theDoubletId;
     int theLayerIdInFourLayers;

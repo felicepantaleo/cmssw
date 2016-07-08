@@ -88,6 +88,8 @@ void CAHitQuadrupletGenerator::hitQuadruplets(const TrackingRegion& region, Orde
       auto it = gpuDoubletMap.find(layersPair);
       if (it == gpuDoubletMap.end()) {
         auto const & h_doublets = thePairGenerator.doublets(region, ev, es, inner, outer);
+
+        std::cout<< "numberOfDoublets" << h_doublets.size()<< " layers j "<< j << "layer i "<< i<<std::endl;
         auto const & d_doublets = copy_doublets_to_gpu(h_doublets, gpuHitsMap[inner.name()], gpuHitsMap[outer.name()]);
         std::tie(it, std::ignore) = gpuDoubletMap.insert(std::make_pair(layersPair, d_doublets));
       }
@@ -130,7 +132,7 @@ CAHitQuadrupletGenerator::findQuadruplets (const TrackingRegion& region, Ordered
   declareDynArray(bool, 4, barrels);
 
   unsigned int numberOfFoundQuadruplets = foundQuadruplets.size();
-
+  std::cout << "I have found " << numberOfFoundQuadruplets << " quadruplets" << std::endl;
   // Loop over quadruplets
   for (unsigned int quadId = 0; quadId < numberOfFoundQuadruplets; ++quadId)
   {
