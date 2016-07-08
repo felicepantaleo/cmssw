@@ -98,6 +98,11 @@ void CAHitQuadrupletGenerator::hitQuadruplets(const TrackingRegion& region, Orde
     findQuadruplets(region, result, ev, es, layers[j], layersDoublets);
   }
 
+  for (auto & kayval: gpuDoubletMap)
+    free_gpu_doublets(kayval.second);
+  for (auto & kayval: gpuHitsMap)
+    free_gpu_hits(kayval.second);
+
   theLayerCache.clear();
 }
 
