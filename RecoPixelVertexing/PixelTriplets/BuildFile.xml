@@ -19,5 +19,5 @@
 </export>
 
 <flags   CXXFLAGS="-Ofast -fno-math-errno"/>
-<flags   CUDAFLAGS="-std=c++11"/>
+<flags   CUDAFLAGS="-std=c++11 -g -G -lineinfo"/>
 

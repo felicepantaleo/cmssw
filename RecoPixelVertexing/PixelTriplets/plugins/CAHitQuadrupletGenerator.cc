@@ -92,6 +92,7 @@ void CAHitQuadrupletGenerator::hitQuadruplets(const TrackingRegion& region, Orde
         std::tie(it, std::ignore) = gpuDoubletMap.insert(std::make_pair(layersPair, d_doublets));
       }
       layersDoublets[i] = & it->second;
+      std::cout << " layersDoublets " << i << " " << layersDoublets[i] << std::endl;
     }
 
     findQuadruplets(region, result, ev, es, layers[j], layersDoublets);

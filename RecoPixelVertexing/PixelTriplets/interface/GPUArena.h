@@ -136,6 +136,9 @@ class GPUArena {
         numElementsPerLayer[layer] = pNumElementsPerLayer[layer];
         //each element implicitly gets its own initial chunk
         size_t mapSizeInBytes = sizeof(GPUChunk<CHUNK_SIZE, T>*) * numElementsPerLayer[layer];
+        std::cout << "layer, NumLayers" << layer << ", " << NumLayers << std::endl;
+        std::cout << "Allocating: " << mapSizeInBytes
+                  << " out of nElements: " << numElementsPerLayer[layer] << std::endl;
         checkCudaError(cudaMalloc(&mappingIdToCurrentChunk[layer], mapSizeInBytes));
 
         init_mappings_kernel<<<64, 16>>>(mappingIdToCurrentChunk[layer], chunks, offset, numElementsPerLayer[layer]);
