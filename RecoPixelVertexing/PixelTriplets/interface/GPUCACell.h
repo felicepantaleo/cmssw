@@ -24,13 +24,14 @@ public:
     }
 
     __device__
-	void init(const GPULayerDoublets* doublets, const int layerId, const int doubletId, const int innerHitId, const int outerHitId)
+	void init(const GPULayerDoublets* doublets,  int layerId, int doubletId, int innerHitId, int outerHitId)
     {
-        theCAState = 0;
+
         theInnerHitId = innerHitId;
         theOuterHitId =outerHitId;
-        hasSameStateNeighbors = 0;
+
         theDoublets=doublets;
+
         theDoubletId=doubletId;
         theLayerIdInFourLayers=layerId;
 
@@ -42,7 +43,6 @@ public:
 
         theInnerZ=doublets->layers[0].z[doubletId];
         theOuterZ=doublets->layers[1].z[doubletId];
-
     	theInnerR=hypot (theInnerX, theInnerY);
     	theOuterR=hypot (theOuterX, theOuterY);
 
@@ -151,22 +151,10 @@ public:
         }
 
     }
-    __device__
-    unsigned int get_CA_state() const {
-        return theCAState;
-    }
-
-    // if there is at least one left neighbor with the same state (friend), the state has to be increased by 1.
-    __device__
-    void update_state() {
-        theCAState += hasSameStateNeighbors;
-    }
 
 
-    __device__
-    bool is_root_cell(const unsigned int minimumCAState) const {
-        return (theCAState >= minimumCAState);
-    }
+
+
 
     // trying to free the track building process from hardcoded layers, leaving the visit of the graph
     // based on the neighborhood connections between cells.
@@ -217,10 +205,8 @@ public:
 
 private:
 
-    unsigned int theCAState;
     unsigned int theInnerHitId;
     unsigned int theOuterHitId;
-    unsigned int hasSameStateNeighbors;
     const GPULayerDoublets* theDoublets;
     int theDoubletId;
     int theLayerIdInFourLayers;
