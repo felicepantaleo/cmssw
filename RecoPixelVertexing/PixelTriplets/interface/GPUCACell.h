@@ -169,7 +169,8 @@ public:
     __device__
     void find_ntuplets(
         GPUSimpleVector<maxNumberOfQuadruplets,GPUSimpleVector<4, int>>* foundNtuplets, 
-        GPUArena<numberOfLayers-2,16,GPUCACell<numberOfLayers>>& theInnerNeighbors,
+        //GPUArena<numberOfLayers-2,16,GPUCACell<numberOfLayers>>& theInnerNeighbors,
+        GPUSimpleVector<16, GPUCACell<numberOfLayers>* > ** theInnerNeighbors,
         GPUSimpleVector<4, GPUCACell<4>*>& tmpNtuplet, 
         const unsigned int minHitsPerNtuplet
     ) const {
@@ -178,11 +179,12 @@ public:
         // it has no right neighbor
         // it has no compatible neighbor
         // the ntuplets is then saved if the number of hits it contains is greater than a threshold
-        GPUArenaIterator<16, GPUCACell<numberOfLayers>> innerNeighborsIterator = theInnerNeighbors.iterator(theLayerIdInFourLayers,theDoubletId);
+        //GPUArenaIterator<16, GPUCACell<numberOfLayers>> innerNeighborsIterator = theInnerNeighbors.iterator(theLayerIdInFourLayers,theDoubletId);
         GPUCACell<numberOfLayers>* otherCell;
         GPUSimpleVector<4, int> found;
-
-        if (innerNeighborsIterator.has_next() == 0) {
+        
+        //if (innerNeighborsIterator.has_next() == 0) {
+        if (theInnerNeighbors[theLayerIdInFourLayers-1][theDoubletId].size() == 0) {
             if (tmpNtuplet.size() >= minHitsPerNtuplet - 1) {
                 found.reset();
                 found.push_back(tmpNtuplet.m_data[0]->get_inner_hit_id());
@@ -196,9 +198,11 @@ public:
         } else {
 
 
-          while (innerNeighborsIterator.has_next())
+          //while (innerNeighborsIterator.has_next())
+          for (int j = 0; j < theInnerNeighbors[theLayerIdInFourLayers-1][theDoubletId].size(); ++j)
           {
-            otherCell = innerNeighborsIterator.get_next();
+            //otherCell = innerNeighborsIterator.get_next();
+            otherCell = theInnerNeighbors[theLayerIdInFourLayers-1][theDoubletId].m_data[j];
             tmpNtuplet.push_back(otherCell);
             otherCell->find_ntuplets(foundNtuplets, theInnerNeighbors, tmpNtuplet, minHitsPerNtuplet);
             tmpNtuplet.pop_back();

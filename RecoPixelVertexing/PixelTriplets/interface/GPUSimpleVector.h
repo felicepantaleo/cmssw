@@ -12,9 +12,24 @@ struct GPUSimpleVector
 		{
 			m_data[previousSize] = element;
 			return previousSize;
-		} else
+		} else {
+			--m_size;
 			return -1;
+                }
 	};
+
+	__inline__ __device__
+        int push_back_ts(const T& element) {
+		auto previousSize = atomicAdd(&m_size, 1);
+		if(previousSize<maxSize)
+		{
+			m_data[previousSize] = element;
+			return previousSize;
+		} else {
+			atomicSub(&m_size, 1);
+			return -1;
+                }
+        };
 
 	__inline__ __device__
 	T pop_back() {
