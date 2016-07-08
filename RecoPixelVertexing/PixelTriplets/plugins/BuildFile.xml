@@ -2,6 +2,7 @@
 <use   name="RecoPixelVertexing/PixelTriplets"/>
 <use   name="RecoTracker/TkSeedingLayers"/>
 <use   name="RecoPixelVertexing/PixelTrackFitting"/>
+<use   name="cuda"/>
 <library   file="*.cc" name="RecoPixelVertexingPixelTripletsPlugins">
   <flags   EDM_PLUGIN="1"/>
 </library>

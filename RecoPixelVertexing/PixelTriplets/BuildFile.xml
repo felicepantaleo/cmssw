@@ -1,3 +1,4 @@
+<use   name="cuda"/>
 <use   name="FWCore/Framework"/>
 <use   name="FWCore/ParameterSet"/>
 <use   name="FWCore/PluginManager"/>
@@ -11,9 +12,12 @@
 <use   name="RecoTracker/TkSeedingLayers"/>
 <use   name="TrackingTools/TransientTrackingRecHit"/>
 <use   name="RecoTracker/TkSeedGenerator"/>
+<use   name="cuda"/>
 <use   name="vdt_headers"/>
 <export>
   <lib   name="1"/>
 </export>
 
 <flags   CXXFLAGS="-Ofast -fno-math-errno"/>
+<flags   CUDAFLAGS="-std=c++11 -g -G -lineinfo"/>
+
