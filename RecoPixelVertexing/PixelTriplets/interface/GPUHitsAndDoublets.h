@@ -48,6 +48,8 @@ GPULayerDoublets copy_doublets_to_gpu(HitDoublets const & doublets, GPULayerHits
   auto memsize = d_doublets.size * sizeof(int) * 2;
   cudaMalloc(& d_doublets.indices, memsize);
   cudaMemcpy(d_doublets.indices, doublets.indices().data(), memsize, cudaMemcpyHostToDevice);
+  std::cout << "CPU doublet 0 " << doublets.r(0, HitDoublets::inner) << " " << doublets.r(0, HitDoublets::outer) << " inner, outer " <<doublets.innerHitId(0)
+		  << " " <<doublets.outerHitId(0) << std::endl;
   return d_doublets;
 }
 

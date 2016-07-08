@@ -34,20 +34,20 @@ public:
 
         theDoubletId=doubletId;
         theLayerIdInFourLayers=layerId;
+        theInnerX=doublets->layers[0].x[doublets->indices[2*doubletId]];
+        theOuterX=doublets->layers[1].x[doublets->indices[2*doubletId+1]];
 
-        theInnerX=doublets->layers[0].x[doubletId];
-        theOuterX=doublets->layers[1].x[doubletId];
+        theInnerY=doublets->layers[0].y[doublets->indices[2*doubletId]];
+        theOuterY=doublets->layers[1].y[doublets->indices[2*doubletId+1]];
 
-        theInnerY=doublets->layers[0].y[doubletId];
-        theOuterY=doublets->layers[1].y[doubletId];
-
-        theInnerZ=doublets->layers[0].z[doubletId];
-        theOuterZ=doublets->layers[1].z[doubletId];
+        theInnerZ=doublets->layers[0].z[doublets->indices[2*doubletId]];
+        theOuterZ=doublets->layers[1].z[doublets->indices[2*doubletId+1]];
     	theInnerR=hypot (theInnerX, theInnerY);
     	theOuterR=hypot (theOuterX, theOuterY);
 
-    	printf("theInnerHitId %d, theOuterHitId %d, theDoubletId %d, theInnerX %f, theOuterX %f \n",
-    			theInnerHitId , theOuterHitId , theDoubletId , theInnerX , theOuterX);
+    	if(theLayerIdInFourLayers == 1 && theDoubletId == 42)
+    	printf("theLayerIdInFourLayers %d, theInnerHitId %d, theOuterHitId %d, theDoubletId %d, theInnerR %f, theOuterR %f \n",
+    			theLayerIdInFourLayers, theInnerHitId , theOuterHitId , theDoubletId , theInnerR , theOuterR);
 
 
     }
@@ -96,6 +96,8 @@ public:
 
     __device__
     bool check_alignment_and_tag(const GPUCACell<numberOfLayers>* innerCell, const float ptmin, const float region_origin_x, const float region_origin_y, const float region_origin_radius, const float thetaCut, const float phiCut) {
+
+
 
         return (are_aligned_RZ(innerCell, ptmin, thetaCut) && have_similar_curvature(innerCell, region_origin_x, region_origin_y, region_origin_radius, phiCut));
 
