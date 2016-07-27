@@ -13,7 +13,7 @@ template<int numberOfLayers>
 __global__
 void kernel_create(const GPULayerDoublets* gpuDoublets,
 		GPUCACell<numberOfLayers>** cells,
-                GPUSimpleVector<64, GPUCACell<numberOfLayers>* > ** isOuterHitOfCell)
+                GPUSimpleVector<80, GPUCACell<numberOfLayers>* > ** isOuterHitOfCell)
 {
 
 	unsigned int layerPairIndex = blockIdx.y;
@@ -28,7 +28,8 @@ void kernel_create(const GPULayerDoublets* gpuDoublets,
 
 			if(layerPairIndex < 2){
 				isOuterHitOfCell[layerPairIndex][cells[layerPairIndex][i].get_outer_hit_id()].push_back_ts(& (cells[layerPairIndex][i]));
-
+//				if(				isOuterHitOfCell[layerPairIndex][cells[layerPairIndex][i].get_outer_hit_id()].size() >100)
+//					printf("size is outer hit > 80!");
 			}
 		}
 	}
@@ -39,9 +40,9 @@ template<int numberOfLayers>
 __global__
 void kernel_connect(const GPULayerDoublets* gpuDoublets,
 		GPUCACell<numberOfLayers>** cells,
-		//GPUArena<numberOfLayers-1, 64, GPUCACell<numberOfLayers>> isOuterHitOfCell,
-		//GPUArena<numberOfLayers-2, 64, GPUCACell<numberOfLayers>> innerNeighbors,
-                GPUSimpleVector<64, GPUCACell<numberOfLayers>* > ** isOuterHitOfCell,
+		//GPUArena<numberOfLayers-1, 80, GPUCACell<numberOfLayers>> isOuterHitOfCell,
+		//GPUArena<numberOfLayers-2, 80, GPUCACell<numberOfLayers>> innerNeighbors,
+                GPUSimpleVector<80, GPUCACell<numberOfLayers>* > ** isOuterHitOfCell,
 		float ptmin,
 		float region_origin_x,
 		float region_origin_y,
@@ -67,6 +68,9 @@ void kernel_connect(const GPULayerDoublets* gpuDoublets,
         	   {
 				//innerNeighbors.push_back(layerPairIndex,i,otherCell);
         		   	   cells[layerPairIndex][i].theInnerNeighbors.push_back_ts(otherCell);
+//        		   	if(cells[layerPairIndex][i].theInnerNeighbors.size()>60)
+//    					printf("size of neighbors %d > 40!", cells[layerPairIndex][i].theInnerNeighbors.size());
+
         	   }
 			}
 		}
@@ -78,7 +82,7 @@ __global__
 void kernel_find_ntuplets(const GPULayerDoublets* gpuDoublets,
 		GPUCACell<numberOfLayers>** cells,
 		GPUSimpleVector<maxNumberOfQuadruplets, int4>* foundNtuplets,
-		//GPUArena<numberOfLayers-2, 64, GPUCACell<numberOfLayers>> theInnerNeighbors,
+		//GPUArena<numberOfLayers-2, 80, GPUCACell<numberOfLayers>> theInnerNeighbors,
 		unsigned int minHitsPerNtuplet)
 {
 
@@ -107,8 +111,8 @@ void GPUCellularAutomaton<theNumberOfLayers, maxNumberOfQuadruplets>::run(
 		std::array<const GPULayerDoublets *, theNumberOfLayers - 1> const & doublets,
 		std::vector<std::array<int, 4>> & quadruplets)
 {
-        GPUSimpleVector<64, GPUCACell<theNumberOfLayers>* > * hostIsOuterHitOfCell[theNumberOfLayers-2];
-        GPUSimpleVector<64, GPUCACell<theNumberOfLayers>* > ** isOuterHitOfCell;
+//        GPUSimpleVector<80, GPUCACell<theNumberOfLayers>* > * hostIsOuterHitOfCell[theNumberOfLayers-2];
+//       GPUSimpleVector<80, GPUCACell<theNumberOfLayers>* > ** isOuterHitOfCell;
 
 	int numberOfChunksIn1stArena = 0;
 	std::array<int, theNumberOfLayers - 1> numberOfKeysIn1stArena;
@@ -130,16 +134,26 @@ void GPUCellularAutomaton<theNumberOfLayers, maxNumberOfQuadruplets>::run(
 
 	}
 
+
+    GPUSimpleVector<80, GPUCACell<theNumberOfLayers>* > ** isOuterHitOfCell;
+	cudaMallocManaged(&isOuterHitOfCell,
+			(theNumberOfLayers - 2) * sizeof(GPUSimpleVector<80, GPUCACell<theNumberOfLayers>* > *));
+
+	for (unsigned int i = 0; i < theNumberOfLayers - 2; ++i)
+			checkCudaError(cudaMallocManaged(&isOuterHitOfCell[i],
+							numberOfKeysIn1stArena[i] * sizeof(GPUSimpleVector<80, GPUCACell<theNumberOfLayers>* > )));
+
+
         /*
-	GPUArena<theNumberOfLayers - 1, 64, GPUCACell<theNumberOfLayers>> isOuterHitOfCell(
+	GPUArena<theNumberOfLayers - 1, 80, GPUCACell<theNumberOfLayers>> isOuterHitOfCell(
 			numberOfChunksIn1stArena, numberOfKeysIn1stArena);
         */
-        cudaMalloc(& hostIsOuterHitOfCell[0], numberOfKeysIn1stArena[0] * sizeof(GPUSimpleVector<64, GPUCACell<theNumberOfLayers>* >) );
-        cudaMemset(hostIsOuterHitOfCell[0], 0, numberOfKeysIn1stArena[0] * sizeof(GPUSimpleVector<64, GPUCACell<theNumberOfLayers>* >) );
-        cudaMalloc(& hostIsOuterHitOfCell[1], numberOfKeysIn1stArena[1] * sizeof(GPUSimpleVector<64, GPUCACell<theNumberOfLayers>* >) );
-        cudaMemset(hostIsOuterHitOfCell[1], 0, numberOfKeysIn1stArena[1] * sizeof(GPUSimpleVector<64, GPUCACell<theNumberOfLayers>* >) );
-        cudaMalloc(& isOuterHitOfCell, 2 * sizeof(void*));
-        cudaMemcpy(isOuterHitOfCell, hostIsOuterHitOfCell, 2 * sizeof(void*), cudaMemcpyHostToDevice);
+//        cudaMalloc(& hostIsOuterHitOfCell[0], numberOfKeysIn1stArena[0] * sizeof(GPUSimpleVector<80, GPUCACell<theNumberOfLayers>* >) );
+//        cudaMemset(hostIsOuterHitOfCell[0], 0, numberOfKeysIn1stArena[0] * sizeof(GPUSimpleVector<80, GPUCACell<theNumberOfLayers>* >) );
+//        cudaMalloc(& hostIsOuterHitOfCell[1], numberOfKeysIn1stArena[1] * sizeof(GPUSimpleVector<80, GPUCACell<theNumberOfLayers>* >) );
+//        cudaMemset(hostIsOuterHitOfCell[1], 0, numberOfKeysIn1stArena[1] * sizeof(GPUSimpleVector<80, GPUCACell<theNumberOfLayers>* >) );
+//        cudaMalloc(& isOuterHitOfCell, 2 * sizeof(void*));
+//        cudaMemcpy(isOuterHitOfCell, hostIsOuterHitOfCell, 2 * sizeof(void*), cudaMemcpyHostToDevice);
 
 	int numberOfChunksIn2ndArena = 0;
 	std::array<int, theNumberOfLayers - 2> numberOfKeysIn2ndArena;
@@ -149,32 +163,39 @@ void GPUCellularAutomaton<theNumberOfLayers, maxNumberOfQuadruplets>::run(
 		numberOfChunksIn2ndArena += doublets[i - 1]->size;
 	}
         /*
-	GPUArena<theNumberOfLayers - 2, 64, GPUCACell<theNumberOfLayers>> theInnerNeighbors(
+	GPUArena<theNumberOfLayers - 2, 80, GPUCACell<theNumberOfLayers>> theInnerNeighbors(
 			numberOfChunksIn2ndArena, numberOfKeysIn2ndArena);
         */
-//        cudaMalloc(& hostTheInnerNeighbors[0], numberOfKeysIn2ndArena[0] * sizeof(GPUSimpleVector<64, GPUCACell<theNumberOfLayers>* >) );
-//        cudaMemset(hostTheInnerNeighbors[0], 0, numberOfKeysIn2ndArena[0] * sizeof(GPUSimpleVector<64, GPUCACell<theNumberOfLayers>* >) );
-//        cudaMalloc(& hostTheInnerNeighbors[1], numberOfKeysIn2ndArena[1] * sizeof(GPUSimpleVector<64, GPUCACell<theNumberOfLayers>* >) );
-//        cudaMemset(hostTheInnerNeighbors[1], 0, numberOfKeysIn2ndArena[1] * sizeof(GPUSimpleVector<64, GPUCACell<theNumberOfLayers>* >) );
+//        cudaMalloc(& hostTheInnerNeighbors[0], numberOfKeysIn2ndArena[0] * sizeof(GPUSimpleVector<80, GPUCACell<theNumberOfLayers>* >) );
+//        cudaMemset(hostTheInnerNeighbors[0], 0, numberOfKeysIn2ndArena[0] * sizeof(GPUSimpleVector<80, GPUCACell<theNumberOfLayers>* >) );
+//        cudaMalloc(& hostTheInnerNeighbors[1], numberOfKeysIn2ndArena[1] * sizeof(GPUSimpleVector<80, GPUCACell<theNumberOfLayers>* >) );
+//        cudaMemset(hostTheInnerNeighbors[1], 0, numberOfKeysIn2ndArena[1] * sizeof(GPUSimpleVector<80, GPUCACell<theNumberOfLayers>* >) );
 //        cudaMalloc(& theInnerNeighbors, 2 * sizeof(void*));
 //        cudaMemcpy(theInnerNeighbors, hostTheInnerNeighbors, 2 * sizeof(void*), cudaMemcpyHostToDevice);
 //	cudaDeviceSynchronize();
 
 	GPUCACell < theNumberOfLayers > **theCells;
-	cudaMalloc(&theCells,
+	cudaMallocManaged(&theCells,
 			(theNumberOfLayers - 1) * sizeof(GPUCACell<theNumberOfLayers> *));
 
-	GPUCACell < theNumberOfLayers > *hostCells[theNumberOfLayers - 1];
-
 	for (unsigned int i = 0; i < theNumberOfLayers - 1; ++i)
-		checkCudaError(
-				cudaMalloc(&hostCells[i],
-						doublets[i]->size
-								* sizeof(GPUCACell<theNumberOfLayers> )));
+			checkCudaError(
+					cudaMallocManaged(&theCells[i],
+							doublets[i]->size
+									* sizeof(GPUCACell<theNumberOfLayers> )));
 
-	cudaMemcpy(theCells, hostCells,
-			(theNumberOfLayers - 1) * sizeof(GPUCACell<theNumberOfLayers> *),
-			cudaMemcpyHostToDevice);
+
+//	GPUCACell < theNumberOfLayers > *hostCells[theNumberOfLayers - 1];
+//
+//	for (unsigned int i = 0; i < theNumberOfLayers - 1; ++i)
+//		checkCudaError(
+//				cudaMalloc(&hostCells[i],
+//						doublets[i]->size
+//								* sizeof(GPUCACell<theNumberOfLayers> )));
+
+//	cudaMemcpy(theCells, hostCells,
+//			(theNumberOfLayers - 1) * sizeof(GPUCACell<theNumberOfLayers> *),
+//			cudaMemcpyHostToDevice);
 
 	GPUSimpleVector<maxNumberOfQuadruplets, int4>* foundNtuplets;
 	checkCudaError(
@@ -185,21 +206,26 @@ void GPUCellularAutomaton<theNumberOfLayers, maxNumberOfQuadruplets>::run(
 	checkLastCudaError();
 
 	kernel_create<<<dim3(100,3),512>>>(gpu_doublets, theCells, isOuterHitOfCell);
-	checkLastCudaError();
 
 	kernel_connect<<<dim3(100,2),512>>>(gpu_doublets, theCells, isOuterHitOfCell, thePtMin, theRegionOriginX, theRegionOriginY, theRegionOriginRadius, theThetaCut, thePhiCut);
-	checkLastCudaError();
 
-	kernel_find_ntuplets<<<16,1024>>>(gpu_doublets, theCells, foundNtuplets, 4);
-	cudaDeviceSynchronize();
+
+	kernel_find_ntuplets<<<64,128>>>(gpu_doublets, theCells, foundNtuplets, 4);
+	cudaStreamSynchronize(0);
 
 	quadruplets.resize(foundNtuplets->size());
 	memcpy(quadruplets.data(), foundNtuplets->m_data, foundNtuplets->size() * sizeof(std::array<int, 4>));
+//	std::cout << "found quadruplets: " << foundNtuplets->size() << std::endl;
 
-  cudaFree(foundNtuplets);
   for (unsigned int i = 0; i< theNumberOfLayers-1; ++i)
-    cudaFree(hostCells[i]);
-  cudaFree(theCells);
+    cudaFree(theCells[i]);
+
+	for (unsigned int i = 0; i < theNumberOfLayers - 2; ++i)
+				cudaFree(isOuterHitOfCell[i]);
+
+	cudaFree(foundNtuplets);
+	cudaFree(theCells);
+	cudaFree(isOuterHitOfCell);
 }
 
-template class GPUCellularAutomaton<4, 1000> ;
+template class GPUCellularAutomaton<4, 2000> ;

@@ -202,7 +202,7 @@ public:
 			GPUSimpleVector<maxNumberOfQuadruplets,int4>* foundNtuplets,
 			//GPUArena<numberOfLayers-2,64,GPUCACell<numberOfLayers>>& theInnerNeighbors,
 //        GPUSimpleVector<64, GPUCACell<numberOfLayers>* > ** theInnerNeighbors,
-			GPUSimpleVector<4, GPUCACell<4>*>& tmpNtuplet,
+			GPUSimpleVector<4, GPUCACell<numberOfLayers>*>& tmpNtuplet,
 			const unsigned int minHitsPerNtuplet
 	) const
 	{
@@ -211,30 +211,30 @@ public:
 		// it has no right neighbor
 		// it has no compatible neighbor
 		// the ntuplets is then saved if the number of hits it contains is greater than a threshold
-		//GPUArenaIterator<64, GPUCACell<numberOfLayers>> innerNeighborsIterator = theInnerNeighbors.iterator(theLayerIdInFourLayers,theDoubletId);
+
 		GPUCACell<numberOfLayers>* otherCell;
 		int4 found;
-		//if (innerNeighborsIterator.has_next() == 0) {
 		if (theInnerNeighbors.size() == 0)
 		{
 			if (tmpNtuplet.size() >= minHitsPerNtuplet - 1)
 			{
+
 				found.x=tmpNtuplet.m_data[2]->get_inner_hit_id();
 				found.y=tmpNtuplet.m_data[2]->get_outer_hit_id();
 				found.z=tmpNtuplet.m_data[1]->get_outer_hit_id();
 				found.w=tmpNtuplet.m_data[0]->get_outer_hit_id();
-				foundNtuplets->push_back(found);
+				foundNtuplets->push_back_ts(found);
 			}
 			else
 			return;
 		}
 		else
 		{
-			//while (innerNeighborsIterator.has_next())
+
 			for (int j = 0; j < theInnerNeighbors.size(); ++j)
 			{
 
-				//otherCell = innerNeighborsIterator.get_next();
+
 				otherCell = theInnerNeighbors.m_data[j];
 				tmpNtuplet.push_back(otherCell);
 				otherCell->find_ntuplets(foundNtuplets, tmpNtuplet, minHitsPerNtuplet);
@@ -244,7 +244,7 @@ public:
 
 		}
 	}
-	GPUSimpleVector<64, GPUCACell<numberOfLayers>*> theInnerNeighbors;
+	GPUSimpleVector<40, GPUCACell<numberOfLayers>*> theInnerNeighbors;
 
 private:
 
