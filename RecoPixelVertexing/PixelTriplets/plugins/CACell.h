@@ -147,11 +147,6 @@ public:
 
         }
 
-
-
-
-
-
         //87 cm/GeV = 1/(3.8T * 0.3)
 
         //take less than radius given by the ptmin and reject everything below
