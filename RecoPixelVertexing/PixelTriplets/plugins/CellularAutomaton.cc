@@ -98,7 +98,6 @@ void CellularAutomaton<numberOfLayers>::createAndConnectCells (std::array<const 
       {
        if( cellsOnLayer[i].areNeighbors(neigCell, ptmin, region_origin_x, region_origin_y, region_origin_radius, thetaCut, phiCut))
     	   foundTriplets.emplace_back(CACell::CAntuplet{neigCell,&(cellsOnLayer[i])});
-
       }
     }
   }
@@ -171,58 +170,6 @@ CellularAutomaton<numberOfLayers>::findNtuplets(std::vector<CACell::CAntuplet>& 
 
 }
 
-
-template <unsigned int numberOfLayers>
-void CellularAutomaton<numberOfLayers>::createAndConnectCells (std::array<const HitDoublets*, numberOfLayers-1> doublets, const SeedingLayerSetsHits::SeedingLayerSet& fourLayers,std::vector<CACell::CAntuplet>& foundTriplets, const TrackingRegion& region, const float thetaCut, const float phiCut)
-{
-  unsigned int cellId = 0;
-  constexpr unsigned int numberOfLayerPairs =   numberOfLayers - 1;
-  float ptmin = region.ptMin();
-  float region_origin_x = region.origin().x();
-  float region_origin_y = region.origin().y();
-  float region_origin_radius = region.originRBound();
-  unsigned int layerPairId = 0;
-  auto innerLayerId = layerPairId;
-  auto outerLayerId = innerLayerId + 1;
-  auto & doubletLayerPairId = doublets[layerPairId];
-  auto numberOfDoublets = doubletLayerPairId->size ();
-  auto & cellsOnLayer = theFoundCellsPerLayer[layerPairId];
-
-  isOuterHitOfCell[outerLayerId].resize(fourLayers[outerLayerId].hits().size());
-
-  cellsOnLayer.reserve (numberOfDoublets);
-  for (unsigned int i = 0; i < numberOfDoublets; ++i)
-  {
-    cellsOnLayer.emplace_back (doubletLayerPairId, i,  cellId,  doubletLayerPairId->innerHitId(i), doubletLayerPairId->outerHitId(i));
-
-    isOuterHitOfCell[outerLayerId][doubletLayerPairId->outerHitId(i)].push_back (&(cellsOnLayer[i]));
-    cellId++;
-
-  }
-
-  for (layerPairId = 1; layerPairId < numberOfLayerPairs; ++layerPairId)
-  {
-	doubletLayerPairId = doublets[layerPairId];
-    innerLayerId = layerPairId;
-    outerLayerId = innerLayerId + 1;
-    numberOfDoublets =doubletLayerPairId->size ();
-    isOuterHitOfCell[outerLayerId].resize(fourLayers[outerLayerId].hits().size());
-
-    cellsOnLayer.reserve (numberOfDoublets);
-    for (unsigned int i = 0; i < numberOfDoublets; ++i)
-    {
-      cellsOnLayer.emplace_back (doublets[layerPairId], i, cellId, doubletLayerPairId->innerHitId(i), doubletLayerPairId->outerHitId(i));
-      isOuterHitOfCell[outerLayerId][doubletLayerPairId->outerHitId(i)].push_back (&(cellsOnLayer[i]));
-      cellId++;
-      for (auto neigCell : isOuterHitOfCell[innerLayerId][doubletLayerPairId->innerHitId(i)])
-      {
-       if( cellsOnLayer[i].areNeighbors(neigCell, ptmin, region_origin_x, region_origin_y, region_origin_radius, thetaCut, phiCut))
-    	   foundTriplets.emplace_back(CACell::CAntuplet{neigCell,&(cellsOnLayer[i])});
-
-      }
-    }
-  }
-}
 
 
 template class CellularAutomaton<4>;
