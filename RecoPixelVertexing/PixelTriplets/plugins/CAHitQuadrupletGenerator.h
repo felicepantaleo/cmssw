@@ -38,7 +38,7 @@ public:
     virtual ~CAHitQuadrupletGenerator();
 
     /// from base class
-    virtual void hitQuadruplets(const TrackingRegion& reg, OrderedHitSeeds & triplets,
+    virtual void hitQuadruplets(const TrackingRegion& reg, OrderedHitSeeds & quadruplet,
             const edm::Event & ev, const edm::EventSetup& es);
 
     void findQuadruplets(const TrackingRegion& region, OrderedHitSeeds& result,
