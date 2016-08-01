@@ -33,15 +33,12 @@ using namespace ctfseeding;
 CAHitTripletGenerator::CAHitTripletGenerator(const edm::ParameterSet& cfg,
 		edm::ConsumesCollector& iC) :
 		theSeedingLayerToken(
-				iC.consumes < SeedingLayerSetsHits
-						> (cfg.getParameter < edm::InputTag > ("SeedingLayers"))), extraHitRPhitolerance(
-				cfg.getParameter<double>("extraHitRPhitolerance")), //extra window in ThirdHitPredictionFromCircle range (divide by R to get phi)
-		maxChi2(cfg.getParameter < edm::ParameterSet > ("maxChi2")), fitFastCircle(
-				cfg.getParameter<bool>("fitFastCircle")), fitFastCircleChi2Cut(
-				cfg.getParameter<bool>("fitFastCircleChi2Cut")), useBendingCorrection(
-				cfg.getParameter<bool>("useBendingCorrection")), CAThetaCut(
-				cfg.getParameter<double>("CAThetaCut")), CAPhiCut(
-				cfg.getParameter<double>("CAPhiCut"))
+				iC.consumes < SeedingLayerSetsHits> (cfg.getParameter < edm::InputTag > ("SeedingLayers"))),
+				extraHitRPhitolerance(cfg.getParameter<double>("extraHitRPhitolerance")), //extra window in ThirdHitPredictionFromCircle range (divide by R to get phi)
+				maxChi2(cfg.getParameter < edm::ParameterSet > ("maxChi2")),
+				useBendingCorrection(cfg.getParameter<bool>("useBendingCorrection")),
+				CAThetaCut(cfg.getParameter<double>("CAThetaCut")),
+				CAPhiCut(cfg.getParameter<double>("CAPhiCut"))
 {
 	if (cfg.exists("SeedComparitorPSet"))
 	{
@@ -124,15 +121,13 @@ void CAHitTripletGenerator::findTriplets(const TrackingRegion& region,
 
 	const QuantityDependsPtEval maxChi2Eval = maxChi2.evaluator(es);
 
-
-	  // re-used thoughout, need to be vectors because of RZLine interface
-	  std::array<float, 3> bc_r;
-	  std::array<float, 3> bc_z;
-	  std::array<float, 3> bc_errZ2;
-	  std::array<GlobalPoint, 3> gps;
-	  std::array<GlobalError, 3> ges;
-	  std::array<bool, 3> barrels;
-
+	// re-used thoughout, need to be vectors because of RZLine interface
+	std::array<float, 3> bc_r;
+	std::array<float, 3> bc_z;
+	std::array<float, 3> bc_errZ2;
+	std::array < GlobalPoint, 3 > gps;
+	std::array < GlobalError, 3 > ges;
+	std::array<bool, 3> barrels;
 
 	for (unsigned int tripletId = 0; tripletId < numberOfFoundTriplets;
 			++tripletId)
@@ -141,9 +136,6 @@ void CAHitTripletGenerator::findTriplets(const TrackingRegion& region,
 		OrderedHitTriplet tmpTriplet(foundTriplets[tripletId][0]->getInnerHit(),
 				foundTriplets[tripletId][0]->getOuterHit(),
 				foundTriplets[tripletId][1]->getOuterHit());
-
-
-
 
 		auto isBarrel = [](const unsigned id) -> bool
 		{
@@ -171,27 +163,34 @@ void CAHitTripletGenerator::findTriplets(const TrackingRegion& region,
 		const float thisMaxChi2 = maxChi2Eval.value(abscurv);
 		float chi2 = std::numeric_limits<float>::quiet_NaN();
 		// TODO: Do we have any use case to not use bending correction?
-	    if (useBendingCorrection)
-	    {
-	      // Following PixelFitterByConformalMappingAndLine
-	      const float simpleCot = ( gps.back().z() - gps.front().z() ) / (gps.back().perp() - gps.front().perp() );
-	      const float pt = 1.f / PixelRecoUtilities::inversePt(abscurv, es);
-	      for (int i=0; i < 4; ++i)
-	      {
-	        const GlobalPoint & point = gps[i];
-	        const GlobalError & error = ges[i];
-	        bc_r[i] = sqrt( sqr(point.x() - region.origin().x()) + sqr(point.y() - region.origin().y()) );
-	        bc_r[i] += pixelrecoutilities::LongitudinalBendingCorrection(pt, es)(bc_r[i]);
-	        bc_z[i] = point.z() - region.origin().z();
-	        bc_errZ2[i] =  (barrels[i]) ? error.czz() : error.rerr(point)*sqr(simpleCot);
-	      }
-	      RZLine rzLine(bc_r, bc_z, bc_errZ2, RZLine::ErrZ2_tag());
-	      chi2 = rzLine.chi2();
-	    } else
-	    {
-	      RZLine rzLine(gps, ges, barrels);
-	      chi2 = rzLine.chi2();
-	    }
+		if (useBendingCorrection)
+		{
+			const float simpleCot = (gps.back().z() - gps.front().z())
+					/ (gps.back().perp() - gps.front().perp());
+			const float pt = 1.f / PixelRecoUtilities::inversePt(abscurv, es);
+			for (int i = 0; i < 4; ++i)
+			{
+				const GlobalPoint & point = gps[i];
+				const GlobalError & error = ges[i];
+				bc_r[i] = sqrt(
+						sqr(point.x() - region.origin().x())
+								+ sqr(point.y() - region.origin().y()));
+				bc_r[i] += pixelrecoutilities::LongitudinalBendingCorrection(pt,
+						es)(bc_r[i]);
+				bc_z[i] = point.z() - region.origin().z();
+				bc_errZ2[i] =
+						(barrels[i]) ?
+								error.czz() :
+								error.rerr(point) * sqr(simpleCot);
+			}
+			RZLine rzLine(bc_r, bc_z, bc_errZ2, RZLine::ErrZ2_tag());
+			chi2 = rzLine.chi2();
+		}
+		else
+		{
+			RZLine rzLine(gps, ges, barrels);
+			chi2 = rzLine.chi2();
+		}
 		if (edm::isNotFinite(chi2) || chi2 > thisMaxChi2)
 		{
 			continue;

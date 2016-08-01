@@ -126,7 +126,7 @@ private:
     const bool useBendingCorrection;
 
     const float CAThetaCut = 0.00125f;
-    const float CAPhiCut = 10.f;
+    const float CAPhiCut = 1.f;
 
 };
 #endif

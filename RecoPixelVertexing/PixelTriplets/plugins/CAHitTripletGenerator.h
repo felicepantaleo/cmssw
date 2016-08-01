@@ -120,8 +120,6 @@ private:
     const float extraHitRPhitolerance;
 
     const QuantityDependsPt maxChi2;
-    const bool fitFastCircle;
-    const bool fitFastCircleChi2Cut;
     const bool useBendingCorrection;
 
     const float CAThetaCut = 0.00125f;
