@@ -1,22 +1,14 @@
+#include <unordered_map>
 #include "CAHitQuadrupletGenerator.h"
-
 #include "RecoPixelVertexing/PixelTriplets/interface/ThirdHitPredictionFromCircle.h"
-
 #include "RecoPixelVertexing/PixelTriplets/interface/HitQuadrupletGenerator.h"
 #include "LayerQuadruplets.h"
 #include "FWCore/Framework/interface/ConsumesCollector.h"
 #include "FWCore/Framework/interface/Event.h"
 #include "DataFormats/Common/interface/Handle.h"
-
-
 #include "TrackingTools/DetLayers/interface/BarrelDetLayer.h"
-
-
-
 #include "CellularAutomaton.h"
-
 #include "CommonTools/Utils/interface/DynArray.h"
-
 #include "FWCore/Utilities/interface/isFinite.h"
 
 namespace
@@ -69,9 +61,32 @@ void CAHitQuadrupletGenerator::hitQuadruplets(
   const SeedingLayerSetsHits& layers = *hlayers;
   if (layers.numberOfLayersInSet() != 4)
     throw cms::Exception("Configuration") << "CAHitQuadrupletsGenerator expects SeedingLayerSetsHits::numberOfLayersInSet() to be 4, got " << layers.numberOfLayersInSet();
+
+
+  HitPairGeneratorFromLayerPair thePairGenerator(0, 1, &theLayerCache);
+  std::unordered_map < std::string, HitDoublets > doubletsMap;
+  std::array<const HitDoublets*,3> layersDoublets;
+
   for (unsigned int j=0; j < layers.size(); j++)
   {
-    findQuadruplets(region, result, ev, es, layers[j]);
+		for (unsigned int i = 0; i < 3; ++i)
+		{
+			auto const & inner = layers[j][i];
+			auto const & outer = layers[j][i + 1];
+			auto layersPair = inner.name() + '+' + outer.name();
+			auto it = doubletsMap.find(layersPair);
+			if (it == doubletsMap.end())
+			{
+
+				std::tie(it, std::ignore) = doubletsMap.insert(
+						std::make_pair(layersPair, thePairGenerator.doublets(region, ev,
+								es, inner, outer)));
+			}
+			layersDoublets[i] = &it->second;
+
+		}
+
+    findQuadruplets(region, result, ev, es, layers[j], layersDoublets);
   }
 
   theLayerCache.clear();
@@ -80,22 +95,13 @@ void CAHitQuadrupletGenerator::hitQuadruplets(
 void
 CAHitQuadrupletGenerator::findQuadruplets (const TrackingRegion& region, OrderedHitSeeds& result,
                                            const edm::Event& ev, const edm::EventSetup& es,
-                                           const SeedingLayerSetsHits::SeedingLayerSet& fourLayers)
+                                           const SeedingLayerSetsHits::SeedingLayerSet& fourLayers,
+										   const std::array<const HitDoublets*,3> layersDoublets)
 {
   if (theComparitor) theComparitor->init (ev, es);
   HitPairGeneratorFromLayerPair thePairGenerator(0, 1, &theLayerCache);
 
   std::vector<CACell::CAntuplet> foundQuadruplets;
-
-  std::vector<const HitDoublets*> layersDoublets(3);
-
-  HitDoublets doublets0 =  thePairGenerator.doublets(region, ev, es, fourLayers[0], fourLayers[1] );
-  HitDoublets doublets1 =  thePairGenerator.doublets(region, ev, es, fourLayers[1], fourLayers[2] );
-  HitDoublets doublets2 =  thePairGenerator.doublets(region, ev, es, fourLayers[2], fourLayers[3] );
-
-  layersDoublets[0] = &(doublets0);
-  layersDoublets[1] = &(doublets1);
-  layersDoublets[2] = &(doublets2);
 
 
   CellularAutomaton<4> ca;

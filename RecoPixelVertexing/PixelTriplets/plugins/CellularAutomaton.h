@@ -13,11 +13,10 @@ public:
 
     }
 
-    void createAndConnectCells(std::vector<const HitDoublets*>, const SeedingLayerSetsHits::SeedingLayerSet&, const TrackingRegion&, const float, const float);
+    void createAndConnectCells(std::array<const HitDoublets*, theNumberOfLayers-1>, const SeedingLayerSetsHits::SeedingLayerSet&, const TrackingRegion&, const float, const float);
     void evolve();
     void findNtuplets(std::vector<CACell::CAntuplet>&, const unsigned int);
-
-
+    void findTriplets(std::array<const HitDoublets*, theNumberOfLayers-1>, const SeedingLayerSetsHits::SeedingLayerSet&, std::vector<CACell::CAntuplet>&, const TrackingRegion&, const float, const float);
 
 private:
 
