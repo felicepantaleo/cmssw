@@ -98,22 +98,15 @@ public:
 
     }
 
-    void checkAlignmentAndTag(CACell* innerCell, const float ptmin, const float region_origin_x, const float region_origin_y, const float region_origin_radius, const float thetaCut, const float phiCut) {
+	bool areNeighbors(CACell* innerCell, const float ptmin, const float region_origin_x, const float region_origin_y, const float region_origin_radius, const float thetaCut, const float phiCut) {
+    	return areAlignedRZ(innerCell, ptmin, thetaCut) && haveSimilarCurvature(innerCell, ptmin, region_origin_x, region_origin_y, region_origin_radius, phiCut);
 
-        if (areAlignedRZ(innerCell, ptmin, thetaCut) && haveSimilarCurvature(innerCell, ptmin, region_origin_x, region_origin_y, region_origin_radius, phiCut)) {
-            tagAsInnerNeighbor(innerCell);
-            innerCell->tagAsOuterNeighbor(this);
-        }
     }
 
 
-
-    void checkAlignmentAndTag(CACell* innerCell, std::vector<CACell::CAntuplet>& foundTriplets, const float ptmin, const float region_origin_x, const float region_origin_y, const float region_origin_radius, const float thetaCut, const float phiCut) {
-
-        if (areAlignedRZ(innerCell, ptmin, thetaCut) && haveSimilarCurvature(innerCell,ptmin, region_origin_x, region_origin_y, region_origin_radius, phiCut)) {
-        	foundTriplets.emplace_back(CACell::CAntuplet{innerCell,this});
-
-        }
+    void tagNeighbor(CACell* innerCell) {
+    	tagAsInnerNeighbor(innerCell);
+    	innerCell->tagAsOuterNeighbor(this);
     }
 
     bool areAlignedRZ(const CACell* otherCell, const float ptmin, const float thetaCut) const {

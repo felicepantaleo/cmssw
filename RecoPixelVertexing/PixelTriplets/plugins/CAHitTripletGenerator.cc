@@ -118,7 +118,7 @@ void CAHitTripletGenerator::findTriplets(const TrackingRegion& region,
 
 	CellularAutomaton<3> ca;
 
-	ca.findTriplets(layersDoublets, threeLayers, foundTriplets, region,
+	ca.createAndConnectCells(layersDoublets, threeLayers, foundTriplets, region,
 			CAThetaCut, CAPhiCut);
 	unsigned int numberOfFoundTriplets = foundTriplets.size();
 
