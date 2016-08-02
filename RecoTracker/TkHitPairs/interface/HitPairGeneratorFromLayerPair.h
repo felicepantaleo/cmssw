@@ -25,6 +25,8 @@ public:
 
   HitDoublets doublets( const TrackingRegion& reg,
                         const edm::Event & ev,  const edm::EventSetup& es, Layers layers);
+  HitDoublets doublets( const TrackingRegion& reg,
+                        const edm::Event & ev,  const edm::EventSetup& es, const Layer& innerLayer, const Layer& outerLayer);
 
   void hitPairs( const TrackingRegion& reg, OrderedHitPairs & prs,
                  const edm::Event & ev,  const edm::EventSetup& es, Layers layers);
