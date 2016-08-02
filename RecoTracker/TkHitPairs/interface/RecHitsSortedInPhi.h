@@ -146,8 +146,10 @@ public:
   void add (int il, int ol) { indeces.push_back(il);indeces.push_back(ol);}
 
   DetLayer const * detLayer(layer l) const { return layers[l]->layer; }
-
+  int innerHitId(int i) const {return indeces[2*i];}
+  int outerHitId(int i) const {return indeces[2*i+1];}
   Hit const & hit(int i, layer l) const { return layers[l]->theHits[indeces[2*i+l]].hit();}
+  float       r(int i, layer l) const { float xp = x(i,l); float yp = y(i,l);  return sqrt (xp*xp + yp*yp);}
   float       phi(int i, layer l) const { return layers[l]->phi(indeces[2*i+l]);}
   float       rv(int i, layer l) const { return layers[l]->rv(indeces[2*i+l]);}
   float        z(int i, layer l) const { return layers[l]->z[indeces[2*i+l]];}
