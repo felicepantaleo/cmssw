@@ -104,6 +104,22 @@ public:
 
     }
 
+    void checkAlignmentAndTag(CACell* innerCell, const float ptmin, const float region_origin_x, const float region_origin_y, const float region_origin_radius, const float thetaCut, const float phiCut) {
+
+        if (areAlignedRZ(innerCell, ptmin, thetaCut) && haveSimilarCurvature(innerCell,ptmin, region_origin_x, region_origin_y, region_origin_radius, phiCut)) {
+            tagAsInnerNeighbor(innerCell);
+            innerCell->tagAsOuterNeighbor(this);
+        }
+    }
+
+    void checkAlignmentAndPushTriplet(CACell* innerCell, std::vector<CACell::CAntuplet>& foundTriplets, const float ptmin, const float region_origin_x, const float region_origin_y, const float region_origin_radius, const float thetaCut, const float phiCut) {
+
+        if (areAlignedRZ(innerCell, ptmin, thetaCut) && haveSimilarCurvature(innerCell,ptmin, region_origin_x, region_origin_y, region_origin_radius, phiCut)) {
+        	foundTriplets.emplace_back(CACell::CAntuplet{innerCell,this});
+
+        }
+    }
+
 
     void tagNeighbor(CACell* innerCell)
     {
@@ -116,9 +132,13 @@ public:
 
         float r1 = otherCell->getInnerR();
         float z1 = otherCell->getInnerZ();
-        float distance_13_squared = (r1 - theOuterR)*(r1 - theOuterR) + (z1 - theOuterZ)*(z1 - theOuterZ);
+        float radius_diff = fabs(r1 - theOuterR);
+        float distance_13_squared = radius_diff*radius_diff + (z1 - theOuterZ)*(z1 - theOuterZ);
+
+        float pMin = ptmin*sqrt(distance_13_squared); //this needs to be divided by radius_diff later
+
         float tan_12_13_half_mul_distance_13_squared = fabs(z1 * (theInnerR - theOuterR) + theInnerZ * (theOuterR - r1) + theOuterZ * (r1 - theInnerR)) ;
-        return tan_12_13_half_mul_distance_13_squared * ptmin <= thetaCut * distance_13_squared;
+        return tan_12_13_half_mul_distance_13_squared * pMin <= thetaCut * distance_13_squared * radius_diff;
     }
 
     void tagAsOuterNeighbor(CACell* otherCell)
@@ -156,7 +176,7 @@ public:
         //87 cm/GeV = 1/(3.8T * 0.3)
 
         //take less than radius given by the ptmin and reject everything below
-        float minRadius = ptmin*80.f;
+        float minRadius = ptmin*50.f;
 
         auto det = (x1 - x2) * (y2 - y3) - (x2 - x3) * (y1 - y2);
 

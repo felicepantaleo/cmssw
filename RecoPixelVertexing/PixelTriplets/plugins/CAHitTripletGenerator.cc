@@ -116,7 +116,7 @@ void CAHitTripletGenerator::findTriplets(const TrackingRegion& region,
 
 	CellularAutomaton<3> ca;
 
-	ca.createAndConnectCells(layersDoublets, threeLayers, foundTriplets, region,
+	ca.findTriplets(layersDoublets, threeLayers, foundTriplets, region,
 			CAThetaCut, CAPhiCut);
 	unsigned int numberOfFoundTriplets = foundTriplets.size();
 
@@ -128,7 +128,6 @@ void CAHitTripletGenerator::findTriplets(const TrackingRegion& region,
 	std::vector<GlobalPoint> gps(3);
 	std::vector<GlobalError> ges(3);
 	std::vector<bool> barrels(3);
-
 
 	for (unsigned int tripletId = 0; tripletId < numberOfFoundTriplets;
 			++tripletId)
@@ -157,6 +156,8 @@ void CAHitTripletGenerator::findTriplets(const TrackingRegion& region,
 		gps[2] = ahit->globalPosition();
 		ges[2] = ahit->globalPositionError();
 		barrels[2] = isBarrel(ahit->geographicalId().subdetId());
+
+
 
 		PixelRecoLineRZ line(gps[0], gps[2]);
 		ThirdHitPredictionFromCircle predictionRPhi(gps[0], gps[2],
@@ -200,6 +201,7 @@ void CAHitTripletGenerator::findTriplets(const TrackingRegion& region,
 			rzLine.fit(cottheta, intercept, covss, covii, covsi);
 			chi2 = rzLine.chi2(cottheta, intercept);
 		}
+
 		if (edm::isNotFinite(chi2) || chi2 > thisMaxChi2)
 		{
 			continue;
@@ -210,6 +212,8 @@ void CAHitTripletGenerator::findTriplets(const TrackingRegion& region,
 		{
 			if (!theComparitor->compatible(tmpTriplet, region))
 			{
+
+
 				continue;
 			}
 		}
@@ -218,6 +222,5 @@ void CAHitTripletGenerator::findTriplets(const TrackingRegion& region,
 
 
 	}
-
 }
 
