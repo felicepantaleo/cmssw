@@ -8,7 +8,7 @@ CAHitTripletGenerator = cms.PSet(
         value1 = cms.double(50), value2 = cms.double(8),
         enabled = cms.bool(True),
     ),
-    useBendingCorrection = cms.bool(True),
+    useBendingCorrection = cms.bool(False),
     CAThetaCut = cms.double(0.00125),
     CAPhiCut = cms.double(1),
 )

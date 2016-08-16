@@ -117,7 +117,7 @@ void CAHitTripletGenerator::findTriplets(const TrackingRegion& region,
 
 
 
-	ca.createAndConnectCells(layersDoublets, threeLayers, foundTriplets, region,
+	ca.findTriplets(layersDoublets, threeLayers, foundTriplets, region,
 			CAThetaCut, CAPhiCut);
 	unsigned int numberOfFoundTriplets = foundTriplets.size();
 	const QuantityDependsPtEval maxChi2Eval = maxChi2.evaluator(es);
