@@ -71,6 +71,7 @@ void CAHitTripletGenerator::hitTriplets(const TrackingRegion& region,
 				<< "CAHitTripletGenerator expects SeedingLayerSetsHits::numberOfLayersInSet() to be 3, got "
 				<< layers.numberOfLayersInSet();
 
+
 	HitPairGeneratorFromLayerPair thePairGenerator(0, 1, &theLayerCache);
 	std::unordered_map<std::string, HitDoublets> doubletsMap;
 	std::array<const HitDoublets*, 2> layersDoublets;
@@ -112,13 +113,13 @@ void CAHitTripletGenerator::findTriplets(const TrackingRegion& region,
 	HitPairGeneratorFromLayerPair thePairGenerator(0, 1, &theLayerCache);
 
 	std::vector<CACell::CAntuplet> foundTriplets;
-
 	CellularAutomaton<3> ca;
+
+
 
 	ca.createAndConnectCells(layersDoublets, threeLayers, foundTriplets, region,
 			CAThetaCut, CAPhiCut);
 	unsigned int numberOfFoundTriplets = foundTriplets.size();
-
 	const QuantityDependsPtEval maxChi2Eval = maxChi2.evaluator(es);
 
 	// re-used thoughout, need to be vectors because of RZLine interface
@@ -168,7 +169,7 @@ void CAHitTripletGenerator::findTriplets(const TrackingRegion& region,
 			const float simpleCot = (gps.back().z() - gps.front().z())
 					/ (gps.back().perp() - gps.front().perp());
 			const float pt = 1.f / PixelRecoUtilities::inversePt(abscurv, es);
-			for (int i = 0; i < 4; ++i)
+			for (int i = 0; i < 3; ++i)
 			{
 				const GlobalPoint & point = gps[i];
 				const GlobalError & error = ges[i];
@@ -185,6 +186,7 @@ void CAHitTripletGenerator::findTriplets(const TrackingRegion& region,
 			}
 			RZLine rzLine(bc_r, bc_z, bc_errZ2, RZLine::ErrZ2_tag());
 			chi2 = rzLine.chi2();
+			std::cout << chi2 << std::endl;
 		}
 		else
 		{
@@ -208,6 +210,6 @@ void CAHitTripletGenerator::findTriplets(const TrackingRegion& region,
 		result.push_back(tmpTriplet);
 
 	}
-
+	std::cout << "result size: " << result.size() << std::endl;
 }
 

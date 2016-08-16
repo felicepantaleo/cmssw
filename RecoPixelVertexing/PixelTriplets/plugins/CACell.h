@@ -98,18 +98,21 @@ public:
 
     }
 
-	bool areNeighbors(CACell* innerCell, const float ptmin, const float region_origin_x, const float region_origin_y, const float region_origin_radius, const float thetaCut, const float phiCut) {
-    	return areAlignedRZ(innerCell, ptmin, thetaCut) && haveSimilarCurvature(innerCell, ptmin, region_origin_x, region_origin_y, region_origin_radius, phiCut);
+	bool areNeighbors(CACell* innerCell, const float ptmin, const float region_origin_x, const float region_origin_y, const float region_origin_radius, const float thetaCut, const float phiCut)
+	{
+		return areAlignedRZ(innerCell, ptmin, thetaCut) && haveSimilarCurvature(innerCell, ptmin, region_origin_x, region_origin_y, region_origin_radius, phiCut);
 
     }
 
 
-    void tagNeighbor(CACell* innerCell) {
+    void tagNeighbor(CACell* innerCell)
+    {
     	tagAsInnerNeighbor(innerCell);
     	innerCell->tagAsOuterNeighbor(this);
     }
 
-    bool areAlignedRZ(const CACell* otherCell, const float ptmin, const float thetaCut) const {
+    bool areAlignedRZ(const CACell* otherCell, const float ptmin, const float thetaCut) const
+    {
 
         float r1 = otherCell->getInnerR();
         float z1 = otherCell->getInnerZ();
@@ -118,16 +121,19 @@ public:
         return tan_12_13_half_mul_distance_13_squared * ptmin <= thetaCut * distance_13_squared;
     }
 
-    void tagAsOuterNeighbor(CACell* otherCell) {
+    void tagAsOuterNeighbor(CACell* otherCell)
+    {
         theOuterNeighbors.push_back(otherCell);
     }
 
-    void tagAsInnerNeighbor(CACell* otherCell) {
+    void tagAsInnerNeighbor(CACell* otherCell)
+    {
         theInnerNeighbors.push_back(otherCell);
     }
 
     bool haveSimilarCurvature(const CACell* otherCell, const float ptmin,
-            const float region_origin_x, const float region_origin_y, const float region_origin_radius, const float phiCut) const {
+            const float region_origin_x, const float region_origin_y, const float region_origin_radius, const float phiCut) const
+    {
 
 
     	auto x1 = otherCell->getInnerX();
