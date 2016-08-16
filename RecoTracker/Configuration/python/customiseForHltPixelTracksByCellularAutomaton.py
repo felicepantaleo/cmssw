@@ -1,5 +1,10 @@
 import FWCore.ParameterSet.Config as cms
 
+
+def producers_by_type(process, *types):
+    return (module for module in process._Process__producers.values() if module._TypedParameterizable__type in types)
+
+
 def customiseForHltPixelTracksByCellularAutomaton(process):
     for module in producers_by_type(process, "PixelTrackProducer"):
         if not hasattr(module, "OrderedHitsFactoryPSet"):
@@ -19,15 +24,15 @@ def customiseForHltPixelTracksByCellularAutomaton(process):
         module.OrderedHitsFactoryPSet  = _CAHitTripletGenerator.clone(
             ComponentName = cms.string("CAHitTripletGenerator"),
             extraHitRPhitolerance = triplets.GeneratorPSet.extraHitRPhitolerance,
-            maxChi2 = dict(
-                pt1    = 0.8, pt2    = 2,
-                value1 = 50, value2 = 8,
-                enabled = True,
+            maxChi2 = cms.PSet(
+                pt1    = cms.double(0.9), pt2    = cms.double(2),
+                value1 = cms.double(10), value2 = cms.double(10),
+                enabled = cms.bool(True),
             ),
-            useBendingCorrection = True,
+            useBendingCorrection = cms.bool(True),
             SeedingLayers = cms.InputTag(seedingLayersName),
-            CAThetaCut = cms.double(0.00125),
-            CAPhiCut = cms.double(1),
+            CAThetaCut = cms.double(0.0015),
+            CAPhiCut = cms.double(0.0),
         )
 
         if hasattr(triplets.GeneratorPSet, "SeedComparitorPSet"):
