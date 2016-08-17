@@ -26,13 +26,13 @@ def customiseForHltPixelTracksByCellularAutomaton(process):
             extraHitRPhitolerance = triplets.GeneratorPSet.extraHitRPhitolerance,
             maxChi2 = cms.PSet(
                 pt1    = cms.double(0.9), pt2    = cms.double(2),
-                value1 = cms.double(10), value2 = cms.double(10),
+                value1 = cms.double(20), value2 = cms.double(10),
                 enabled = cms.bool(True),
             ),
             useBendingCorrection = cms.bool(True),
             SeedingLayers = cms.InputTag(seedingLayersName),
             CAThetaCut = cms.double(0.0015),
-            CAPhiCut = cms.double(0.0),
+            CAPhiCut = cms.double(0.01),
         )
 
         if hasattr(triplets.GeneratorPSet, "SeedComparitorPSet"):
