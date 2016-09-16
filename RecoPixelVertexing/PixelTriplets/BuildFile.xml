@@ -12,6 +12,8 @@
 <use   name="TrackingTools/TransientTrackingRecHit"/>
 <use   name="RecoTracker/TkSeedGenerator"/>
 <use   name="vdt_headers"/>
+<use   name="cuda"/>
+
 <export>
   <lib   name="1"/>
 </export>

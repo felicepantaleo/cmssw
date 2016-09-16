@@ -12,7 +12,7 @@
 #include "RecoTracker/TkHitPairs/interface/HitPairGeneratorFromLayerPair.h"
 #include "RecoTracker/TkHitPairs/interface/LayerHitMapCache.h"
 #include "RecoPixelVertexing/PixelTriplets/interface/HitQuadrupletGenerator.h"
-#include "RecoPixelVertexing/PixelTrackFitting/interface/RZLine.h"
+#include "RecoPixelVertexing/PixelTrackFitting/src/RZLine.h"
 #include "RecoPixelVertexing/PixelTriplets/interface/GPUHitsAndDoublets.h"
 
 class TrackingRegion;
