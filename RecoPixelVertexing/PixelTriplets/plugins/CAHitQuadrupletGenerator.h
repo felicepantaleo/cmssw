@@ -126,6 +126,8 @@ private:
 
     const float CAThetaCut = 0.00125f;
     const float CAPhiCut = 10.f;
+    const float CAHardPtCut = 10.f;
+
 
 };
 #endif

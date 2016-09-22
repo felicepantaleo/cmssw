@@ -47,7 +47,8 @@ void kernel_connect(const GPULayerDoublets* gpuDoublets,
 		float region_origin_y,
 		float region_origin_radius,
 		float thetaCut,
-		float phiCut)
+		float phiCut,
+		float hardPtCut)
 {
 	unsigned int layerPairIndex = blockIdx.y+1;
 	unsigned int cellIndexInLayerPair = threadIdx.x + blockIdx.x * blockDim.x;
@@ -63,7 +64,7 @@ void kernel_connect(const GPULayerDoublets* gpuDoublets,
 
         	   if (cells[layerPairIndex][i].check_alignment_and_tag(otherCell,
 								ptmin, region_origin_x, region_origin_y,
-								region_origin_radius, thetaCut, phiCut))
+								region_origin_radius, thetaCut, phiCut, hardPtCut))
         	   {
 				//innerNeighbors.push_back(layerPairIndex,i,otherCell);
         		   	   cells[layerPairIndex][i].theInnerNeighbors.push_back_ts(otherCell);
@@ -205,7 +206,7 @@ void GPUCellularAutomaton<theNumberOfLayers, maxNumberOfQuadruplets>::run(
 
 	kernel_create<<<dim3(100,3),512>>>(gpu_doublets, theCells, isOuterHitOfCell);
 
-	kernel_connect<<<dim3(100,2),512>>>(gpu_doublets, theCells, isOuterHitOfCell, thePtMin, theRegionOriginX, theRegionOriginY, theRegionOriginRadius, theThetaCut, thePhiCut);
+	kernel_connect<<<dim3(100,2),512>>>(gpu_doublets, theCells, isOuterHitOfCell, thePtMin, theRegionOriginX, theRegionOriginY, theRegionOriginRadius, theThetaCut, thePhiCut, theHardPtCut);
 
 
 	kernel_find_ntuplets<<<64,128>>>(gpu_doublets, theCells, foundNtuplets, 4);

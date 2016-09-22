@@ -112,34 +112,35 @@ public:
 	bool check_alignment_and_tag(const GPUCACell<numberOfLayers>* innerCell,
 			const float ptmin, const float region_origin_x,
 			const float region_origin_y, const float region_origin_radius,
-			const float thetaCut, const float phiCut)
+			const float thetaCut, const float phiCut, const float hardPtCut)
 	{
-
 		return (are_aligned_RZ(innerCell, ptmin, thetaCut)
-				&& have_similar_curvature(innerCell, region_origin_x,
-						region_origin_y, region_origin_radius, phiCut));
+				&& have_similar_curvature(innerCell,ptmin, region_origin_x, region_origin_y,
+        				region_origin_radius, phiCut, hardPtCut));
 
 	}
 
 	__device__
 	bool are_aligned_RZ(const GPUCACell<numberOfLayers>* otherCell,
-			const float ptmin, const float thetaCut) const
+			const float ptmin, const float thetaCut ) const
 	{
 
 		float r1 = otherCell->get_inner_r();
 		float z1 = otherCell->get_inner_z();
-		float distance_13_squared = (r1 - theOuterR) * (r1 - theOuterR)
-				+ (z1 - theOuterZ) * (z1 - theOuterZ);
-		float tan_12_13_half = fabs(
-				z1 * (theInnerR - theOuterR) + theInnerZ * (theOuterR - r1)
-						+ theOuterZ * (r1 - theInnerR)) / distance_13_squared;
-		return tan_12_13_half * ptmin <= thetaCut;
+        float radius_diff = fabs(r1 - theOuterR);
+
+        float distance_13_squared = radius_diff*radius_diff + (z1 - theOuterZ)*(z1 - theOuterZ);
+
+        float pMin = ptmin*sqrt(distance_13_squared); //this needs to be divided by radius_diff later
+
+        float tan_12_13_half_mul_distance_13_squared = fabs(z1 * (theInnerR - theOuterR) + theInnerZ * (theOuterR - r1) + theOuterZ * (r1 - theInnerR)) ;
+        return tan_12_13_half_mul_distance_13_squared * pMin <= thetaCut * distance_13_squared * radius_diff;
 	}
 
 	__device__
 	bool have_similar_curvature(const GPUCACell<numberOfLayers>* otherCell,
-			const float region_origin_x, const float region_origin_y,
-			const float region_origin_radius, const float phiCut) const
+			const float ptmin,
+			const float region_origin_x, const float region_origin_y, const float region_origin_radius, const float phiCut, const float hardPtCut) const
 	{
 		auto x1 = otherCell->get_inner_x();
 		auto y1 = otherCell->get_inner_y();
@@ -150,45 +151,53 @@ public:
 		auto x3 = get_outer_x();
 		auto y3 = get_outer_y();
 
-		auto precision = 0.5f;
-		auto offset = x2 * x2 + y2 * y2;
+        float distance_13_squared = (x1 - x3)*(x1 - x3) + (y1 - y3)*(y1 - y3);
+        float tan_12_13_half_mul_distance_13_squared = fabs(y1 * (x2 - x3) + y2 * (x3 - x1) + y3 * (x1 - x2)) ;
+        if(tan_12_13_half_mul_distance_13_squared * ptmin <= 1.0e-4f*distance_13_squared)
+        {
+        	return true;
 
-		auto bc = (x1 * x1 + y1 * y1 - offset) / 2.f;
+        }
 
-		auto cd = (offset - x3 * x3 - y3 * y3) / 2.f;
+        //87 cm/GeV = 1/(3.8T * 0.3)
 
-		auto det = (x1 - x2) * (y2 - y3) - (x2 - x3) * (y1 - y2);
+        //take less than radius given by the hardPtCut and reject everything below
+        float minRadius = hardPtCut*87.f;
 
-		//points are aligned
-		if (fabs(det) < precision)
-			return true;
+        auto det = (x1 - x2) * (y2 - y3) - (x2 - x3) * (y1 - y2);
 
-		auto idet = 1.f / det;
 
-		auto x_center = (bc * (y2 - y3) - cd * (y1 - y2)) * idet;
-		auto y_center = (cd * (x1 - x2) - bc * (x2 - x3)) * idet;
+        auto offset = x2 * x2 + y2*y2;
 
-		auto radius = std::sqrt(
-				(x2 - x_center) * (x2 - x_center)
-						+ (y2 - y_center) * (y2 - y_center));
-		auto centers_distance_squared = (x_center - region_origin_x)
-				* (x_center - region_origin_x)
-				+ (y_center - region_origin_y) * (y_center - region_origin_y);
+        auto bc = (x1 * x1 + y1 * y1 - offset)*0.5f;
 
-		auto minimumOfIntesectionRange = (radius - region_origin_radius)
-				* (radius - region_origin_radius) - phiCut;
+        auto cd = (offset - x3 * x3 - y3 * y3)*0.5f;
 
-		if (centers_distance_squared >= minimumOfIntesectionRange)
-		{
-			auto maximumOfIntesectionRange = (radius + region_origin_radius)
-					* (radius + region_origin_radius) + phiCut;
-			return centers_distance_squared <= maximumOfIntesectionRange;
-		}
-		else
-		{
 
-			return false;
-		}
+
+        auto idet = 1.f / det;
+
+        auto x_center = (bc * (y2 - y3) - cd * (y1 - y2)) * idet;
+        auto y_center = (cd * (x1 - x2) - bc * (x2 - x3)) * idet;
+
+        auto radius = std::sqrt((x2 - x_center)*(x2 - x_center) + (y2 - y_center)*(y2 - y_center));
+
+        if(radius < minRadius)
+        	return false;
+        auto centers_distance_squared = (x_center - region_origin_x)*(x_center - region_origin_x) + (y_center - region_origin_y)*(y_center - region_origin_y);
+        auto region_origin_radius_plus_tolerance = region_origin_radius + phiCut;
+        auto minimumOfIntersectionRange = (radius - region_origin_radius_plus_tolerance)*(radius - region_origin_radius_plus_tolerance);
+
+        if (centers_distance_squared >= minimumOfIntersectionRange) {
+            auto minimumOfIntersectionRange = (radius + region_origin_radius_plus_tolerance)*(radius + region_origin_radius_plus_tolerance);
+            return centers_distance_squared <= minimumOfIntersectionRange;
+        } else {
+
+            return false;
+        }
+        return true;
+
+
 
 	}
 

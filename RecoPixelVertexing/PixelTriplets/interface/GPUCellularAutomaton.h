@@ -15,13 +15,15 @@ template<unsigned int theNumberOfLayers, unsigned int maxNumberOfQuadruplets>
 class GPUCellularAutomaton {
 public:
 
-    GPUCellularAutomaton(TrackingRegion const & region, float thetaCut, float phiCut) :
+    GPUCellularAutomaton(TrackingRegion const & region, float thetaCut, float phiCut, float hardPtCut) :
       thePtMin{ region.ptMin() },
       theRegionOriginX{ region.origin().x() },
       theRegionOriginY{ region.origin().y() },
       theRegionOriginRadius{ region.originRBound() },
       theThetaCut{ thetaCut },
-      thePhiCut{ phiCut }
+      thePhiCut{ phiCut },
+	  theHardPtCut{ hardPtCut }
+
     {
     }
 
@@ -35,6 +37,8 @@ private:
     float theRegionOriginRadius;
     float theThetaCut;
     float thePhiCut;
+    float theHardPtCut;
+
 };
 
 #endif

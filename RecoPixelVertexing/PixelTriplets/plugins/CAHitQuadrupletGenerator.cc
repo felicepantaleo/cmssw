@@ -39,7 +39,8 @@ CAHitQuadrupletGenerator::CAHitQuadrupletGenerator(const edm::ParameterSet& cfg,
 				cfg.getParameter<bool>("fitFastCircleChi2Cut")), useBendingCorrection(
 				cfg.getParameter<bool>("useBendingCorrection")), CAThetaCut(
 				cfg.getParameter<double>("CAThetaCut")), CAPhiCut(
-				cfg.getParameter<double>("CAPhiCut"))
+				cfg.getParameter<double>("CAPhiCut")),
+CAHardPtCut(cfg.getParameter<double>("CAHardPtCut"))
 {
 	if (cfg.exists("SeedComparitorPSet"))
 	{
@@ -135,7 +136,7 @@ void CAHitQuadrupletGenerator::findQuadruplets(const TrackingRegion& region,
 
 	std::vector<std::array<int, 4>> foundQuadruplets;
 
-	GPUCellularAutomaton < 4, 2000 > ca(region, CAThetaCut, CAPhiCut);
+	GPUCellularAutomaton < 4, 2000 > ca(region, CAThetaCut, CAPhiCut, CAHardPtCut);
 	ca.run(layersDoublets, foundQuadruplets);
 
 	const QuantityDependsPtEval maxChi2Eval = maxChi2.evaluator(es);
@@ -184,8 +185,6 @@ void CAHitQuadrupletGenerator::findQuadruplets(const TrackingRegion& region,
     if (theComparitor)
     {
 		SeedingHitSet tmpTriplet(hits[0], hits[2], hits[3]);
-
-
       if (!theComparitor->compatible(tmpTriplet, region) )
       {
         continue;
