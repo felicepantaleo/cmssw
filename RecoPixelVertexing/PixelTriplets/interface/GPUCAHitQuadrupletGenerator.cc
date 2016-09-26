@@ -39,8 +39,7 @@ CAHitQuadrupletGenerator::CAHitQuadrupletGenerator(const edm::ParameterSet& cfg,
 				cfg.getParameter<bool>("fitFastCircleChi2Cut")), useBendingCorrection(
 				cfg.getParameter<bool>("useBendingCorrection")), CAThetaCut(
 				cfg.getParameter<double>("CAThetaCut")), CAPhiCut(
-				cfg.getParameter<double>("CAPhiCut")),
-CAHardPtCut(cfg.getParameter<double>("CAHardPtCut"))
+				cfg.getParameter<double>("CAPhiCut"))
 {
 	if (cfg.exists("SeedComparitorPSet"))
 	{
@@ -136,101 +135,120 @@ void CAHitQuadrupletGenerator::findQuadruplets(const TrackingRegion& region,
 
 	std::vector<std::array<int, 4>> foundQuadruplets;
 
-	GPUCellularAutomaton < 4, 2000 > ca(region, CAThetaCut, CAPhiCut, CAHardPtCut);
+	GPUCellularAutomaton < 4, 2000 > ca(region, CAThetaCut, CAPhiCut);
 	ca.run(layersDoublets, foundQuadruplets);
 
 	const QuantityDependsPtEval maxChi2Eval = maxChi2.evaluator(es);
 
-  // re-used thoughout, need to be vectors because of RZLine interface
-  std::array<float, 4> bc_r;
-  std::array<float, 4> bc_z;
-  std::array<float, 4> bc_errZ2;
-  std::array<GlobalPoint, 4> gps;
-  std::array<GlobalError, 4> ges;
-  std::array<bool, 4> barrels;
+	// re-used thoughout, need to be vectors because of RZLine interface
+	std::vector<float> bc_r(4), bc_z(4), bc_errZ(4);
 
-  unsigned int numberOfFoundQuadruplets = foundQuadruplets.size();
-	std::array<BaseTrackerRecHit const *, 4> hits;
+	declareDynArray(GlobalPoint, 4, gps);
+	declareDynArray(GlobalError, 4, ges);
+	declareDynArray(bool, 4, barrels);
+
+	unsigned int numberOfFoundQuadruplets = foundQuadruplets.size();
+
+
 	std::array<const RecHitsSortedInPhi  *, 4> hitsOnLayer;
 
 	for(unsigned int i =0; i< hitsOnLayer.size(); ++i)
 		hitsOnLayer[i]= &theLayerCache(fourLayers[i], region,
 			ev, es);
-  // Loop over quadruplets
-  for (unsigned int quadId = 0; quadId < numberOfFoundQuadruplets; ++quadId)
-  {
-
-    auto isBarrel = [](const unsigned id) -> bool
-    {
-      return id == PixelSubdetector::PixelBarrel;
-    };
-	for (unsigned int i = 0; i < 4; ++i)
+//	std::cout << "found quadruplets " << numberOfFoundQuadruplets << std::endl;
+//  std::cout << "I have found " << numberOfFoundQuadruplets << " quadruplets" << std::endl;
+	// Loop over quadruplets
+	for (unsigned int quadId = 0; quadId < numberOfFoundQuadruplets; ++quadId)
 	{
-		// read hits from the GPU vectors
-		auto const hit = hitsOnLayer[i]->hits()[foundQuadruplets[quadId][i]];
-		hits[i] = hit;
-		gps[i] = hit->globalPosition();
-		ges[i] = hit->globalPositionError();
-		barrels[i] = isBarrel(hit->geographicalId().subdetId());
+
+		auto isBarrel = [](const unsigned id) -> bool
+		{
+			return id == PixelSubdetector::PixelBarrel;
+		};
+
+		std::array<BaseTrackerRecHit const *, 4> hits;
+
+		for (unsigned int i = 0; i < 4; ++i)
+		{
+			// read hits from the GPU vectors
+			auto const hit = hitsOnLayer[i]->hits()[foundQuadruplets[quadId][i]];
+			hits[i] = hit;
+			gps[i] = hit->globalPosition();
+			ges[i] = hit->globalPositionError();
+			barrels[i] = isBarrel(hit->geographicalId().subdetId());
+
+		}
+		PixelRecoLineRZ line(gps[0], gps[2]);
+		ThirdHitPredictionFromCircle predictionRPhi(gps[0], gps[2],
+				extraHitRPhitolerance);
+		const float curvature = predictionRPhi.curvature(
+				ThirdHitPredictionFromCircle::Vector2D(gps[1].x(), gps[1].y()));
+		const float abscurv = std::abs(curvature);
+		const float thisMaxChi2 = maxChi2Eval.value(abscurv);
+
+		if (theComparitor)
+		{
+			SeedingHitSet tmpTriplet(hits[0], hits[2], hits[3]);
+
+			if (!theComparitor->compatible(tmpTriplet, region))
+			{
+				continue;
+			}
+		}
+
+		float chi2 = std::numeric_limits<float>::quiet_NaN();
+		// TODO: Do we have any use case to not use bending correction?
+		if (useBendingCorrection)
+		{
+			// Following PixelFitterByConformalMappingAndLine
+			const float simpleCot = (gps.back().z() - gps.front().z())
+					/ (gps.back().perp() - gps.front().perp());
+			const float pt = 1 / PixelRecoUtilities::inversePt(abscurv, es);
+			for (int i = 0; i < 4; ++i)
+			{
+				const GlobalPoint & point = gps[i];
+				const GlobalError & error = ges[i];
+				bc_r[i] = sqrt(
+						sqr(point.x() - region.origin().x())
+								+ sqr(point.y() - region.origin().y()));
+				bc_r[i] += pixelrecoutilities::LongitudinalBendingCorrection(pt,
+						es)(bc_r[i]);
+				bc_z[i] = point.z() - region.origin().z();
+				bc_errZ[i] =
+						(barrels[i]) ?
+								sqrt(error.czz()) :
+								sqrt(error.rerr(point)) * simpleCot;
+			}
+			RZLine rzLine(bc_r, bc_z, bc_errZ);
+			float cottheta, intercept, covss, covii, covsi;
+			rzLine.fit(cottheta, intercept, covss, covii, covsi);
+			chi2 = rzLine.chi2(cottheta, intercept);
+		}
+		else
+		{
+			RZLine rzLine(gps, ges, barrels);
+			float cottheta, intercept, covss, covii, covsi;
+			rzLine.fit(cottheta, intercept, covss, covii, covsi);
+			chi2 = rzLine.chi2(cottheta, intercept);
+		}
+		if (edm::isNotFinite(chi2) || chi2 > thisMaxChi2)
+		{
+			continue;
+
+		}
+		// TODO: Do we have any use case to not use circle fit? Maybe
+		// HLT where low-pT inefficiency is not a problem?
+		if (fitFastCircle)
+		{
+			FastCircleFit c(gps, ges);
+			chi2 += c.chi2();
+			if (edm::isNotFinite(chi2))
+				continue;
+			if (fitFastCircleChi2Cut && chi2 > thisMaxChi2)
+				continue;
+		}
+
+		result.emplace_back(hits[0], hits[1], hits[2], hits[3]);
 
 	}
-
-
-    PixelRecoLineRZ line(gps[0], gps[2]);
-    ThirdHitPredictionFromCircle predictionRPhi(gps[0], gps[2], extraHitRPhitolerance);
-    const float curvature = predictionRPhi.curvature(ThirdHitPredictionFromCircle::Vector2D(gps[1].x(), gps[1].y()));
-    const float abscurv = std::abs(curvature);
-    const float thisMaxChi2 = maxChi2Eval.value(abscurv);
-
-    if (theComparitor)
-    {
-		SeedingHitSet tmpTriplet(hits[0], hits[2], hits[3]);
-      if (!theComparitor->compatible(tmpTriplet, region) )
-      {
-        continue;
-      }
-    }
-
-    float chi2 = std::numeric_limits<float>::quiet_NaN();
-    // TODO: Do we have any use case to not use bending correction?
-    if (useBendingCorrection)
-    {
-      // Following PixelFitterByConformalMappingAndLine
-      const float simpleCot = ( gps.back().z() - gps.front().z() ) / (gps.back().perp() - gps.front().perp() );
-      const float pt = 1.f / PixelRecoUtilities::inversePt(abscurv, es);
-      for (int i=0; i < 4; ++i)
-      {
-        const GlobalPoint & point = gps[i];
-        const GlobalError & error = ges[i];
-        bc_r[i] = sqrt( sqr(point.x() - region.origin().x()) + sqr(point.y() - region.origin().y()) );
-        bc_r[i] += pixelrecoutilities::LongitudinalBendingCorrection(pt, es)(bc_r[i]);
-        bc_z[i] = point.z() - region.origin().z();
-        bc_errZ2[i] =  (barrels[i]) ? error.czz() : error.rerr(point)*sqr(simpleCot);
-      }
-      RZLine rzLine(bc_r, bc_z, bc_errZ2, RZLine::ErrZ2_tag());
-      chi2 = rzLine.chi2();
-    } else
-    {
-      RZLine rzLine(gps, ges, barrels);
-      chi2 = rzLine.chi2();
-    }
-    if (edm::isNotFinite(chi2) || chi2 > thisMaxChi2)
-    {
-      continue;
-
-    }
-    // TODO: Do we have any use case to not use circle fit? Maybe
-    // HLT where low-pT inefficiency is not a problem?
-    if (fitFastCircle)
-    {
-      FastCircleFit c(gps, ges);
-      chi2 += c.chi2();
-      if (edm::isNotFinite(chi2))
-        continue;
-      if (fitFastCircleChi2Cut && chi2 > thisMaxChi2)
-        continue;
-    }
-
-	result.emplace_back(hits[0], hits[1], hits[2], hits[3]);
-  }
 }
