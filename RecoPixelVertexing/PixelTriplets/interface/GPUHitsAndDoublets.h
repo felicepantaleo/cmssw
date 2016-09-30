@@ -4,9 +4,11 @@
 #include <cuda_runtime.h>
 
 #include "RecoTracker/TkHitPairs/interface/RecHitsSortedInPhi.h"
+#include "RecoPixelVertexing/PixelTriplets/plugins/CAGraph.h"
 
 struct GPULayerHits
 {
+	int layerId;
 	size_t size;
 	float * x;
 	float * y;
@@ -16,23 +18,10 @@ struct GPULayerHits
 struct GPULayerDoublets
 {
 	size_t size;
+	int innerLayerId;
+	int outerLayerId;
 	int * indices;
-	GPULayerHits layers[2];
 };
-
-inline GPULayerHits copy_hits_to_gpu(RecHitsSortedInPhi const & hits)
-{
-	GPULayerHits d_hits;
-	d_hits.size = hits.size();
-	auto memsize = d_hits.size * sizeof(float);
-	cudaMalloc(&d_hits.x, memsize);
-	cudaMalloc(&d_hits.y, memsize);
-	cudaMalloc(&d_hits.z, memsize);
-	cudaMemcpy(d_hits.x, hits.x.data(), memsize, cudaMemcpyHostToDevice);
-	cudaMemcpy(d_hits.y, hits.y.data(), memsize, cudaMemcpyHostToDevice);
-	cudaMemcpy(d_hits.z, hits.z.data(), memsize, cudaMemcpyHostToDevice);
-	return d_hits;
-}
 
 inline
 void free_gpu_hits(GPULayerHits & hits)
@@ -45,20 +34,46 @@ void free_gpu_hits(GPULayerHits & hits)
 	hits.z = nullptr;
 }
 
-inline GPULayerDoublets copy_doublets_to_gpu(HitDoublets const & doublets,
-		GPULayerHits const & inner, GPULayerHits const & outer)
+inline void copy_hits_and_doublets_to_gpu(
+		const std::vector<const RecHitsSortedInPhi *>& host_hitsOnLayer,
+		const std::vector<HitDoublets>& host_doublets, const CAGraph& graph,
+		std::vector<GPULayerHits>& gpu_hitsOnLayer,
+		std::vector<GPULayerDoublets>& gpu_doublets	)
 {
-	GPULayerDoublets d_doublets;
-	d_doublets.size = doublets.size();
-	d_doublets.layers[0] = inner;
-	d_doublets.layers[1] = outer;
-	auto memsize = d_doublets.size * sizeof(int) * 2;
-	cudaMalloc(&d_doublets.indices, memsize);
-	cudaMemcpy(d_doublets.indices, doublets.indices().data(), memsize,
-			cudaMemcpyHostToDevice);
-//  std::cout << "CPU doublet 0 " << doublets.r(0, HitDoublets::inner) << " " << doublets.r(0, HitDoublets::outer) << " inner, outer " <<doublets.innerHitId(0)
-//		  << " " <<doublets.outerHitId(0) << std::endl;
-	return d_doublets;
+	GPULayerDoublets tmpDoublets;
+	for (std::size_t i = 0; i < graph.theLayerPairs.size(); ++i)
+	{
+		tmpDoublets.size = host_doublets[i].size();
+		auto & currentLayerPairRef = graph.theLayerPairs[i];
+		tmpDoublets.innerLayerId = currentLayerPairRef.theLayers[0];
+		tmpDoublets.outerLayerId = currentLayerPairRef.theLayers[1];
+		auto memsize = tmpDoublets.size * sizeof(int) * 2;
+		cudaMalloc(&tmpDoublets.indices, memsize);
+		cudaMemcpy(tmpDoublets.indices, host_doublets[i].indices().data(), memsize,
+					cudaMemcpyHostToDevice);
+		gpu_doublets.push_back(tmpDoublets);
+
+	}
+
+	GPULayerHits tmpHits;
+
+	for (std::size_t i = 0; i < graph.theLayers.size(); ++i)
+	{
+		tmpHits.layerId = i;
+		tmpHits.size = host_hitsOnLayer[i]->size();
+
+		auto memsize = tmpHits.size * sizeof(float);
+		cudaMalloc(&tmpHits.x, memsize);
+		cudaMalloc(&tmpHits.y, memsize);
+		cudaMalloc(&tmpHits.z, memsize);
+		cudaMemcpy(tmpHits.x, host_hitsOnLayer[i]->x.data(), memsize, cudaMemcpyHostToDevice);
+		cudaMemcpy(tmpHits.y, host_hitsOnLayer[i]->y.data(), memsize, cudaMemcpyHostToDevice);
+		cudaMemcpy(tmpHits.z, host_hitsOnLayer[i]->z.data(), memsize, cudaMemcpyHostToDevice);
+
+		gpu_hitsOnLayer.push_back(tmpHits);
+
+	}
+
 }
 
 inline

@@ -10,19 +10,23 @@
 #include <cmath>
 #include <array>
 
-template<int numberOfLayers>
+struct Quadruplet {
+	int2 layerPairsAndCellId[3];
+};
+
 class GPUCACell
 {
 public:
 
-	using CAntuplet = GPUSimpleVector<numberOfLayers, GPUCACell<numberOfLayers>>;
+
+
 	__device__ GPUCACell()
 	{
 
 	}
 
 	__device__
-	void init(const GPULayerDoublets* doublets, int layerId, int doubletId,
+	void init(const GPULayerDoublets* doublets, const GPULayerHits* hitsOnLayer, int layerPairId, int doubletId,
 			int innerHitId, int outerHitId)
 	{
 
@@ -32,15 +36,20 @@ public:
 		theDoublets = doublets;
 
 		theDoubletId = doubletId;
-		theLayerIdInFourLayers = layerId;
-		theInnerX = doublets->layers[0].x[doublets->indices[2 * doubletId]];
-		theOuterX = doublets->layers[1].x[doublets->indices[2 * doubletId + 1]];
+		theLayerPairId = layerPairId;
 
-		theInnerY = doublets->layers[0].y[doublets->indices[2 * doubletId]];
-		theOuterY = doublets->layers[1].y[doublets->indices[2 * doubletId + 1]];
+		auto innerLayerId = doublets->innerLayerId;
+		auto outerLayerId = doublets->outerLayerId;
 
-		theInnerZ = doublets->layers[0].z[doublets->indices[2 * doubletId]];
-		theOuterZ = doublets->layers[1].z[doublets->indices[2 * doubletId + 1]];
+
+		theInnerX = hitsOnLayer[innerLayerId].x[doublets->indices[2 * doubletId]];
+		theOuterX = hitsOnLayer[outerLayerId].x[doublets->indices[2 * doubletId + 1]];
+
+		theInnerY = hitsOnLayer[innerLayerId].y[doublets->indices[2 * doubletId]];
+		theOuterY = hitsOnLayer[outerLayerId].y[doublets->indices[2 * doubletId + 1]];
+
+		theInnerZ = hitsOnLayer[innerLayerId].z[doublets->indices[2 * doubletId]];
+		theOuterZ = hitsOnLayer[outerLayerId].z[doublets->indices[2 * doubletId + 1]];
 		theInnerR = hypot(theInnerX, theInnerY);
 		theOuterR = hypot(theOuterX, theOuterY);
 		theInnerNeighbors.reset();
@@ -97,19 +106,31 @@ public:
 		return theOuterHitId;
 	}
 
-	__device__
+	__host__ __device__
 	void print_cell() const
 	{
 
-		printf(
-				"\n printing cell: %d, on layer: %d, innerHitId: %d, outerHitId: %d, innerradius %f, outerRadius %f ",
-				theDoubletId, theLayerIdInFourLayers, theInnerHitId,
+		printf("printing cell: %d, on layer: %d, innerHitId: %d, outerHitId: %d, innerradius %f, outerRadius %f \n",
+				theDoubletId, theLayerPairId, theInnerHitId,
 				theOuterHitId, theInnerR, theOuterR);
 
 	}
 
+	__host__ __device__
+	void print_neighbors() const
+	{
+		printf("\n\tIt has %d innerneighbors: \n", theInnerNeighbors.m_size);
+		for(int i =0; i< theInnerNeighbors.m_size; ++i)
+		{
+			printf("\n\t\t%d innerneighbor: \n\t\t", i);
+			 theInnerNeighbors.m_data[i]->print_cell();
+
+		}
+	}
+
+
 	__device__
-	bool check_alignment_and_tag(const GPUCACell<numberOfLayers>* innerCell,
+	bool check_alignment_and_tag(const GPUCACell * innerCell,
 			const float ptmin, const float region_origin_x,
 			const float region_origin_y, const float region_origin_radius,
 			const float thetaCut, const float phiCut, const float hardPtCut)
@@ -121,7 +142,7 @@ public:
 	}
 
 	__device__
-	bool are_aligned_RZ(const GPUCACell<numberOfLayers>* otherCell,
+	bool are_aligned_RZ(const GPUCACell * otherCell,
 			const float ptmin, const float thetaCut ) const
 	{
 
@@ -138,7 +159,7 @@ public:
 	}
 
 	__device__
-	bool have_similar_curvature(const GPUCACell<numberOfLayers>* otherCell,
+	bool have_similar_curvature(const GPUCACell * otherCell,
 			const float ptmin,
 			const float region_origin_x, const float region_origin_y, const float region_origin_radius, const float phiCut, const float hardPtCut) const
 	{
@@ -195,7 +216,6 @@ public:
 
             return false;
         }
-        return true;
 
 
 
@@ -207,10 +227,8 @@ public:
 	template<int maxNumberOfQuadruplets>
 	__device__
 	void find_ntuplets(
-			GPUSimpleVector<maxNumberOfQuadruplets,int4>* foundNtuplets,
-			//GPUArena<numberOfLayers-2,64,GPUCACell<numberOfLayers>>& theInnerNeighbors,
-//        GPUSimpleVector<64, GPUCACell<numberOfLayers>* > ** theInnerNeighbors,
-			GPUSimpleVector<4, GPUCACell<numberOfLayers>*>& tmpNtuplet,
+			GPUSimpleVector<maxNumberOfQuadruplets,Quadruplet>* foundNtuplets,
+			GPUSimpleVector<3, GPUCACell *>& tmpNtuplet,
 			const unsigned int minHitsPerNtuplet
 	) const
 	{
@@ -220,18 +238,22 @@ public:
 		// it has no compatible neighbor
 		// the ntuplets is then saved if the number of hits it contains is greater than a threshold
 
-		GPUCACell<numberOfLayers>* otherCell;
-		int4 found;
+		GPUCACell * otherCell;
 		if (theInnerNeighbors.size() == 0)
 		{
 			if (tmpNtuplet.size() >= minHitsPerNtuplet - 1)
 			{
+				Quadruplet tmpQuadruplet;
 
-				found.x=tmpNtuplet.m_data[2]->get_inner_hit_id();
-				found.y=tmpNtuplet.m_data[2]->get_outer_hit_id();
-				found.z=tmpNtuplet.m_data[1]->get_outer_hit_id();
-				found.w=tmpNtuplet.m_data[0]->get_outer_hit_id();
-				foundNtuplets->push_back_ts(found);
+				for(int i = 0; i<3; ++i)
+				{
+					tmpQuadruplet.layerPairsAndCellId[i].x = tmpNtuplet.m_data[2-i]->theLayerPairId;
+					tmpQuadruplet.layerPairsAndCellId[i].y = tmpNtuplet.m_data[2-i]->theDoubletId;
+
+
+				}
+				foundNtuplets->push_back_ts(tmpQuadruplet);
+
 			}
 			else
 			return;
@@ -252,15 +274,15 @@ public:
 
 		}
 	}
-	GPUSimpleVector<40, GPUCACell<numberOfLayers>*> theInnerNeighbors;
+	GPUSimpleVector<40, GPUCACell *> theInnerNeighbors;
 
+	int theDoubletId;
+	int theLayerPairId;
 private:
 
 	unsigned int theInnerHitId;
 	unsigned int theOuterHitId;
 	const GPULayerDoublets* theDoublets;
-	int theDoubletId;
-	int theLayerIdInFourLayers;
 	float theInnerX;
 	float theOuterX;
 	float theInnerY;

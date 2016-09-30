@@ -61,8 +61,8 @@ struct GPUSimpleVector
 	int size() const
 	{
 		return m_size;
-	}
-	;
+	};
+
 	int m_size;
 
 	T m_data[maxSize];
