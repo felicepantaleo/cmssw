@@ -53,22 +53,78 @@ void CellularAutomaton::createAndConnectCells(const std::vector<const HitDoublet
 				currentLayerPairRef.theFoundCells.reserve(numberOfDoublets);
 				for (unsigned int i = 0; i < numberOfDoublets; ++i)
 				{
+					auto outerHitX = doubletLayerPairId->x(i, HitDoublets::outer);
+					auto outerHitY = doubletLayerPairId->y(i, HitDoublets::outer);
+					auto outerHitZ = doubletLayerPairId->z(i, HitDoublets::outer);
+
+					auto tmp_innerHitX = doubletLayerPairId->x(i, HitDoublets::inner);
+					auto tmp_innerHitY = doubletLayerPairId->y(i, HitDoublets::inner);
+					auto tmp_innerHitZ = doubletLayerPairId->z(i, HitDoublets::inner);
+
+					auto tmp_dX = tmp_innerHitX - outerHitX;
+					auto tmp_dY = tmp_innerHitY - outerHitY;
+					auto tmp_dZ = tmp_innerHitZ - outerHitZ;
+
+					auto tmp_length2 = tmp_dX*tmp_dX + tmp_dY*tmp_dY + tmp_dZ*tmp_dZ;
+
+					bool isAlreadyFoundCell = false;
+					bool isThePrimaryDuplicate = false;
+
+//					int foundDuplicates = 0;
+					for(auto const alreadyFoundCellOnOuterHit : currentOuterLayerRef.isOuterHitOfCell[doubletLayerPairId->outerHitId(i)])
+					{
+
+
+						if(alreadyFoundCellOnOuterHit->areOnTheSameLayerPair(doubletLayerPairId) && !alreadyFoundCellOnOuterHit->isASecondaryDuplicate())
+						{
+							auto dX = alreadyFoundCellOnOuterHit->getInnerX() - outerHitX;
+							auto dY = alreadyFoundCellOnOuterHit->getInnerY() - outerHitY;
+							auto dZ = alreadyFoundCellOnOuterHit->getInnerZ() - outerHitZ;
+
+							double dotProduct = tmp_dX*dX + tmp_dY*dY + tmp_dZ*dZ;
+
+
+							//cosine of the 3d angle between the two vectors = dotProduct/(length_1*length_2)
+							//if the cosine is higher than threshold,
+							//the two vectors are overlapping and this may lead to duplicates
+							const double cosineThreshold2 = 0.99999995;
+							if(dotProduct*dotProduct >= cosineThreshold2 * tmp_length2 * alreadyFoundCellOnOuterHit->getLength2())
+							{
+								isAlreadyFoundCell = true;
+
+								isThePrimaryDuplicate = alreadyFoundCellOnOuterHit->getInnerR() > doubletLayerPairId->r(i, HitDoublets::inner);
+
+								alreadyFoundCellOnOuterHit->setCellAsSecondaryDuplicate(!isThePrimaryDuplicate);
+//								foundDuplicates++;
+
+							}
+
+
+						}
+
+					}
+
+
 					currentLayerPairRef.theFoundCells.emplace_back(
 							doubletLayerPairId, i, cellId,
 							doubletLayerPairId->innerHitId(i),
-							doubletLayerPairId->outerHitId(i));
+							doubletLayerPairId->outerHitId(i), tmp_length2);
 					currentOuterLayerRef.isOuterHitOfCell[doubletLayerPairId->outerHitId(i)].push_back(
 							&(currentLayerPairRef.theFoundCells[i]));
+					bool isASecondaryDuplicate = isAlreadyFoundCell && !isThePrimaryDuplicate;
+					currentLayerPairRef.theFoundCells[i].setCellAsSecondaryDuplicate(isASecondaryDuplicate);
 					cellId++;
 
-					for (auto neigCell : currentInnerLayerRef.isOuterHitOfCell[doubletLayerPairId->innerHitId(i)])
+					if(!isASecondaryDuplicate)
 					{
-						currentLayerPairRef.theFoundCells[i].checkAlignmentAndTag(
-								neigCell, ptmin, region_origin_x,
-								region_origin_y, region_origin_radius, thetaCut,
-								phiCut, hardPtCut);
+						for (auto neigCell : currentInnerLayerRef.isOuterHitOfCell[doubletLayerPairId->innerHitId(i)])
+						{
+							currentLayerPairRef.theFoundCells[i].checkAlignmentAndTag(
+									neigCell, ptmin, region_origin_x,
+									region_origin_y, region_origin_radius, thetaCut,
+									phiCut, hardPtCut);
+						}
 					}
-
 				}
 
 				for (auto outerLayerPair : currentOuterLayerRef.theOuterLayerPairs)
@@ -207,22 +263,75 @@ void CellularAutomaton::findTriplets(const std::vector<const HitDoublets*>& hitD
 				currentLayerPairRef.theFoundCells.reserve(numberOfDoublets);
 				for (unsigned int i = 0; i < numberOfDoublets; ++i)
 				{
+					auto outerHitX = doubletLayerPairId->x(i, HitDoublets::outer);
+					auto outerHitY = doubletLayerPairId->y(i, HitDoublets::outer);
+					auto outerHitZ = doubletLayerPairId->z(i, HitDoublets::outer);
+
+					auto tmp_innerHitX = doubletLayerPairId->x(i, HitDoublets::inner);
+					auto tmp_innerHitY = doubletLayerPairId->y(i, HitDoublets::inner);
+					auto tmp_innerHitZ = doubletLayerPairId->z(i, HitDoublets::inner);
+
+					auto tmp_dX = tmp_innerHitX - outerHitX;
+					auto tmp_dY = tmp_innerHitY - outerHitY;
+					auto tmp_dZ = tmp_innerHitZ - outerHitZ;
+
+					auto tmp_length2 = tmp_dX*tmp_dX + tmp_dY*tmp_dY + tmp_dZ*tmp_dZ;
+
+					bool isAlreadyFoundCell = false;
+					bool isThePrimaryDuplicate = false;
+
+					for(auto const alreadyFoundCellOnOuterHit : currentOuterLayerRef.isOuterHitOfCell[doubletLayerPairId->outerHitId(i)])
+					{
+
+						if(alreadyFoundCellOnOuterHit->areOnTheSameLayerPair(doubletLayerPairId) && !alreadyFoundCellOnOuterHit->isASecondaryDuplicate())
+						{
+							auto dX = alreadyFoundCellOnOuterHit->getInnerX() - outerHitX;
+							auto dY = alreadyFoundCellOnOuterHit->getInnerY() - outerHitY;
+							auto dZ = alreadyFoundCellOnOuterHit->getInnerZ() - outerHitZ;
+
+							auto dotProduct = tmp_dX*dX + tmp_dY*dY + tmp_dZ*dZ;
+
+
+							//cosine of the 3d angle between the two vectors = dotProduct/(length_1*length_2)
+							//if the cosine is higher than threshold,
+							//the two vectors are overlapping and this may lead to duplicates
+							const float cosineThreshold2 = 0.9999997f;
+							if(dotProduct*dotProduct >= cosineThreshold2 * tmp_length2 * alreadyFoundCellOnOuterHit->getLength2())
+							{
+								isAlreadyFoundCell = true;
+
+								isThePrimaryDuplicate = alreadyFoundCellOnOuterHit->getInnerR() > doubletLayerPairId->r(i, HitDoublets::inner);
+
+								alreadyFoundCellOnOuterHit->setCellAsSecondaryDuplicate(!isThePrimaryDuplicate);
+
+							}
+
+
+						}
+
+					}
+
+
+
 					currentLayerPairRef.theFoundCells.emplace_back(
 							doubletLayerPairId, i, cellId,
 							doubletLayerPairId->innerHitId(i),
-							doubletLayerPairId->outerHitId(i));
+							doubletLayerPairId->outerHitId(i), tmp_length2);
 					currentOuterLayerRef.isOuterHitOfCell[doubletLayerPairId->outerHitId(i)].push_back(
 							&(currentLayerPairRef.theFoundCells[i]));
+					bool isASecondaryDuplicate = isAlreadyFoundCell && !isThePrimaryDuplicate;
+					currentLayerPairRef.theFoundCells[i].setCellAsSecondaryDuplicate(isASecondaryDuplicate);
 					cellId++;
-
-					for (auto neigCell : currentInnerLayerRef.isOuterHitOfCell[doubletLayerPairId->innerHitId(i)])
+					if(!isASecondaryDuplicate)
 					{
-						currentLayerPairRef.theFoundCells[i].checkAlignmentAndPushTriplet(
-								neigCell, foundTriplets, ptmin, region_origin_x,
-								region_origin_y, region_origin_radius, thetaCut,
-								phiCut, hardPtCut);
+						for (auto neigCell : currentInnerLayerRef.isOuterHitOfCell[doubletLayerPairId->innerHitId(i)])
+						{
+							currentLayerPairRef.theFoundCells[i].checkAlignmentAndPushTriplet(
+									neigCell, foundTriplets, ptmin, region_origin_x,
+									region_origin_y, region_origin_radius, thetaCut,
+									phiCut, hardPtCut);
+						}
 					}
-
 				}
 
 				for (auto outerLayerPair : currentOuterLayerRef.theOuterLayerPairs)

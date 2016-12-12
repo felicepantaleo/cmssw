@@ -15,12 +15,13 @@ public:
     using Hit = RecHitsSortedInPhi::Hit;
     using CAntuplet = std::vector<CACell*>;
 
-    CACell(const HitDoublets* doublets, int doubletId, const unsigned int cellId, const int innerHitId, const int outerHitId) :
+    CACell(const HitDoublets* doublets, int doubletId, const unsigned int cellId, const int innerHitId, const int outerHitId, const float length2) :
     theCAState(0), theInnerHitId(innerHitId), theOuterHitId(outerHitId), theCellId(cellId), hasSameStateNeighbors(0), theDoublets(doublets), theDoubletId(doubletId),
     theInnerR(doublets->r(doubletId, HitDoublets::inner)), theOuterR(doublets->r(doubletId, HitDoublets::outer)),
-    theInnerZ(doublets->z(doubletId, HitDoublets::inner)), theOuterZ(doublets->z(doubletId, HitDoublets::outer)) {
-    }
+    theInnerZ(doublets->z(doubletId, HitDoublets::inner)), theOuterZ(doublets->z(doubletId, HitDoublets::outer)),
+	theLength2(length2), theIsASecondaryDuplicate(false) {
 
+    }
     unsigned int getCellId() const {
         return theCellId;
     }
@@ -72,6 +73,9 @@ public:
     float getOuterPhi() const {
         return theDoublets->phi(theDoubletId, HitDoublets::outer);
     }
+    float getLength2() const {
+        return theLength2;
+    }
 
     unsigned int getInnerHitId() const {
         return theInnerHitId;
@@ -81,21 +85,31 @@ public:
         return theOuterHitId;
     }
 
+    void setCellAsSecondaryDuplicate(const bool duplicate )
+    {
+    	theIsASecondaryDuplicate = duplicate;
+    }
+
+    bool isASecondaryDuplicate()
+    {
+    	return theIsASecondaryDuplicate;
+    }
     void evolve() {
 
-        hasSameStateNeighbors = 0;
-        unsigned int numberOfNeighbors = theOuterNeighbors.size();
+    	if(!theIsASecondaryDuplicate){
+			hasSameStateNeighbors = 0;
+			unsigned int numberOfNeighbors = theOuterNeighbors.size();
 
-        for (unsigned int i = 0; i < numberOfNeighbors; ++i) {
+			for (unsigned int i = 0; i < numberOfNeighbors; ++i) {
 
-            if (theOuterNeighbors[i]->getCAState() == theCAState) {
+				if (theOuterNeighbors[i]->getCAState() == theCAState) {
 
-                hasSameStateNeighbors = 1;
+					hasSameStateNeighbors = 1;
 
-                break;
-            }
-        }
-
+					break;
+				}
+			}
+    	}
     }
 
 
@@ -103,7 +117,7 @@ public:
     		const float region_origin_y, const float region_origin_radius, const float thetaCut,
 			const float phiCut, const float hardPtCut) {
 
-        if (areAlignedRZ(innerCell, ptmin, thetaCut) &&
+        if (!innerCell->isASecondaryDuplicate() && areAlignedRZ(innerCell, ptmin, thetaCut) &&
         		haveSimilarCurvature(innerCell,ptmin, region_origin_x, region_origin_y,
         				region_origin_radius, phiCut, hardPtCut)) {
             tagAsInnerNeighbor(innerCell);
@@ -116,15 +130,13 @@ public:
 			const float region_origin_radius, const float thetaCut, const float phiCut,
 			const float hardPtCut) {
 
-        if (areAlignedRZ(innerCell, ptmin, thetaCut) &&
+        if (!innerCell->isASecondaryDuplicate() && areAlignedRZ(innerCell, ptmin, thetaCut) &&
         		haveSimilarCurvature(innerCell,ptmin, region_origin_x, region_origin_y,
         				region_origin_radius, phiCut, hardPtCut)) {
         	foundTriplets.emplace_back(CACell::CAntuplet{innerCell,this});
 
         }
     }
-
-
 
     bool areAlignedRZ(const CACell* otherCell, const float ptmin, const float thetaCut) const
     {
@@ -223,6 +235,10 @@ public:
 
     }
 
+    bool areOnTheSameLayerPair(const HitDoublets* otherDoublets)
+    {
+	     return theDoublets == otherDoublets;
+    }
     unsigned int getCAState() const {
         return theCAState;
     }
@@ -260,9 +276,11 @@ public:
         	{
                 unsigned int numberOfOuterNeighbors = theOuterNeighbors.size();
                 for (unsigned int i = 0; i < numberOfOuterNeighbors; ++i) {
-                    tmpNtuplet.push_back((theOuterNeighbors[i]));
-                    theOuterNeighbors[i]->findNtuplets(foundNtuplets, tmpNtuplet, minHitsPerNtuplet);
-                    tmpNtuplet.pop_back();
+                	if(!(theOuterNeighbors[i]->isASecondaryDuplicate())){
+						tmpNtuplet.push_back((theOuterNeighbors[i]));
+						theOuterNeighbors[i]->findNtuplets(foundNtuplets, tmpNtuplet, minHitsPerNtuplet);
+						tmpNtuplet.pop_back();
+                	}
                 }
         	}
 
@@ -289,6 +307,8 @@ private:
     const float theOuterR;
     const float theInnerZ;
     const float theOuterZ;
+    const float theLength2;
+    bool theIsASecondaryDuplicate;
 
 };
 
