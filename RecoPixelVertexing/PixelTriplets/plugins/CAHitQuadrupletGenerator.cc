@@ -156,13 +156,21 @@ void CAHitQuadrupletGenerator::hitQuadruplets(const TrackingRegion& region,
 
 	const QuantityDependsPtEval maxChi2Eval = maxChi2.evaluator(es);
 
-  // re-used thoughout, need to be vectors because of RZLine interface
+   // re-used thoughout, need to be vectors because of RZLine interface
   std::array<float, 4> bc_r;
   std::array<float, 4> bc_z;
   std::array<float, 4> bc_errZ2;
   std::array<GlobalPoint, 4> gps;
   std::array<GlobalError, 4> ges;
   std::array<bool, 4> barrels;
+  int layerSubDetId = -1;
+  int previousLayerSubDetId = -2;
+  std::array<unsigned int, 2> previousCellIds ={{0,0}};
+  bool isTheSameTriplet = false;
+  bool isTheSameFourthLayer = false;
+  bool hasAlreadyPushedACandidate = false;
+  float selectedChi2 = std::numeric_limits<float>::max();
+
 
   unsigned int numberOfFoundQuadruplets = foundQuadruplets.size();
 
@@ -185,8 +193,30 @@ void CAHitQuadrupletGenerator::hitQuadruplets(const TrackingRegion& region,
     auto const& ahit = foundQuadruplets[quadId][2]->getOuterHit();
     gps[3] = ahit->globalPosition();
     ges[3] = ahit->globalPositionError();
+    layerSubDetId = ahit->geographicalId().subdetId();
     barrels[3] = isBarrel(ahit->geographicalId().subdetId());
 
+    isTheSameTriplet = (quadId != 0) && (foundQuadruplets[quadId][0]->getCellId() ==  previousCellIds[0]) && (foundQuadruplets[quadId][1]->getCellId() ==  previousCellIds[1]);
+    isTheSameFourthLayer = (layerSubDetId == previousLayerSubDetId);
+
+    previousCellIds = {{foundQuadruplets[quadId][0]->getCellId(), foundQuadruplets[quadId][1]->getCellId()}};
+    previousLayerSubDetId = layerSubDetId;
+
+
+    if(!(isTheSameTriplet && isTheSameFourthLayer ))
+    {
+    	selectedChi2 = std::numeric_limits<float>::max();
+    	hasAlreadyPushedACandidate = false;
+    }
+
+
+
+
+    // TODO:
+    // - 'line' is not used for anything
+    // - if we decide to always do the circle fit for 4 hits, we don't
+    //   need ThirdHitPredictionFromCircle for the curvature; then we
+    //   could remove extraHitRPhitolerance configuration parameter
     PixelRecoLineRZ line(gps[0], gps[2]);
     ThirdHitPredictionFromCircle predictionRPhi(gps[0], gps[2], extraHitRPhitolerance);
     const float curvature = predictionRPhi.curvature(ThirdHitPredictionFromCircle::Vector2D(gps[1].x(), gps[1].y()));
@@ -244,8 +274,29 @@ void CAHitQuadrupletGenerator::hitQuadruplets(const TrackingRegion& region,
         continue;
     }
 
-    result.emplace_back(foundQuadruplets[quadId][0]->getInnerHit(), foundQuadruplets[quadId][1]->getInnerHit(), foundQuadruplets[quadId][2]->getInnerHit(), foundQuadruplets[quadId][2]->getOuterHit());
+    if (chi2 < selectedChi2)
+    {
+    	selectedChi2 = chi2;
+
+    	if(hasAlreadyPushedACandidate)
+    	{
+    		result.pop_back();
+
+    	}
+	    result.emplace_back(foundQuadruplets[quadId][0]->getInnerHit(), foundQuadruplets[quadId][1]->getInnerHit(),
+	    		foundQuadruplets[quadId][2]->getInnerHit(), foundQuadruplets[quadId][2]->getOuterHit());
+	    hasAlreadyPushedACandidate = true;
+
+
+
+    }
+
+//    result.emplace_back(foundQuadruplets[quadId][0]->getInnerHit(), foundQuadruplets[quadId][1]->getInnerHit(), foundQuadruplets[quadId][2]->getInnerHit(), foundQuadruplets[quadId][2]->getOuterHit());
+
+
   }
+
+
 
   theLayerCache.clear();
 }
