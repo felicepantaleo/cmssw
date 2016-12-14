@@ -254,6 +254,14 @@ void CAHitQuadrupletGenerator::hitQuadruplets(const TrackingRegion& region,
   std::array<GlobalPoint, 4> gps;
   std::array<GlobalError, 4> ges;
   std::array<bool, 4> barrels;
+  int layerSubDetId = -1;
+  int previousLayerSubDetId = -2;
+  std::array<unsigned int, 2> previousCellIds ={{0,0}};
+  bool isTheSameTriplet = false;
+  bool isTheSameFourthLayer = false;
+  bool hasAlreadyPushedACandidate = false;
+  float selectedChi2 = std::numeric_limits<float>::max();
+
 
   unsigned int numberOfFoundQuadruplets = foundQuadruplets.size();
 
@@ -276,7 +284,24 @@ void CAHitQuadrupletGenerator::hitQuadruplets(const TrackingRegion& region,
     auto const& ahit = foundQuadruplets[quadId][2]->getOuterHit();
     gps[3] = ahit->globalPosition();
     ges[3] = ahit->globalPositionError();
+    layerSubDetId = ahit->geographicalId().subdetId();
     barrels[3] = isBarrel(ahit->geographicalId().subdetId());
+
+    isTheSameTriplet = (quadId != 0) && (foundQuadruplets[quadId][0]->getCellId() ==  previousCellIds[0]) && (foundQuadruplets[quadId][1]->getCellId() ==  previousCellIds[1]);
+    isTheSameFourthLayer = (layerSubDetId == previousLayerSubDetId);
+
+    previousCellIds = {{foundQuadruplets[quadId][0]->getCellId(), foundQuadruplets[quadId][1]->getCellId()}};
+    previousLayerSubDetId = layerSubDetId;
+
+
+    if(!(isTheSameTriplet && isTheSameFourthLayer ))
+    {
+    	selectedChi2 = std::numeric_limits<float>::max();
+    	hasAlreadyPushedACandidate = false;
+    }
+
+
+
 
     // TODO:
     // - 'line' is not used for anything
@@ -340,8 +365,29 @@ void CAHitQuadrupletGenerator::hitQuadruplets(const TrackingRegion& region,
         continue;
     }
 
-    result.emplace_back(foundQuadruplets[quadId][0]->getInnerHit(), foundQuadruplets[quadId][1]->getInnerHit(), foundQuadruplets[quadId][2]->getInnerHit(), foundQuadruplets[quadId][2]->getOuterHit());
+    if (chi2 < selectedChi2)
+    {
+    	selectedChi2 = chi2;
+
+    	if(hasAlreadyPushedACandidate)
+    	{
+    		result.pop_back();
+
+    	}
+	    result.emplace_back(foundQuadruplets[quadId][0]->getInnerHit(), foundQuadruplets[quadId][1]->getInnerHit(),
+	    		foundQuadruplets[quadId][2]->getInnerHit(), foundQuadruplets[quadId][2]->getOuterHit());
+	    hasAlreadyPushedACandidate = true;
+
+
+
+    }
+
+//    result.emplace_back(foundQuadruplets[quadId][0]->getInnerHit(), foundQuadruplets[quadId][1]->getInnerHit(), foundQuadruplets[quadId][2]->getInnerHit(), foundQuadruplets[quadId][2]->getOuterHit());
+
+
   }
+
+
 }
 
 

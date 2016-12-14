@@ -242,13 +242,20 @@ void CAHitTripletGenerator::hitTriplets(const TrackingRegion& region,
 	std::array < GlobalError, 3 > ges;
 	std::array<bool, 3> barrels;
 
+
+	int layerSubDetId = -1;
+	int previousLayerSubDetId = -2;
+	unsigned int previousCellId =0;
+	bool isTheSameDoublet = false;
+	bool isTheSameThirdLayer = false;
+	bool hasAlreadyPushedACandidate = false;
+	float selectedChi2 = std::numeric_limits<float>::max();
+
 	for (unsigned int tripletId = 0; tripletId < numberOfFoundTriplets;
 			++tripletId)
 	{
 
-		OrderedHitTriplet tmpTriplet(foundTriplets[tripletId][0]->getInnerHit(),
-				foundTriplets[tripletId][0]->getOuterHit(),
-				foundTriplets[tripletId][1]->getOuterHit());
+
 
 		auto isBarrel = [](const unsigned id) -> bool
 		{
@@ -266,6 +273,20 @@ void CAHitTripletGenerator::hitTriplets(const TrackingRegion& region,
 		gps[2] = ahit->globalPosition();
 		ges[2] = ahit->globalPositionError();
 		barrels[2] = isBarrel(ahit->geographicalId().subdetId());
+	    layerSubDetId = ahit->geographicalId().subdetId();
+	    isTheSameDoublet = (tripletId != 0) && (foundTriplets[tripletId][0]->getCellId() ==  previousCellId);
+	    isTheSameThirdLayer = (layerSubDetId == previousLayerSubDetId);
+
+	    previousCellId = foundTriplets[tripletId][0]->getCellId();
+	    previousLayerSubDetId = layerSubDetId;
+
+
+	    if(!(isTheSameDoublet && isTheSameThirdLayer ))
+	    {
+	    	selectedChi2 = std::numeric_limits<float>::max();
+	    	hasAlreadyPushedACandidate = false;
+	    }
+
 
 		PixelRecoLineRZ line(gps[0], gps[2]);
 		ThirdHitPredictionFromCircle predictionRPhi(gps[0], gps[2],
@@ -312,6 +333,10 @@ void CAHitTripletGenerator::hitTriplets(const TrackingRegion& region,
 
 		}
 
+
+		OrderedHitTriplet tmpTriplet(foundTriplets[tripletId][0]->getInnerHit(),
+				foundTriplets[tripletId][0]->getOuterHit(),
+				foundTriplets[tripletId][1]->getOuterHit());
 		if (theComparitor)
 		{
 			if (!theComparitor->compatible(tmpTriplet))
@@ -321,9 +346,26 @@ void CAHitTripletGenerator::hitTriplets(const TrackingRegion& region,
 			}
 		}
 
-		result.push_back(tmpTriplet);
+
+	    if (chi2 < selectedChi2)
+	    {
+	    	selectedChi2 = chi2;
+
+	    	if(hasAlreadyPushedACandidate)
+	    	{
+	    		result.pop_back();
+
+	    	}
+			result.push_back(tmpTriplet);
+
+		    hasAlreadyPushedACandidate = true;
+
+
+
+	    }
+
 
 	}
-	theLayerCache.clear();
+//	theLayerCache.clear();
 }
 
