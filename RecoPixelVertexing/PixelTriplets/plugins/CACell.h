@@ -1,14 +1,16 @@
 #ifndef RECOPIXELVERTEXING_PIXELTRIPLETS_CACELL_h
 #define RECOPIXELVERTEXING_PIXELTRIPLETS_CACELL_h
 
+
 #include "RecoTracker/TkHitPairs/interface/RecHitsSortedInPhi.h"
 #include "TrackingTools/TransientTrackingRecHit/interface/SeedingLayerSetsHits.h"
 #include "RecoTracker/TkTrackingRegions/interface/TrackingRegion.h"
 
 #include "DataFormats/Math/interface/deltaPhi.h"
-
 #include <cmath>
 #include <array>
+
+
 
 class CACell {
 public:
@@ -20,6 +22,30 @@ public:
     theInnerR(doublets->r(doubletId, HitDoublets::inner)), theOuterR(doublets->r(doubletId, HitDoublets::outer)),
     theInnerZ(doublets->z(doubletId, HitDoublets::inner)), theOuterZ(doublets->z(doubletId, HitDoublets::outer)) {
     }
+
+#ifdef FP_PRINT_CA_GRAPH
+    CACell(const std::string innerLayerName, const std::string outerLayerName, const HitDoublets* doublets, int doubletId, const unsigned int cellId, const int innerHitId, const int outerHitId) :
+    theInnerLayerName(innerLayerName), theOuterLayerName(outerLayerName),
+    theCAState(0), theInnerHitId(innerHitId), theOuterHitId(outerHitId), theCellId(cellId), hasSameStateNeighbors(0), theDoublets(doublets), theDoubletId(doubletId),
+    theInnerR(doublets->r(doubletId, HitDoublets::inner)), theOuterR(doublets->r(doubletId, HitDoublets::outer)),
+    theInnerZ(doublets->z(doubletId, HitDoublets::inner)), theOuterZ(doublets->z(doubletId, HitDoublets::outer)) {
+    }
+
+    void printCell(int indentation=0) const {
+        for(int i =0; i<indentation; ++i)
+           std::cout << "\t" ;
+        std::cout<< "cell: (" << theInnerLayerName << "," << theOuterLayerName << "," << theDoubletId <<"," << 
+                                                                       theInnerHitId << "," << theOuterHitId << ")"<<  std::endl;
+    
+    }
+
+
+#endif
+
+
+
+
+
 
     unsigned int getCellId() const {
         return theCellId;
@@ -119,6 +145,12 @@ public:
         if (areAlignedRZ(innerCell, ptmin, thetaCut) &&
         		haveSimilarCurvature(innerCell,ptmin, region_origin_x, region_origin_y,
         				region_origin_radius, phiCut, hardPtCut)) {
+#ifdef FP_PRINT_CA_GRAPH
+       printCell(0);
+       innerCell->printCell(1);
+
+#endif
+
         	foundTriplets.emplace_back(CACell::CAntuplet{innerCell,this});
 
         }
@@ -239,13 +271,24 @@ public:
     // trying to free the track building process from hardcoded layers, leaving the visit of the graph
     // based on the neighborhood connections between cells.
 
-    void findNtuplets(std::vector<CAntuplet>& foundNtuplets, CAntuplet& tmpNtuplet, const unsigned int minHitsPerNtuplet) const {
+    void findNtuplets(std::vector<CAntuplet>& foundNtuplets, CAntuplet& tmpNtuplet, const unsigned int minHitsPerNtuplet
+    #ifdef FP_PRINT_CA_GRAPH
+    , int indentation=0
+    #endif
+    ) const {
 
         // the building process for a track ends if:
         // it has no outer neighbor
         // it has no compatible neighbor
         // the ntuplets is then saved if the number of hits it contains is greater than a threshold
-
+       
+        #ifdef FP_PRINT_CA_GRAPH
+               printCell(indentation);
+               indentation++;
+        #endif
+       
+       
+        
         if (tmpNtuplet.size() == minHitsPerNtuplet - 1)
         {
             foundNtuplets.push_back(tmpNtuplet);
@@ -259,10 +302,19 @@ public:
         	else
         	{
                 unsigned int numberOfOuterNeighbors = theOuterNeighbors.size();
+
                 for (unsigned int i = 0; i < numberOfOuterNeighbors; ++i) {
                     tmpNtuplet.push_back((theOuterNeighbors[i]));
+
+        #ifdef FP_PRINT_CA_GRAPH
+                          
+                    theOuterNeighbors[i]->findNtuplets(foundNtuplets, tmpNtuplet, minHitsPerNtuplet, indentation);
+        #else
                     theOuterNeighbors[i]->findNtuplets(foundNtuplets, tmpNtuplet, minHitsPerNtuplet);
+                            
+        #endif
                     tmpNtuplet.pop_back();
+
                 }
         	}
 
@@ -275,6 +327,12 @@ private:
     std::vector<CACell*> theInnerNeighbors;
     std::vector<CACell*> theOuterNeighbors;
 
+#ifdef FP_PRINT_CA_GRAPH
+    const std::string theInnerLayerName;
+    const std::string theOuterLayerName;
+    
+#endif
+
     unsigned int theCAState;
 
     const unsigned int theInnerHitId;
@@ -284,6 +342,11 @@ private:
 
     const HitDoublets* theDoublets;
     const int theDoubletId;
+
+
+
+
+	 
 
     const float theInnerR;
     const float theOuterR;

@@ -8,6 +8,7 @@
 #include <functional>
 #include "CACell.h"
 
+
 struct CALayer
 {
 	CALayer(const std::string& layerName, std::size_t numberOfHits )
