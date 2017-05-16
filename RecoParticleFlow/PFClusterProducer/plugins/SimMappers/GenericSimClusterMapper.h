@@ -32,10 +32,13 @@ class GenericSimClusterMapper : public InitialClusteringStepBase {
 		     reco::PFClusterCollection&) override;
   
  private:  
+  void retrieveLayerZPositions();
   edm::EDGetTokenT<SimClusterCollection> _simClusterToken;
   edm::Handle<SimClusterCollection> _simClusterH;
   hgcal::RecHitTools _rhtools;
   const MagneticField* _bField;
+  std::vector<float> _layerZPositions;
+
 
 
 };
