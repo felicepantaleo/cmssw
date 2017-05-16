@@ -1,11 +1,15 @@
 #ifndef __RecoParticleFlow_PFClusterProducer_GenericSimClusterMapper_H__
 #define __RecoParticleFlow_PFClusterProducer_GenericSimClusterMapper_H__
-
+#include "FWCore/Framework/interface/ESHandle.h"
 #include "RecoParticleFlow/PFClusterProducer/interface/InitialClusteringStepBase.h"
 #include "DataFormats/ParticleFlowReco/interface/PFRecHitFraction.h"
 
 #include "RecoLocalCalo/HGCalRecAlgos/interface/RecHitTools.h"
 #include "SimDataFormats/CaloAnalysis/interface/SimClusterFwd.h"
+#include "MagneticField/Engine/interface/MagneticField.h"
+#include "MagneticField/Records/interface/IdealMagneticFieldRecord.h"
+
+
 
 class GenericSimClusterMapper : public InitialClusteringStepBase {
   typedef GenericSimClusterMapper B2DGT;
@@ -31,6 +35,9 @@ class GenericSimClusterMapper : public InitialClusteringStepBase {
   edm::EDGetTokenT<SimClusterCollection> _simClusterToken;
   edm::Handle<SimClusterCollection> _simClusterH;
   hgcal::RecHitTools _rhtools;
+  const MagneticField* _bField;
+
+
 };
 
 DEFINE_EDM_PLUGIN(InitialClusteringStepFactory,

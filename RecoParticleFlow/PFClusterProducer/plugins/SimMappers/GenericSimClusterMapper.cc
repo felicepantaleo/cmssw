@@ -6,6 +6,11 @@
 #include "SimDataFormats/CaloAnalysis/interface/SimCluster.h"
 #include "DataFormats/ForwardDetId/interface/HGCalDetId.h"
 
+
+#include "TrackingTools/TrajectoryState/interface/TrajectoryStateOnSurface.h"
+#include "TrackingTools/GeomPropagators/interface/AnalyticalPropagator.h"
+
+
 #ifdef PFLOW_DEBUG
 #define LOGVERB(x) edm::LogVerbatim(x)
 #define LOGWARN(x) edm::LogWarning(x)
@@ -26,6 +31,10 @@ updateEvent(const edm::Event& ev) {
 void GenericSimClusterMapper::
 update(const edm::EventSetup& es) {
     _rhtools.getEventSetup(es);
+    // get Geometry, B-field, Topology
+    edm::ESHandle<MagneticField> bFieldH;
+    es.get<IdealMagneticFieldRecord>().get(bFieldH);
+    _bField = bFieldH.product();
 }
 
 void GenericSimClusterMapper::
@@ -50,6 +59,19 @@ buildClusters(const edm::Handle<reco::PFRecHitCollection>& input,
     edm::Ref<std::vector<reco::PFRecHit> > seed;    
     double energy = 0.0, highest_energy = 0.0;
     auto hitsAndFractions = std::move( sc.hits_and_fractions() );
+    bool hasSimTrack = !sc.g4Tracks().empty();
+    if(hasSimTrack)
+    {
+        const SimTrack& trk = sc.g4Tracks()[0];
+        auto& trkPositionAtTrackerSurface = trk.trackerSurfacePosition();
+        auto& trkMomentumAtTrackerSurface = trk.trackerSurfaceMomentum();
+        auto trkCharge = sc.charge() ;
+    }
+
+//    FreeTrajectoryState fts (tpVertex, tpMomentum, tpCharge, _bField);
+
+
+
     for( const auto& hAndF : hitsAndFractions )
     {
       auto itr = detIdToIndex.find(hAndF.first);
