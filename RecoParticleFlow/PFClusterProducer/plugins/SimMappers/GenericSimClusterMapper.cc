@@ -24,6 +24,11 @@ updateEvent(const edm::Event& ev) {
 }
 
 void GenericSimClusterMapper::
+update(const edm::EventSetup& es) {
+    _rhtools.getEventSetup(es);
+}
+
+void GenericSimClusterMapper::
 buildClusters(const edm::Handle<reco::PFRecHitCollection>& input,
 	      const std::vector<bool>& rechitMask,
 	      const std::vector<bool>& seedable,
@@ -38,13 +43,15 @@ buildClusters(const edm::Handle<reco::PFRecHitCollection>& input,
     auto ref = makeRefhit(input,i);    
   }
   
-  for( const auto& sc : simClusters ) {
+  for( const auto& sc : simClusters )
+  {
     output.emplace_back();
     reco::PFCluster& back = output.back();
     edm::Ref<std::vector<reco::PFRecHit> > seed;    
     double energy = 0.0, highest_energy = 0.0;
     auto hitsAndFractions = std::move( sc.hits_and_fractions() );
-    for( const auto& hAndF : hitsAndFractions ) {
+    for( const auto& hAndF : hitsAndFractions )
+    {
       auto itr = detIdToIndex.find(hAndF.first);
       if( itr == detIdToIndex.end() ) continue; // hit wasn't saved in reco
       auto ref = makeRefhit(input,itr->second);            

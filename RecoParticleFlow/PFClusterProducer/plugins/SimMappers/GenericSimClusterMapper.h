@@ -4,6 +4,7 @@
 #include "RecoParticleFlow/PFClusterProducer/interface/InitialClusteringStepBase.h"
 #include "DataFormats/ParticleFlowReco/interface/PFRecHitFraction.h"
 
+#include "RecoLocalCalo/HGCalRecAlgos/interface/RecHitTools.h"
 #include "SimDataFormats/CaloAnalysis/interface/SimClusterFwd.h"
 
 class GenericSimClusterMapper : public InitialClusteringStepBase {
@@ -19,6 +20,7 @@ class GenericSimClusterMapper : public InitialClusteringStepBase {
   B2DGT& operator=(const B2DGT&) = delete;
 
   virtual void updateEvent(const edm::Event&) override final;
+  virtual void update(const edm::EventSetup&) override final;
 
   void buildClusters(const edm::Handle<reco::PFRecHitCollection>&,
 		     const std::vector<bool>&,
@@ -28,7 +30,7 @@ class GenericSimClusterMapper : public InitialClusteringStepBase {
  private:  
   edm::EDGetTokenT<SimClusterCollection> _simClusterToken;
   edm::Handle<SimClusterCollection> _simClusterH;
-  
+  hgcal::RecHitTools _rhtools;
 };
 
 DEFINE_EDM_PLUGIN(InitialClusteringStepFactory,
