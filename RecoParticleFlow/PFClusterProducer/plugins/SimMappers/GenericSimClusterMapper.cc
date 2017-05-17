@@ -26,6 +26,8 @@
 void GenericSimClusterMapper::
 updateEvent(const edm::Event& ev) {
   ev.getByToken(_simClusterToken,_simClusterH);
+  ev.getByToken(_simVtxToken,_simVerticesHandle);
+
 }
 
 
@@ -50,11 +52,11 @@ retrieveLayerZPositions()
 void GenericSimClusterMapper::
 update(const edm::EventSetup& es) {
     _rhtools.getEventSetup(es);
-    // get Geometry, B-field, Topology
     edm::ESHandle<MagneticField> bFieldH;
     es.get<IdealMagneticFieldRecord>().get(bFieldH);
     _bField = bFieldH.product();
     retrieveLayerZPositions();
+
 }
 
 void GenericSimClusterMapper::
@@ -80,15 +82,19 @@ buildClusters(const edm::Handle<reco::PFRecHitCollection>& input,
     double energy = 0.0, highest_energy = 0.0;
     auto hitsAndFractions = std::move( sc.hits_and_fractions() );
     bool hasSimTrack = !sc.g4Tracks().empty();
-
+    std::vector<GlobalPoint> corePointsInLayer;
     if(hasSimTrack)
     {
         const SimTrack& trk = sc.g4Tracks()[0];
-        auto& trkPositionAtTrackerSurface = trk.trackerSurfacePosition();
-        GlobalPoint point(trkPositionAtTrackerSurface.x(), trkPositionAtTrackerSurface.y(), trkPositionAtTrackerSurface.z() );
-        auto& trkMomentumAtTrackerSurface = trk.trackerSurfaceMomentum();
-        GlobalVector vector( trkMomentumAtTrackerSurface.x(), trkMomentumAtTrackerSurface.y(), trkMomentumAtTrackerSurface.z() );
-        auto trkCharge = sc.charge();
+        const math::XYZTLorentzVectorD & vtxPos = (*_simVerticesHandle)[trk.vertIndex()].position();
+
+        GlobalPoint point(vtxPos.X(), vtxPos.Y(), vtxPos.Z() );
+
+        auto& trkMomentumAtIP = trk.momentum();
+        GlobalVector vector( trkMomentumAtIP.x(), trkMomentumAtIP.y(), trkMomentumAtIP.z() );
+        std::cout << point <<  "  " << vector << std::endl;
+
+        auto trkCharge = trk.charge();
         defaultRKPropagator::Product prod( _bField, alongMomentum, 5.e-5);
         auto & RKProp = prod.propagator;
 
@@ -97,27 +103,23 @@ buildClusters(const edm::Handle<reco::PFRecHitCollection>& input,
         AlgebraicSymMatrix55 C(id);
         C *= 0.01;
         CurvilinearTrajectoryError err(C);
-        Plane::PlanePointer startingPlane = Plane::build( Plane::PositionType (trkPositionAtTrackerSurface.x(), trkPositionAtTrackerSurface.y(), trkPositionAtTrackerSurface.z() ), Plane::RotationType () );
+        Plane::PlanePointer startingPlane = Plane::build( Plane::PositionType (vtxPos.x(), vtxPos.y(), vtxPos.z() ), Plane::RotationType () );
         TrajectoryStateOnSurface startingStateP(GlobalTrajectoryParameters(point,vector, trkCharge, _bField), err, *startingPlane);
 
-        std::vector<float> xp;
-        std::vector<float> yp;
-        std::vector<float> zp;
 
-        std::cout << "starting propagation " << std::endl;
+
+
         for(unsigned il=0; il<_layerZPositions.size(); ++il) {
               float xp_curr=0;
               float yp_curr=0;
               float zp_curr=0;
+              int zside;
 
-              for (int zside = -1; zside <=1; zside+=2)
+              //TODO: choose zside in the first iteration and keep it to avoid useless propagations backwards
+              for (zside = -1; zside <=1; zside+=2)
               {
                   // clearly try both sides
                   Plane::PlanePointer endPlane = Plane::build( Plane::PositionType (0,0,zside*_layerZPositions[il]), Plane::RotationType());
-
-
-                  std::cout << "Trying from " << " layer " << il << " starting point "
-                            << startingStateP.globalPosition() << std::endl;
 
                   TrajectoryStateOnSurface trackStateP = RKProp.propagate(startingStateP, *endPlane);
                     if (trackStateP.isValid())
@@ -126,36 +128,47 @@ buildClusters(const edm::Handle<reco::PFRecHitCollection>& input,
                         yp_curr = trackStateP.globalPosition().y();
                         zp_curr = trackStateP.globalPosition().z();
 
-                         std::cout << "Succesfully finished Positive track propagation  -------------- with RK: " << trackStateP.globalPosition() << std::endl;
                     }
 
+
               }
-              xp.push_back(xp_curr);
-              yp.push_back(yp_curr);
-              zp.push_back(zp_curr);
-              std::cout << il << " " << xp_curr<< " " << yp_curr << " " << zp_curr<< std::endl;
+              corePointsInLayer.emplace_back(xp_curr, yp_curr,zp_curr );
+
           } // closes loop on layers
 
 
     }
 
-//    FreeTrajectoryState fts (tpVertex, tpMomentum, tpCharge, _bField);
 
+    bool distanceFilter = true;
+    float maxDistance = 10.f; //10cm
+        for (const auto& hAndF : hitsAndFractions)
+        {
+            bool hitIsWithinDistance = false;
+            if (distanceFilter && hasSimTrack)
+            {
+                const auto& hitPos = _rhtools.getPosition(hAndF.first);
+                int hitLayer = _rhtools.getLayerWithOffset(hAndF.first);
+                float distance = (hitPos - corePointsInLayer[hitLayer]).mag();
+                hitIsWithinDistance = distance < maxDistance;
+            }
+            if (!distanceFilter || (distanceFilter && hitIsWithinDistance))
+            {
 
-
-    for( const auto& hAndF : hitsAndFractions )
-    {
-      auto itr = detIdToIndex.find(hAndF.first);
-      if( itr == detIdToIndex.end() ) continue; // hit wasn't saved in reco
-      auto ref = makeRefhit(input,itr->second);
-      const double hit_energy = hAndF.second * ref->energy();
-      energy += hit_energy;
-      back.addRecHitFraction(reco::PFRecHitFraction(ref, hAndF.second));
-      if( hit_energy > highest_energy || highest_energy == 0.0) {
-	highest_energy = hit_energy;
-	seed = ref;
-      }
-    }
+                auto itr = detIdToIndex.find(hAndF.first);
+                if (itr == detIdToIndex.end())
+                    continue; // hit wasn't saved in reco
+                auto ref = makeRefhit(input, itr->second);
+                const double hit_energy = hAndF.second * ref->energy();
+                energy += hit_energy;
+                back.addRecHitFraction(reco::PFRecHitFraction(ref, hAndF.second));
+                if (hit_energy > highest_energy || highest_energy == 0.0)
+                {
+                    highest_energy = hit_energy;
+                    seed = ref;
+                }
+            }
+        }
     if( back.hitsAndFractions().size() != 0 ) {
       back.setSeed(seed->detId());
       back.setEnergy(energy);

@@ -3,7 +3,7 @@
 #include "FWCore/Framework/interface/ESHandle.h"
 #include "RecoParticleFlow/PFClusterProducer/interface/InitialClusteringStepBase.h"
 #include "DataFormats/ParticleFlowReco/interface/PFRecHitFraction.h"
-
+#include "SimDataFormats/Vertex/interface/SimVertexContainer.h"
 #include "RecoLocalCalo/HGCalRecAlgos/interface/RecHitTools.h"
 #include "SimDataFormats/CaloAnalysis/interface/SimClusterFwd.h"
 #include "MagneticField/Engine/interface/MagneticField.h"
@@ -18,6 +18,7 @@ class GenericSimClusterMapper : public InitialClusteringStepBase {
 			 edm::ConsumesCollector& sumes) :
     InitialClusteringStepBase(conf,sumes) { 
       _simClusterToken = sumes.consumes<SimClusterCollection>(conf.getParameter<edm::InputTag>("simClusterSrc"));
+      _simVtxToken   = sumes.consumes<edm::SimVertexContainer>(edm::InputTag("g4SimHits"));
     }
   virtual ~GenericSimClusterMapper() {}
   GenericSimClusterMapper(const B2DGT&) = delete;
@@ -35,6 +36,9 @@ class GenericSimClusterMapper : public InitialClusteringStepBase {
   void retrieveLayerZPositions();
   edm::EDGetTokenT<SimClusterCollection> _simClusterToken;
   edm::Handle<SimClusterCollection> _simClusterH;
+  edm::EDGetTokenT<edm::SimVertexContainer> _simVtxToken;
+  edm::Handle<edm::SimVertexContainer>  _simVerticesHandle;
+
   hgcal::RecHitTools _rhtools;
   const MagneticField* _bField;
   std::vector<float> _layerZPositions;
