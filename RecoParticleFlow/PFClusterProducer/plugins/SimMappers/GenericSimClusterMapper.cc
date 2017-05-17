@@ -23,6 +23,14 @@
 #define LOGDRESSED(x) LogDebug(x)
 #endif
 
+
+
+// TODO:
+// 1) get planes z from geometry
+// 2) propagate only on planes with rechits (once per plane)
+// 3) analytical propagator
+// 4) check indices (starts from 1 or 0)
+
 void GenericSimClusterMapper::
 updateEvent(const edm::Event& ev) {
   ev.getByToken(_simClusterToken,_simClusterH);
@@ -92,7 +100,6 @@ buildClusters(const edm::Handle<reco::PFRecHitCollection>& input,
 
         auto& trkMomentumAtIP = trk.momentum();
         GlobalVector vector( trkMomentumAtIP.x(), trkMomentumAtIP.y(), trkMomentumAtIP.z() );
-        std::cout << point <<  "  " << vector << std::endl;
 
         auto trkCharge = trk.charge();
         defaultRKPropagator::Product prod( _bField, alongMomentum, 5.e-5);
@@ -105,9 +112,6 @@ buildClusters(const edm::Handle<reco::PFRecHitCollection>& input,
         CurvilinearTrajectoryError err(C);
         Plane::PlanePointer startingPlane = Plane::build( Plane::PositionType (vtxPos.x(), vtxPos.y(), vtxPos.z() ), Plane::RotationType () );
         TrajectoryStateOnSurface startingStateP(GlobalTrajectoryParameters(point,vector, trkCharge, _bField), err, *startingPlane);
-
-
-
 
         for(unsigned il=0; il<_layerZPositions.size(); ++il) {
               float xp_curr=0;
