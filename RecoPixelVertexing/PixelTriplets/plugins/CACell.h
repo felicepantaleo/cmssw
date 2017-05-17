@@ -262,12 +262,12 @@ public:
   // based on the neighborhood connections between cells.
   
   void findNtuplets(CAColl& allCells, std::vector<CAntuplet>& foundNtuplets, CAntuplet& tmpNtuplet, const unsigned int minHitsPerNtuplet) const {
-    
+
     // the building process for a track ends if:
     // it has no outer neighbor
     // it has no compatible neighbor
     // the ntuplets is then saved if the number of hits it contains is greater than a threshold
-    
+
     if (tmpNtuplet.size() == minHitsPerNtuplet - 1)
       {
 	foundNtuplets.push_back(tmpNtuplet);
@@ -281,9 +281,38 @@ public:
 	  tmpNtuplet.pop_back();
 	}
       }
-    
+
   }
+
+
   
+    void findNtuplets(CAColl& allCells, std::vector<CAntuplet>& foundNtuplets,
+                CAntuplet& tmpNtuplet, const unsigned int minHitsPerNtuplet,
+                const unsigned int maxHitsPerNtuplet) const
+    {
+
+        // the building process for a track ends if:
+        // it has no outer neighbor
+        // it has no compatible neighbor
+        // the ntuplets is then saved if the number of hits it contains is greater than a threshold
+        unsigned int numberOfOuterNeighbors = theOuterNeighbors.size();
+        unsigned int nCells = tmpNtuplet.size();
+        if ((nCells == maxHitsPerNtuplet -1 ) || ( (numberOfOuterNeighbors == 0) && (nCells < maxHitsPerNtuplet -1) && (nCells >=  minHitsPerNtuplet -1)) )
+        {
+            foundNtuplets.push_back(tmpNtuplet);
+        }
+        else
+        {
+            for (unsigned int i = 0; i < numberOfOuterNeighbors; ++i)
+            {
+                tmpNtuplet.push_back((theOuterNeighbors[i]));
+                allCells[theOuterNeighbors[i]].findNtuplets(allCells, foundNtuplets, tmpNtuplet,
+                        minHitsPerNtuplet);
+                tmpNtuplet.pop_back();
+            }
+        }
+
+    }
   
 private:
   
