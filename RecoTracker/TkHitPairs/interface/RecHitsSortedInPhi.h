@@ -166,13 +166,13 @@ public:
   float        x(int i, layer l) const { return layers[l]->x[index(i,l)];}
   float        y(int i, layer l) const { return layers[l]->y[index(i,l)];}
   GlobalPoint gp(int i, layer l) const { return GlobalPoint(x(i,l),y(i,l),z(i,l));}
-
-private:
-
   std::array<RecHitsSortedInPhi const *,2> layers;
 
 
   std::vector<ADoublet> indeces; // naturally sorted by outerId
+private:
+
+
 
 };
 

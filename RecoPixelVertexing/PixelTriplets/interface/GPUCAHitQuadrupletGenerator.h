@@ -1,23 +1,19 @@
-#ifndef RECOPIXELVERTEXING_PIXELTRIPLETS_CAHITQUADRUPLETGENERATOR_H
-#define RECOPIXELVERTEXING_PIXELTRIPLETS_CAHITQUADRUPLETGENERATOR_H
+#ifndef CAHitQuadrupletGenerator_H
+#define CAHitQuadrupletGenerator_H
 
-#include "RecoPixelVertexing/PixelTriplets/interface/HitQuadrupletGenerator.h"
+#include "FWCore/ParameterSet/interface/ParameterSet.h"
+#include "FWCore/Utilities/interface/EDGetToken.h"
+#include "DataFormats/SiPixelDetId/interface/PixelSubdetector.h"
 #include "RecoTracker/TkSeedingLayers/interface/SeedComparitorFactory.h"
 #include "RecoTracker/TkSeedingLayers/interface/SeedComparitor.h"
-#include "RecoPixelVertexing/PixelTrackFitting/interface/RZLine.h"
 #include "RecoTracker/TkSeedGenerator/interface/FastCircleFit.h"
 #include "RecoTracker/TkMSParametrization/interface/PixelRecoUtilities.h"
 #include "RecoTracker/TkMSParametrization/interface/LongitudinalBendingCorrection.h"
-#include "DataFormats/SiPixelDetId/interface/PixelSubdetector.h"
-#include "CAGraph.h"
-
-
 #include "RecoTracker/TkHitPairs/interface/HitPairGeneratorFromLayerPair.h"
 #include "RecoTracker/TkHitPairs/interface/LayerHitMapCache.h"
-#include "FWCore/ParameterSet/interface/ParameterSet.h"
-#include "FWCore/Utilities/interface/EDGetToken.h"
-
-#include "RecoTracker/TkHitPairs/interface/IntermediateHitDoublets.h"
+#include "RecoPixelVertexing/PixelTriplets/interface/HitQuadrupletGenerator.h"
+#include "RecoPixelVertexing/PixelTrackFitting/src/RZLine.h"
+#include "RecoPixelVertexing/PixelTriplets/interface/GPUHitsAndDoublets.h"
 
 class TrackingRegion;
 class HitQuadrupletGeneratorFromTripletAndLayers;
@@ -25,52 +21,32 @@ class SeedingLayerSetsHits;
 
 namespace edm {
     class Event;
+}
+namespace edm {
     class EventSetup;
-    class ParameterSetDescription;
 }
 
 class CAHitQuadrupletGenerator : public HitQuadrupletGenerator {
 public:
     typedef LayerHitMapCache LayerCacheType;
 
-    static constexpr unsigned int minLayers = 4;
-    typedef OrderedHitSeeds ResultType;
-
 public:
 
-    CAHitQuadrupletGenerator(const edm::ParameterSet& cfg, edm::ConsumesCollector&& iC, bool needSeedingLayerSetsHits=true): CAHitQuadrupletGenerator(cfg, iC, needSeedingLayerSetsHits) {}
-    CAHitQuadrupletGenerator(const edm::ParameterSet& cfg, edm::ConsumesCollector& iC, bool needSeedingLayerSetsHits=true);
+    CAHitQuadrupletGenerator(const edm::ParameterSet& cfg, edm::ConsumesCollector& iC);
 
     virtual ~CAHitQuadrupletGenerator();
 
-    static void fillDescriptions(edm::ParameterSetDescription& desc);
-    static const char *fillDescriptionsLabel() { return "caHitQuadruplet"; }
-
-    void initEvent(const edm::Event& ev, const edm::EventSetup& es);
-
-
     /// from base class
-    virtual void hitQuadruplets(const TrackingRegion& reg, OrderedHitSeeds & quadruplets,
+    virtual void hitQuadruplets(const TrackingRegion& reg, OrderedHitSeeds & triplets,
             const edm::Event & ev, const edm::EventSetup& es);
 
-    // new-style
-    void hitNtuplets(const IntermediateHitDoublets& regionDoublets,
-                     std::vector<OrderedHitSeeds>& result,
-                     const edm::EventSetup& es,
-                     const SeedingLayerSetsHits& layers);
-
+    void findQuadruplets (const TrackingRegion& region, OrderedHitSeeds& result,
+            const edm::Event& ev, const edm::EventSetup& es,
+            const SeedingLayerSetsHits::SeedingLayerSet& fourLayers,
+            std::array<const GPULayerDoublets *, 3> const & layersDoublets);
+    
+    
 private:
-    // actual work
-    void hitQuadruplets(const TrackingRegion& reg, OrderedHitSeeds& result,
-                        std::vector<const HitDoublets *>& hitDoublets,
-                        CAGraph& g,
-                        const edm::EventSetup& es);
-    // actual work
-    void hitQuadruplets(const TrackingRegion& reg, OrderedHitSeeds& result,
-                        std::vector<const HitDoublets *>& hitDoublets, const std::vector<const RecHitsSortedInPhi  *>& hitsOnLayer,
-                        CAGraph& g,
-                        const edm::EventSetup& es);
-
     edm::EDGetTokenT<SeedingLayerSetsHits> theSeedingLayerToken;
 
     LayerCacheType theLayerCache;
@@ -148,9 +124,8 @@ private:
     const bool fitFastCircleChi2Cut;
     const bool useBendingCorrection;
 
-    const float caThetaCut = 0.00125f;
-    const float caPhiCut = 0.1f;
-    const float caHardPtCut = 0.f;
-    const bool caOnlyOneLastHitPerLayerFilter = false;
+    const float CAThetaCut = 0.00125f;
+    const float CAPhiCut = 10.f;
+
 };
 #endif
