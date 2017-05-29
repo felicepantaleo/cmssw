@@ -4,6 +4,7 @@
 #include <vector>
 #include <array>
 #include <string>
+#include "RecoTracker/TkHitPairs/interface/RecHitsSortedInPhi.h"
 
 struct CALayer
 {
@@ -29,6 +30,7 @@ struct CALayer
 	std::vector<int> theOuterLayers;
 	std::vector<int> theInnerLayers;
 	std::vector< std::vector<unsigned int> >  isOuterHitOfCell;
+	RecHitsSortedInPhi const * hits;
 
 
 private:

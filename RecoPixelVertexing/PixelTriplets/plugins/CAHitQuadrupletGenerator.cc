@@ -17,7 +17,6 @@
 
 #include "RecoPixelVertexing/PixelTriplets/interface/GPUHitsAndDoublets.h"
 #include "RecoPixelVertexing/PixelTriplets/interface/GPUCellularAutomaton.h"
-
 #include "CellularAutomaton.h"
 
 #include "CommonTools/Utils/interface/DynArray.h"
@@ -105,7 +104,7 @@ void CAHitQuadrupletGenerator::initEvent(const edm::Event& ev, const edm::EventS
 }
 namespace
 {
-void createGraphStructure(const SeedingLayerSetsHits& layers, CAGraph& g)
+void createGraphStructure(const SeedingLayerSetsHits& layers, CAGraph& g, const TrackingRegion& region,const edm::EventSetup& es)
 {
     for (unsigned int i = 0; i < layers.size(); i++)
     {
@@ -182,18 +181,24 @@ void fillGraph(const SeedingLayerSetsHits& layers, CAGraph& g, T_HitDoublets& hi
                 if (std::find(g.theLayerPairs.begin(), g.theLayerPairs.end(), tmpInnerLayerPair)
                         == g.theLayerPairs.end())
                 {
-                    const bool nonEmpty = generatorOrPairsFunction(layers[i][j - 1], layers[i][j],
-                            hitDoublets);
-                    if (nonEmpty)
-                    {
+                        if(generatorOrPairsFunction(layers[i][j - 1], layers[i][j],
+                            hitDoublets)){
+
                         g.theLayerPairs.push_back(tmpInnerLayerPair);
                         g.theLayers[vertexIndex].theInnerLayers.push_back(
                                 innerVertex - g.theLayers.begin());
                         innerVertex->theOuterLayers.push_back(vertexIndex);
                         g.theLayers[vertexIndex].theInnerLayerPairs.push_back(
                                 g.theLayerPairs.size() - 1);
+
                         innerVertex->theOuterLayerPairs.push_back(g.theLayerPairs.size() - 1);
-                    }
+
+
+
+
+
+
+                        }
                 }
 
             }
@@ -203,59 +208,6 @@ void fillGraph(const SeedingLayerSetsHits& layers, CAGraph& g, T_HitDoublets& hi
 }
 
 
-template<typename T_HitDoublets, typename T_GeneratorOrPairsFunction>
-void fillGraph(const TrackingRegion& region,const edm::EventSetup& es, const SeedingLayerSetsHits& layers, CAGraph& g, T_HitDoublets& hitDoublets, std::vector<const RecHitsSortedInPhi  *>& hitsOnLayer,
-        LayerHitMapCache& theLayerCache, T_GeneratorOrPairsFunction generatorOrPairsFunction)
-{
-    for (unsigned int i = 0; i < layers.size(); i++)
-    {
-        for (unsigned int j = 0; j < 4; ++j)
-        {
-            auto vertexIndex = 0;
-            auto foundVertex = std::find(g.theLayers.begin(), g.theLayers.end(),
-                    layers[i][j].name());
-            if (foundVertex == g.theLayers.end())
-            {
-                vertexIndex = g.theLayers.size() - 1;
-
-                auto const & layer = layers[i][j];
-                hitsOnLayer.push_back( &(theLayerCache(layer, region, es)) ) ;
-            }
-            else
-            {
-                vertexIndex = foundVertex - g.theLayers.begin();
-            }
-
-            if (j > 0)
-            {
-
-                auto innerVertex = std::find(g.theLayers.begin(), g.theLayers.end(),
-                        layers[i][j - 1].name());
-
-                CALayerPair tmpInnerLayerPair(innerVertex - g.theLayers.begin(), vertexIndex);
-
-                if (std::find(g.theLayerPairs.begin(), g.theLayerPairs.end(), tmpInnerLayerPair)
-                        == g.theLayerPairs.end())
-                {
-                    const bool nonEmpty = generatorOrPairsFunction(layers[i][j - 1], layers[i][j],
-                            hitDoublets);
-                    if (nonEmpty)
-                    {
-                        g.theLayerPairs.push_back(tmpInnerLayerPair);
-                        g.theLayers[vertexIndex].theInnerLayers.push_back(
-                                innerVertex - g.theLayers.begin());
-                        innerVertex->theOuterLayers.push_back(vertexIndex);
-                        g.theLayers[vertexIndex].theInnerLayerPairs.push_back(
-                                g.theLayerPairs.size() - 1);
-                        innerVertex->theOuterLayerPairs.push_back(g.theLayerPairs.size() - 1);
-                    }
-                }
-
-            }
-
-        }
-    }
-}
 }
 
 void CAHitQuadrupletGenerator::hitQuadruplets(const TrackingRegion& region,
@@ -272,13 +224,12 @@ void CAHitQuadrupletGenerator::hitQuadruplets(const TrackingRegion& region,
     CAGraph g;
 
     std::vector<HitDoublets> hitDoublets;
-
+    std::cout << "hello!" << std::endl;
     HitPairGeneratorFromLayerPair thePairGenerator(0, 1, &theLayerCache);
 
-    createGraphStructure(layers, g);
-    std::vector<const RecHitsSortedInPhi  *> hitsOnLayer;
+    createGraphStructure(layers, g, region, es);
 
-    fillGraph(region, es, layers, g, hitDoublets,hitsOnLayer, theLayerCache, [&](const SeedingLayerSetsHits::SeedingLayer& inner,
+    fillGraph(layers, g, hitDoublets, [&](const SeedingLayerSetsHits::SeedingLayer& inner,
             const SeedingLayerSetsHits::SeedingLayer& outer,
             std::vector<HitDoublets>& hitDoublets)
     {
@@ -294,7 +245,7 @@ void CAHitQuadrupletGenerator::hitQuadruplets(const TrackingRegion& region,
     for (const auto& e : hitDoublets)
         hitDoubletsPtr.emplace_back(&e);
 
-    hitQuadruplets(region, result, hitDoubletsPtr, hitsOnLayer,  g, es);
+    hitQuadruplets(region, result, hitDoubletsPtr,  g, es);
     theLayerCache.clear();
 }
 
@@ -303,7 +254,6 @@ void CAHitQuadrupletGenerator::hitNtuplets(const IntermediateHitDoublets& region
         const SeedingLayerSetsHits& layers)
 {
     CAGraph g;
-
     std::vector<const HitDoublets *> hitDoublets;
 
     auto layerPairEqual = [](const IntermediateHitDoublets::LayerPairHitDoublets& pair,
@@ -312,12 +262,9 @@ void CAHitQuadrupletGenerator::hitNtuplets(const IntermediateHitDoublets& region
     {
         return pair.innerLayerIndex() == inner && pair.outerLayerIndex() == outer;
     };
-    edm::ESHandle < TrackerTopology > tTopoHand;
-    es.get<TrackerTopologyRcd>().get(tTopoHand);
-    const TrackerTopology *tTopo = tTopoHand.product();
 
     const int numberOfHitsInNtuplet = 4;
-    std::vector<CACell::CAntuplet> foundQuadruplets;
+    std::vector < std::array<std::array<int, 2>, 3> > foundQuadruplets;
 
     int index = 0;
     for (const auto& regionLayerPairs : regionDoublets)
@@ -328,7 +275,7 @@ void CAHitQuadrupletGenerator::hitNtuplets(const IntermediateHitDoublets& region
         foundQuadruplets.clear();
         if (index == 0)
         {
-            createGraphStructure(layers, g);
+            createGraphStructure(layers, g, region, es);
         }
         else
         {
@@ -350,176 +297,199 @@ void CAHitQuadrupletGenerator::hitNtuplets(const IntermediateHitDoublets& region
             return false;
         });
 
-        CellularAutomaton ca(g);
+//        std::cout << "CPU number of layer pairs " << g.theLayerPairs.size() << std::endl;
+        for(unsigned int i = 0; i < g.theLayerPairs.size(); ++i){
+            g.theLayers[g.theLayerPairs[i].theLayers[0]].hits = hitDoublets[i]->layers[0];
+            g.theLayers[g.theLayerPairs[i].theLayers[1]].hits = hitDoublets[i]->layers[1];
 
-        ca.createAndConnectCells(hitDoublets, region, caThetaCut, caPhiCut, caHardPtCut);
-
-        ca.evolve(numberOfHitsInNtuplet);
-
-        ca.findNtuplets(foundQuadruplets, numberOfHitsInNtuplet);
-
-        auto & allCells = ca.getAllCells();
-
-        const QuantityDependsPtEval maxChi2Eval = maxChi2.evaluator(es);
-
-        // re-used thoughout
-        std::array<float, 4> bc_r;
-        std::array<float, 4> bc_z;
-        std::array<float, 4> bc_errZ2;
-        std::array < GlobalPoint, 4 > gps;
-        std::array < GlobalError, 4 > ges;
-        std::array<bool, 4> barrels;
-        bool hasAlreadyPushedACandidate = false;
-        float selectedChi2 = std::numeric_limits<float>::max();
-        unsigned int previousfourthLayerId = 0;
-        std::array<unsigned int, 2> previousCellIds =
-        {
-        { 0, 0 } };
-        unsigned int previousSideId = 0;
-        int previousSubDetId = 0;
-
-        unsigned int numberOfFoundQuadruplets = foundQuadruplets.size();
-
-        // Loop over quadruplets
-        for (unsigned int quadId = 0; quadId < numberOfFoundQuadruplets; ++quadId)
-        {
-
-            auto isBarrel = [](const unsigned id) -> bool
-            {
-                return id == PixelSubdetector::PixelBarrel;
-            };
-            for (unsigned int i = 0; i < 3; ++i)
-            {
-                auto const& ahit = allCells[foundQuadruplets[quadId][i]].getInnerHit();
-                gps[i] = ahit->globalPosition();
-                ges[i] = ahit->globalPositionError();
-                barrels[i] = isBarrel(ahit->geographicalId().subdetId());
-            }
-
-            auto const& ahit = allCells[foundQuadruplets[quadId][2]].getOuterHit();
-            gps[3] = ahit->globalPosition();
-            ges[3] = ahit->globalPositionError();
-            barrels[3] = isBarrel(ahit->geographicalId().subdetId());
-            if (caOnlyOneLastHitPerLayerFilter)
-            {
-                const auto fourthLayerId = tTopo->layer(ahit->geographicalId());
-                const auto sideId = tTopo->side(ahit->geographicalId());
-                const auto subDetId = ahit->geographicalId().subdetId();
-                const auto isTheSameTriplet = (quadId != 0)
-                        && (foundQuadruplets[quadId][0] == previousCellIds[0])
-                        && (foundQuadruplets[quadId][1] == previousCellIds[1]);
-                const auto isTheSameFourthLayer = (quadId != 0)
-                        && (fourthLayerId == previousfourthLayerId)
-                        && (subDetId == previousSubDetId) && (sideId == previousSideId);
-
-                previousCellIds =
-                {
-                    {   foundQuadruplets[quadId][0], foundQuadruplets[quadId][1]}};
-                previousfourthLayerId = fourthLayerId;
-
-                if (!(isTheSameTriplet && isTheSameFourthLayer))
-                {
-                    selectedChi2 = std::numeric_limits<float>::max();
-                    hasAlreadyPushedACandidate = false;
-                }
-
-            }
-            // TODO:
-            // - 'line' is not used for anything
-            // - if we decide to always do the circle fit for 4 hits, we don't
-            //   need ThirdHitPredictionFromCircle for the curvature; then we
-            //   could remove extraHitRPhitolerance configuration parameter
-            PixelRecoLineRZ line(gps[0], gps[2]);
-            ThirdHitPredictionFromCircle predictionRPhi(gps[0], gps[2], extraHitRPhitolerance);
-            const float curvature = predictionRPhi.curvature(
-                    ThirdHitPredictionFromCircle::Vector2D(gps[1].x(), gps[1].y()));
-            const float abscurv = std::abs(curvature);
-            const float thisMaxChi2 = maxChi2Eval.value(abscurv);
-            if (theComparitor)
-            {
-                SeedingHitSet tmpTriplet(allCells[foundQuadruplets[quadId][0]].getInnerHit(),
-                        allCells[foundQuadruplets[quadId][2]].getInnerHit(),
-                        allCells[foundQuadruplets[quadId][2]].getOuterHit());
-
-                if (!theComparitor->compatible(tmpTriplet))
-                {
-                    continue;
-                }
-            }
-
-            float chi2 = std::numeric_limits<float>::quiet_NaN();
-            // TODO: Do we have any use case to not use bending correction?
-            if (useBendingCorrection)
-            {
-                // Following PixelFitterByConformalMappingAndLine
-                const float simpleCot = (gps.back().z() - gps.front().z())
-                        / (gps.back().perp() - gps.front().perp());
-                const float pt = 1.f / PixelRecoUtilities::inversePt(abscurv, es);
-                for (int i = 0; i < 4; ++i)
-                {
-                    const GlobalPoint & point = gps[i];
-                    const GlobalError & error = ges[i];
-                    bc_r[i] = sqrt(
-                            sqr(point.x() - region.origin().x())
-                                    + sqr(point.y() - region.origin().y()));
-                    bc_r[i] += pixelrecoutilities::LongitudinalBendingCorrection(pt, es)(bc_r[i]);
-                    bc_z[i] = point.z() - region.origin().z();
-                    bc_errZ2[i] = (barrels[i]) ? error.czz() : error.rerr(point) * sqr(simpleCot);
-                }
-                RZLine rzLine(bc_r, bc_z, bc_errZ2, RZLine::ErrZ2_tag());
-                chi2 = rzLine.chi2();
-            }
-            else
-            {
-                RZLine rzLine(gps, ges, barrels);
-                chi2 = rzLine.chi2();
-            }
-            if (edm::isNotFinite(chi2) || chi2 > thisMaxChi2)
-            {
-                continue;
-            }
-            // TODO: Do we have any use case to not use circle fit? Maybe
-            // HLT where low-pT inefficiency is not a problem?
-            if (fitFastCircle)
-            {
-                FastCircleFit c(gps, ges);
-                chi2 += c.chi2();
-                if (edm::isNotFinite(chi2))
-                    continue;
-                if (fitFastCircleChi2Cut && chi2 > thisMaxChi2)
-                    continue;
-            }
-            if (caOnlyOneLastHitPerLayerFilter)
-            {
-                if (chi2 < selectedChi2)
-                {
-                    selectedChi2 = chi2;
-                    if (hasAlreadyPushedACandidate)
-                    {
-                        result[index].pop_back();
-                    }
-                    result[index].emplace_back(allCells[foundQuadruplets[quadId][0]].getInnerHit(),
-                            allCells[foundQuadruplets[quadId][1]].getInnerHit(),
-                            allCells[foundQuadruplets[quadId][2]].getInnerHit(),
-                            allCells[foundQuadruplets[quadId][2]].getOuterHit());
-                    hasAlreadyPushedACandidate = true;
-                }
-            }
-            else
-            {
-                result[index].emplace_back(allCells[foundQuadruplets[quadId][0]].getInnerHit(),
-                        allCells[foundQuadruplets[quadId][1]].getInnerHit(),
-                        allCells[foundQuadruplets[quadId][2]].getInnerHit(),
-                        allCells[foundQuadruplets[quadId][2]].getOuterHit());
-            }
         }
+
+
+
+
+
+
+
+        GPUCellularAutomaton<3000> ca(region, caThetaCut, caPhiCut, caHardPtCut, g);
+        ca.run(hitDoublets, foundQuadruplets);
         index++;
+
     }
+
+
+
+
+
+//        CellularAutomaton ca(g);
+//
+//        ca.createAndConnectCells(hitDoublets, region, caThetaCut, caPhiCut, caHardPtCut);
+//
+//        ca.evolve(numberOfHitsInNtuplet);
+//
+//        ca.findNtuplets(foundQuadruplets, numberOfHitsInNtuplet);
+//
+//        auto & allCells = ca.getAllCells();
+
+//        const QuantityDependsPtEval maxChi2Eval = maxChi2.evaluator(es);
+//
+//        // re-used thoughout
+//        std::array<float, 4> bc_r;
+//        std::array<float, 4> bc_z;
+//        std::array<float, 4> bc_errZ2;
+//        std::array < GlobalPoint, 4 > gps;
+//        std::array < GlobalError, 4 > ges;
+//        std::array<bool, 4> barrels;
+//        bool hasAlreadyPushedACandidate = false;
+//        float selectedChi2 = std::numeric_limits<float>::max();
+//        unsigned int previousfourthLayerId = 0;
+//        std::array<unsigned int, 2> previousCellIds =
+//        {
+//        { 0, 0 } };
+//        unsigned int previousSideId = 0;
+//        int previousSubDetId = 0;
+//
+//        unsigned int numberOfFoundQuadruplets = foundQuadruplets.size();
+//
+//        // Loop over quadruplets
+//        for (unsigned int quadId = 0; quadId < numberOfFoundQuadruplets; ++quadId)
+//        {
+//
+//            auto isBarrel = [](const unsigned id) -> bool
+//            {
+//                return id == PixelSubdetector::PixelBarrel;
+//            };
+//            for (unsigned int i = 0; i < 3; ++i)
+//            {
+//                auto const& ahit = allCells[foundQuadruplets[quadId][i]].getInnerHit();
+//                gps[i] = ahit->globalPosition();
+//                ges[i] = ahit->globalPositionError();
+//                barrels[i] = isBarrel(ahit->geographicalId().subdetId());
+//            }
+//
+//            auto const& ahit = allCells[foundQuadruplets[quadId][2]].getOuterHit();
+//            gps[3] = ahit->globalPosition();
+//            ges[3] = ahit->globalPositionError();
+//            barrels[3] = isBarrel(ahit->geographicalId().subdetId());
+//            if (caOnlyOneLastHitPerLayerFilter)
+//            {
+//                const auto fourthLayerId = tTopo->layer(ahit->geographicalId());
+//                const auto sideId = tTopo->side(ahit->geographicalId());
+//                const auto subDetId = ahit->geographicalId().subdetId();
+//                const auto isTheSameTriplet = (quadId != 0)
+//                        && (foundQuadruplets[quadId][0] == previousCellIds[0])
+//                        && (foundQuadruplets[quadId][1] == previousCellIds[1]);
+//                const auto isTheSameFourthLayer = (quadId != 0)
+//                        && (fourthLayerId == previousfourthLayerId)
+//                        && (subDetId == previousSubDetId) && (sideId == previousSideId);
+//
+//                previousCellIds =
+//                {
+//                    {   foundQuadruplets[quadId][0], foundQuadruplets[quadId][1]}};
+//                previousfourthLayerId = fourthLayerId;
+//
+//                if (!(isTheSameTriplet && isTheSameFourthLayer))
+//                {
+//                    selectedChi2 = std::numeric_limits<float>::max();
+//                    hasAlreadyPushedACandidate = false;
+//                }
+//
+//            }
+//            // TODO:
+//            // - 'line' is not used for anything
+//            // - if we decide to always do the circle fit for 4 hits, we don't
+//            //   need ThirdHitPredictionFromCircle for the curvature; then we
+//            //   could remove extraHitRPhitolerance configuration parameter
+//            PixelRecoLineRZ line(gps[0], gps[2]);
+//            ThirdHitPredictionFromCircle predictionRPhi(gps[0], gps[2], extraHitRPhitolerance);
+//            const float curvature = predictionRPhi.curvature(
+//                    ThirdHitPredictionFromCircle::Vector2D(gps[1].x(), gps[1].y()));
+//            const float abscurv = std::abs(curvature);
+//            const float thisMaxChi2 = maxChi2Eval.value(abscurv);
+//            if (theComparitor)
+//            {
+//                SeedingHitSet tmpTriplet(allCells[foundQuadruplets[quadId][0]].getInnerHit(),
+//                        allCells[foundQuadruplets[quadId][2]].getInnerHit(),
+//                        allCells[foundQuadruplets[quadId][2]].getOuterHit());
+//
+//                if (!theComparitor->compatible(tmpTriplet))
+//                {
+//                    continue;
+//                }
+//            }
+//
+//            float chi2 = std::numeric_limits<float>::quiet_NaN();
+//            // TODO: Do we have any use case to not use bending correction?
+//            if (useBendingCorrection)
+//            {
+//                // Following PixelFitterByConformalMappingAndLine
+//                const float simpleCot = (gps.back().z() - gps.front().z())
+//                        / (gps.back().perp() - gps.front().perp());
+//                const float pt = 1.f / PixelRecoUtilities::inversePt(abscurv, es);
+//                for (int i = 0; i < 4; ++i)
+//                {
+//                    const GlobalPoint & point = gps[i];
+//                    const GlobalError & error = ges[i];
+//                    bc_r[i] = sqrt(
+//                            sqr(point.x() - region.origin().x())
+//                                    + sqr(point.y() - region.origin().y()));
+//                    bc_r[i] += pixelrecoutilities::LongitudinalBendingCorrection(pt, es)(bc_r[i]);
+//                    bc_z[i] = point.z() - region.origin().z();
+//                    bc_errZ2[i] = (barrels[i]) ? error.czz() : error.rerr(point) * sqr(simpleCot);
+//                }
+//                RZLine rzLine(bc_r, bc_z, bc_errZ2, RZLine::ErrZ2_tag());
+//                chi2 = rzLine.chi2();
+//            }
+//            else
+//            {
+//                RZLine rzLine(gps, ges, barrels);
+//                chi2 = rzLine.chi2();
+//            }
+//            if (edm::isNotFinite(chi2) || chi2 > thisMaxChi2)
+//            {
+//                continue;
+//            }
+//            // TODO: Do we have any use case to not use circle fit? Maybe
+//            // HLT where low-pT inefficiency is not a problem?
+//            if (fitFastCircle)
+//            {
+//                FastCircleFit c(gps, ges);
+//                chi2 += c.chi2();
+//                if (edm::isNotFinite(chi2))
+//                    continue;
+//                if (fitFastCircleChi2Cut && chi2 > thisMaxChi2)
+//                    continue;
+//            }
+//            if (caOnlyOneLastHitPerLayerFilter)
+//            {
+//                if (chi2 < selectedChi2)
+//                {
+//                    selectedChi2 = chi2;
+//                    if (hasAlreadyPushedACandidate)
+//                    {
+//                        result[index].pop_back();
+//                    }
+//                    result[index].emplace_back(allCells[foundQuadruplets[quadId][0]].getInnerHit(),
+//                            allCells[foundQuadruplets[quadId][1]].getInnerHit(),
+//                            allCells[foundQuadruplets[quadId][2]].getInnerHit(),
+//                            allCells[foundQuadruplets[quadId][2]].getOuterHit());
+//                    hasAlreadyPushedACandidate = true;
+//                }
+//            }
+//            else
+//            {
+//                result[index].emplace_back(allCells[foundQuadruplets[quadId][0]].getInnerHit(),
+//                        allCells[foundQuadruplets[quadId][1]].getInnerHit(),
+//                        allCells[foundQuadruplets[quadId][2]].getInnerHit(),
+//                        allCells[foundQuadruplets[quadId][2]].getOuterHit());
+//            }
+//        }
+//        index++;
+//    }
 
 }
 
 void CAHitQuadrupletGenerator::hitQuadruplets(const TrackingRegion& region,
-        OrderedHitSeeds & result, std::vector<const HitDoublets *>& hitDoublets, const std::vector<const RecHitsSortedInPhi  *>& hitsOnLayer, CAGraph& g,
+        OrderedHitSeeds & result, std::vector<const HitDoublets *>& hitDoublets, CAGraph& g,
         const edm::EventSetup& es)
 {
     //Retrieve tracker topology from geometry
@@ -531,19 +501,10 @@ void CAHitQuadrupletGenerator::hitQuadruplets(const TrackingRegion& region,
 //	std::vector<CACell::CAntuplet> foundQuadruplets;
 
     std::vector < std::array<std::array<int, 2>, 3> > foundQuadruplets;
-    thrust::host_vector<int> rootLayerPairs;
 
-    for (auto& layer : g.theRootLayers)
-    {
 
-        for (auto& layerPair : g.theLayers[layer].theOuterLayerPairs)
-        {
-            rootLayerPairs.push_back(layerPair);
-        }
-    }
-    GPUCellularAutomaton<1500> ca(region, caThetaCut, caPhiCut, caHardPtCut, g.theLayers.size(),
-            g.theLayerPairs.size(), rootLayerPairs);
-    ca.run(hitDoublets, hitsOnLayer, g, foundQuadruplets);
+    GPUCellularAutomaton<1500> ca(region, caThetaCut, caPhiCut, caHardPtCut, g);
+    ca.run(hitDoublets,  foundQuadruplets);
 
 //	CellularAutomaton ca(g);
 //

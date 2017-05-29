@@ -9,50 +9,44 @@
 #include "RecoTracker/TkHitPairs/interface/RecHitsSortedInPhi.h"
 #include "RecoPixelVertexing/PixelTriplets/plugins/CACell.h"
 #include "RecoPixelVertexing/PixelTriplets/interface/GPUHitsAndDoublets.h"
-#include <thrust/device_vector.h>
-#include <thrust/host_vector.h>
+#include "RecoPixelVertexing/PixelTriplets/plugins/CAGraph.h"
 #include "RecoPixelVertexing/PixelTriplets/interface/GPUMemoryManager.h"
 
-
 template<unsigned int maxNumberOfQuadruplets>
-class GPUCellularAutomaton {
-public:
+class GPUCellularAutomaton
+{
+    public:
 
-    GPUCellularAutomaton(TrackingRegion const & region, float thetaCut, float phiCut, float hardPtCut,
-    		int numberOfLayers, int numberOfLayerPairs, const thrust::host_vector<int>& rootLayerPairs) :
-      thePtMin{ region.ptMin() },
-      theRegionOriginX{ region.origin().x() },
-      theRegionOriginY{ region.origin().y() },
-      theRegionOriginRadius{ region.originRBound() },
-      theThetaCut{ thetaCut },
-      thePhiCut{ phiCut },
-	  theHardPtCut{ hardPtCut },
-	  theNumberOfLayers{numberOfLayers},
-	  theNumberOfLayerPairs{numberOfLayerPairs}
-    {
-	      theRootLayerPairs = rootLayerPairs;
+        GPUCellularAutomaton(TrackingRegion const & region, float thetaCut, float phiCut,
+                float hardPtCut, const CAGraph& graph ) :
+                thePtMin
+                { region.ptMin() }, theRegionOriginX
+                { region.origin().x() }, theRegionOriginY
+                { region.origin().y() }, theRegionOriginRadius
+                { region.originRBound() }, theThetaCut
+                { thetaCut }, thePhiCut
+                { phiCut }, theHardPtCut
+                { hardPtCut }, theLayerGraph(graph)
+        {
 
-    }
+        }
 
-    void run(const std::vector<const HitDoublets *>& host_hitDoublets,
-    		const std::vector<const RecHitsSortedInPhi  *>& hitsOnLayer,
-    		const CAGraph& graph,
-    		std::vector< std::array< std::array<int,2> , 3> > & quadruplets);
+        void run(const std::vector<const HitDoublets *>& host_hitDoublets,
+                std::vector<std::array<std::array<int, 2>, 3> > & quadruplets);
+        GPUMemoryManager theGpuMem;
 
-private:
+    private:
 
-    const float thePtMin;
-    const float theRegionOriginX;
-    const float  theRegionOriginY;
-    const float  theRegionOriginRadius;
-    const float  theThetaCut;
-    const float  thePhiCut;
-    const float  theHardPtCut;
-    const int theNumberOfLayers;
-    const int theNumberOfLayerPairs;
-    GPUMemoryManager theGpuMem;
+        const float thePtMin;
+        const float theRegionOriginX;
+        const float theRegionOriginY;
+        const float theRegionOriginRadius;
+        const float theThetaCut;
+        const float thePhiCut;
+        const float theHardPtCut;
 
-    thrust::device_vector<int> theRootLayerPairs;
+        CAGraph theLayerGraph;
+
 
 };
 

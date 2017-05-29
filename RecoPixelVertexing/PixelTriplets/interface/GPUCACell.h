@@ -4,7 +4,7 @@
 #include "RecoPixelVertexing/PixelTriplets/interface/GPUHitsAndDoublets.h"
 #include "TrackingTools/TransientTrackingRecHit/interface/SeedingLayerSetsHits.h"
 #include "RecoTracker/TkTrackingRegions/interface/TrackingRegion.h"
-#include "GPUSimpleVector.h"
+
 
 #include "DataFormats/Math/interface/deltaPhi.h"
 #include <cmath>
@@ -42,17 +42,17 @@ public:
 		auto outerLayerId = doublets->outerLayerId;
 
 
-		theInnerX = hitsOnLayer[innerLayerId].x[doublets->indices[2 * doubletId]];
-		theOuterX = hitsOnLayer[outerLayerId].x[doublets->indices[2 * doubletId + 1]];
+		theInnerX = hitsOnLayer[innerLayerId].x[innerHitId];
+		theOuterX = hitsOnLayer[outerLayerId].x[outerHitId];
 
-		theInnerY = hitsOnLayer[innerLayerId].y[doublets->indices[2 * doubletId]];
-		theOuterY = hitsOnLayer[outerLayerId].y[doublets->indices[2 * doubletId + 1]];
+		theInnerY = hitsOnLayer[innerLayerId].y[innerHitId];
+		theOuterY = hitsOnLayer[outerLayerId].y[outerHitId];
 
-		theInnerZ = hitsOnLayer[innerLayerId].z[doublets->indices[2 * doubletId]];
-		theOuterZ = hitsOnLayer[outerLayerId].z[doublets->indices[2 * doubletId + 1]];
+		theInnerZ = hitsOnLayer[innerLayerId].z[innerHitId];
+		theOuterZ = hitsOnLayer[outerLayerId].z[outerHitId];
 		theInnerR = hypot(theInnerX, theInnerY);
 		theOuterR = hypot(theOuterX, theOuterY);
-		theInnerNeighbors.reset();
+		theOuterNeighbors.reset();
 	}
 
 	__device__
@@ -110,7 +110,7 @@ public:
 	void print_cell() const
 	{
 
-		printf("printing cell: %d, on layer: %d, innerHitId: %d, outerHitId: %d, innerradius %f, outerRadius %f \n",
+		printf("printing cell: %d, on layerPair: %d, innerHitId: %d, outerHitId: %d, innerradius %f, outerRadius %f \n",
 				theDoubletId, theLayerPairId, theInnerHitId,
 				theOuterHitId, theInnerR, theOuterR);
 
@@ -119,11 +119,11 @@ public:
 	__host__ __device__
 	void print_neighbors() const
 	{
-		printf("\n\tIt has %d innerneighbors: \n", theInnerNeighbors.m_size);
-		for(int i =0; i< theInnerNeighbors.m_size; ++i)
+		printf("\n\tIt has %d outerneighbors: \n", theOuterNeighbors.m_size);
+		for(int i =0; i< theOuterNeighbors.m_size; ++i)
 		{
-			printf("\n\t\t%d innerneighbor: \n\t\t", i);
-			 theInnerNeighbors.m_data[i]->print_cell();
+			printf("\n\t\t%d outerneighbor: \n\t\t", i);
+			theOuterNeighbors.m_data[i]->print_cell();
 
 		}
 	}
@@ -241,7 +241,7 @@ public:
 		Quadruplet tmpQuadruplet;
 		GPUCACell * otherCell;
 
-		if (theInnerNeighbors.size() == 0)
+		if (theOuterNeighbors.size() == 0)
 		{
 			if (tmpNtuplet.size() >= minHitsPerNtuplet - 1)
 			{
@@ -249,8 +249,8 @@ public:
 
 				for(int i = 0; i<3; ++i)
 				{
-					tmpQuadruplet.layerPairsAndCellId[i].x = tmpNtuplet.m_data[2-i]->theLayerPairId;
-					tmpQuadruplet.layerPairsAndCellId[i].y = tmpNtuplet.m_data[2-i]->theDoubletId;
+					tmpQuadruplet.layerPairsAndCellId[i].x = tmpNtuplet.m_data[i]->theLayerPairId;
+					tmpQuadruplet.layerPairsAndCellId[i].y = tmpNtuplet.m_data[i]->theDoubletId;
 
 
 				}
@@ -263,10 +263,10 @@ public:
 		else
 		{
 
-			for (int j = 0; j < theInnerNeighbors.size(); ++j)
+			for (int j = 0; j < theOuterNeighbors.size(); ++j)
 			{
 
-				otherCell = theInnerNeighbors.m_data[j];
+				otherCell = theOuterNeighbors.m_data[j];
 				tmpNtuplet.push_back(otherCell);
 				otherCell->find_ntuplets(foundNtuplets, tmpNtuplet, minHitsPerNtuplet);
 				tmpNtuplet.pop_back();
@@ -275,7 +275,7 @@ public:
 
 		}
 	}
-	GPUSimpleVector<40, GPUCACell *> theInnerNeighbors;
+	GPUSimpleVector<40, GPUCACell *> theOuterNeighbors;
 
 	int theDoubletId;
 	int theLayerPairId;

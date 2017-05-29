@@ -132,7 +132,7 @@ public:
 
   using HitLayer = RecHitsSortedInPhi;
   using Hit=RecHitsSortedInPhi::Hit;
-  using ADoublet = std::pair<int,int>;
+//  using ADoublet = std::pair<int,int>;
   
   HitDoublets(  RecHitsSortedInPhi const & in,
 		RecHitsSortedInPhi const & out) :
@@ -140,8 +140,8 @@ public:
   
   HitDoublets(HitDoublets && rh) : layers(std::move(rh.layers)), indeces(std::move(rh.indeces)){}
   
-  void reserve(std::size_t s) { indeces.reserve(s);}
-  std::size_t size() const { return indeces.size();}
+  void reserve(std::size_t s) { indeces.reserve(2*s);}
+  std::size_t size() const { return indeces.size()/2;}
   bool empty() const { return indeces.empty();}
   void clear() { indeces.clear();}
   void shrink_to_fit() {
@@ -149,15 +149,16 @@ public:
   }
   
   void add (int il, int ol) {
-    indeces.emplace_back(il,ol);
+    indeces.emplace_back(il);
+    indeces.emplace_back(ol);
   }
 
   int index(int i, layer l) const { return l==inner ? innerHitId(i) : outerHitId(i);}
   DetLayer const * detLayer(layer l) const { return layers[l]->layer; }
   HitLayer const & innerLayer() const { return *layers[inner];}
   HitLayer const & outerLayer() const { return *layers[outer];}
-  int innerHitId(int i) const {return indeces[i].first;}
-  int outerHitId(int i) const {return indeces[i].second;}
+  int innerHitId(int i) const {return indeces[2*i];}
+  int outerHitId(int i) const {return indeces[2*i+1];}
   Hit const & hit(int i, layer l) const { return layers[l]->theHits[index(i,l)].hit();}
   float       phi(int i, layer l) const { return layers[l]->phi(index(i,l));}
   float       rv(int i, layer l) const { return layers[l]->rv(index(i,l));}
@@ -169,7 +170,7 @@ public:
   std::array<RecHitsSortedInPhi const *,2> layers;
 
 
-  std::vector<ADoublet> indeces; // naturally sorted by outerId
+  std::vector<int> indeces; // naturally sorted by outerId
 private:
 
 

@@ -22,7 +22,7 @@ struct GPUSimpleVector
 		}
 	};
 
-	__inline__ __device__
+	__device__
 	int push_back_ts(const T& element)
 	{
 		auto previousSize = atomicAdd(&m_size, 1);

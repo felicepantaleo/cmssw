@@ -65,11 +65,6 @@ private:
                         std::vector<const HitDoublets *>& hitDoublets,
                         CAGraph& g,
                         const edm::EventSetup& es);
-    // actual work
-    void hitQuadruplets(const TrackingRegion& reg, OrderedHitSeeds& result,
-                        std::vector<const HitDoublets *>& hitDoublets, const std::vector<const RecHitsSortedInPhi  *>& hitsOnLayer,
-                        CAGraph& g,
-                        const edm::EventSetup& es);
 
     edm::EDGetTokenT<SeedingLayerSetsHits> theSeedingLayerToken;
 
