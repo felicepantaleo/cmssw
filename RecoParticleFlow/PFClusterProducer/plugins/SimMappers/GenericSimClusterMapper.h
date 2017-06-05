@@ -8,6 +8,7 @@
 #include "SimDataFormats/CaloAnalysis/interface/SimClusterFwd.h"
 #include "MagneticField/Engine/interface/MagneticField.h"
 #include "MagneticField/Records/interface/IdealMagneticFieldRecord.h"
+#include "RealisticHitToClusterAssociator.h"
 
 
 
@@ -16,7 +17,7 @@ class GenericSimClusterMapper : public InitialClusteringStepBase {
  public:
  GenericSimClusterMapper(const edm::ParameterSet& conf,
 			 edm::ConsumesCollector& sumes) :
-    InitialClusteringStepBase(conf,sumes) { 
+    InitialClusteringStepBase(conf,sumes) {
       _simClusterToken = sumes.consumes<SimClusterCollection>(conf.getParameter<edm::InputTag>("simClusterSrc"));
       _simVtxToken   = sumes.consumes<edm::SimVertexContainer>(edm::InputTag("g4SimHits"));
     }
@@ -29,10 +30,10 @@ class GenericSimClusterMapper : public InitialClusteringStepBase {
 
   void buildClusters(const edm::Handle<reco::PFRecHitCollection>&,
 		     const std::vector<bool>&,
-		     const std::vector<bool>&, 
+		     const std::vector<bool>&,
 		     reco::PFClusterCollection&) override;
-  
- private:  
+
+ private:
   void retrieveLayerZPositions();
   edm::EDGetTokenT<SimClusterCollection> _simClusterToken;
   edm::Handle<SimClusterCollection> _simClusterH;
@@ -42,7 +43,6 @@ class GenericSimClusterMapper : public InitialClusteringStepBase {
   hgcal::RecHitTools _rhtools;
   const MagneticField* _bField;
   std::vector<float> _layerZPositions;
-
 
 
 };
