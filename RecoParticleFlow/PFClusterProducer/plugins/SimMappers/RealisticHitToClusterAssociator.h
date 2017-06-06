@@ -1,8 +1,10 @@
 #ifndef __RecoParticleFlow_PFClusterProducer_RealisticHitToClusterAssociator_H__
 #define __RecoParticleFlow_PFClusterProducer_RealisticHitToClusterAssociator_H__
 
+#include <vector>
 #include "HGCSimCluster2D.h"
 #include "RealisticCluster.h"
+
 
 class RealisticHitToClusterAssociator
 {
