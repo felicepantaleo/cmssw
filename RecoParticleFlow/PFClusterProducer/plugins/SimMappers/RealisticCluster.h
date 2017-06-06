@@ -60,6 +60,8 @@ class RealisticCluster
 
         }
 
+        const std::vector< std::pair<unsigned int, float> > & hitsIdsAndFractions() const { return hitIdsAndFractions; }
+
         std::vector<std::pair<unsigned int, float> > hitIdsAndFractions;
 
 
