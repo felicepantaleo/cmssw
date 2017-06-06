@@ -72,9 +72,8 @@ void GenericSimClusterMapper::buildClusters(const edm::Handle<reco::PFRecHitColl
         reco::PFClusterCollection& output)
 {
 
-
-            bool distanceFilter = true;
-            float maxDistance = 10.f; //10cm
+    bool distanceFilter = true;
+    float maxDistance = 10.f; //10cm
     const SimClusterCollection& simClusters = *_simClusterH;
     auto const& hits = *input;
     RealisticHitToClusterAssociator realisticAssociator;
@@ -108,8 +107,6 @@ void GenericSimClusterMapper::buildClusters(const edm::Handle<reco::PFRecHitColl
             realisticAssociator.insertSimClusterIdAndFraction(ic, fraction, hitId);
 
         }
-
-
 
         const SimTrack& trk = sc.g4Tracks()[0];
         const math::XYZTLorentzVectorD & vtxPos = (*_simVerticesHandle)[trk.vertIndex()].position();
@@ -165,6 +162,45 @@ void GenericSimClusterMapper::buildClusters(const edm::Handle<reco::PFRecHitColl
     realisticAssociator.create2dSimClusters(distanceFilter, maxDistance);
     realisticAssociator.computeAssociation(3.f);
     realisticAssociator.findAndMergeInvisibleClusters();
+    auto realisticClusters = std::move(realisticAssociator.realisticClusters());
+    unsigned int nClusters = realisticClusters.size();
+    for (unsigned ic = 0; ic < nClusters; ++ic)
+    {
+        if (realisticClusters[ic].isVisible())
+        {
+            float highest_energy = 0.0f;
+            output.emplace_back();
+            reco::PFCluster& back = output.back();
+            edm::Ref < std::vector<reco::PFRecHit> > seed;
+            auto hitsIdsAndFractions = std::move(realisticClusters[ic].hitsIdsAndFractions());
+
+            for (const auto& idAndF : hitsIdsAndFractions)
+            {
+                auto ref = makeRefhit(input, idAndF.first);
+                back.addRecHitFraction(reco::PFRecHitFraction(ref, idAndF.second));
+                const float hit_energy = idAndF.second * ref->energy();
+                if (hit_energy > highest_energy || highest_energy == 0.0)
+                {
+                    highest_energy = hit_energy;
+                    seed = ref;
+                }
+            }
+
+            if (back.hitsAndFractions().size() != 0)
+            {
+                back.setSeed(seed->detId());
+                back.setEnergy(realisticClusters[ic].getEnergy());
+                back.setCorrectedEnergy(realisticClusters[ic].getEnergy());
+            }
+            else
+            {
+                back.setSeed(-1);
+                back.setEnergy(0.f);
+            }
+        }
+
+    }
+
 
 //    for (unsigned int ic = 0; ic < simClusters.size(); ++ic)
 //    {
