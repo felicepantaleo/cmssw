@@ -120,7 +120,7 @@ class RealisticHitToClusterAssociator
                 float sumE=0.f;
                 for(unsigned int clId = 0; clId < numberOfClusters; ++clId )
                 {
-                    partialEnergies[clId] = clusters2D_[clId][layer].getLayerEnergy() * energyHalfDistance2 / distance2FromOriSimTrack_[hitId][clId];
+                    partialEnergies[clId] = clusters2D_[clId][layer].getLayerEnergy() * std::exp(-distance2FromOriSimTrack_[hitId][clId]/energyHalfDistance2) ;
                     sumE += partialEnergies[clId];
                 }
 
@@ -175,25 +175,13 @@ class RealisticHitToClusterAssociator
                         }
 
                         hAndF.pop_back();
-
                     }
 
-
-
-
-
-
                 }
-
-
-
-
             }
-
-
-
-
         }
+
+        const std::vector< RealisticCluster > & realisticClusters() const { return RealisticSimClusters_; }
 
         private:
 
