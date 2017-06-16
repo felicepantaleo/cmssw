@@ -126,9 +126,6 @@ void GenericSimClusterMapper::buildClusters(const edm::Handle<reco::PFRecHitColl
     unsigned int nClusters = realisticClusters.size();
     for (unsigned ic = 0; ic < nClusters; ++ic)
     {
-//        std::cout << "realistic cluster " << ic <<" pdgid " <<std::setw(5) << simClusters[ic].pdgId()  << " E " <<std::setw(8)<< realisticClusters[ic].getEnergy()<< " excl E : " <<std::setw(8)<< realisticClusters[ic].getExclusiveEnergy() << " excl fraction: " <<realisticClusters[ic].getExclusiveEnergy()/realisticClusters[ic].getEnergy()<<
-//                " real number of hits " <<std::setw(4)<< realisticClusters[ic].hitsIdsAndFractions().size() << "\t\t MC E " <<std::setw(8)<< simClusters[ic].energy() << ". is visible? " <<std::setw(5)<<(realisticClusters[ic].isVisible()? " true ": " false ")<<
-//                " MC numhits " <<std::setw(4)<<  simClusters[ic].hits_and_fractions().size()  << " PFRHSC "<<std::setw(8)<<  PFRecHitOnlySimClusters[ic]<<  std::endl;
         if (realisticClusters[ic].isVisible())
         {
             float highest_energy = 0.0f;
