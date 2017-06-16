@@ -10,7 +10,6 @@
 #include "TrackingTools/TrajectoryState/interface/TrajectoryStateOnSurface.h"
 #include "TrackPropagation/RungeKutta/interface/defaultRKPropagator.h"
 #include "DataFormats/GeometrySurface/interface/PlaneBuilder.h"
-#include <iostream>
 #include "RealisticHitToClusterAssociator.h"
 
 #ifdef PFLOW_DEBUG
