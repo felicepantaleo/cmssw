@@ -49,31 +49,31 @@ class RealisticHitToClusterAssociator
 
         void insertHitPosition(float x, float y, float z, unsigned int hitIndex)
         {
-            hitPosition_.at(hitIndex) ={{x,y,z}};
+            hitPosition_[hitIndex] ={{x,y,z}};
 
         }
 
         void insertLayerId(unsigned int layerId, unsigned int hitIndex)
         {
-            layerId_.at(hitIndex) = layerId;
+            layerId_[hitIndex] = layerId;
         }
 
         void insertHitEnergy(float energy, unsigned int hitIndex)
         {
-            totalEnergy_.at(hitIndex) = energy;
+            totalEnergy_[hitIndex] = energy;
 
         }
 
         void insertSimClusterIdAndFraction(unsigned int scIdx, float fraction,
                 unsigned int hitIndex, float associatedEnergy)
         {
-            MCAssociatedSimCluster_.at(hitIndex).push_back(scIdx);
-            MCEnergyFraction_.at(hitIndex).push_back(fraction);
-            auto layerId = layerId_.at(hitIndex);
-            if(associatedEnergy > maxEnergyHitAtLayer_.at(scIdx).at(layerId))
+            MCAssociatedSimCluster_[hitIndex].push_back(scIdx);
+            MCEnergyFraction_[hitIndex].push_back(fraction);
+            auto layerId = layerId_[hitIndex];
+            if(associatedEnergy > maxEnergyHitAtLayer_[scIdx][layerId])
             {
-                maxHitPosAtLayer_.at(scIdx).at(layerId) = hitPosition_.at(hitIndex);
-                maxEnergyHitAtLayer_.at(scIdx).at(layerId) = associatedEnergy;
+                maxHitPosAtLayer_[scIdx][layerId] = hitPosition_[hitIndex];
+                maxEnergyHitAtLayer_[scIdx][layerId] = associatedEnergy;
             }
         }
 
@@ -98,11 +98,11 @@ class RealisticHitToClusterAssociator
             {
                 partialEnergies.clear();
                 unsigned int numberOfClusters = MCAssociatedSimCluster_[hitId].size();
-                distanceFromMaxHit_.at(hitId).resize(numberOfClusters);
+                distanceFromMaxHit_[hitId].resize(numberOfClusters);
 
                 unsigned int layer = layerId_[hitId];
-                HitToRealisticSimCluster_.at(hitId).resize(numberOfClusters);
-                HitToRealisticEnergyFraction_.at(hitId).resize(numberOfClusters);
+                HitToRealisticSimCluster_[hitId].resize(numberOfClusters);
+                HitToRealisticEnergyFraction_[hitId].resize(numberOfClusters);
                 partialEnergies.resize(numberOfClusters,0.f);
                 float energyDecayLength = getDecayLength(layer);
                 float sumE = 0.f;
@@ -111,15 +111,15 @@ class RealisticHitToClusterAssociator
                 {
 
 
-                    auto simClusterId = MCAssociatedSimCluster_.at(hitId).at(clId);
+                    auto simClusterId = MCAssociatedSimCluster_[hitId][clId];
                     bool isWithinMaxDistance = false;
-                    if(maxEnergyHitAtLayer_.at(simClusterId).at(layer)>0.f)
+                    if(maxEnergyHitAtLayer_[simClusterId][layer]>0.f)
                     {
-                        distanceFromMaxHit_.at(hitId).at(clId) = XYdistanceFromMaxHit(hitId, simClusterId);
+                        distanceFromMaxHit_[hitId][clId] = XYdistanceFromMaxHit(hitId, simClusterId);
                         if(distanceFilter)
                         {
 
-                            if ( distanceFromMaxHit_.at(hitId).at(clId)< maxDistance)
+                            if ( distanceFromMaxHit_[hitId][clId]< maxDistance)
                             {
                                 isWithinMaxDistance = true;
                             }
@@ -131,7 +131,7 @@ class RealisticHitToClusterAssociator
                     }
 
                     if(isWithinMaxDistance)
-                        partialEnergies[clId] = 0.001f+maxEnergyHitAtLayer_[simClusterId][layer] * std::exp(-distanceFromMaxHit_.at(hitId).at(clId)/energyDecayLength);
+                        partialEnergies[clId] = 0.001f+maxEnergyHitAtLayer_[simClusterId][layer] * std::exp(-distanceFromMaxHit_[hitId][clId]/energyDecayLength);
 
                     sumE += partialEnergies[clId];
 
@@ -152,7 +152,7 @@ class RealisticHitToClusterAssociator
 
 
                         bool isExclusive = ((!useMCFractionsForExclEnergy && (assignedFraction > exclusiveFraction) )
-                                || (useMCFractionsForExclEnergy && (MCEnergyFraction_.at(hitId).at(clId) >exclusiveFraction )));
+                                || (useMCFractionsForExclEnergy && (MCEnergyFraction_[hitId][clId] >exclusiveFraction )));
                         if(isExclusive)
                         {
                             RealisticSimClusters_[simClusterIndex].increaseExclusiveEnergy(assignedEnergy);
