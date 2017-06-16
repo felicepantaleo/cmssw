@@ -27,12 +27,21 @@ class RealisticCluster
 
         float getExclusiveEnergyFraction() const
         {
-            return exclusiveEnergy/totalEnergy;
+            float fraction = 0.f;
+            if(totalEnergy>0.f){
+                fraction = exclusiveEnergy/totalEnergy;
+            }
+            return fraction;
         }
 
         float getEnergy() const
         {
             return totalEnergy;
+        }
+
+        float getExclusiveEnergy() const
+        {
+            return exclusiveEnergy;
         }
 
         bool isVisible() const
@@ -47,25 +56,26 @@ class RealisticCluster
 
         void addHitAndFraction(unsigned int hit, float fraction)
         {
-            hitIdsAndFractions.emplace_back(hit,fraction);
+            hitIdsAndFractions_.emplace_back(hit,fraction);
         }
 //TODO: hits are sorted, replace with binary search.
         void modifyFractionForHitId(float fraction, unsigned int hitId)
         {
 
-            auto it = std::find_if( hitIdsAndFractions.begin(), hitIdsAndFractions.end(),
+            auto it = std::find_if( hitIdsAndFractions_.begin(), hitIdsAndFractions_.end(),
                 [&hitId](const std::pair<unsigned int, float>& element){ return element.first == hitId;} );
 
             it->second = fraction;
 
         }
 
-        const std::vector< std::pair<unsigned int, float> > & hitsIdsAndFractions() const { return hitIdsAndFractions; }
+        const std::vector< std::pair<unsigned int, float> > & hitsIdsAndFractions() const { return hitIdsAndFractions_; }
 
-        std::vector<std::pair<unsigned int, float> > hitIdsAndFractions;
 
 
     private:
+        std::vector<std::pair<unsigned int, float> > hitIdsAndFractions_;
+
 
         float totalEnergy;
         float exclusiveEnergy;
