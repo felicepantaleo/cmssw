@@ -37,12 +37,10 @@ class RealisticHitToClusterAssociator
             HitToRealisticSimCluster_.resize(numberOfHits);
             HitToRealisticEnergyFraction_.resize(numberOfHits);
             distanceFromMaxHit_.resize(numberOfHits);
-            clusters2D_.resize(numberOfSimClusters);
             maxHitPosAtLayer_.resize(numberOfSimClusters);
             maxEnergyHitAtLayer_.resize(numberOfSimClusters);
             for (unsigned int i = 0; i < numberOfSimClusters; ++i)
             {
-                clusters2D_[i].resize(numberOfLayers);
                 maxHitPosAtLayer_[i].resize(numberOfLayers);
                 maxEnergyHitAtLayer_[i].resize(numberOfLayers, 0.f);
 
@@ -66,6 +64,8 @@ class RealisticHitToClusterAssociator
         void insertHitEnergy(float energy, unsigned int hitIndex)
         {
             totalEnergy_.at(hitIndex) = energy;
+            if(hitIndex ==386)
+            std::cout << "hit 386 has energy " << energy << std::endl;
         }
 
         void insertSimClusterIdAndFraction(unsigned int scIdx, float fraction,
@@ -81,46 +81,7 @@ class RealisticHitToClusterAssociator
             }
         }
 
-        void create2dSimClusters(bool distanceFilter = false, float maxDistance = 0.f)
-        {
-            unsigned int numberOfHits = layerId_.size();
-            std::cout<< "Creating 2dSimClusters with " << numberOfHits << " hits " << std::endl;
 
-            for(unsigned int hitId = 0; hitId< numberOfHits; ++hitId)
-            {
-                unsigned int numberOfClusters = MCAssociatedSimCluster_.at(hitId).size();
-                if(numberOfClusters>0)
-                std::cout<< "hit " << hitId << " " << hitPosition_[hitId][0] << " " << hitPosition_[hitId][1] << " " <<
-                hitPosition_[hitId][2] << " has  " << numberOfClusters << " clusters associated " << std::endl;
-
-                unsigned int layer = layerId_.at(hitId);
-                distanceFromMaxHit_.at(hitId).resize(numberOfClusters);
-                for(unsigned int clId = 0; clId < numberOfClusters; ++clId )
-                {
-                    auto simClusterId = MCAssociatedSimCluster_.at(hitId).at(clId);
-                    std::cout << "\t for a fraction " << MCEnergyFraction_.at(hitId).at(clId) << " to simClusterID " << simClusterId << " with maxHitEnergy on layer  " << layer << " " << maxEnergyHitAtLayer_.at(simClusterId).at(layer)
-                    << " in position " << maxHitPosAtLayer_.at(simClusterId).at(layer).at(0) << " " << maxHitPosAtLayer_.at(simClusterId).at(layer).at(1) << " " <<
-                    maxHitPosAtLayer_.at(simClusterId).at(layer).at(2) << " distance: "<< XYdistanceFromMaxHit(hitId, simClusterId) << std::endl;
-                    if(maxEnergyHitAtLayer_.at(simClusterId).at(layer)>0.f)
-                    {
-                        distanceFromMaxHit_.at(hitId).at(clId) = XYdistanceFromMaxHit(hitId, simClusterId);
-                        if(distanceFilter)
-                        {
-
-                            if ( distanceFromMaxHit_.at(hitId).at(clId)< maxDistance)
-                            {
-                                clusters2D_.at(simClusterId).at(layer).addHitAndEnergy(hitId, MCEnergyFraction_.at(hitId).at(clId)*totalEnergy_[hitId]);
-                            }
-                        }
-                        else
-                        {
-                            clusters2D_.at(simClusterId).at(layer).addHitAndEnergy(hitId, MCEnergyFraction_.at(hitId).at(clId)*totalEnergy_[hitId]);
-                        }
-                    }
-
-                }
-            }
-        }
 
         float XYdistanceFromMaxHit(unsigned int hitId, unsigned int clusterId)
         {
@@ -130,7 +91,7 @@ class RealisticHitToClusterAssociator
             return std::sqrt(distanceSquared);
         }
 
-        void computeAssociation(bool useMCFractionsForExclEnergy=false)
+        void computeAssociation(bool distanceFilter = false, float maxDistance = 0.f, bool useMCFractionsForExclEnergy=false)
         {
             //if more than 90% of a hit's energy belongs to a cluster, that rechit is not counted as shared
             constexpr float exclusiveFraction = 0.7;
@@ -141,28 +102,42 @@ class RealisticHitToClusterAssociator
             {
                 partialEnergies.clear();
                 unsigned int numberOfClusters = MCAssociatedSimCluster_[hitId].size();
-                if(numberOfClusters>1)
-                {
-                    std::cout<< "computeAssociation: hit " << hitId << " " << hitPosition_[hitId][0] << " " << hitPosition_[hitId][1] << " " <<
-                    hitPosition_[hitId][2] << " has  " << numberOfClusters << " clusters associated " << std::endl;
-                }
+                distanceFromMaxHit_.at(hitId).resize(numberOfClusters);
+
                 unsigned int layer = layerId_[hitId];
                 HitToRealisticSimCluster_.at(hitId).resize(numberOfClusters);
                 HitToRealisticEnergyFraction_.at(hitId).resize(numberOfClusters);
-                partialEnergies.resize(numberOfClusters);
+                partialEnergies.resize(numberOfClusters,0.f);
                 float energyDecayLength = getDecayLength(layer);
                 float sumE = 0.f;
 
                 for(unsigned int clId = 0; clId < numberOfClusters; ++clId )
                 {
 
+
                     auto simClusterId = MCAssociatedSimCluster_.at(hitId).at(clId);
-//                    partialEnergies[clId] = clusters2D_.at(simClusterId).at(layer).getLayerEnergy() * std::exp(-distanceFromMaxHit_.at(hitId).at(clId)/energyDecayLength);
-                    partialEnergies[clId] = 0.001f+maxEnergyHitAtLayer_[simClusterId][layer] * std::exp(-distanceFromMaxHit_.at(hitId).at(clId)/energyDecayLength);
+                    bool isWithinMaxDistance = false;
+                    if(maxEnergyHitAtLayer_.at(simClusterId).at(layer)>0.f)
+                    {
+                        distanceFromMaxHit_.at(hitId).at(clId) = XYdistanceFromMaxHit(hitId, simClusterId);
+                        if(distanceFilter)
+                        {
+
+                            if ( distanceFromMaxHit_.at(hitId).at(clId)< maxDistance)
+                            {
+                                isWithinMaxDistance = true;
+                            }
+                        }
+                        else
+                        {
+                            isWithinMaxDistance = true;
+                        }
+                    }
+
+                    if(isWithinMaxDistance)
+                        partialEnergies[clId] = 0.001f+maxEnergyHitAtLayer_[simClusterId][layer] * std::exp(-distanceFromMaxHit_.at(hitId).at(clId)/energyDecayLength);
 
                     sumE += partialEnergies[clId];
-                    if(numberOfClusters>1)
-                    std::cout << "\t\tcluster "<< simClusterId << " has partial energy: " <<partialEnergies[clId] << " on layer " << layer << std::endl;
 
                 }
                 if(sumE != 0.f)
@@ -175,24 +150,17 @@ class RealisticHitToClusterAssociator
                         HitToRealisticSimCluster_[hitId][clId] = simClusterIndex;
                         float assignedFraction = partialEnergies[clId]*invSumE;
                         HitToRealisticEnergyFraction_[hitId][clId] = assignedFraction;
-                        float assignedEnergy = assignedFraction * sumE;
+                        float assignedEnergy = assignedFraction *totalEnergy_[hitId];
                         RealisticSimClusters_[simClusterIndex].increaseEnergy(assignedEnergy);
                         RealisticSimClusters_[simClusterIndex].addHitAndFraction(hitId, assignedFraction);
-                        if(numberOfClusters>1)
-                        std::cout << "\t for a MC fraction " << MCEnergyFraction_.at(hitId).at(clId) << " realistic fraction " <<
-                                assignedFraction << "  to simClusterID " << simClusterIndex << " with maxHitEnergy on layer  " <<
-                                layer << " " << maxEnergyHitAtLayer_.at(simClusterIndex).at(layer)
-                                            << " in position " << maxHitPosAtLayer_.at(simClusterIndex).at(layer).at(0) <<
-                                            " " << maxHitPosAtLayer_.at(simClusterIndex).at(layer).at(1) << " " <<
-                                            maxHitPosAtLayer_.at(simClusterIndex).at(layer).at(2) << " distance: "<<
-                                            XYdistanceFromMaxHit(hitId, simClusterIndex) << std::endl;
+
+
                         bool isExclusive = ((!useMCFractionsForExclEnergy && (assignedFraction > exclusiveFraction) )
                                 || (useMCFractionsForExclEnergy && (MCEnergyFraction_.at(hitId).at(clId) >exclusiveFraction )));
                         if(isExclusive)
                         {
                             RealisticSimClusters_[simClusterIndex].increaseExclusiveEnergy(assignedEnergy);
                         }
-
                     }
                 }
             }
@@ -222,7 +190,7 @@ class RealisticHitToClusterAssociator
                         {
                             if(HitToRealisticSimCluster_[hitId][i] != clId && RealisticSimClusters_[HitToRealisticSimCluster_[hitId][i]].isVisible())
                             {
-                                std::cout << "\t its energy is being shared with cluster " << HitToRealisticSimCluster_[hitId][i] << std::endl;
+//                                std::cout << "\t its energy is being shared with cluster " << HitToRealisticSimCluster_[hitId][i] << std::endl;
                                 float oldEnergy = HitToRealisticEnergyFraction_[hitId][clId]*totalEnergy_[hitId];
                                 HitToRealisticEnergyFraction_[hitId][clId]*=correction;
 
@@ -254,9 +222,6 @@ class RealisticHitToClusterAssociator
         std::vector< std::vector<float> > MCEnergyFraction_;
         // For each hit, the squared distance from the propagated simTrack to the layer is calculated for every SimCluster associated
         std::vector< std::vector<float> > distanceFromMaxHit_;
-
-        // each Simcluster is split in 2d clusters
-        std::vector< std::vector<HGCSimCluster2D> > clusters2D_;
 
         // for each SimCluster and for each layer, we store the position of the most energetic hit of the simcluster in the layer
         std::vector< std::vector<Hit3DPosition> > maxHitPosAtLayer_;
