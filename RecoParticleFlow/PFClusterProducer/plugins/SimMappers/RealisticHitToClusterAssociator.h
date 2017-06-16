@@ -2,7 +2,6 @@
 #define __RecoParticleFlow_PFClusterProducer_RealisticHitToClusterAssociator_H__
 
 #include <vector>
-#include "HGCSimCluster2D.h"
 #include "RealisticCluster.h"
 
 namespace{
@@ -50,9 +49,7 @@ class RealisticHitToClusterAssociator
 
         void insertHitPosition(float x, float y, float z, unsigned int hitIndex)
         {
-            hitPosition_.at(hitIndex) =
-            {
-                {   x,y,z}};
+            hitPosition_.at(hitIndex) ={{x,y,z}};
 
         }
 
@@ -64,8 +61,7 @@ class RealisticHitToClusterAssociator
         void insertHitEnergy(float energy, unsigned int hitIndex)
         {
             totalEnergy_.at(hitIndex) = energy;
-            if(hitIndex ==386)
-            std::cout << "hit 386 has energy " << energy << std::endl;
+
         }
 
         void insertSimClusterIdAndFraction(unsigned int scIdx, float fraction,
@@ -175,7 +171,6 @@ class RealisticHitToClusterAssociator
 
                 if(RealisticSimClusters_[clId].getExclusiveEnergyFraction() < invisibleFraction)
                 {
-                    std::cout << "cluster " << clId << " is invisible!" << std::endl;
                     RealisticSimClusters_[clId].setVisible(false);
                     auto hAndF = RealisticSimClusters_[clId].hitsIdsAndFractions();
                     while (!hAndF.empty())
