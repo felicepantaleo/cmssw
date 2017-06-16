@@ -133,9 +133,6 @@ void GenericSimClusterMapper::buildClusters(const edm::Handle<reco::PFRecHitColl
             reco::PFCluster& back = output.back();
             edm::Ref < std::vector<reco::PFRecHit> > seed;
             auto hitsIdsAndFractions = std::move(realisticClusters[ic].hitsIdsAndFractions());
-
-
-
             for (const auto& idAndF : hitsIdsAndFractions)
             {
                 auto ref = makeRefhit(input, idAndF.first);

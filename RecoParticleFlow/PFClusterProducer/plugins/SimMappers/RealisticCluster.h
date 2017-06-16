@@ -3,7 +3,7 @@
 
 #include <array>
 #include <vector>
-
+#include <algorithm>
 
 class RealisticCluster
 {
