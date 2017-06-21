@@ -112,26 +112,27 @@ class RealisticHitToClusterAssociator
 
 
                     auto simClusterId = MCAssociatedSimCluster_[hitId][clId];
-                    bool isWithinMaxDistance = false;
+//                    bool isWithinMaxDistance = false;
+//                    if(maxEnergyHitAtLayer_[simClusterId][layer]>0.f)
+//                    {
+//                        distanceFromMaxHit_[hitId][clId] = XYdistanceFromMaxHit(hitId, simClusterId);
+//                        if(distanceFilter)
+//                        {
+//
+//                            if ( distanceFromMaxHit_[hitId][clId]< maxDistance)
+//                            {
+//                                isWithinMaxDistance = true;
+//                            }
+//                        }
+//                        else
+//                        {
+//                            isWithinMaxDistance = true;
+//                        }
+//                    }
+//
+//                    if(isWithinMaxDistance)
                     if(maxEnergyHitAtLayer_[simClusterId][layer]>0.f)
-                    {
-                        distanceFromMaxHit_[hitId][clId] = XYdistanceFromMaxHit(hitId, simClusterId);
-                        if(distanceFilter)
-                        {
-
-                            if ( distanceFromMaxHit_[hitId][clId]< maxDistance)
-                            {
-                                isWithinMaxDistance = true;
-                            }
-                        }
-                        else
-                        {
-                            isWithinMaxDistance = true;
-                        }
-                    }
-
-                    if(isWithinMaxDistance)
-                        partialEnergies[clId] = 0.001f+maxEnergyHitAtLayer_[simClusterId][layer] * std::exp(-distanceFromMaxHit_[hitId][clId]/energyDecayLength);
+                        partialEnergies[clId] = maxEnergyHitAtLayer_[simClusterId][layer] * std::exp(-distanceFromMaxHit_[hitId][clId]/energyDecayLength);
 
                     sumE += partialEnergies[clId];
 
@@ -180,18 +181,18 @@ class RealisticHitToClusterAssociator
                         float correction = 1.f/(1.f-fraction);
 
 // we have to reloop again over the hits and reassign them to the remaining clusters
-                        unsigned int numberOfClusters = HitToRealisticSimCluster_[hitId].size();
+                        unsigned int numberOfClusters = HitToRealisticSimCluster_.at(hitId).size();
                         for(unsigned int i = 0; i< numberOfClusters; ++i)
                         {
-                            if(HitToRealisticSimCluster_[hitId][i] != clId && RealisticSimClusters_[HitToRealisticSimCluster_[hitId][i]].isVisible())
+                            if(HitToRealisticSimCluster_.at(hitId).at(i) != clId && RealisticSimClusters_[HitToRealisticSimCluster_.at(hitId).at(i)].isVisible())
                             {
 //                                std::cout << "\t its energy is being shared with cluster " << HitToRealisticSimCluster_[hitId][i] << std::endl;
-                                float oldEnergy = HitToRealisticEnergyFraction_[hitId][clId]*totalEnergy_[hitId];
-                                HitToRealisticEnergyFraction_[hitId][clId]*=correction;
+                                float oldEnergy = HitToRealisticEnergyFraction_[hitId][i]*totalEnergy_[hitId];
+                                HitToRealisticEnergyFraction_[hitId][i]*=correction;
 
-                                float newEnergy= HitToRealisticEnergyFraction_[hitId][clId]*totalEnergy_[hitId];
+                                float newEnergy= HitToRealisticEnergyFraction_[hitId][i]*totalEnergy_[hitId];
                                 RealisticSimClusters_[HitToRealisticSimCluster_[hitId][i]].increaseEnergy(newEnergy-oldEnergy);
-                                RealisticSimClusters_[HitToRealisticSimCluster_[hitId][i]].modifyFractionForHitId(HitToRealisticEnergyFraction_[hitId][clId], hitId);
+                                RealisticSimClusters_[HitToRealisticSimCluster_[hitId][i]].modifyFractionForHitId(HitToRealisticEnergyFraction_[hitId][i], hitId);
                             }
                         }
 
