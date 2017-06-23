@@ -71,8 +71,7 @@ void GenericSimClusterMapper::buildClusters(const edm::Handle<reco::PFRecHitColl
         reco::PFClusterCollection& output)
 {
 
-    bool distanceFilter = true;
-    float maxDistance = 10.f; //10cm
+
     const SimClusterCollection& simClusters = *_simClusterH;
     auto const& hits = *input;
     RealisticHitToClusterAssociator realisticAssociator;
@@ -81,8 +80,16 @@ void GenericSimClusterMapper::buildClusters(const edm::Handle<reco::PFRecHitColl
     // for quick indexing back to hit energy
     std::unordered_map < uint32_t, size_t > detIdToIndex(hits.size());
 
-    std::vector<float> PFRecHitOnlySimClusters;
-    PFRecHitOnlySimClusters.resize(simClusters.size(), 0.f);
+//    std::vector<float> PFRecHitOnlySimClusters;
+//    PFRecHitOnlySimClusters.resize(simClusters.size(), 0.f);
+
+    std::vector<std::vector<unsigned int> > numberOfHitsPerLayer; numberOfHitsPerLayer.resize(_layerZPositions.size() + 1);
+    std::vector<std::vector<bool> > hasFractionaryHits; hasFractionaryHits.resize(_layerZPositions.size() + 1);
+
+    for(auto& vec: numberOfHitsPerLayer)
+        vec.resize(simClusters.size(), 0);
+    for(auto& vec: hasFractionaryHits)
+        vec.resize(simClusters.size(),false);
 
 
     for (unsigned int i = 0; i < hits.size(); ++i)
@@ -112,20 +119,30 @@ void GenericSimClusterMapper::buildClusters(const edm::Handle<reco::PFRecHitColl
 
             auto ref = makeRefhit(input, hitId);
             float fraction = hAndF.second;
+            const auto& hitPos = _rhtools.getPosition(ref->detId());
+
+
             float associatedEnergy = fraction * ref->energy();
             realisticAssociator.insertSimClusterIdAndFraction(ic, fraction, hitId,
                     associatedEnergy);
+            numberOfHitsPerLayer[_rhtools.getLayerWithOffset(ref->detId())][ic]++;
 
-            PFRecHitOnlySimClusters[ic]+=associatedEnergy;
+            if(fraction < 1.0f)
+                hasFractionaryHits[_rhtools.getLayerWithOffset(ref->detId())][ic] = true;
+
+            std::cout << "SIMCLUSTERHIT " << ic << " " << _rhtools.getLayerWithOffset(ref->detId()) << " "<< hitPos.x() << " " << hitPos.y() << " " << hitPos.z() << " " << fraction << " " << associatedEnergy << " " << ref->energy() <<  std::endl;
+
+//            PFRecHitOnlySimClusters[ic]+=associatedEnergy;
         }
 
     }
-    realisticAssociator.computeAssociation(distanceFilter, maxDistance);
+    realisticAssociator.computeAssociation();
     realisticAssociator.findAndMergeInvisibleClusters();
     auto realisticClusters = std::move(realisticAssociator.realisticClusters());
     unsigned int nClusters = realisticClusters.size();
     for (unsigned ic = 0; ic < nClusters; ++ic)
     {
+
         if (realisticClusters[ic].isVisible())
         {
             float highest_energy = 0.0f;
@@ -138,6 +155,19 @@ void GenericSimClusterMapper::buildClusters(const edm::Handle<reco::PFRecHitColl
                 auto ref = makeRefhit(input, idAndF.first);
                 back.addRecHitFraction(reco::PFRecHitFraction(ref, idAndF.second));
                 const float hit_energy = idAndF.second * ref->energy();
+
+
+
+                const auto& hitPos = _rhtools.getPosition(ref->detId());
+
+
+                std::cout << "REALCLUSTERHIT " << ic << " " << _rhtools.getLayerWithOffset(ref->detId()) << " "<< hitPos.x() << " " << hitPos.y() << " " << hitPos.z() << " " << idAndF.second << " " << hit_energy << " " << ref->energy() <<  std::endl;
+
+
+
+
+
+
                 if (hit_energy > highest_energy || highest_energy == 0.0)
                 {
                     highest_energy = hit_energy;
@@ -157,7 +187,36 @@ void GenericSimClusterMapper::buildClusters(const edm::Handle<reco::PFRecHitColl
                 back.setEnergy(0.f);
             }
         }
+        else
+        {
+            std::cout << "cluster " << ic << " is invisible" << std::endl;
+        }
 
     }
+
+
+    for(unsigned int i = 0; i <_layerZPositions.size() + 1; ++i)
+    {
+        bool goodLayer = true;
+        int goodLayerId = i;
+        for(unsigned int j = 0; j<simClusters.size(); ++j)
+        {
+            std::cout << "layer " << i << " cluster " << j << " has " << numberOfHitsPerLayer[i][j] <<
+                    " hits. With fractions? " << hasFractionaryHits[i][j] << std::endl;
+            goodLayer &= (numberOfHitsPerLayer[i][j]>10);
+            goodLayer &= hasFractionaryHits[i][j];
+
+
+        }
+
+        if(goodLayer)
+            std::cout << "GOODLAYER this event has a good layer for analysis " << goodLayerId << std::endl;
+
+
+    }
+
+
+
+
 }
 

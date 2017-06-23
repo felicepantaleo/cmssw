@@ -87,7 +87,7 @@ class RealisticHitToClusterAssociator
             return std::sqrt(distanceSquared);
         }
 
-        void computeAssociation(bool distanceFilter = false, float maxDistance = 0.f, bool useMCFractionsForExclEnergy=false)
+        void computeAssociation(bool useMCFractionsForExclEnergy=false)
         {
             //if more than 90% of a hit's energy belongs to a cluster, that rechit is not counted as shared
             constexpr float exclusiveFraction = 0.7;
@@ -112,25 +112,7 @@ class RealisticHitToClusterAssociator
 
 
                     auto simClusterId = MCAssociatedSimCluster_[hitId][clId];
-//                    bool isWithinMaxDistance = false;
-//                    if(maxEnergyHitAtLayer_[simClusterId][layer]>0.f)
-//                    {
-//                        distanceFromMaxHit_[hitId][clId] = XYdistanceFromMaxHit(hitId, simClusterId);
-//                        if(distanceFilter)
-//                        {
-//
-//                            if ( distanceFromMaxHit_[hitId][clId]< maxDistance)
-//                            {
-//                                isWithinMaxDistance = true;
-//                            }
-//                        }
-//                        else
-//                        {
-//                            isWithinMaxDistance = true;
-//                        }
-//                    }
-//
-//                    if(isWithinMaxDistance)
+
                     if(maxEnergyHitAtLayer_[simClusterId][layer]>0.f)
                         partialEnergies[clId] = maxEnergyHitAtLayer_[simClusterId][layer] * std::exp(-distanceFromMaxHit_[hitId][clId]/energyDecayLength);
 
@@ -166,38 +148,107 @@ class RealisticHitToClusterAssociator
         void findAndMergeInvisibleClusters()
         {
             unsigned int numberOfRealSimClusters = RealisticSimClusters_.size();
-            const constexpr float invisibleFraction = 0.2f;
+            const constexpr float invisibleFraction = 0.5f;
+            constexpr float exclusiveFraction = 0.7;
+
             for(unsigned int clId= 0; clId < numberOfRealSimClusters; ++clId)
             {
 
                 if(RealisticSimClusters_[clId].getExclusiveEnergyFraction() < invisibleFraction)
                 {
+                    std::cout << "cluster " << clId << " is invisible " << std::endl;
+                    std::cout << "it has E " << RealisticSimClusters_[clId].getEnergy() << " with fraction " << RealisticSimClusters_[clId].getExclusiveEnergyFraction() << std::endl;
+
                     RealisticSimClusters_[clId].setVisible(false);
-                    auto hAndF = RealisticSimClusters_[clId].hitsIdsAndFractions();
-                    while (!hAndF.empty())
+                    auto& hAndF = RealisticSimClusters_[clId].hitsIdsAndFractions();
+                    std::unordered_map < unsigned int, float> energyInNeighbors;
+                    float totalSharedEnergy=0.f;
+                    for(auto& elt : hAndF)
                     {
-                        unsigned int hitId = hAndF.back().first;
-                        float fraction = hAndF.back().second;
-                        float correction = 1.f/(1.f-fraction);
-
-// we have to reloop again over the hits and reassign them to the remaining clusters
-                        unsigned int numberOfClusters = HitToRealisticSimCluster_.at(hitId).size();
-                        for(unsigned int i = 0; i< numberOfClusters; ++i)
+                        unsigned int hitId = elt.first;
+                        float fraction = elt.second;
+                        if(fraction<1.f)
                         {
-                            if(HitToRealisticSimCluster_.at(hitId).at(i) != clId && RealisticSimClusters_[HitToRealisticSimCluster_.at(hitId).at(i)].isVisible())
-                            {
-//                                std::cout << "\t its energy is being shared with cluster " << HitToRealisticSimCluster_[hitId][i] << std::endl;
-                                float oldEnergy = HitToRealisticEnergyFraction_[hitId][i]*totalEnergy_[hitId];
-                                HitToRealisticEnergyFraction_[hitId][i]*=correction;
+                            float correction = 1.f/(1.f-fraction);
+                            unsigned int numberOfClusters = HitToRealisticSimCluster_.at(hitId).size();
 
-                                float newEnergy= HitToRealisticEnergyFraction_[hitId][i]*totalEnergy_[hitId];
-                                RealisticSimClusters_[HitToRealisticSimCluster_[hitId][i]].increaseEnergy(newEnergy-oldEnergy);
-                                RealisticSimClusters_[HitToRealisticSimCluster_[hitId][i]].modifyFractionForHitId(HitToRealisticEnergyFraction_[hitId][i], hitId);
+                            for(unsigned int i = 0; i< numberOfClusters; ++i)
+                            {
+                                if(HitToRealisticSimCluster_.at(hitId).at(i) != clId && RealisticSimClusters_[HitToRealisticSimCluster_.at(hitId).at(i)].isVisible())
+                                {
+    //                                std::cout << "\t its energy is being shared with cluster " << HitToRealisticSimCluster_[hitId][i] << std::endl;
+                                    float oldEnergy = HitToRealisticEnergyFraction_[hitId][i]*totalEnergy_[hitId];
+                                    HitToRealisticEnergyFraction_[hitId][i]*=correction;
+
+                                    float newEnergy= HitToRealisticEnergyFraction_[hitId][i]*totalEnergy_[hitId];
+                                    float sharedEnergy = newEnergy-oldEnergy;
+                                    energyInNeighbors[HitToRealisticSimCluster_[hitId][i]] +=sharedEnergy;
+                                    totalSharedEnergy +=sharedEnergy;
+                                    RealisticSimClusters_[HitToRealisticSimCluster_[hitId][i]].increaseEnergy(sharedEnergy);
+                                    RealisticSimClusters_[HitToRealisticSimCluster_[hitId][i]].modifyFractionForHitId(HitToRealisticEnergyFraction_[hitId][i], hitId);
+                                }
                             }
                         }
-
-                        hAndF.pop_back();
                     }
+                    std::cout << "the shared energy assigned to nearby clusters is " << totalSharedEnergy<< std::endl;
+
+
+
+
+                    for(auto& elt : hAndF)
+                    {
+                        unsigned int hitId = elt.first;
+                        float fraction = elt.second;
+                        if(fraction==1.f)
+                        {
+                            for (auto& pair: energyInNeighbors)
+                            {
+
+                                float sharedFraction = pair.second/totalSharedEnergy;
+                                float assignedEnergy = totalEnergy_[hitId]*sharedFraction;
+                                RealisticSimClusters_[pair.first].increaseEnergy(assignedEnergy);
+                                RealisticSimClusters_[pair.first].addHitAndFraction(hitId, sharedFraction);
+                                if(sharedFraction > exclusiveFraction)
+                                    RealisticSimClusters_[pair.first].increaseExclusiveEnergy(assignedEnergy);
+
+                                std::cout << "assigning " << assignedEnergy<< " to cluster " << pair.first<<  std::endl;
+
+                            }
+
+
+
+                        }
+                    }
+
+
+
+
+
+//
+//                    while (!hAndF.empty())
+//                    {
+//                        unsigned int hitId = hAndF.back().first;
+//                        float fraction = hAndF.back().second;
+//                        float correction = 1.f/(1.f-fraction);
+//
+//// we have to reloop again over the hits and reassign them to the remaining clusters
+//                        unsigned int numberOfClusters = HitToRealisticSimCluster_.at(hitId).size();
+//                        for(unsigned int i = 0; i< numberOfClusters; ++i)
+//                        {
+//                            if(HitToRealisticSimCluster_.at(hitId).at(i) != clId && RealisticSimClusters_[HitToRealisticSimCluster_.at(hitId).at(i)].isVisible())
+//                            {
+////                                std::cout << "\t its energy is being shared with cluster " << HitToRealisticSimCluster_[hitId][i] << std::endl;
+//                                float oldEnergy = HitToRealisticEnergyFraction_[hitId][i]*totalEnergy_[hitId];
+//                                HitToRealisticEnergyFraction_[hitId][i]*=correction;
+//
+//                                float newEnergy= HitToRealisticEnergyFraction_[hitId][i]*totalEnergy_[hitId];
+//                                RealisticSimClusters_[HitToRealisticSimCluster_[hitId][i]].increaseEnergy(newEnergy-oldEnergy);
+//                                RealisticSimClusters_[HitToRealisticSimCluster_[hitId][i]].modifyFractionForHitId(HitToRealisticEnergyFraction_[hitId][i], hitId);
+//                            }
+//                        }
+//
+//                        hAndF.pop_back();
+//                    }
 
                 }
             }
