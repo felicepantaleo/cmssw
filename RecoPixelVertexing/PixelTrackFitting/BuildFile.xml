@@ -1,4 +1,5 @@
 <use   name="root"/>
+<use   name="eigen"/>
 <use   name="CommonTools/Statistics"/>
 <use   name="DataFormats/GeometrySurface"/>
 <use   name="DataFormats/GeometryVector"/>
@@ -27,7 +28,6 @@
 <use   name="TrackingTools/TransientTrackingRecHit"/>
 <use   name="RecoTracker/TransientTrackingRecHit"/>
 <use   name="RecoPixelVertexing/PixelTriplets"/>
-<use   name="eigen"/>
 <export>
   <lib   name="1"/>
 </export>
