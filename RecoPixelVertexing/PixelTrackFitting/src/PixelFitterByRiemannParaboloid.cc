@@ -527,12 +527,11 @@ std::unique_ptr<reco::Track> PixelFitterByRiemannParaboloid::run(
 
     Matrix<float, 3, Dynamic, 0, 3, max_nop> riemannHits(3, nhits);
 
-    Matrix<float, Dynamic, Dynamic, 0, 3 * max_nop, 3 * max_nop> riemannHits_cov(3 * nhits,
-            3 * nhits);
+    Matrix<float, Dynamic, Dynamic, 0, 3 * max_nop, 3 * max_nop> riemannHits_cov = MatrixXf::Zero(3*nhits, 3*nhits);
+
 
     for (unsigned int i = 0; i < nhits; ++i)
     {
-        auto const & recHit = hits[i];
         riemannHits.col(i) << points[i].x(), points[i].y(), points[i].z();
 
         const auto& errorMatrix = errors[i].matrix4D();
@@ -543,9 +542,16 @@ std::unique_ptr<reco::Track> PixelFitterByRiemannParaboloid::run(
             {
                 riemannHits_cov(i + j * nhits, i + l * nhits) = errorMatrix(j, l);
 
+                std::cout << "printing error matrix for i j l " << i << " " << j << " " << l << std::endl;
+
+                std::cout << errorMatrix(j, l) << std::endl;
+
             }
         }
     }
+
+
+    std::cout << riemannHits_cov << std::endl;
     float bField = 1/PixelRecoUtilities::fieldInInvGev(*theES);
     helix_fit fittedTrack = Helix_fit(riemannHits, riemannHits_cov, bField, true);
     int iCharge = fittedTrack.charge;
