@@ -32,9 +32,12 @@ void CellularAutomaton::createAndConnectCells(const std::vector<const HitDoublet
 
 		}
 
+
 		unsigned int numberOfLayerPairsToVisitAtThisDepth =
 				LayerPairsToVisit.size();
+		unsigned int numberOfRootLayerPairs = numberOfLayerPairsToVisitAtThisDepth;
 
+		unsigned int visitedNodes = 0;
 		while (!LayerPairsToVisit.empty())
 		{
 			auto currentLayerPair = LayerPairsToVisit.front();
@@ -42,7 +45,7 @@ void CellularAutomaton::createAndConnectCells(const std::vector<const HitDoublet
 			auto & currentInnerLayerRef = theLayerGraph.theLayers[currentLayerPairRef.theLayers[0]];
 			auto & currentOuterLayerRef = theLayerGraph.theLayers[currentLayerPairRef.theLayers[1]];
 			bool allInnerLayerPairsAlreadyVisited	{ true };
-
+			bool isRootLayerPair = visitedNodes < numberOfRootLayerPairs;
 			for (auto innerLayerPair : currentInnerLayerRef.theInnerLayerPairs)
 			{
 				allInnerLayerPairsAlreadyVisited &=
@@ -50,7 +53,7 @@ void CellularAutomaton::createAndConnectCells(const std::vector<const HitDoublet
 			}
 
 			if (alreadyVisitedLayerPairs[currentLayerPair] == false
-					&& allInnerLayerPairsAlreadyVisited)
+					&& (allInnerLayerPairsAlreadyVisited or isRootLayerPair ) )
 			{
 
 				const HitDoublets* doubletLayerPairId =
@@ -85,6 +88,7 @@ void CellularAutomaton::createAndConnectCells(const std::vector<const HitDoublet
 				}
 
 				alreadyVisitedLayerPairs[currentLayerPair] = true;
+				visitedNodes++;
 			}
 			LayerPairsToVisit.pop();
 			numberOfLayerPairsToVisitAtThisDepth--;
