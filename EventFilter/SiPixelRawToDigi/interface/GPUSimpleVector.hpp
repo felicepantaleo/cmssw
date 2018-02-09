@@ -44,9 +44,9 @@ template <class T> struct SimpleVector {
       return T();
   }
 
-  __inline__ __host__ __device__ T operator[](int i) { return m_data[i]; }
+  __inline__ __host__ __device__ T operator[](int i) const { return m_data[i]; }
 
-  __inline__ __host__ __device__ T at(int i) {
+  __inline__ __host__ __device__ T at(int i) const {
     if (i < m_size)
       return m_data[i];
     else
