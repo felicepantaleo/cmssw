@@ -9,7 +9,7 @@
 namespace GPU {
 template <class T> struct SimpleVector {
   // Constructors
-  __host__ __device__ SimpleVector(int capacity, T *data)
+  __host__ __device__ SimpleVector(int capacity, T *data) // ownership of m_data stays within the caller
       : m_size(0), m_data(data), m_capacity(capacity) {
     static_assert(std::is_trivially_destructible<T>::value);
   }
@@ -40,13 +40,12 @@ template <class T> struct SimpleVector {
     }
   }
 
-  __inline__ __host__ __device__ T &back() const {
+  __inline__ __host__ __device__ T & back() const {
 
     if (m_size > 0) {
-      T &ref = m_data[m_size - 1];
-      return ref;
+      return m_data[m_size - 1];
     } else
-      return T();
+      return T(); //undefined behaviour
   }
 
 #if defined(__NVCC__) || defined(__CUDACC__)
@@ -74,7 +73,7 @@ template <class T> struct SimpleVector {
   }
 #endif
 
-  __inline__ __host__ __device__ T operator[](int i) const { return m_data[i]; }
+  __inline__ __host__ __device__ T& operator[](int i) const { return m_data[i]; }
 
   __inline__ __host__ __device__ void reset() { m_size = 0; }
 
