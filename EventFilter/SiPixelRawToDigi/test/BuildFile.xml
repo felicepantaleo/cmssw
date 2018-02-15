@@ -16,3 +16,6 @@
 <library   file="findHotPixels.cc" name="findHotPixels">
   <flags   EDM_PLUGIN="1"/>
 </library>
+<bin   file="test_GPUSimpleVector.cu" name="test_GPUSimpleVector">
+  <flags   CUDA_FLAGS="-std=c++14"/>
+</bin>
