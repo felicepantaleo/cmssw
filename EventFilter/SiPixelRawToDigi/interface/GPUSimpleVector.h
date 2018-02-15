@@ -5,8 +5,8 @@
 namespace GPU {
 template <class T> struct SimpleVector {
   // Constructors
-  __host__ __device__ SimpleVector(unsigned int maxSize, T *m_data = nullptr)
-      : m_size(0), m_data(m_data), maxSize(static_cast<int>(maxSize)) {}
+  __host__ __device__ SimpleVector(unsigned int m_capacity, T *m_data = nullptr)
+      : m_size(0), m_data(m_data), m_capacity(static_cast<int>(m_capacity)) {}
 
   __host__ __device__ SimpleVector() : SimpleVector(0) {}
 
@@ -14,7 +14,7 @@ template <class T> struct SimpleVector {
 
     auto previousSize = m_size;
     m_size++;
-    if (previousSize < maxSize) {
+    if (previousSize < m_capacity) {
       m_data[previousSize] = element;
       return previousSize;
     } else {
@@ -26,7 +26,7 @@ template <class T> struct SimpleVector {
 #if defined(__NVCC__) || defined(__CUDACC__)
   __device__ int push_back_ts(const T &element) {
     auto previousSize = atomicAdd(&m_size, 1);
-    if (previousSize < maxSize) {
+    if (previousSize < m_capacity) {
       m_data[previousSize] = element;
       return previousSize;
     } else {
@@ -57,13 +57,13 @@ template <class T> struct SimpleVector {
 
   __inline__ __host__ __device__ int size() const { return m_size; }
 
-  __inline__ __host__ __device__ int capacity() const { return maxSize; }
+  __inline__ __host__ __device__ int capacity() const { return m_capacity; }
 
 
 
 private:
   int m_size;
-  int maxSize;
+  int m_capacity;
 
   T *m_data;
 };
