@@ -12,7 +12,7 @@ __global__ void vector_pushback(GPU::SimpleVector<int> *foo) {
 }
 
 __global__ void vector_reset(GPU::SimpleVector<int> *foo) {
-  auto index = threadIdx.x + blockIdx.x * blockDim.x;
+
   foo->reset();
 }
 
