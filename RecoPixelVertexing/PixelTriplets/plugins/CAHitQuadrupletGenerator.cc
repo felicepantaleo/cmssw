@@ -200,7 +200,6 @@ void CAHitQuadrupletGenerator::hitNtuplets(
     ca.findNtuplets(foundQuadruplets, numberOfHitsInNtuplet);
 
     auto &allCells = ca.getAllCells();
-
     const QuantityDependsPtEval maxChi2Eval = maxChi2.evaluator(es);
 
     // re-used thoughout
