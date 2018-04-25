@@ -2,8 +2,9 @@
 <use   name="RecoPixelVertexing/PixelTriplets"/>
 <use   name="RecoTracker/TkSeedingLayers"/>
 <use   name="RecoPixelVertexing/PixelTrackFitting"/>
-<library   file="*.cc" name="RecoPixelVertexingPixelTripletsPlugins">
+<library   file="*.c*" name="RecoPixelVertexingPixelTripletsPlugins">
+  <use   name="cuda"/>
   <flags   EDM_PLUGIN="1"/>
+  <flags   CUDA_FLAGS="--expt-relaxed-constexpr"/>
 </library>
-
 <flags   CXXFLAGS="-Ofast -fno-math-errno"/>
