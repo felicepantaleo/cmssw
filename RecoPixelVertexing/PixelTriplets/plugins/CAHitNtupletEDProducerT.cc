@@ -80,8 +80,8 @@ void CAHitNtupletEDProducerT<T_Generator>::produce(edm::Event& iEvent, const edm
   LogDebug("CAHitNtupletEDProducer") << "Creating ntuplets for " << regionDoublets.regionSize() << " regions, and " << regionDoublets.layerPairsSize() << " layer pairs";
   std::vector<OrderedHitSeeds> ntuplets;
   ntuplets.resize(regionDoublets.regionSize());
-  for(auto& ntuplet : ntuplets)  ntuplet.reserve(localRA_.upper()); 
-   
+  for(auto& ntuplet : ntuplets)  ntuplet.reserve(localRA_.upper());
+
   generator_.hitNtuplets(regionDoublets, ntuplets, iSetup, seedingLayerHits);
   int index = 0;
   for(const auto& regionLayerPairs: regionDoublets) {
@@ -106,3 +106,7 @@ DEFINE_FWK_MODULE(CAHitQuadrupletEDProducer);
 #include "CAHitTripletGenerator.h"
 using CAHitTripletEDProducer = CAHitNtupletEDProducerT<CAHitTripletGenerator>;
 DEFINE_FWK_MODULE(CAHitTripletEDProducer);
+
+#include "CAHitQuadrupletGeneratorGPU.h"
+using CAHitQuadrupletEDProducer = CAHitNtupletEDProducerT<CAHitQuadrupletGeneratorGPU>;
+DEFINE_FWK_MODULE(CAHitQuadrupletGPUEDProducer);
