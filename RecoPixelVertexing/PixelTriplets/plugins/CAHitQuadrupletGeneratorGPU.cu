@@ -1,4 +1,11 @@
+//
+// Author: Felice Pantaleo, CERN
+//
+
+
 #include "CAHitQuadrupletGeneratorGPU.h"
+#include "GPUCACell.h"
+
 //
 //
 // #include "DataFormats/Common/interface/Handle.h"
@@ -109,5 +116,7 @@ void CAHitQuadrupletGeneratorGPU::hitNtuplets(
     const IntermediateHitDoublets &regionDoublets,
     std::vector<OrderedHitSeeds> &result, const edm::EventSetup &es,
     const SeedingLayerSetsHits &layers) {
+
+
 
 }

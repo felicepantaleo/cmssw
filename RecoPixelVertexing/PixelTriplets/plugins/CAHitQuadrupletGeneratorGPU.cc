@@ -1,3 +1,6 @@
+//
+// Author: Felice Pantaleo, CERN
+//
 #include "CAHitQuadrupletGeneratorGPU.h"
 
 #include "RecoPixelVertexing/PixelTriplets/interface/ThirdHitPredictionFromCircle.h"
@@ -47,6 +50,9 @@ CAHitQuadrupletGeneratorGPU::CAHitQuadrupletGeneratorGPU(const edm::ParameterSet
     theComparitor.reset(SeedComparitorFactory::get()->create(
         comparitorName, comparitorPSet, iC));
   }
+
+
+
 }
 
 void CAHitQuadrupletGeneratorGPU::fillDescriptions(
