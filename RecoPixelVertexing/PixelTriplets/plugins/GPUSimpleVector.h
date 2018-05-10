@@ -22,17 +22,18 @@ template <int maxSize, class T> struct GPUSimpleVector {
       return -1;
     }
   }
-
+  #ifdef __CUDACC__
   __device__ int push_back_ts(const T &element) {
-    auto previousSize = this->atomicAdd(&m_size, 1);
+    auto previousSize = atomicAdd(&m_size, 1);
     if (previousSize < maxSize) {
       m_data[previousSize] = element;
       return previousSize;
     } else {
-      this->atomicSub(&m_size, 1);
+      atomicSub(&m_size, 1);
       return -1;
     }
   }
+  #endif
 
   __inline__ __host__ __device__ T pop_back() {
     if (m_size > 0) {
