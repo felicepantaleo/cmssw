@@ -144,8 +144,14 @@ private:
 
     static constexpr int maxNumberOfQuadruplets = 5000;
     static constexpr int maxCellsPerHit = 200;
+    static constexpr int maxNumberOfLayerPairs = 13;
+    static constexpr int maxNumberOfLayers = 10;
+    unsigned int numberOfRootLayerPairs;
+
 
     GPULayerDoublets* h_doublets;
+    GPULayerHits* h_layers;
+
     unsigned int* h_indices;
     float *h_x, *h_y, *h_z;
     float *d_x, *d_y, *d_z;
