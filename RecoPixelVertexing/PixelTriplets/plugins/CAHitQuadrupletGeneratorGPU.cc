@@ -28,7 +28,6 @@ using namespace std;
 
 constexpr unsigned int CAHitQuadrupletGeneratorGPU::minLayers;
 
-
 CAHitQuadrupletGeneratorGPU::CAHitQuadrupletGeneratorGPU(
     const edm::ParameterSet &cfg,
     edm::ConsumesCollector &iC)
@@ -133,7 +132,6 @@ void fillGraph(const SeedingLayerSetsHits &layers,
                const IntermediateHitDoublets::RegionLayerSets &regionLayerPairs,
                CAGraph &g, std::vector<const HitDoublets *> &hitDoublets) {
 
-
   for (unsigned int i = 0; i < layers.size(); i++) {
     for (unsigned int j = 0; j < 4; ++j) {
       auto vertexIndex = 0;
@@ -184,8 +182,10 @@ void fillGraph(const SeedingLayerSetsHits &layers,
   }
 
   for (unsigned int i = 0; i < g.theLayerPairs.size(); ++i) {
-    std::cout << i << " " << g.theLayers[g.theLayerPairs[i].theLayers[0]].name()
+    std::cout << "layer pair " << i << " " << g.theLayers[g.theLayerPairs[i].theLayers[0]].name()
+    <<  " hits: " << hitDoublets[i]->layers[0]->size()
               << " and " << g.theLayers[g.theLayerPairs[i].theLayers[1]].name()
+              << " hits: " << hitDoublets[i]->layers[1]->size()
               << std::endl;
   }
 }
@@ -202,9 +202,7 @@ void CAHitQuadrupletGeneratorGPU::hitNtuplets(
   const int numberOfHitsInNtuplet = 4;
   std::vector<CACell::CAntuplet> foundQuadruplets;
 
-
-  for (unsigned int lpIdx = 0; lpIdx < maxNumberOfLayerPairs;
-       ++lpIdx) {
+  for (unsigned int lpIdx = 0; lpIdx < maxNumberOfLayerPairs; ++lpIdx) {
     h_doublets[lpIdx].size = 0;
   }
   numberOfRootLayerPairs = 0;
@@ -213,7 +211,6 @@ void CAHitQuadrupletGeneratorGPU::hitNtuplets(
 
     h_layers[layerIdx].size = 0;
   }
-
 
   int index = 0;
   for (const auto &regionLayerPairs : regionDoublets) {
@@ -234,29 +231,69 @@ void CAHitQuadrupletGeneratorGPU::hitNtuplets(
     h_doublets[i].size = hitDoublets[i]->size();
     h_doublets[i].innerLayerId = g.theLayerPairs[i].theLayers[0];
     h_doublets[i].outerLayerId = g.theLayerPairs[i].theLayers[1];
-    for(unsigned int rl : g.theRootLayers)
-    {
-    if (rl == h_doublets[i].innerLayerId)
-    {
+    for (unsigned int rl : g.theRootLayers) {
+      if (rl == h_doublets[i].innerLayerId) {
         auto rootlayerPairId = numberOfRootLayerPairs;
-            h_rootLayerPairs[rootlayerPairId] = i;
-            numberOfRootLayerPairs++;
+        h_rootLayerPairs[rootlayerPairId] = i;
+        numberOfRootLayerPairs++;
+      }
+    }
+
+    for (unsigned int l = 0; l < hitDoublets[i]->size(); ++l) {
+      auto hitId = i * maxNumberOfDoublets * 2 + 2 * l;
+      h_indices[hitId] = hitDoublets[i]->indeces[l].first;
+      h_indices[hitId + 1] = hitDoublets[i]->indeces[l].second;
+    }
+
+    if(h_layers[h_doublets[i].innerLayerId].size == 0)
+    {
+        auto & layer = h_layers[h_doublets[i].innerLayerId];
+        layer.size = hitDoublets[i]->layers[0]->size();
+        layer.layerId = h_doublets[i].innerLayerId;
+
+        for (unsigned int l = 0; l < layer.size; ++l)
+        {
+            auto hitId = layer.layerId * maxNumberOfHits + l;
+
+            h_x[hitId] = hitDoublets[i]->layers[0]->x[l];
+            h_y[hitId] = hitDoublets[i]->layers[0]->y[l];
+            h_z[hitId] = hitDoublets[i]->layers[0]->z[l];
+            // h_y[hitId] = hostEvents[i].hitsLayers[j].y[l];
+            // h_z[hitId] = hostEvents[i].hitsLayers[j].z[l];
         }
     }
 
-
-
-    for (unsigned int l = 0; l < hitDoublets[i]->size(); ++l)
+    if(h_layers[h_doublets[i].outerLayerId].size == 0)
     {
-    auto hitId = i * maxNumberOfDoublets * 2 + 2 * l;
-    h_indices[hitId] = hitDoublets[i]->indeces[l].first;
-    h_indices[hitId + 1] = hitDoublets[i]->indeces[l].second;
+        auto & layer = h_layers[h_doublets[i].outerLayerId];
+        layer.size = hitDoublets[i]->layers[1]->size();
+        layer.layerId = h_doublets[i].outerLayerId;
+        for (unsigned int l = 0; l < layer.size; ++l)
+        {
+            auto hitId = layer.layerId * maxNumberOfHits + l;
+
+            h_x[hitId] = hitDoublets[i]->layers[1]->x[l];
+            h_y[hitId] = hitDoublets[i]->layers[1]->y[l];
+            h_z[hitId] = hitDoublets[i]->layers[1]->z[l];
+
+        }
 
     }
+
+    // for (unsigned int j = 0; j < hostEvents[i].hitsLayers.size(); ++j)
+    // {
+    //     auto layerIdx = i * maxNumberOfLayers + j;
+    //
+    //     h_layers[layerIdx].size = hostEvents[i].hitsLayers[j].size;
+    //     h_layers[layerIdx].layerId = hostEvents[i].hitsLayers[j].layerId;
+    //     for (unsigned int l = 0; l < hostEvents[i].hitsLayers[j].size; ++l)
+    //     {
+    //         auto hitId = layerIdx * maxNumberOfHits + l;
+    //
+    //         h_x[hitId] = hostEvents[i].hitsLayers[j].x[l];
+    //         h_y[hitId] = hostEvents[i].hitsLayers[j].y[l];
+    //         h_z[hitId] = hostEvents[i].hitsLayers[j].z[l];
+    //     }
+    // }
   }
-
-
-
-
-
 }
