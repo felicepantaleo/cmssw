@@ -39,7 +39,7 @@ public:
   typedef std::pair<HitIter,HitIter>            Range;
 
   using DoubleRange = std::array<int,4>;
-  
+
   RecHitsSortedInPhi(const std::vector<Hit>& hits, GlobalPoint const & origin, DetLayer const * il);
 
   bool empty() const { return theHits.empty(); }
@@ -47,7 +47,7 @@ public:
 
 
   // Returns the hits in the phi range (phi in radians).
-  //  The phi interval ( phiMin, phiMax) defined as the signed path along the 
+  //  The phi interval ( phiMin, phiMax) defined as the signed path along the
   //  trigonometric circle from the point at phiMin to the point at phiMax
   //  must be positive and smaller than pi.
   //  At least one of phiMin, phiMax must be in (-pi,pi) range.
@@ -133,13 +133,13 @@ public:
   using HitLayer = RecHitsSortedInPhi;
   using Hit=RecHitsSortedInPhi::Hit;
   using ADoublet = std::pair<int,int>;
-  
+
   HitDoublets(  RecHitsSortedInPhi const & in,
 		RecHitsSortedInPhi const & out) :
     layers{{&in,&out}}{}
-  
+
   HitDoublets(HitDoublets && rh) : layers(std::move(rh.layers)), indeces(std::move(rh.indeces)){}
-  
+
   void reserve(std::size_t s) { indeces.reserve(s);}
   std::size_t size() const { return indeces.size();}
   bool empty() const { return indeces.empty();}
@@ -147,7 +147,7 @@ public:
   void shrink_to_fit() {
     indeces.shrink_to_fit();
   }
-  
+
   void add (int il, int ol) {
     indeces.emplace_back(il,ol);
   }
@@ -167,12 +167,13 @@ public:
   float        y(int i, layer l) const { return layers[l]->y[index(i,l)];}
   GlobalPoint gp(int i, layer l) const { return GlobalPoint(x(i,l),y(i,l),z(i,l));}
 
-private:
-
   std::array<RecHitsSortedInPhi const *,2> layers;
 
-
   std::vector<ADoublet> indeces; // naturally sorted by outerId
+
+
+
+
 
 };
 
