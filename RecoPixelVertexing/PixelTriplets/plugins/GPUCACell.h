@@ -6,6 +6,7 @@
 
 #include "GPUHitsAndDoublets.h"
 #include "GPUSimpleVector.h"
+#include <cuda.h>
 struct Quadruplet {
   int2 layerPairsAndCellId[3];
 };

@@ -5,6 +5,8 @@
 #ifndef RecoPixelVertexing_PixelTriplets_GPUHitsAndDoublets_h
 #define RecoPixelVertexing_PixelTriplets_GPUHitsAndDoublets_h
 
+#include <vector>
+
 struct GPULayerHits
 {
         unsigned int layerId;

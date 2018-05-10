@@ -5,6 +5,10 @@
 #ifndef GPU_SIMPLEVECTOR_H_
 #define GPU_SIMPLEVECTOR_H_
 
+
+#include <cuda.h>
+#include <cuda_runtime.h>
+
 template <int maxSize, class T> struct GPUSimpleVector {
   __inline__ __host__ __device__ int push_back(const T &element) {
 
@@ -20,12 +24,12 @@ template <int maxSize, class T> struct GPUSimpleVector {
   }
 
   __device__ int push_back_ts(const T &element) {
-    auto previousSize = atomicAdd(&m_size, 1);
+    auto previousSize = this->atomicAdd(&m_size, 1);
     if (previousSize < maxSize) {
       m_data[previousSize] = element;
       return previousSize;
     } else {
-      atomicSub(&m_size, 1);
+      this->atomicSub(&m_size, 1);
       return -1;
     }
   }
