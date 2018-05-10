@@ -182,11 +182,11 @@ void fillGraph(const SeedingLayerSetsHits &layers,
   }
 
   for (unsigned int i = 0; i < g.theLayerPairs.size(); ++i) {
-    std::cout << "layer pair " << i << " " << g.theLayers[g.theLayerPairs[i].theLayers[0]].name()
-    <<  " hits: " << hitDoublets[i]->layers[0]->size()
-              << " and " << g.theLayers[g.theLayerPairs[i].theLayers[1]].name()
-              << " hits: " << hitDoublets[i]->layers[1]->size()
-              << std::endl;
+    std::cout << "layer pair " << i << " "
+              << g.theLayers[g.theLayerPairs[i].theLayers[0]].name()
+              << " hits: " << hitDoublets[i]->layers[0]->size() << " and "
+              << g.theLayers[g.theLayerPairs[i].theLayers[1]].name()
+              << " hits: " << hitDoublets[i]->layers[1]->size() << std::endl;
   }
 }
 } // namespace
@@ -205,7 +205,9 @@ void CAHitQuadrupletGeneratorGPU::hitNtuplets(
   for (unsigned int lpIdx = 0; lpIdx < maxNumberOfLayerPairs; ++lpIdx) {
     h_doublets[lpIdx].size = 0;
   }
-  numberOfRootLayerPairs = 0;
+  unsigned int numberOfRootLayerPairs = 0;
+  unsigned int numberOfLayerPairs = 0;
+  unsigned int numberOfLayers = 0;
 
   for (unsigned int layerIdx = 0; layerIdx < maxNumberOfLayers; ++layerIdx) {
 
@@ -226,8 +228,8 @@ void CAHitQuadrupletGeneratorGPU::hitNtuplets(
 
     fillGraph(layers, regionLayerPairs, g, hitDoublets);
   }
-
-  for (unsigned int i = 0; i < hitDoublets.size(); ++i) {
+  numberOfLayerPairs = hitDoublets.size();
+  for (unsigned int i = 0; i < numberOfLayerPairs; ++i) {
     h_doublets[i].size = hitDoublets[i]->size();
     h_doublets[i].innerLayerId = g.theLayerPairs[i].theLayers[0];
     h_doublets[i].outerLayerId = g.theLayerPairs[i].theLayers[1];
@@ -245,55 +247,60 @@ void CAHitQuadrupletGeneratorGPU::hitNtuplets(
       h_indices[hitId + 1] = hitDoublets[i]->indeces[l].second;
     }
 
-    if(h_layers[h_doublets[i].innerLayerId].size == 0)
-    {
-        auto & layer = h_layers[h_doublets[i].innerLayerId];
-        layer.size = hitDoublets[i]->layers[0]->size();
-        layer.layerId = h_doublets[i].innerLayerId;
+    if (h_layers[h_doublets[i].innerLayerId].size == 0) {
+      auto &layer = h_layers[h_doublets[i].innerLayerId];
+      layer.size = hitDoublets[i]->layers[0]->size();
+      layer.layerId = h_doublets[i].innerLayerId;
 
-        for (unsigned int l = 0; l < layer.size; ++l)
-        {
-            auto hitId = layer.layerId * maxNumberOfHits + l;
-
-            h_x[hitId] = hitDoublets[i]->layers[0]->x[l];
-            h_y[hitId] = hitDoublets[i]->layers[0]->y[l];
-            h_z[hitId] = hitDoublets[i]->layers[0]->z[l];
-            // h_y[hitId] = hostEvents[i].hitsLayers[j].y[l];
-            // h_z[hitId] = hostEvents[i].hitsLayers[j].z[l];
-        }
+      for (unsigned int l = 0; l < layer.size; ++l) {
+        auto hitId = layer.layerId * maxNumberOfHits + l;
+        h_x[hitId] = hitDoublets[i]->layers[0]->x[l];
+        h_y[hitId] = hitDoublets[i]->layers[0]->y[l];
+        h_z[hitId] = hitDoublets[i]->layers[0]->z[l];
+      }
     }
 
-    if(h_layers[h_doublets[i].outerLayerId].size == 0)
-    {
-        auto & layer = h_layers[h_doublets[i].outerLayerId];
-        layer.size = hitDoublets[i]->layers[1]->size();
-        layer.layerId = h_doublets[i].outerLayerId;
-        for (unsigned int l = 0; l < layer.size; ++l)
-        {
-            auto hitId = layer.layerId * maxNumberOfHits + l;
-
-            h_x[hitId] = hitDoublets[i]->layers[1]->x[l];
-            h_y[hitId] = hitDoublets[i]->layers[1]->y[l];
-            h_z[hitId] = hitDoublets[i]->layers[1]->z[l];
-
-        }
-
+    if (h_layers[h_doublets[i].outerLayerId].size == 0) {
+      auto &layer = h_layers[h_doublets[i].outerLayerId];
+      layer.size = hitDoublets[i]->layers[1]->size();
+      layer.layerId = h_doublets[i].outerLayerId;
+      for (unsigned int l = 0; l < layer.size; ++l) {
+        auto hitId = layer.layerId * maxNumberOfHits + l;
+        h_x[hitId] = hitDoublets[i]->layers[1]->x[l];
+        h_y[hitId] = hitDoublets[i]->layers[1]->y[l];
+        h_z[hitId] = hitDoublets[i]->layers[1]->z[l];
+      }
     }
+  }
 
-    // for (unsigned int j = 0; j < hostEvents[i].hitsLayers.size(); ++j)
-    // {
-    //     auto layerIdx = i * maxNumberOfLayers + j;
-    //
-    //     h_layers[layerIdx].size = hostEvents[i].hitsLayers[j].size;
-    //     h_layers[layerIdx].layerId = hostEvents[i].hitsLayers[j].layerId;
-    //     for (unsigned int l = 0; l < hostEvents[i].hitsLayers[j].size; ++l)
-    //     {
-    //         auto hitId = layerIdx * maxNumberOfHits + l;
-    //
-    //         h_x[hitId] = hostEvents[i].hitsLayers[j].x[l];
-    //         h_y[hitId] = hostEvents[i].hitsLayers[j].y[l];
-    //         h_z[hitId] = hostEvents[i].hitsLayers[j].z[l];
-    //     }
-    // }
+  for (unsigned int j = 0; j < numberOfLayerPairs; ++j) {
+    tmp_layerDoublets[j] = h_doublets[j];
+    tmp_layerDoublets[j].indices = &d_indices[j * maxNumberOfDoublets * 2];
+    cudaMemcpyAsync(&d_indices[j * maxNumberOfDoublets * 2],
+                    &h_indices[j * maxNumberOfDoublets * 2],
+                    tmp_layerDoublets[j].size * 2 * sizeof(int),
+                    cudaMemcpyHostToDevice, cudaStream_);
+  }
+
+  numberOfLayers = g.theLayers.size();
+
+  for (unsigned int j = 0; j < numberOfLayers; ++j) {
+    tmp_layers[j] = h_layers[j];
+    tmp_layers[j].x = &d_x[maxNumberOfHits * j];
+
+    cudaMemcpyAsync(&d_x[maxNumberOfHits * j], &h_x[j * maxNumberOfHits],
+                    tmp_layers[j].size * sizeof(float), cudaMemcpyHostToDevice,
+                    cudaStream_);
+
+    tmp_layers[j].y = &d_y[maxNumberOfHits * j];
+    cudaMemcpyAsync(&d_y[maxNumberOfHits * j], &h_y[j * maxNumberOfHits],
+                    tmp_layers[j].size * sizeof(float), cudaMemcpyHostToDevice,
+                    cudaStream_);
+
+    tmp_layers[j].z = &d_z[maxNumberOfHits * j];
+
+    cudaMemcpyAsync(&d_z[maxNumberOfHits * j], &h_z[j * maxNumberOfHits],
+                    tmp_layers[j].size * sizeof(float), cudaMemcpyHostToDevice,
+                    cudaStream_);
   }
 }
