@@ -148,7 +148,7 @@ private:
     static constexpr int maxNumberOfLayers = 10;
     static constexpr int maxNumberOfDoublets = 2000;
     static constexpr int maxNumberOfHits = 1000;
-    unsigned int numberOfRootLayerPairs;
+
 
 
     GPULayerDoublets* h_doublets;
