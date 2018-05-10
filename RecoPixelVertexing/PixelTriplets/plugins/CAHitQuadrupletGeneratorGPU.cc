@@ -28,6 +28,7 @@ using namespace std;
 
 constexpr unsigned int CAHitQuadrupletGeneratorGPU::minLayers;
 
+
 CAHitQuadrupletGeneratorGPU::CAHitQuadrupletGeneratorGPU(
     const edm::ParameterSet &cfg,
     edm::ConsumesCollector &iC)
@@ -51,9 +52,7 @@ CAHitQuadrupletGeneratorGPU::CAHitQuadrupletGeneratorGPU(
         comparitorName, comparitorPSet, iC));
   }
 
-
   allocateOnGPU();
-
 }
 
 void CAHitQuadrupletGeneratorGPU::fillDescriptions(
@@ -92,7 +91,7 @@ void CAHitQuadrupletGeneratorGPU::initEvent(const edm::Event &ev,
 
 CAHitQuadrupletGeneratorGPU::~CAHitQuadrupletGeneratorGPU() {
 
-    deallocateOnGPU();
+  deallocateOnGPU();
 }
 
 namespace {
@@ -133,6 +132,8 @@ void clearGraphStructure(const SeedingLayerSetsHits &layers, CAGraph &g) {
 void fillGraph(const SeedingLayerSetsHits &layers,
                const IntermediateHitDoublets::RegionLayerSets &regionLayerPairs,
                CAGraph &g, std::vector<const HitDoublets *> &hitDoublets) {
+
+
   for (unsigned int i = 0; i < layers.size(); i++) {
     for (unsigned int j = 0; j < 4; ++j) {
       auto vertexIndex = 0;
@@ -175,5 +176,79 @@ void fillGraph(const SeedingLayerSetsHits &layers,
       }
     }
   }
+
+  std::cout << "number of layer pairs" << hitDoublets.size() << std::endl;
+
+  for (unsigned int i = 0; i < hitDoublets.size(); ++i) {
+    std::cout << i << " " << hitDoublets[i]->size() << std::endl;
+  }
+
+  for (unsigned int i = 0; i < g.theLayerPairs.size(); ++i) {
+    std::cout << i << " " << g.theLayers[g.theLayerPairs[i].theLayers[0]].name()
+              << " and " << g.theLayers[g.theLayerPairs[i].theLayers[1]].name()
+              << std::endl;
+  }
 }
 } // namespace
+
+void CAHitQuadrupletGeneratorGPU::hitNtuplets(
+    const IntermediateHitDoublets &regionDoublets,
+    std::vector<OrderedHitSeeds> &result, const edm::EventSetup &es,
+    const SeedingLayerSetsHits &layers) {
+  CAGraph g;
+
+  std::vector<const HitDoublets *> hitDoublets;
+
+  const int numberOfHitsInNtuplet = 4;
+  std::vector<CACell::CAntuplet> foundQuadruplets;
+
+
+  for (unsigned int lpIdx = 0; lpIdx < maxNumberOfLayerPairs;
+       ++lpIdx) {
+    h_doublets[lpIdx].size = 0;
+  }
+  numberOfRootLayerPairs = 0;
+
+  for (unsigned int layerIdx = 0; layerIdx < maxNumberOfLayers; ++layerIdx) {
+
+    h_layers[layerIdx].size = 0;
+  }
+
+
+  int index = 0;
+  for (const auto &regionLayerPairs : regionDoublets) {
+
+    const TrackingRegion &region = regionLayerPairs.region();
+    hitDoublets.clear();
+    foundQuadruplets.clear();
+    if (index == 0) {
+      createGraphStructure(layers, g);
+    } else {
+      clearGraphStructure(layers, g);
+    }
+
+    fillGraph(layers, regionLayerPairs, g, hitDoublets);
+  }
+
+  for (unsigned int i = 0; i < hitDoublets.size(); ++i) {
+    h_doublets[i].size = hitDoublets[i]->size();
+    h_doublets[i].innerLayerId = g.theLayerPairs[i].theLayers[0];
+    h_doublets[i].outerLayerId = g.theLayerPairs[i].theLayers[1];
+    for(unsigned int rl : g.theRootLayers)
+    {
+    if (rl == h_doublets[i].innerLayerId)
+    {
+        auto rootlayerPairId = numberOfRootLayerPairs;
+            h_rootLayerPairs[rootlayerPairId] = i;
+            numberOfRootLayerPairs++;
+        }
+    }
+
+  }
+  std::cout << "numberOfRootLayerPairs" << numberOfRootLayerPairs << std::endl;
+
+
+
+
+
+}

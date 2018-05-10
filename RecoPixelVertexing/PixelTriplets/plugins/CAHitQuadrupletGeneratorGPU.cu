@@ -19,6 +19,8 @@ void CAHitQuadrupletGeneratorGPU::deallocateOnGPU()
   cudaFreeHost(h_foundNtuplets);
   cudaFreeHost(tmp_layers);
   cudaFreeHost(tmp_layerDoublets);
+  cudaFreeHost(h_layers);
+
   cudaFree(d_indices);
   cudaFree(d_doublets);
   cudaFree(d_x);
@@ -69,7 +71,6 @@ void CAHitQuadrupletGeneratorGPU::allocateOnGPU()
   cudaMalloc(&device_isOuterHitOfCell,
              maxNumberOfLayers * maxNumberOfHits *
                  sizeof(GPUSimpleVector<maxCellsPerHit, unsigned int>));
-  // TODO: make async this memset
   cudaMemset(device_isOuterHitOfCell, 0,
              maxNumberOfLayers * maxNumberOfHits *
                  sizeof(GPUSimpleVector<maxCellsPerHit, unsigned int>));
@@ -81,14 +82,7 @@ void CAHitQuadrupletGeneratorGPU::allocateOnGPU()
                    maxNumberOfLayers * sizeof(GPULayerHits));
   cudaMallocHost(&tmp_layerDoublets,
                    maxNumberOfLayerPairs * sizeof(GPULayerDoublets));
-
-}
-
-
-void CAHitQuadrupletGeneratorGPU::hitNtuplets(
-    const IntermediateHitDoublets &regionDoublets,
-    std::vector<OrderedHitSeeds> &result, const edm::EventSetup &es,
-    const SeedingLayerSetsHits &layers) {
+  cudaMallocHost(&h_layers, maxNumberOfLayers * sizeof(GPULayerHits));
 
 
 }
