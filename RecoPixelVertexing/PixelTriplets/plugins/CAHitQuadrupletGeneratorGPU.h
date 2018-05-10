@@ -146,6 +146,7 @@ private:
     static constexpr int maxCellsPerHit = 200;
     static constexpr int maxNumberOfLayerPairs = 13;
     static constexpr int maxNumberOfLayers = 10;
+    static constexpr int maxNumberOfDoublets = 2000;
     unsigned int numberOfRootLayerPairs;
 
 

@@ -244,8 +244,16 @@ void CAHitQuadrupletGeneratorGPU::hitNtuplets(
         }
     }
 
+
+
+    for (unsigned int l = 0; l < hitDoublets[i]->size(); ++l)
+    {
+    auto hitId = i * maxNumberOfDoublets * 2 + 2 * l;
+    h_indices[hitId] = hitDoublets[i]->indeces[l].first;
+    h_indices[hitId + 1] = hitDoublets[i]->indeces[l].second;
+
+    }
   }
-  std::cout << "numberOfRootLayerPairs" << numberOfRootLayerPairs << std::endl;
 
 
 
