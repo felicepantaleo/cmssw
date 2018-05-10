@@ -2,7 +2,6 @@
 // Author: Felice Pantaleo, CERN
 //
 #include "CAHitQuadrupletGeneratorGPU.h"
-
 #include "RecoPixelVertexing/PixelTriplets/interface/ThirdHitPredictionFromCircle.h"
 
 #include "DataFormats/Common/interface/Handle.h"
@@ -29,8 +28,9 @@ using namespace std;
 
 constexpr unsigned int CAHitQuadrupletGeneratorGPU::minLayers;
 
-CAHitQuadrupletGeneratorGPU::CAHitQuadrupletGeneratorGPU(const edm::ParameterSet &cfg,
-                                                   edm::ConsumesCollector &iC)
+CAHitQuadrupletGeneratorGPU::CAHitQuadrupletGeneratorGPU(
+    const edm::ParameterSet &cfg,
+    edm::ConsumesCollector &iC)
     : extraHitRPhitolerance(cfg.getParameter<double>(
           "extraHitRPhitolerance")), // extra window in
                                      // ThirdHitPredictionFromCircle range
@@ -52,6 +52,7 @@ CAHitQuadrupletGeneratorGPU::CAHitQuadrupletGeneratorGPU(const edm::ParameterSet
   }
 
 
+  allocateOnGPU();
 
 }
 
@@ -84,7 +85,14 @@ void CAHitQuadrupletGeneratorGPU::fillDescriptions(
 }
 
 void CAHitQuadrupletGeneratorGPU::initEvent(const edm::Event &ev,
-                                         const edm::EventSetup &es) {
+                                            const edm::EventSetup &es) {
   if (theComparitor)
     theComparitor->init(ev, es);
+}
+
+CAHitQuadrupletGeneratorGPU::~CAHitQuadrupletGeneratorGPU() {
+
+    deallocateOnGPU();
+
+
 }
