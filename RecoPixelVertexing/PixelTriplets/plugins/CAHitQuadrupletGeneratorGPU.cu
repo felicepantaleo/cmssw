@@ -6,6 +6,44 @@
 #include "GPUCACell.h"
 
 
+template<int maxNumberOfQuadruplets>
+__global__
+void kernel_create(const unsigned int numberOfLayerPairs, const GPULayerDoublets* gpuDoublets,
+        const GPULayerHits* gpuHitsOnLayers, GPUCACell* cells, GPUSimpleVector<200, unsigned int> * isOuterHitOfCell,
+        GPUSimpleVector<maxNumberOfQuadruplets, Quadruplet>* foundNtuplets, const float region_origin_x,const float region_origin_y,
+        unsigned int maxNumberOfDoublets, unsigned int maxNumberOfHits)
+{
+
+    unsigned int layerPairIndex = blockIdx.y;
+    unsigned int cellIndexInLayerPair = threadIdx.x + blockIdx.x * blockDim.x;
+    if(cellIndexInLayerPair == 0 && layerPairIndex == 0)
+    {
+        foundNtuplets->reset();
+    }
+
+    if (layerPairIndex < numberOfLayerPairs)
+    {
+        int outerLayerId = gpuDoublets[layerPairIndex].outerLayerId;
+        auto globalFirstDoubletIdx = layerPairIndex*maxNumberOfDoublets;
+        auto globalFirstHitIdx = outerLayerId*maxNumberOfHits;
+
+        for (unsigned int i = cellIndexInLayerPair; i < gpuDoublets[layerPairIndex].size;
+                i += gridDim.x * blockDim.x)
+        {
+            auto globalCellIdx = i+globalFirstDoubletIdx;
+            auto& thisCell = cells[globalCellIdx];
+            auto outerHitId = gpuDoublets[layerPairIndex].indices[2 * i + 1];
+            thisCell.init(&gpuDoublets[layerPairIndex], gpuHitsOnLayers, layerPairIndex, globalCellIdx,
+                    gpuDoublets[layerPairIndex].indices[2 * i], outerHitId, region_origin_x,  region_origin_y);
+
+            isOuterHitOfCell[globalFirstHitIdx+outerHitId].push_back_ts(globalCellIdx);
+        }
+    }
+}
+
+
+
+
 void CAHitQuadrupletGeneratorGPU::deallocateOnGPU()
 {
   cudaStreamDestroy(cudaStream_);
@@ -86,9 +124,13 @@ void CAHitQuadrupletGeneratorGPU::allocateOnGPU()
 
 }
 
-void CAHitQuadrupletGeneratorGPU::launchKernels()
+void CAHitQuadrupletGeneratorGPU::launchKernels(const TrackingRegion &region)
 {
+  dim3 numberOfBlocks_create(32, numberOfLayerPairs);
+  dim3 numberOfBlocks_connect(16, numberOfLayerPairs);
+  dim3 numberOfBlocks_find(8, numberOfRootLayerPairs);
 
-
-
+  kernel_create<<<numberOfBlocks_create,32,0,cudaStream_>>>(numberOfLayerPairs, d_doublets,
+                          d_layers, device_theCells,
+                          device_isOuterHitOfCell, d_foundNtuplets,region.origin().x(), region.origin().y(), maxNumberOfDoublets, maxNumberOfHits);
 }

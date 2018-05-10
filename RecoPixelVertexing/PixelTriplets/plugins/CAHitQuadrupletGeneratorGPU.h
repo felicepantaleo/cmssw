@@ -128,7 +128,7 @@ private:
 
     void allocateOnGPU();
     void deallocateOnGPU();
-    void launchKernels();
+    void launchKernels(const TrackingRegion &);
 
     const float extraHitRPhitolerance;
 
@@ -149,7 +149,9 @@ private:
     static constexpr int maxNumberOfLayers = 10;
     static constexpr int maxNumberOfDoublets = 2000;
     static constexpr int maxNumberOfHits = 1000;
-
+    unsigned int numberOfRootLayerPairs = 0;
+    unsigned int numberOfLayerPairs = 0;
+    unsigned int numberOfLayers = 0;
 
 
     GPULayerDoublets* h_doublets;
