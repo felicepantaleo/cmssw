@@ -205,9 +205,9 @@ void CAHitQuadrupletGeneratorGPU::hitNtuplets(
   for (unsigned int lpIdx = 0; lpIdx < maxNumberOfLayerPairs; ++lpIdx) {
     h_doublets[lpIdx].size = 0;
   }
-  unsigned int numberOfRootLayerPairs = 0;
-  unsigned int numberOfLayerPairs = 0;
-  unsigned int numberOfLayers = 0;
+  numberOfRootLayerPairs= 0;
+  numberOfLayerPairs = 0;
+  numberOfLayers = 0;
 
   for (unsigned int layerIdx = 0; layerIdx < maxNumberOfLayers; ++layerIdx) {
 
@@ -227,7 +227,7 @@ void CAHitQuadrupletGeneratorGPU::hitNtuplets(
     }
 
     fillGraph(layers, regionLayerPairs, g, hitDoublets);
-  }
+
   numberOfLayerPairs = hitDoublets.size();
   for (unsigned int i = 0; i < numberOfLayerPairs; ++i) {
     h_doublets[i].size = hitDoublets[i]->size();
@@ -318,6 +318,6 @@ void CAHitQuadrupletGeneratorGPU::hitNtuplets(
           numberOfLayers * sizeof(GPULayerHits),
           cudaMemcpyHostToDevice, cudaStream_);
 
-  launchKernels();
-
+  launchKernels(region);
+}
 }
