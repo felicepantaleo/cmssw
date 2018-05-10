@@ -1,6 +1,9 @@
 #ifndef RECOPIXELVERTEXING_PIXELTRIPLETS_CAHITQUADRUPLETGENERATORGPU_H
 #define RECOPIXELVERTEXING_PIXELTRIPLETS_CAHITQUADRUPLETGENERATORGPU_H
 
+#include <cuda_runtime.h>
+#include "GPUHitsAndDoublets.h"
+
 #include "RecoTracker/TkSeedingLayers/interface/SeedComparitorFactory.h"
 #include "RecoTracker/TkSeedingLayers/interface/SeedComparitor.h"
 #include "RecoPixelVertexing/PixelTrackFitting/interface/RZLine.h"
@@ -9,7 +12,8 @@
 #include "RecoTracker/TkMSParametrization/interface/LongitudinalBendingCorrection.h"
 #include "DataFormats/SiPixelDetId/interface/PixelSubdetector.h"
 #include "CAGraph.h"
-
+#include "GPUSimpleVector.h"
+#include "GPUCACell.h"
 
 #include "RecoTracker/TkHitPairs/interface/HitPairGeneratorFromLayerPair.h"
 #include "RecoTracker/TkHitPairs/interface/LayerHitMapCache.h"
@@ -40,7 +44,7 @@ public:
     CAHitQuadrupletGeneratorGPU(const edm::ParameterSet& cfg, edm::ConsumesCollector&& iC): CAHitQuadrupletGeneratorGPU(cfg, iC) {}
     CAHitQuadrupletGeneratorGPU(const edm::ParameterSet& cfg, edm::ConsumesCollector& iC);
 
-    ~CAHitQuadrupletGeneratorGPU() = default;
+    ~CAHitQuadrupletGeneratorGPU();
 
     static void fillDescriptions(edm::ParameterSetDescription& desc);
     static const char *fillDescriptionsLabel() { return "caHitQuadrupletGPU"; }
@@ -121,6 +125,10 @@ private:
         const bool enabled_;
     };
 
+
+    void allocateOnGPU();
+    void deallocateOnGPU();
+
     const float extraHitRPhitolerance;
 
     const QuantityDependsPt maxChi2;
@@ -131,5 +139,27 @@ private:
     const float caThetaCut = 0.00125f;
     const float caPhiCut = 0.1f;
     const float caHardPtCut = 0.f;
+
+    cudaStream_t cudaStream_;
+
+    static constexpr int maxNumberOfQuadruplets = 5000;
+    static constexpr int maxCellsPerHit = 200;
+
+    GPULayerDoublets* h_doublets;
+    unsigned int* h_indices;
+    float *h_x, *h_y, *h_z;
+    float *d_x, *d_y, *d_z;
+    unsigned int* d_rootLayerPairs;
+    GPULayerHits* d_layers;
+    GPULayerDoublets* d_doublets;
+    unsigned int* d_indices;
+    unsigned int* h_rootLayerPairs;
+    GPUSimpleVector<maxNumberOfQuadruplets, Quadruplet> * h_foundNtuplets;
+    GPUCACell* device_theCells;
+    GPUSimpleVector<maxCellsPerHit, unsigned int>* device_isOuterHitOfCell;
+    GPUSimpleVector<maxNumberOfQuadruplets, Quadruplet> * d_foundNtuplets;
+    GPULayerHits* tmp_layers;
+    GPULayerDoublets* tmp_layerDoublets;
+
 };
 #endif
