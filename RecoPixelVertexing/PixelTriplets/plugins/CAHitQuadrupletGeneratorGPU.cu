@@ -84,5 +84,11 @@ void CAHitQuadrupletGeneratorGPU::allocateOnGPU()
                    maxNumberOfLayerPairs * sizeof(GPULayerDoublets));
   cudaMallocHost(&h_layers, maxNumberOfLayers * sizeof(GPULayerHits));
 
+}
+
+void CAHitQuadrupletGeneratorGPU::launchKernels()
+{
+
+
 
 }

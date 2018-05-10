@@ -128,6 +128,7 @@ private:
 
     void allocateOnGPU();
     void deallocateOnGPU();
+    void launchKernels();
 
     const float extraHitRPhitolerance;
 
