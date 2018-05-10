@@ -303,4 +303,21 @@ void CAHitQuadrupletGeneratorGPU::hitNtuplets(
                     tmp_layers[j].size * sizeof(float), cudaMemcpyHostToDevice,
                     cudaStream_);
   }
+
+  cudaMemcpyAsync(
+          &d_rootLayerPairs,
+          &h_rootLayerPairs,
+          numberOfRootLayerPairs * sizeof(unsigned int),
+          cudaMemcpyHostToDevice, cudaStream_);
+  cudaMemcpyAsync(&d_doublets,
+          tmp_layerDoublets,
+          numberOfLayerPairs * sizeof(GPULayerDoublets),
+          cudaMemcpyHostToDevice, cudaStream_);
+  cudaMemcpyAsync(&d_layers,
+          tmp_layers,
+          numberOfLayers * sizeof(GPULayerHits),
+          cudaMemcpyHostToDevice, cudaStream_);
+
+  launchKernels();
+
 }
