@@ -42,6 +42,46 @@ void kernel_create(const unsigned int numberOfLayerPairs, const GPULayerDoublets
 }
 
 
+__global__
+void kernel_connect(unsigned int numberOfLayerPairs, const GPULayerDoublets* gpuDoublets, GPUCACell* cells,
+        GPUSimpleVector<200, unsigned int> * isOuterHitOfCell, float ptmin, float region_origin_x, float region_origin_y, float region_origin_radius,
+        const float thetaCut, const float phiCut, const float hardPtCut,
+        unsigned int maxNumberOfDoublets, unsigned int maxNumberOfHits)
+{
+    unsigned int layerPairIndex = blockIdx.y;
+    unsigned int cellIndexInLayerPair = threadIdx.x + blockIdx.x * blockDim.x;
+    if (layerPairIndex < numberOfLayerPairs)
+    {
+        int innerLayerId = gpuDoublets[layerPairIndex].innerLayerId;
+        auto globalFirstDoubletIdx = layerPairIndex * maxNumberOfDoublets;
+        auto globalFirstHitIdx = innerLayerId * maxNumberOfHits;
+
+        for (int i = cellIndexInLayerPair; i < gpuDoublets[layerPairIndex].size;
+                i += gridDim.x * blockDim.x)
+        {
+            auto globalCellIdx = i + globalFirstDoubletIdx;
+
+            auto& thisCell = cells[globalCellIdx];
+            auto innerHitId = thisCell.get_inner_hit_id();
+            auto numberOfPossibleNeighbors =
+                    isOuterHitOfCell[globalFirstHitIdx + innerHitId].size();
+            for (auto j = 0; j < numberOfPossibleNeighbors; ++j)
+            {
+                unsigned int otherCell = isOuterHitOfCell[globalFirstHitIdx + innerHitId].m_data[j];
+
+                if (thisCell.check_alignment_and_tag(cells, otherCell, ptmin, region_origin_x,
+                        region_origin_y, region_origin_radius, thetaCut, phiCut, hardPtCut))
+                {
+//                    printf("kernel_debug_connect: \t\tcell %d is outer neighbor of %d \n", globalCellIdx, otherCell);
+
+                    cells[otherCell].theOuterNeighbors.push_back_ts(globalCellIdx);
+                }
+            }
+        }
+    }
+}
+
+
 
 
 void CAHitQuadrupletGeneratorGPU::deallocateOnGPU()
@@ -133,4 +173,11 @@ void CAHitQuadrupletGeneratorGPU::launchKernels(const TrackingRegion &region)
   kernel_create<<<numberOfBlocks_create,32,0,cudaStream_>>>(numberOfLayerPairs, d_doublets,
                           d_layers, device_theCells,
                           device_isOuterHitOfCell, d_foundNtuplets,region.origin().x(), region.origin().y(), maxNumberOfDoublets, maxNumberOfHits);
+  kernel_connect<<<numberOfBlocks_connect,512,0,cudaStream_>>>(numberOfLayerPairs,
+        d_doublets, device_theCells,
+        device_isOuterHitOfCell, region.ptMin(), region.origin().x(), region.origin().y(), region.originRBound(),
+        caThetaCut, caPhiCut,
+        caHardPtCut, maxNumberOfDoublets, maxNumberOfHits);
+
+
 }
