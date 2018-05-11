@@ -81,6 +81,32 @@ void kernel_connect(unsigned int numberOfLayerPairs, const GPULayerDoublets* gpu
     }
 }
 
+template<int maxNumberOfQuadruplets>
+__global__
+void kernel_find_ntuplets(unsigned int numberOfRootLayerPairs,
+        const GPULayerDoublets* gpuDoublets,
+        GPUCACell* cells,
+        GPUSimpleVector<maxNumberOfQuadruplets, Quadruplet>* foundNtuplets,
+        unsigned int* rootLayerPairs,
+        unsigned int minHitsPerNtuplet, unsigned int maxNumberOfDoublets)
+{
+
+    if(blockIdx.y < numberOfRootLayerPairs)
+    {
+        unsigned int cellIndexInRootLayerPair = threadIdx.x + blockIdx.x * blockDim.x;
+        unsigned int rootLayerPairIndex = rootLayerPairs[blockIdx.y];
+        auto globalFirstDoubletIdx = rootLayerPairIndex*maxNumberOfDoublets;
+        GPUSimpleVector<3, unsigned int> stack;
+        for (int i = cellIndexInRootLayerPair; i < gpuDoublets[rootLayerPairIndex].size;
+                i += gridDim.x * blockDim.x)
+        {
+            auto globalCellIdx = i+globalFirstDoubletIdx;
+            stack.reset();
+            stack.push_back(globalCellIdx);
+            cells[globalCellIdx].find_ntuplets(cells, foundNtuplets, stack, minHitsPerNtuplet);
+        }
+    }
+}
 
 
 
@@ -173,11 +199,16 @@ void CAHitQuadrupletGeneratorGPU::launchKernels(const TrackingRegion &region)
   kernel_create<<<numberOfBlocks_create,32,0,cudaStream_>>>(numberOfLayerPairs, d_doublets,
                           d_layers, device_theCells,
                           device_isOuterHitOfCell, d_foundNtuplets,region.origin().x(), region.origin().y(), maxNumberOfDoublets, maxNumberOfHits);
+
   kernel_connect<<<numberOfBlocks_connect,512,0,cudaStream_>>>(numberOfLayerPairs,
         d_doublets, device_theCells,
         device_isOuterHitOfCell, region.ptMin(), region.origin().x(), region.origin().y(), region.originRBound(),
         caThetaCut, caPhiCut,
         caHardPtCut, maxNumberOfDoublets, maxNumberOfHits);
+
+  kernel_find_ntuplets<<<numberOfBlocks_find,1024,0,cudaStream_>>>(numberOfRootLayerPairs,
+                d_doublets, device_theCells,
+                d_foundNtuplets,d_rootLayerPairs, 4 , maxNumberOfDoublets);
 
 
 }
