@@ -380,7 +380,7 @@ void CAHitQuadrupletGeneratorGPU::allocateOnGPU() {
   cudaMallocHost(&h_layers, maxNumberOfLayers * sizeof(GPULayerHits));
 }
 
-void CAHitQuadrupletGeneratorGPU::launchKernels(const TrackingRegion &region) {
+std::vector<std::array<std::pair<int,int> ,3 > >  CAHitQuadrupletGeneratorGPU::launchKernels(const TrackingRegion &region) {
   dim3 numberOfBlocks_create(32, numberOfLayerPairs);
   dim3 numberOfBlocks_connect(16, numberOfLayerPairs);
   dim3 numberOfBlocks_find(8, numberOfRootLayerPairs);
@@ -421,4 +421,31 @@ void CAHitQuadrupletGeneratorGPU::launchKernels(const TrackingRegion &region) {
   cudaStreamSynchronize(cudaStream_);
   std::cout << "found quadruplets " << ((GPUSimpleVector<maxNumberOfQuadruplets, Quadruplet>*)(h_foundNtuplets))->size()
             << std::endl;
+
+  GPUSimpleVector<maxNumberOfQuadruplets, Quadruplet>* quad=(GPUSimpleVector<maxNumberOfQuadruplets, Quadruplet>*)(h_foundNtuplets);
+  std::vector<std::array<std::pair<int,int> ,3 > > quadsInterface;
+
+  for (int i = 0; i< quad->size(); ++i)
+  {
+    std::array<std::pair<int,int> ,3 > tmpQuad = {{ std::make_pair(quad->m_data[i].layerPairsAndCellId[0].x, quad->m_data[i].layerPairsAndCellId[0].y - maxNumberOfDoublets* quad->m_data[i].layerPairsAndCellId[0].x),
+std::make_pair( quad->m_data[i].layerPairsAndCellId[1].x, quad->m_data[i].layerPairsAndCellId[1].y- maxNumberOfDoublets* quad->m_data[i].layerPairsAndCellId[1].x ),
+std::make_pair( quad->m_data[i].layerPairsAndCellId[2].x, quad->m_data[i].layerPairsAndCellId[2].y- maxNumberOfDoublets* quad->m_data[i].layerPairsAndCellId[2].x)
+}};
+
+  quadsInterface.push_back(tmpQuad);
+
+
+
+    //
+    // std::cout << "\nquadruplet " << i  << std::endl;
+    // std::cout << quad->m_data[i].layerPairsAndCellId[0].x << " " << quad->m_data[i].layerPairsAndCellId[0].y - maxNumberOfDoublets* quad->m_data[i].layerPairsAndCellId[0].x<< std::endl;
+    // std::cout << quad->m_data[i].layerPairsAndCellId[1].x << " " << quad->m_data[i].layerPairsAndCellId[1].y- maxNumberOfDoublets* quad->m_data[i].layerPairsAndCellId[1].x << std::endl;
+    // std::cout << quad->m_data[i].layerPairsAndCellId[2].x << " " << quad->m_data[i].layerPairsAndCellId[2].y- maxNumberOfDoublets* quad->m_data[i].layerPairsAndCellId[2].x << std::endl;
+
+
+
+  }
+
+  return quadsInterface;
+
 }

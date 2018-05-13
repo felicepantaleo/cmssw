@@ -126,7 +126,7 @@ private:
 
     void allocateOnGPU();
     void deallocateOnGPU();
-    void launchKernels(const TrackingRegion &);
+    std::vector<std::array<std::pair<int,int> ,3 > >  launchKernels(const TrackingRegion &);
 
     const float extraHitRPhitolerance;
 
