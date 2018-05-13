@@ -419,8 +419,8 @@ std::vector<std::array<std::pair<int,int> ,3 > >  CAHitQuadrupletGeneratorGPU::l
                   cudaStream_);
 
   cudaStreamSynchronize(cudaStream_);
-  std::cout << "found quadruplets " << ((GPUSimpleVector<maxNumberOfQuadruplets, Quadruplet>*)(h_foundNtuplets))->size()
-            << std::endl;
+  // std::cout << "found quadruplets " << ((GPUSimpleVector<maxNumberOfQuadruplets, Quadruplet>*)(h_foundNtuplets))->size()
+  //           << std::endl;
 
   GPUSimpleVector<maxNumberOfQuadruplets, Quadruplet>* quad=(GPUSimpleVector<maxNumberOfQuadruplets, Quadruplet>*)(h_foundNtuplets);
   std::vector<std::array<std::pair<int,int> ,3 > > quadsInterface;
