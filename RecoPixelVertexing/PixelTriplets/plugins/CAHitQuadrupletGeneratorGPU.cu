@@ -5,205 +5,236 @@
 #include "CAHitQuadrupletGeneratorGPU.h"
 #include "GPUCACell.h"
 
+template <int maxNumberOfQuadruplets>
+__global__ void
+kernel_debug(unsigned int numberOfLayerPairs, unsigned int numberOfLayers,
+             const GPULayerDoublets *gpuDoublets,
+             const GPULayerHits *gpuHitsOnLayers, GPUCACell *cells,
+             GPUSimpleVector<200, unsigned int> *isOuterHitOfCell,
+             GPUSimpleVector<maxNumberOfQuadruplets, Quadruplet> *foundNtuplets,
+             float ptmin, float region_origin_x, float region_origin_y,
+             float region_origin_radius, const float thetaCut,
+             const float phiCut, const float hardPtCut,
+             unsigned int maxNumberOfDoublets, unsigned int maxNumberOfHits) {
+  if (threadIdx.x == 0 and blockIdx.x == 0)
+    foundNtuplets->reset();
 
-template<int maxNumberOfQuadruplets>
-__global__
-void kernel_debug(unsigned int numberOfLayerPairs, unsigned int numberOfLayers, const GPULayerDoublets* gpuDoublets,
-        const GPULayerHits* gpuHitsOnLayers, GPUCACell* cells, GPUSimpleVector<200, unsigned int> * isOuterHitOfCell,
-        GPUSimpleVector<maxNumberOfQuadruplets, Quadruplet>* foundNtuplets,float ptmin, float region_origin_x, float region_origin_y,
-        float region_origin_radius,
-        const float thetaCut, const float phiCut, const float hardPtCut,
-        unsigned int maxNumberOfDoublets, unsigned int maxNumberOfHits)
-{
-    if(threadIdx.x ==0 and blockIdx.x == 0) foundNtuplets->reset();
+  printf("kernel_debug_create: theEvent contains numberOfLayerPairs: %d\n",
+         numberOfLayerPairs);
+  for (unsigned int layerPairIndex = 0; layerPairIndex < numberOfLayerPairs;
+       ++layerPairIndex) {
 
-
-    printf("kernel_debug_create: theEvent contains numberOfLayerPairs: %d\n", numberOfLayerPairs);
-    for(unsigned int layerPairIndex = 0; layerPairIndex < numberOfLayerPairs;++layerPairIndex )
-    {
-
-        int outerLayerId = gpuDoublets[layerPairIndex].outerLayerId;
-        int innerLayerId = gpuDoublets[layerPairIndex].innerLayerId;
-        int numberOfDoublets = gpuDoublets[layerPairIndex].size;
-        printf("kernel_debug_create: layerPairIndex: %d inner %d outer %d size %u\n", layerPairIndex, innerLayerId, outerLayerId, numberOfDoublets);
-
-        auto globalFirstDoubletIdx = layerPairIndex*maxNumberOfDoublets;
-        auto globalFirstHitIdx = outerLayerId*maxNumberOfHits;
-        printf("kernel_debug_create: theIdOfThefirstCellInLayerPair: %d globalFirstHitIdx %d\n", globalFirstDoubletIdx, globalFirstHitIdx);
-
-        for (unsigned int i = 0; i < gpuDoublets[layerPairIndex].size;i++)
-        {
-
-            auto globalCellIdx = i+globalFirstDoubletIdx;
-            auto& thisCell = cells[globalCellIdx];
-            auto outerHitId = gpuDoublets[layerPairIndex].indices[2 * i + 1];
-            thisCell.init(&gpuDoublets[layerPairIndex], gpuHitsOnLayers, layerPairIndex, globalCellIdx,
-                    gpuDoublets[layerPairIndex].indices[2 * i], outerHitId,region_origin_x,  region_origin_y);
-
-            isOuterHitOfCell[globalFirstHitIdx+outerHitId].push_back_ts(globalCellIdx);
-        }
-    }
-
-    // for(unsigned int layerIndex = 0; layerIndex < numberOfLayers;++layerIndex )
-    // {
-    //     auto numberOfHitsOnLayer = gpuHitsOnLayers[layerIndex].size;
-    //     for(unsigned hitId = 0; hitId < numberOfHitsOnLayer; hitId++)
-    //     {
-    //
-    //         if(isOuterHitOfCell[layerIndex*maxNumberOfHits+hitId].size()>0)
-    //         {
-    //             printf("\nlayer %d hit %d is outer hit of %d cells\n",layerIndex, hitId, isOuterHitOfCell[layerIndex*maxNumberOfHits+hitId].size());
-    //             printf("\n\t%f %f %f \n",gpuHitsOnLayers[layerIndex].x[hitId],gpuHitsOnLayers[layerIndex].y[hitId],gpuHitsOnLayers[layerIndex].z[hitId]);
-    //
-    //             for(unsigned cell = 0; cell< isOuterHitOfCell[layerIndex*maxNumberOfHits+hitId].size(); cell++)
-    //             {
-    //                 printf("cell %d\n", isOuterHitOfCell[layerIndex*maxNumberOfHits+hitId].m_data[cell]);
-    //                 auto& thisCell = cells[isOuterHitOfCell[layerIndex*maxNumberOfHits+hitId].m_data[cell]];
-    //                             float x1, y1, z1, x2, y2, z2;
-    //
-    //                             x1 = thisCell.get_inner_x();
-    //                             y1 = thisCell.get_inner_y();
-    //                             z1 = thisCell.get_inner_z();
-    //                             x2 = thisCell.get_outer_x();
-    //                             y2 = thisCell.get_outer_y();
-    //                             z2 = thisCell.get_outer_z();
-    //                 printf("\n\tDEBUG cellid %d innerhit outerhit (xyz) (%f %f %f), (%f %f %f)\n",isOuterHitOfCell[layerIndex*maxNumberOfHits+hitId].m_data[cell], x1,y1,z1,x2,y2,z2);
-    //             }
-    //         }
-    //     }
-    // }
-
-    //starting connect
-
-    for(unsigned int layerPairIndex = 0; layerPairIndex < numberOfLayerPairs;++layerPairIndex )
-    {
-
-        int outerLayerId = gpuDoublets[layerPairIndex].outerLayerId;
-        int innerLayerId = gpuDoublets[layerPairIndex].innerLayerId;
-        int numberOfDoublets = gpuDoublets[layerPairIndex].size;
-        printf("kernel_debug_connect: connecting layerPairIndex: %d inner %d outer %d size %u\n", layerPairIndex, innerLayerId, outerLayerId, numberOfDoublets);
-
-        auto globalFirstDoubletIdx = layerPairIndex*maxNumberOfDoublets;
-        auto globalFirstHitIdx = innerLayerId*maxNumberOfHits;
-//        printf("kernel_debug_connect: theIdOfThefirstCellInLayerPair: %d globalFirstHitIdx %d\n", globalFirstDoubletIdx, globalFirstHitIdx);
-
-        for (unsigned int i = 0; i < numberOfDoublets;i++)
-        {
-
-            auto globalCellIdx = i+globalFirstDoubletIdx;
-
-            auto& thisCell = cells[globalCellIdx];
-            auto innerHitId = thisCell.get_inner_hit_id();
-            auto numberOfPossibleNeighbors =
-            isOuterHitOfCell[globalFirstHitIdx + innerHitId].size();
-//            if(numberOfPossibleNeighbors>0)
-//            printf("kernel_debug_connect: cell: %d has %d possible neighbors\n", globalCellIdx, numberOfPossibleNeighbors);
-            float x1, y1, z1, x2, y2, z2;
-
-            x1 = thisCell.get_inner_x();
-            y1 = thisCell.get_inner_y();
-            z1 = thisCell.get_inner_z();
-            x2 = thisCell.get_outer_x();
-            y2 = thisCell.get_outer_y();
-            z2 = thisCell.get_outer_z();
-            printf("\n\n\nDEBUG cellid %d innerhit outerhit (xyz) (%f %f %f), (%f %f %f)\n",globalCellIdx, x1,y1,z1,x2,y2,z2);
-
-            for (auto j = 0; j < numberOfPossibleNeighbors; ++j)
-            {
-                unsigned int otherCell = isOuterHitOfCell[globalFirstHitIdx + innerHitId].m_data[j];
-
-               float x3, y3, z3, x4, y4, z4;
-               x3 = cells[otherCell].get_inner_x();
-               y3 = cells[otherCell].get_inner_y();
-               z3 = cells[otherCell].get_inner_z();
-               x4 = cells[otherCell].get_outer_x();
-               y4 = cells[otherCell].get_outer_y();
-               z4 = cells[otherCell].get_outer_z();
-
-               printf("kernel_debug_connect: checking compatibility with %d \n", otherCell);
-               printf("DEBUG \tinnerhit outerhit (xyz) (%f %f %f), (%f %f %f)\n",x3,y3,z3,x4,y4,z4);
-
-
-                if (thisCell.check_alignment_and_tag(cells, otherCell, ptmin, region_origin_x,
-                                region_origin_y, region_origin_radius, thetaCut, phiCut, hardPtCut))
-                {
-
-                    printf("kernel_debug_connect: \t\tcell %d is outer neighbor of %d \n", globalCellIdx, otherCell);
-
-                    cells[otherCell].theOuterNeighbors.push_back_ts(globalCellIdx);
-                }
-            }
-        }
-
-    }
-}
-
-__global__
-void debug_input_data(unsigned int numberOfLayerPairs, const GPULayerDoublets* gpuDoublets,
-        const GPULayerHits* gpuHitsOnLayers, float ptmin, float region_origin_x, float region_origin_y,
-        float region_origin_radius, unsigned int maxNumberOfHits)
-{
+    int outerLayerId = gpuDoublets[layerPairIndex].outerLayerId;
+    int innerLayerId = gpuDoublets[layerPairIndex].innerLayerId;
+    int numberOfDoublets = gpuDoublets[layerPairIndex].size;
     printf(
-            "GPU: Region ptmin %f , region_origin_x %f , region_origin_y %f , region_origin_radius  %f \n",
-            ptmin, region_origin_x, region_origin_y, region_origin_radius);
-    printf("GPU: numberOfLayerPairs: %d\n", numberOfLayerPairs);
+        "kernel_debug_create: layerPairIndex: %d inner %d outer %d size %u\n",
+        layerPairIndex, innerLayerId, outerLayerId, numberOfDoublets);
 
-    for (unsigned int layerPairIndex = 0; layerPairIndex < numberOfLayerPairs; ++layerPairIndex)
-    {
-        printf("\t numberOfDoublets: %d \n", gpuDoublets[layerPairIndex].size);
-        printf("\t innerLayer: %d outerLayer: %d \n", gpuDoublets[layerPairIndex].innerLayerId,
-                gpuDoublets[layerPairIndex].outerLayerId);
+    auto globalFirstDoubletIdx = layerPairIndex * maxNumberOfDoublets;
+    auto globalFirstHitIdx = outerLayerId * maxNumberOfHits;
+    printf("kernel_debug_create: theIdOfThefirstCellInLayerPair: %d "
+           "globalFirstHitIdx %d\n",
+           globalFirstDoubletIdx, globalFirstHitIdx);
 
-        for (unsigned int cellIndexInLayerPair = 0;
-                cellIndexInLayerPair < gpuDoublets[layerPairIndex].size; ++cellIndexInLayerPair)
-        {
+    for (unsigned int i = 0; i < gpuDoublets[layerPairIndex].size; i++) {
 
-            if (cellIndexInLayerPair < 5)
-            {
-                auto innerhit = gpuDoublets[layerPairIndex].indices[2 * cellIndexInLayerPair];
-                auto innerX = gpuHitsOnLayers[gpuDoublets[layerPairIndex].innerLayerId].x[innerhit];
-                auto innerY = gpuHitsOnLayers[gpuDoublets[layerPairIndex].innerLayerId].y[innerhit];
-                auto innerZ = gpuHitsOnLayers[gpuDoublets[layerPairIndex].innerLayerId].z[innerhit];
+      auto globalCellIdx = i + globalFirstDoubletIdx;
+      auto &thisCell = cells[globalCellIdx];
+      auto outerHitId = gpuDoublets[layerPairIndex].indices[2 * i + 1];
+      thisCell.init(&gpuDoublets[layerPairIndex], gpuHitsOnLayers,
+                    layerPairIndex, globalCellIdx,
+                    gpuDoublets[layerPairIndex].indices[2 * i], outerHitId,
+                    region_origin_x, region_origin_y);
 
-                auto outerhit = gpuDoublets[layerPairIndex].indices[2 * cellIndexInLayerPair + 1];
-                auto outerX = gpuHitsOnLayers[gpuDoublets[layerPairIndex].outerLayerId].x[outerhit];
-                auto outerY = gpuHitsOnLayers[gpuDoublets[layerPairIndex].outerLayerId].y[outerhit];
-                auto outerZ = gpuHitsOnLayers[gpuDoublets[layerPairIndex].outerLayerId].z[outerhit];
-                printf("\t \t %d innerHit: %d %f %f %f outerHit: %d %f %f %f\n",
-                        cellIndexInLayerPair, innerhit, innerX, innerY, innerZ, outerhit, outerX,
-                        outerY, outerZ);
-            }
-        }
-
+      isOuterHitOfCell[globalFirstHitIdx + outerHitId].push_back_ts(
+          globalCellIdx);
     }
+  }
+
+  // for(unsigned int layerIndex = 0; layerIndex < numberOfLayers;++layerIndex )
+  // {
+  //     auto numberOfHitsOnLayer = gpuHitsOnLayers[layerIndex].size;
+  //     for(unsigned hitId = 0; hitId < numberOfHitsOnLayer; hitId++)
+  //     {
+  //
+  //         if(isOuterHitOfCell[layerIndex*maxNumberOfHits+hitId].size()>0)
+  //         {
+  //             printf("\nlayer %d hit %d is outer hit of %d
+  //             cells\n",layerIndex, hitId,
+  //             isOuterHitOfCell[layerIndex*maxNumberOfHits+hitId].size());
+  //             printf("\n\t%f %f %f
+  //             \n",gpuHitsOnLayers[layerIndex].x[hitId],gpuHitsOnLayers[layerIndex].y[hitId],gpuHitsOnLayers[layerIndex].z[hitId]);
+  //
+  //             for(unsigned cell = 0; cell<
+  //             isOuterHitOfCell[layerIndex*maxNumberOfHits+hitId].size();
+  //             cell++)
+  //             {
+  //                 printf("cell %d\n",
+  //                 isOuterHitOfCell[layerIndex*maxNumberOfHits+hitId].m_data[cell]);
+  //                 auto& thisCell =
+  //                 cells[isOuterHitOfCell[layerIndex*maxNumberOfHits+hitId].m_data[cell]];
+  //                             float x1, y1, z1, x2, y2, z2;
+  //
+  //                             x1 = thisCell.get_inner_x();
+  //                             y1 = thisCell.get_inner_y();
+  //                             z1 = thisCell.get_inner_z();
+  //                             x2 = thisCell.get_outer_x();
+  //                             y2 = thisCell.get_outer_y();
+  //                             z2 = thisCell.get_outer_z();
+  //                 printf("\n\tDEBUG cellid %d innerhit outerhit (xyz) (%f %f
+  //                 %f), (%f %f
+  //                 %f)\n",isOuterHitOfCell[layerIndex*maxNumberOfHits+hitId].m_data[cell],
+  //                 x1,y1,z1,x2,y2,z2);
+  //             }
+  //         }
+  //     }
+  // }
+
+  // starting connect
+
+  for (unsigned int layerPairIndex = 0; layerPairIndex < numberOfLayerPairs;
+       ++layerPairIndex) {
+
+    int outerLayerId = gpuDoublets[layerPairIndex].outerLayerId;
+    int innerLayerId = gpuDoublets[layerPairIndex].innerLayerId;
+    int numberOfDoublets = gpuDoublets[layerPairIndex].size;
+    printf("kernel_debug_connect: connecting layerPairIndex: %d inner %d outer "
+           "%d size %u\n",
+           layerPairIndex, innerLayerId, outerLayerId, numberOfDoublets);
+
+    auto globalFirstDoubletIdx = layerPairIndex * maxNumberOfDoublets;
+    auto globalFirstHitIdx = innerLayerId * maxNumberOfHits;
+    //        printf("kernel_debug_connect: theIdOfThefirstCellInLayerPair: %d
+    //        globalFirstHitIdx %d\n", globalFirstDoubletIdx,
+    //        globalFirstHitIdx);
+
+    for (unsigned int i = 0; i < numberOfDoublets; i++) {
+
+      auto globalCellIdx = i + globalFirstDoubletIdx;
+
+      auto &thisCell = cells[globalCellIdx];
+      auto innerHitId = thisCell.get_inner_hit_id();
+      auto numberOfPossibleNeighbors =
+          isOuterHitOfCell[globalFirstHitIdx + innerHitId].size();
+      //            if(numberOfPossibleNeighbors>0)
+      //            printf("kernel_debug_connect: cell: %d has %d possible
+      //            neighbors\n", globalCellIdx, numberOfPossibleNeighbors);
+      float x1, y1, z1, x2, y2, z2;
+
+      x1 = thisCell.get_inner_x();
+      y1 = thisCell.get_inner_y();
+      z1 = thisCell.get_inner_z();
+      x2 = thisCell.get_outer_x();
+      y2 = thisCell.get_outer_y();
+      z2 = thisCell.get_outer_z();
+      printf("\n\n\nDEBUG cellid %d innerhit outerhit (xyz) (%f %f %f), (%f %f "
+             "%f)\n",
+             globalCellIdx, x1, y1, z1, x2, y2, z2);
+
+      for (auto j = 0; j < numberOfPossibleNeighbors; ++j) {
+        unsigned int otherCell =
+            isOuterHitOfCell[globalFirstHitIdx + innerHitId].m_data[j];
+
+        float x3, y3, z3, x4, y4, z4;
+        x3 = cells[otherCell].get_inner_x();
+        y3 = cells[otherCell].get_inner_y();
+        z3 = cells[otherCell].get_inner_z();
+        x4 = cells[otherCell].get_outer_x();
+        y4 = cells[otherCell].get_outer_y();
+        z4 = cells[otherCell].get_outer_z();
+
+        printf("kernel_debug_connect: checking compatibility with %d \n",
+               otherCell);
+        printf("DEBUG \tinnerhit outerhit (xyz) (%f %f %f), (%f %f %f)\n", x3,
+               y3, z3, x4, y4, z4);
+
+        if (thisCell.check_alignment_and_tag(
+                cells, otherCell, ptmin, region_origin_x, region_origin_y,
+                region_origin_radius, thetaCut, phiCut, hardPtCut)) {
+
+          printf("kernel_debug_connect: \t\tcell %d is outer neighbor of %d \n",
+                 globalCellIdx, otherCell);
+
+          cells[otherCell].theOuterNeighbors.push_back_ts(globalCellIdx);
+        }
+      }
+    }
+  }
 }
 
-template<int maxNumberOfQuadruplets>
-__global__
-void kernel_debug_find_ntuplets(unsigned int numberOfRootLayerPairs,
-        const GPULayerDoublets* gpuDoublets,
-        GPUCACell* cells,
-        GPUSimpleVector<maxNumberOfQuadruplets, Quadruplet>* foundNtuplets,
-        unsigned int* rootLayerPairs,
-        unsigned int minHitsPerNtuplet, unsigned int maxNumberOfDoublets)
-{
-    printf("numberOfRootLayerPairs = %d", numberOfRootLayerPairs);
-    for(int rootLayerPair = 0; rootLayerPair < numberOfRootLayerPairs; ++rootLayerPair)
-    {
-        unsigned int rootLayerPairIndex = rootLayerPairs[rootLayerPair];
-        auto globalFirstDoubletIdx = rootLayerPairIndex*maxNumberOfDoublets;
+__global__ void debug_input_data(unsigned int numberOfLayerPairs,
+                                 const GPULayerDoublets *gpuDoublets,
+                                 const GPULayerHits *gpuHitsOnLayers,
+                                 float ptmin, float region_origin_x,
+                                 float region_origin_y,
+                                 float region_origin_radius,
+                                 unsigned int maxNumberOfHits) {
+  printf("GPU: Region ptmin %f , region_origin_x %f , region_origin_y %f , "
+         "region_origin_radius  %f \n",
+         ptmin, region_origin_x, region_origin_y, region_origin_radius);
+  printf("GPU: numberOfLayerPairs: %d\n", numberOfLayerPairs);
 
-        GPUSimpleVector<3, unsigned int> stack;
-        for (int i =0; i < gpuDoublets[rootLayerPairIndex].size; i++)
-        {
-            auto globalCellIdx = i+globalFirstDoubletIdx;
-            stack.reset();
-            stack.push_back(globalCellIdx);
-            cells[globalCellIdx].find_ntuplets(cells, foundNtuplets, stack, minHitsPerNtuplet);
+  for (unsigned int layerPairIndex = 0; layerPairIndex < numberOfLayerPairs;
+       ++layerPairIndex) {
+    printf("\t numberOfDoublets: %d \n", gpuDoublets[layerPairIndex].size);
+    printf("\t innerLayer: %d outerLayer: %d \n",
+           gpuDoublets[layerPairIndex].innerLayerId,
+           gpuDoublets[layerPairIndex].outerLayerId);
 
-        }
-        printf("found quadruplets: %d", foundNtuplets->size());
+    for (unsigned int cellIndexInLayerPair = 0;
+         cellIndexInLayerPair < gpuDoublets[layerPairIndex].size;
+         ++cellIndexInLayerPair) {
+
+      if (cellIndexInLayerPair < 5) {
+        auto innerhit =
+            gpuDoublets[layerPairIndex].indices[2 * cellIndexInLayerPair];
+        auto innerX = gpuHitsOnLayers[gpuDoublets[layerPairIndex].innerLayerId]
+                          .x[innerhit];
+        auto innerY = gpuHitsOnLayers[gpuDoublets[layerPairIndex].innerLayerId]
+                          .y[innerhit];
+        auto innerZ = gpuHitsOnLayers[gpuDoublets[layerPairIndex].innerLayerId]
+                          .z[innerhit];
+
+        auto outerhit =
+            gpuDoublets[layerPairIndex].indices[2 * cellIndexInLayerPair + 1];
+        auto outerX = gpuHitsOnLayers[gpuDoublets[layerPairIndex].outerLayerId]
+                          .x[outerhit];
+        auto outerY = gpuHitsOnLayers[gpuDoublets[layerPairIndex].outerLayerId]
+                          .y[outerhit];
+        auto outerZ = gpuHitsOnLayers[gpuDoublets[layerPairIndex].outerLayerId]
+                          .z[outerhit];
+        printf("\t \t %d innerHit: %d %f %f %f outerHit: %d %f %f %f\n",
+               cellIndexInLayerPair, innerhit, innerX, innerY, innerZ, outerhit,
+               outerX, outerY, outerZ);
+      }
     }
+  }
+}
+
+template <int maxNumberOfQuadruplets>
+__global__ void kernel_debug_find_ntuplets(
+    unsigned int numberOfRootLayerPairs, const GPULayerDoublets *gpuDoublets,
+    GPUCACell *cells,
+    GPUSimpleVector<maxNumberOfQuadruplets, Quadruplet> *foundNtuplets,
+    unsigned int *rootLayerPairs, unsigned int minHitsPerNtuplet,
+    unsigned int maxNumberOfDoublets) {
+  printf("numberOfRootLayerPairs = %d", numberOfRootLayerPairs);
+  for (int rootLayerPair = 0; rootLayerPair < numberOfRootLayerPairs;
+       ++rootLayerPair) {
+    unsigned int rootLayerPairIndex = rootLayerPairs[rootLayerPair];
+    auto globalFirstDoubletIdx = rootLayerPairIndex * maxNumberOfDoublets;
+
+    GPUSimpleVector<3, unsigned int> stack;
+    for (int i = 0; i < gpuDoublets[rootLayerPairIndex].size; i++) {
+      auto globalCellIdx = i + globalFirstDoubletIdx;
+      stack.reset();
+      stack.push_back(globalCellIdx);
+      cells[globalCellIdx].find_ntuplets(cells, foundNtuplets, stack,
+                                         minHitsPerNtuplet);
+    }
+    printf("found quadruplets: %d", foundNtuplets->size());
+  }
 }
 
 template <int maxNumberOfQuadruplets>
@@ -380,35 +411,48 @@ void CAHitQuadrupletGeneratorGPU::allocateOnGPU() {
   cudaMallocHost(&h_layers, maxNumberOfLayers * sizeof(GPULayerHits));
 }
 
-std::vector<std::array<std::pair<int,int> ,3 > >  CAHitQuadrupletGeneratorGPU::launchKernels(const TrackingRegion &region) {
+std::vector<std::array<std::pair<int, int>, 3>>
+CAHitQuadrupletGeneratorGPU::launchKernels(const TrackingRegion &region) {
   dim3 numberOfBlocks_create(32, numberOfLayerPairs);
   dim3 numberOfBlocks_connect(16, numberOfLayerPairs);
   dim3 numberOfBlocks_find(8, numberOfRootLayerPairs);
-  ((GPUSimpleVector<maxNumberOfQuadruplets, Quadruplet>*)(h_foundNtuplets))->reset();
-  // kernel_debug<<<1,1,0,cudaStream_>>>(numberOfLayerPairs, numberOfLayers, d_doublets,
+  ((GPUSimpleVector<maxNumberOfQuadruplets, Quadruplet> *)(h_foundNtuplets))
+      ->reset();
+  // kernel_debug<<<1,1,0,cudaStream_>>>(numberOfLayerPairs, numberOfLayers,
+  // d_doublets,
   //                d_layers, (GPUCACell*)device_theCells,
-  //                (GPUSimpleVector<maxCellsPerHit, unsigned int>* )device_isOuterHitOfCell, (GPUSimpleVector<maxNumberOfQuadruplets, Quadruplet>*)d_foundNtuplets,
-  //                region.ptMin(), region.origin().x(), region.origin().y(),
-  //                region.originRBound(), caThetaCut, caPhiCut,  caHardPtCut,maxNumberOfDoublets, maxNumberOfHits);
+  //                (GPUSimpleVector<maxCellsPerHit, unsigned int>*
+  //                )device_isOuterHitOfCell,
+  //                (GPUSimpleVector<maxNumberOfQuadruplets,
+  //                Quadruplet>*)d_foundNtuplets, region.ptMin(),
+  //                region.origin().x(), region.origin().y(),
+  //                region.originRBound(), caThetaCut, caPhiCut,
+  //                caHardPtCut,maxNumberOfDoublets, maxNumberOfHits);
   kernel_create<<<numberOfBlocks_create, 32, 0, cudaStream_>>>(
-      numberOfLayerPairs, d_doublets, d_layers, (GPUCACell*)device_theCells,
-      (GPUSimpleVector<maxCellsPerHit, unsigned int>* )device_isOuterHitOfCell, (GPUSimpleVector<maxNumberOfQuadruplets, Quadruplet>*)d_foundNtuplets, region.origin().x(),
-      region.origin().y(), maxNumberOfDoublets, maxNumberOfHits);
+      numberOfLayerPairs, d_doublets, d_layers, (GPUCACell *)device_theCells,
+      (GPUSimpleVector<maxCellsPerHit, unsigned int> *)device_isOuterHitOfCell,
+      (GPUSimpleVector<maxNumberOfQuadruplets, Quadruplet> *)d_foundNtuplets,
+      region.origin().x(), region.origin().y(), maxNumberOfDoublets,
+      maxNumberOfHits);
 
   kernel_connect<<<numberOfBlocks_connect, 512, 0, cudaStream_>>>(
-      numberOfLayerPairs, d_doublets, (GPUCACell*)device_theCells, (GPUSimpleVector<maxCellsPerHit, unsigned int>* )device_isOuterHitOfCell,
+      numberOfLayerPairs, d_doublets, (GPUCACell *)device_theCells,
+      (GPUSimpleVector<maxCellsPerHit, unsigned int> *)device_isOuterHitOfCell,
       region.ptMin(), region.origin().x(), region.origin().y(),
       region.originRBound(), caThetaCut, caPhiCut, caHardPtCut,
       maxNumberOfDoublets, maxNumberOfHits);
 
   kernel_find_ntuplets<<<numberOfBlocks_find, 1024, 0, cudaStream_>>>(
-      numberOfRootLayerPairs, d_doublets, (GPUCACell*)device_theCells, (GPUSimpleVector<maxNumberOfQuadruplets, Quadruplet> *) d_foundNtuplets,
+      numberOfRootLayerPairs, d_doublets, (GPUCACell *)device_theCells,
+      (GPUSimpleVector<maxNumberOfQuadruplets, Quadruplet> *)d_foundNtuplets,
       d_rootLayerPairs, 4, maxNumberOfDoublets);
-   // debug_input_data<<<1,1,0,cudaStream_>>>(numberOfLayerPairs, d_doublets, d_layers,region.ptMin(), region.origin().x(), region.origin().y(),
-   // region.originRBound(), maxNumberOfHits );
-        // kernel_debug_find_ntuplets<<<1,1,0,cudaStream_>>>(numberOfRootLayerPairs,
-        //         d_doublets, (GPUCACell*)device_theCells,
-        //         (GPUSimpleVector<maxNumberOfQuadruplets, Quadruplet> *) d_foundNtuplets,d_rootLayerPairs, 4 , maxNumberOfDoublets);
+  // debug_input_data<<<1,1,0,cudaStream_>>>(numberOfLayerPairs, d_doublets,
+  // d_layers,region.ptMin(), region.origin().x(), region.origin().y(),
+  // region.originRBound(), maxNumberOfHits );
+  // kernel_debug_find_ntuplets<<<1,1,0,cudaStream_>>>(numberOfRootLayerPairs,
+  //         d_doublets, (GPUCACell*)device_theCells,
+  //         (GPUSimpleVector<maxNumberOfQuadruplets, Quadruplet> *)
+  //         d_foundNtuplets,d_rootLayerPairs, 4 , maxNumberOfDoublets);
 
   cudaMemcpyAsync(h_foundNtuplets, d_foundNtuplets,
                   sizeof(GPUSimpleVector<maxNumberOfQuadruplets, Quadruplet>),
@@ -419,33 +463,44 @@ std::vector<std::array<std::pair<int,int> ,3 > >  CAHitQuadrupletGeneratorGPU::l
                   cudaStream_);
 
   cudaStreamSynchronize(cudaStream_);
-  // std::cout << "found quadruplets " << ((GPUSimpleVector<maxNumberOfQuadruplets, Quadruplet>*)(h_foundNtuplets))->size()
+  // std::cout << "found quadruplets " <<
+  // ((GPUSimpleVector<maxNumberOfQuadruplets,
+  // Quadruplet>*)(h_foundNtuplets))->size()
   //           << std::endl;
 
-  GPUSimpleVector<maxNumberOfQuadruplets, Quadruplet>* quad=(GPUSimpleVector<maxNumberOfQuadruplets, Quadruplet>*)(h_foundNtuplets);
-  std::vector<std::array<std::pair<int,int> ,3 > > quadsInterface;
+  GPUSimpleVector<maxNumberOfQuadruplets, Quadruplet> *quad =
+      (GPUSimpleVector<maxNumberOfQuadruplets, Quadruplet> *)(h_foundNtuplets);
+  std::vector<std::array<std::pair<int, int>, 3>> quadsInterface;
 
-  for (int i = 0; i< quad->size(); ++i)
-  {
-    std::array<std::pair<int,int> ,3 > tmpQuad = {{ std::make_pair(quad->m_data[i].layerPairsAndCellId[0].x, quad->m_data[i].layerPairsAndCellId[0].y - maxNumberOfDoublets* quad->m_data[i].layerPairsAndCellId[0].x),
-std::make_pair( quad->m_data[i].layerPairsAndCellId[1].x, quad->m_data[i].layerPairsAndCellId[1].y- maxNumberOfDoublets* quad->m_data[i].layerPairsAndCellId[1].x ),
-std::make_pair( quad->m_data[i].layerPairsAndCellId[2].x, quad->m_data[i].layerPairsAndCellId[2].y- maxNumberOfDoublets* quad->m_data[i].layerPairsAndCellId[2].x)
-}};
+  for (int i = 0; i < quad->size(); ++i) {
+    std::array<std::pair<int, int>, 3> tmpQuad = {
+        {std::make_pair(quad->m_data[i].layerPairsAndCellId[0].x,
+                        quad->m_data[i].layerPairsAndCellId[0].y -
+                            maxNumberOfDoublets *
+                                quad->m_data[i].layerPairsAndCellId[0].x),
+         std::make_pair(quad->m_data[i].layerPairsAndCellId[1].x,
+                        quad->m_data[i].layerPairsAndCellId[1].y -
+                            maxNumberOfDoublets *
+                                quad->m_data[i].layerPairsAndCellId[1].x),
+         std::make_pair(quad->m_data[i].layerPairsAndCellId[2].x,
+                        quad->m_data[i].layerPairsAndCellId[2].y -
+                            maxNumberOfDoublets *
+                                quad->m_data[i].layerPairsAndCellId[2].x)}};
 
-  quadsInterface.push_back(tmpQuad);
-
-
+    quadsInterface.push_back(tmpQuad);
 
     //
     // std::cout << "\nquadruplet " << i  << std::endl;
-    // std::cout << quad->m_data[i].layerPairsAndCellId[0].x << " " << quad->m_data[i].layerPairsAndCellId[0].y - maxNumberOfDoublets* quad->m_data[i].layerPairsAndCellId[0].x<< std::endl;
-    // std::cout << quad->m_data[i].layerPairsAndCellId[1].x << " " << quad->m_data[i].layerPairsAndCellId[1].y- maxNumberOfDoublets* quad->m_data[i].layerPairsAndCellId[1].x << std::endl;
-    // std::cout << quad->m_data[i].layerPairsAndCellId[2].x << " " << quad->m_data[i].layerPairsAndCellId[2].y- maxNumberOfDoublets* quad->m_data[i].layerPairsAndCellId[2].x << std::endl;
-
-
-
+    // std::cout << quad->m_data[i].layerPairsAndCellId[0].x << " " <<
+    // quad->m_data[i].layerPairsAndCellId[0].y - maxNumberOfDoublets*
+    // quad->m_data[i].layerPairsAndCellId[0].x<< std::endl; std::cout <<
+    // quad->m_data[i].layerPairsAndCellId[1].x << " " <<
+    // quad->m_data[i].layerPairsAndCellId[1].y- maxNumberOfDoublets*
+    // quad->m_data[i].layerPairsAndCellId[1].x << std::endl; std::cout <<
+    // quad->m_data[i].layerPairsAndCellId[2].x << " " <<
+    // quad->m_data[i].layerPairsAndCellId[2].y- maxNumberOfDoublets*
+    // quad->m_data[i].layerPairsAndCellId[2].x << std::endl;
   }
 
   return quadsInterface;
-
 }
