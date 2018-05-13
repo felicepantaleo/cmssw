@@ -12,8 +12,6 @@
 #include "RecoTracker/TkMSParametrization/interface/LongitudinalBendingCorrection.h"
 #include "DataFormats/SiPixelDetId/interface/PixelSubdetector.h"
 #include "CAGraph.h"
-#include "GPUSimpleVector.h"
-#include "GPUCACell.h"
 
 #include "RecoTracker/TkHitPairs/interface/HitPairGeneratorFromLayerPair.h"
 #include "RecoTracker/TkHitPairs/interface/LayerHitMapCache.h"
@@ -146,6 +144,7 @@ private:
     static constexpr int maxNumberOfQuadruplets = 5000;
     static constexpr int maxCellsPerHit = 200;
     static constexpr int maxNumberOfLayerPairs = 13;
+    static constexpr unsigned int maxNumberOfRootLayerPairs = 13;
     static constexpr int maxNumberOfLayers = 10;
     static constexpr int maxNumberOfDoublets = 2000;
     static constexpr int maxNumberOfHits = 1000;
@@ -165,10 +164,14 @@ private:
     GPULayerDoublets* d_doublets;
     unsigned int* d_indices;
     unsigned int* h_rootLayerPairs;
-    GPUSimpleVector<maxNumberOfQuadruplets, Quadruplet> * h_foundNtuplets;
-    GPUCACell* device_theCells;
-    GPUSimpleVector<maxCellsPerHit, unsigned int>* device_isOuterHitOfCell;
-    GPUSimpleVector<maxNumberOfQuadruplets, Quadruplet> * d_foundNtuplets;
+    // GPUSimpleVector<maxNumberOfQuadruplets, Quadruplet> * h_foundNtuplets;
+    // GPUCACell* device_theCells;
+    // GPUSimpleVector<maxCellsPerHit, unsigned int>* device_isOuterHitOfCell;
+    // GPUSimpleVector<maxNumberOfQuadruplets, Quadruplet> * d_foundNtuplets;
+    void * h_foundNtuplets;
+    void* device_theCells;
+    void* device_isOuterHitOfCell;
+    void* d_foundNtuplets;
     GPULayerHits* tmp_layers;
     GPULayerDoublets* tmp_layerDoublets;
 
