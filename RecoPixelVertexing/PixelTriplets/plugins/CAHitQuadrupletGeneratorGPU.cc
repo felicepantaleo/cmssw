@@ -307,23 +307,23 @@ void CAHitQuadrupletGeneratorGPU::hitNtuplets(
   }
 
 
-//DEBUG!!!!
-  for (unsigned int i = 0; i < numberOfLayerPairs; ++i) {
-
-
-    std::cout << "layerPair " << i << " has doublets: " << h_doublets[i].size
-    << " on layers "  << h_doublets[i].innerLayerId << " and " << h_doublets[i].outerLayerId << std::endl;
-
-    for (unsigned int l = 0; l < hitDoublets[i]->size(); ++l) {
-      auto hitId = i * maxNumberOfDoublets * 2 + 2 * l;
-      auto innerHitOffset = h_doublets[i].innerLayerId * maxNumberOfHits;
-      auto outerHitOffset = h_doublets[i].outerLayerId * maxNumberOfHits;
-
-      std::cout << "Doublet " << l << " has hit " << h_indices[hitId] << ": " << h_x[innerHitOffset+h_indices[hitId]] << " , " <<
-      h_y[innerHitOffset+h_indices[hitId]] << " , " << h_z[innerHitOffset+h_indices[hitId]] << " and outer hit " << h_indices[hitId+1] << " : " <<
-      h_x[outerHitOffset+h_indices[hitId+1]] << " , " <<h_y[outerHitOffset+h_indices[hitId+1]] << " , " << h_z[outerHitOffset+h_indices[hitId+1]] << std::endl;
-    }
-  }
+// //DEBUG!!!!
+//   for (unsigned int i = 0; i < numberOfLayerPairs; ++i) {
+//
+//
+//     std::cout << "layerPair " << i << " has doublets: " << h_doublets[i].size
+//     << " on layers "  << h_doublets[i].innerLayerId << " and " << h_doublets[i].outerLayerId << std::endl;
+//
+//     for (unsigned int l = 0; l < hitDoublets[i]->size(); ++l) {
+//       auto hitId = i * maxNumberOfDoublets * 2 + 2 * l;
+//       auto innerHitOffset = h_doublets[i].innerLayerId * maxNumberOfHits;
+//       auto outerHitOffset = h_doublets[i].outerLayerId * maxNumberOfHits;
+//
+//       std::cout << "Doublet " << l << " has hit " << h_indices[hitId] << ": " << h_x[innerHitOffset+h_indices[hitId]] << " , " <<
+//       h_y[innerHitOffset+h_indices[hitId]] << " , " << h_z[innerHitOffset+h_indices[hitId]] << " and outer hit " << h_indices[hitId+1] << " : " <<
+//       h_x[outerHitOffset+h_indices[hitId+1]] << " , " <<h_y[outerHitOffset+h_indices[hitId+1]] << " , " << h_z[outerHitOffset+h_indices[hitId+1]] << std::endl;
+//     }
+//   }
 
 
 
