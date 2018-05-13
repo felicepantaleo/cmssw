@@ -177,19 +177,19 @@ void fillGraph(const SeedingLayerSetsHits &layers,
     }
   }
 
-  std::cout << "number of layer pairs" << hitDoublets.size() << std::endl;
-
-for (unsigned int i = 0; i < hitDoublets.size(); ++i) {
-  std::cout << i << " " << hitDoublets[i]->size() << std::endl;
-}
-
-for (unsigned int i = 0; i < g.theLayerPairs.size(); ++i) {
-  std::cout << "layer pair " << i << " "
-            << g.theLayers[g.theLayerPairs[i].theLayers[0]].name()
-            << " hits: " << hitDoublets[i]->innerLayer().size() << " and "
-            << g.theLayers[g.theLayerPairs[i].theLayers[1]].name()
-            << " hits: " << hitDoublets[i]->outerLayer().size() << std::endl;
-}
+//   std::cout << "number of layer pairs " << hitDoublets.size() << std::endl;
+//
+// for (unsigned int i = 0; i < hitDoublets.size(); ++i) {
+//   std::cout << i << " " << hitDoublets[i]->size() << std::endl;
+// }
+//
+// for (unsigned int i = 0; i < g.theLayerPairs.size(); ++i) {
+//   std::cout << "layer pair " << i << " "
+//             << g.theLayers[g.theLayerPairs[i].theLayers[0]].name()
+//             << " hits: " << hitDoublets[i]->innerLayer().size() << " and "
+//             << g.theLayers[g.theLayerPairs[i].theLayers[1]].name()
+//             << " hits: " << hitDoublets[i]->outerLayer().size() << std::endl;
+// }
 }
 } // namespace
 
