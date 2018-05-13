@@ -96,7 +96,7 @@ public:
     auto r1 = otherCell.get_inner_r();
     auto z1 = otherCell.get_inner_z();
     bool aligned = areAlignedRZ(r1, z1, ro, zo, ptmin, thetaCut);
-
+    // if(aligned) printf("\n they're aligned!\n");
     return (aligned &&
             haveSimilarCurvature(cells, innerCellId, ptmin, region_origin_x,
                                  region_origin_y, region_origin_radius, phiCut,
@@ -116,6 +116,7 @@ public:
     float tan_12_13_half_mul_distance_13_squared =
         fabs(z1 * (get_inner_r() - ro) + get_inner_z() * (ro - r1) +
              zo * (r1 - get_inner_r()));
+    // printf("\n areAlignedRZresult %f, thetaCut %f", tan_12_13_half_mul_distance_13_squared * pMin/(distance_13_squared * radius_diff), thetaCut);
     return tan_12_13_half_mul_distance_13_squared * pMin <=
            thetaCut * distance_13_squared * radius_diff;
   }
