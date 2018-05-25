@@ -106,7 +106,7 @@ DEFINE_FWK_MODULE(CAHitQuadrupletEDProducer);
 #include "CAHitTripletGenerator.h"
 using CAHitTripletEDProducer = CAHitNtupletEDProducerT<CAHitTripletGenerator>;
 DEFINE_FWK_MODULE(CAHitTripletEDProducer);
-
-#include "CAHitQuadrupletGeneratorGPU.h"
-using CAHitQuadrupletGPUEDProducer = CAHitNtupletEDProducerT<CAHitQuadrupletGeneratorGPU>;
-DEFINE_FWK_MODULE(CAHitQuadrupletGPUEDProducer);
+//
+// #include "CAHitQuadrupletGeneratorGPU.h"
+// using CAHitQuadrupletGPUEDProducer = CAHitNtupletEDProducerT<CAHitQuadrupletGeneratorGPU>;
+// DEFINE_FWK_MODULE(CAHitQuadrupletGPUEDProducer);

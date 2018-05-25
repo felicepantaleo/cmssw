@@ -52,7 +52,14 @@ public:
     void hitNtuplets(const IntermediateHitDoublets& regionDoublets,
                      std::vector<OrderedHitSeeds>& result,
                      const edm::EventSetup& es,
-                     const SeedingLayerSetsHits& layers);
+                     const SeedingLayerSetsHits& layers, const cudaStream_t& stream);
+    void fillResults(const IntermediateHitDoublets& regionDoublets,
+                     std::vector<OrderedHitSeeds>& result,
+                     const edm::EventSetup& es,
+                     const SeedingLayerSetsHits& layers, const cudaStream_t& stream);
+
+    void allocateOnGPU();
+    void deallocateOnGPU();
 
 private:
     LayerCacheType theLayerCache;
@@ -124,11 +131,11 @@ private:
     };
 
 
-    void allocateOnGPU();
-    void deallocateOnGPU();
-    std::vector<std::array<std::pair<int,int> ,3 > >  launchKernels(const TrackingRegion &);
 
+    void  launchKernels(const TrackingRegion &, int);
+    std::vector<std::array<std::pair<int,int> ,3 > > fetchKernelResult(int );
     const float extraHitRPhitolerance;
+    std::vector<std::vector<const HitDoublets *> > hitDoublets;
 
     const QuantityDependsPt maxChi2;
     const bool fitFastCircle;
@@ -148,6 +155,8 @@ private:
     static constexpr int maxNumberOfLayers = 10;
     static constexpr int maxNumberOfDoublets = 2000;
     static constexpr int maxNumberOfHits = 1000;
+    static constexpr int maxNumberOfRegions = 30;
+
     unsigned int numberOfRootLayerPairs = 0;
     unsigned int numberOfLayerPairs = 0;
     unsigned int numberOfLayers = 0;
@@ -168,10 +177,10 @@ private:
     // GPUCACell* device_theCells;
     // GPUSimpleVector<maxCellsPerHit, unsigned int>* device_isOuterHitOfCell;
     // GPUSimpleVector<maxNumberOfQuadruplets, Quadruplet> * d_foundNtuplets;
-    void * h_foundNtuplets;
+    std::vector<void*> h_foundNtuplets;
     void* device_theCells;
     void* device_isOuterHitOfCell;
-    void* d_foundNtuplets;
+    std::vector<void*> d_foundNtuplets;
     GPULayerHits* tmp_layers;
     GPULayerDoublets* tmp_layerDoublets;
 

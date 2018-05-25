@@ -349,7 +349,8 @@ void CAHitQuadrupletGeneratorGPU::deallocateOnGPU() {
   cudaFreeHost(h_y);
   cudaFreeHost(h_z);
   cudaFreeHost(h_rootLayerPairs);
-  cudaFreeHost(h_foundNtuplets);
+  for (int i = 0; i < maxNumberOfRegions; ++i)
+    cudaFreeHost(h_foundNtuplets[i]);
   cudaFreeHost(tmp_layers);
   cudaFreeHost(tmp_layerDoublets);
   cudaFreeHost(h_layers);
@@ -362,7 +363,8 @@ void CAHitQuadrupletGeneratorGPU::deallocateOnGPU() {
   cudaFree(d_rootLayerPairs);
   cudaFree(device_theCells);
   cudaFree(device_isOuterHitOfCell);
-  cudaFree(d_foundNtuplets);
+  for (int i = 0; i < maxNumberOfRegions; ++i)
+    cudaFree(d_foundNtuplets[i]);
 }
 
 void CAHitQuadrupletGeneratorGPU::allocateOnGPU() {
@@ -376,8 +378,6 @@ void CAHitQuadrupletGeneratorGPU::allocateOnGPU() {
   cudaMallocHost(&h_y, maxNumberOfLayers * maxNumberOfHits * sizeof(float));
   cudaMallocHost(&h_z, maxNumberOfLayers * maxNumberOfHits * sizeof(float));
   cudaMallocHost(&h_rootLayerPairs, maxNumberOfRootLayerPairs * sizeof(int));
-  cudaMallocHost(&h_foundNtuplets,
-                 sizeof(GPUSimpleVector<maxNumberOfQuadruplets, Quadruplet>));
 
   cudaMalloc(&d_indices,
              maxNumberOfLayerPairs * maxNumberOfDoublets * 2 * sizeof(int));
@@ -401,9 +401,14 @@ void CAHitQuadrupletGeneratorGPU::allocateOnGPU() {
   cudaMemset(device_isOuterHitOfCell, 0,
              maxNumberOfLayers * maxNumberOfHits *
                  sizeof(GPUSimpleVector<maxCellsPerHit, unsigned int>));
-
-  cudaMalloc(&d_foundNtuplets,
-             sizeof(GPUSimpleVector<maxNumberOfQuadruplets, Quadruplet>));
+  h_foundNtuplets.resize(maxNumberOfRegions);
+  d_foundNtuplets.resize(maxNumberOfRegions);
+  for (int i = 0; i < maxNumberOfRegions; ++i) {
+    cudaMalloc(&d_foundNtuplets[i],
+               sizeof(GPUSimpleVector<maxNumberOfQuadruplets, Quadruplet>));
+    cudaMallocHost(&h_foundNtuplets[i],
+                   sizeof(GPUSimpleVector<maxNumberOfQuadruplets, Quadruplet>));
+  }
 
   cudaMallocHost(&tmp_layers, maxNumberOfLayers * sizeof(GPULayerHits));
   cudaMallocHost(&tmp_layerDoublets,
@@ -411,27 +416,21 @@ void CAHitQuadrupletGeneratorGPU::allocateOnGPU() {
   cudaMallocHost(&h_layers, maxNumberOfLayers * sizeof(GPULayerHits));
 }
 
-std::vector<std::array<std::pair<int, int>, 3>>
-CAHitQuadrupletGeneratorGPU::launchKernels(const TrackingRegion &region) {
+void CAHitQuadrupletGeneratorGPU::launchKernels(const TrackingRegion &region,
+                                                int regionIndex) {
+
+  assert(regionIndex < maxNumberOfRegions);
   dim3 numberOfBlocks_create(32, numberOfLayerPairs);
   dim3 numberOfBlocks_connect(16, numberOfLayerPairs);
   dim3 numberOfBlocks_find(8, numberOfRootLayerPairs);
-  ((GPUSimpleVector<maxNumberOfQuadruplets, Quadruplet> *)(h_foundNtuplets))
+  ((GPUSimpleVector<maxNumberOfQuadruplets, Quadruplet>
+        *)(h_foundNtuplets[regionIndex]))
       ->reset();
-  // kernel_debug<<<1,1,0,cudaStream_>>>(numberOfLayerPairs, numberOfLayers,
-  // d_doublets,
-  //                d_layers, (GPUCACell*)device_theCells,
-  //                (GPUSimpleVector<maxCellsPerHit, unsigned int>*
-  //                )device_isOuterHitOfCell,
-  //                (GPUSimpleVector<maxNumberOfQuadruplets,
-  //                Quadruplet>*)d_foundNtuplets, region.ptMin(),
-  //                region.origin().x(), region.origin().y(),
-  //                region.originRBound(), caThetaCut, caPhiCut,
-  //                caHardPtCut,maxNumberOfDoublets, maxNumberOfHits);
   kernel_create<<<numberOfBlocks_create, 32, 0, cudaStream_>>>(
       numberOfLayerPairs, d_doublets, d_layers, (GPUCACell *)device_theCells,
       (GPUSimpleVector<maxCellsPerHit, unsigned int> *)device_isOuterHitOfCell,
-      (GPUSimpleVector<maxNumberOfQuadruplets, Quadruplet> *)d_foundNtuplets,
+      (GPUSimpleVector<maxNumberOfQuadruplets, Quadruplet> *)
+          d_foundNtuplets[regionIndex],
       region.origin().x(), region.origin().y(), maxNumberOfDoublets,
       maxNumberOfHits);
 
@@ -444,32 +443,26 @@ CAHitQuadrupletGeneratorGPU::launchKernels(const TrackingRegion &region) {
 
   kernel_find_ntuplets<<<numberOfBlocks_find, 1024, 0, cudaStream_>>>(
       numberOfRootLayerPairs, d_doublets, (GPUCACell *)device_theCells,
-      (GPUSimpleVector<maxNumberOfQuadruplets, Quadruplet> *)d_foundNtuplets,
+      (GPUSimpleVector<maxNumberOfQuadruplets, Quadruplet> *)
+          d_foundNtuplets[regionIndex],
       d_rootLayerPairs, 4, maxNumberOfDoublets);
-  // debug_input_data<<<1,1,0,cudaStream_>>>(numberOfLayerPairs, d_doublets,
-  // d_layers,region.ptMin(), region.origin().x(), region.origin().y(),
-  // region.originRBound(), maxNumberOfHits );
-  // kernel_debug_find_ntuplets<<<1,1,0,cudaStream_>>>(numberOfRootLayerPairs,
-  //         d_doublets, (GPUCACell*)device_theCells,
-  //         (GPUSimpleVector<maxNumberOfQuadruplets, Quadruplet> *)
-  //         d_foundNtuplets,d_rootLayerPairs, 4 , maxNumberOfDoublets);
 
-  cudaMemcpyAsync(h_foundNtuplets, d_foundNtuplets,
+  cudaMemcpyAsync(h_foundNtuplets[regionIndex], d_foundNtuplets[regionIndex],
                   sizeof(GPUSimpleVector<maxNumberOfQuadruplets, Quadruplet>),
                   cudaMemcpyDeviceToHost, cudaStream_);
+}
+
+std::vector<std::array<std::pair<int, int>, 3>>
+CAHitQuadrupletGeneratorGPU::fetchKernelResult(int regionIndex) {
+
   cudaMemsetAsync(device_isOuterHitOfCell, 0,
                   maxNumberOfLayers * maxNumberOfHits *
                       sizeof(GPUSimpleVector<maxCellsPerHit, unsigned int>),
                   cudaStream_);
 
-  cudaStreamSynchronize(cudaStream_);
-  // std::cout << "found quadruplets " <<
-  // ((GPUSimpleVector<maxNumberOfQuadruplets,
-  // Quadruplet>*)(h_foundNtuplets))->size()
-  //           << std::endl;
-
   GPUSimpleVector<maxNumberOfQuadruplets, Quadruplet> *quad =
-      (GPUSimpleVector<maxNumberOfQuadruplets, Quadruplet> *)(h_foundNtuplets);
+      (GPUSimpleVector<maxNumberOfQuadruplets, Quadruplet>
+           *)(h_foundNtuplets[regionIndex]);
   std::vector<std::array<std::pair<int, int>, 3>> quadsInterface;
 
   for (int i = 0; i < quad->size(); ++i) {
@@ -486,7 +479,6 @@ CAHitQuadrupletGeneratorGPU::launchKernels(const TrackingRegion &region) {
                         quad->m_data[i].layerPairsAndCellId[2].y -
                             maxNumberOfDoublets *
                                 quad->m_data[i].layerPairsAndCellId[2].x)}};
-
     quadsInterface.push_back(tmpQuad);
 
     //

@@ -50,7 +50,6 @@ CAHitQuadrupletGeneratorGPU::CAHitQuadrupletGeneratorGPU(
     theComparitor.reset(SeedComparitorFactory::get()->create(
         comparitorName, comparitorPSet, iC));
   }
-
   allocateOnGPU();
 }
 
@@ -89,8 +88,7 @@ void CAHitQuadrupletGeneratorGPU::initEvent(const edm::Event &ev,
 }
 
 CAHitQuadrupletGeneratorGPU::~CAHitQuadrupletGeneratorGPU() {
-
-  deallocateOnGPU();
+    deallocateOnGPU();
 }
 
 namespace {
@@ -198,12 +196,11 @@ void fillGraph(const SeedingLayerSetsHits &layers,
 void CAHitQuadrupletGeneratorGPU::hitNtuplets(
     const IntermediateHitDoublets &regionDoublets,
     std::vector<OrderedHitSeeds> &result, const edm::EventSetup &es,
-    const SeedingLayerSetsHits &layers) {
+    const SeedingLayerSetsHits &layers, const cudaStream_t &cudaStream) {
+  cudaStream_ = cudaStream;
   CAGraph g;
 
-  std::vector<const HitDoublets *> hitDoublets;
-
-  const int numberOfHitsInNtuplet = 4;
+  hitDoublets.resize(regionDoublets.regionSize());
 
   for (unsigned int lpIdx = 0; lpIdx < maxNumberOfLayerPairs; ++lpIdx) {
     h_doublets[lpIdx].size = 0;
@@ -213,39 +210,33 @@ void CAHitQuadrupletGeneratorGPU::hitNtuplets(
   numberOfLayers = 0;
 
   for (unsigned int layerIdx = 0; layerIdx < maxNumberOfLayers; ++layerIdx) {
-
     h_layers[layerIdx].size = 0;
   }
 
   int index = 0;
   for (const auto &regionLayerPairs : regionDoublets) {
-
     const TrackingRegion &region = regionLayerPairs.region();
-    hitDoublets.clear();
+    hitDoublets[index].clear();
     if (index == 0) {
       createGraphStructure(layers, g, h_layers, maxNumberOfHits, h_x, h_y, h_z);
     } else {
       clearGraphStructure(layers, g);
     }
 
-    fillGraph(layers, regionLayerPairs, g, hitDoublets);
+    fillGraph(layers, regionLayerPairs, g, hitDoublets[index]);
     numberOfLayers = g.theLayers.size();
-
-    numberOfLayerPairs = hitDoublets.size();
+    numberOfLayerPairs = hitDoublets[index].size();
     std::vector<bool> layerAlreadyParsed(g.theLayers.size(), false);
+
     for (unsigned int i = 0; i < numberOfLayerPairs; ++i) {
-
-      h_doublets[i].size = hitDoublets[i]->size();
-      // std::cout << "layerPair " << i << " has doublets: " <<
-      // h_doublets[i].size << std::endl;
-
+      h_doublets[i].size = hitDoublets[index][i]->size();
       h_doublets[i].innerLayerId = g.theLayerPairs[i].theLayers[0];
       h_doublets[i].outerLayerId = g.theLayerPairs[i].theLayers[1];
+
       if (layerAlreadyParsed[h_doublets[i].innerLayerId] == false) {
         layerAlreadyParsed[h_doublets[i].innerLayerId] = true;
-
         h_layers[h_doublets[i].innerLayerId].size =
-            hitDoublets[i]->innerLayer().hits().size();
+            hitDoublets[index][i]->innerLayer().hits().size();
         h_layers[h_doublets[i].innerLayerId].layerId =
             h_doublets[i].innerLayerId;
 
@@ -255,32 +246,30 @@ void CAHitQuadrupletGeneratorGPU::hitNtuplets(
               h_layers[h_doublets[i].innerLayerId].layerId * maxNumberOfHits +
               l;
           h_x[hitId] =
-              hitDoublets[i]->innerLayer().hits()[l]->globalPosition().x();
+              hitDoublets[index][i]->innerLayer().hits()[l]->globalPosition().x();
           h_y[hitId] =
-              hitDoublets[i]->innerLayer().hits()[l]->globalPosition().y();
+              hitDoublets[index][i]->innerLayer().hits()[l]->globalPosition().y();
           h_z[hitId] =
-              hitDoublets[i]->innerLayer().hits()[l]->globalPosition().z();
+              hitDoublets[index][i]->innerLayer().hits()[l]->globalPosition().z();
         }
       }
       if (layerAlreadyParsed[h_doublets[i].outerLayerId] == false) {
         layerAlreadyParsed[h_doublets[i].outerLayerId] = true;
-
         h_layers[h_doublets[i].outerLayerId].size =
-            hitDoublets[i]->outerLayer().hits().size();
+            hitDoublets[index][i]->outerLayer().hits().size();
         h_layers[h_doublets[i].outerLayerId].layerId =
             h_doublets[i].outerLayerId;
-
         for (unsigned int l = 0; l < h_layers[h_doublets[i].outerLayerId].size;
              ++l) {
           auto hitId =
               h_layers[h_doublets[i].outerLayerId].layerId * maxNumberOfHits +
               l;
           h_x[hitId] =
-              hitDoublets[i]->outerLayer().hits()[l]->globalPosition().x();
+              hitDoublets[index][i]->outerLayer().hits()[l]->globalPosition().x();
           h_y[hitId] =
-              hitDoublets[i]->outerLayer().hits()[l]->globalPosition().y();
+              hitDoublets[index][i]->outerLayer().hits()[l]->globalPosition().y();
           h_z[hitId] =
-              hitDoublets[i]->outerLayer().hits()[l]->globalPosition().z();
+              hitDoublets[index][i]->outerLayer().hits()[l]->globalPosition().z();
         }
       }
 
@@ -292,49 +281,20 @@ void CAHitQuadrupletGeneratorGPU::hitNtuplets(
         }
       }
 
-      for (unsigned int l = 0; l < hitDoublets[i]->size(); ++l) {
+      for (unsigned int l = 0; l < hitDoublets[index][i]->size(); ++l) {
         auto hitId = i * maxNumberOfDoublets * 2 + 2 * l;
-        assert(maxNumberOfDoublets >= hitDoublets[i]->size());
-        h_indices[hitId] = hitDoublets[i]->innerHitId(l);
-        h_indices[hitId + 1] = hitDoublets[i]->outerHitId(l);
+        assert(maxNumberOfDoublets >= hitDoublets[index][i]->size());
+        h_indices[hitId] = hitDoublets[index][i]->innerHitId(l);
+        h_indices[hitId + 1] = hitDoublets[index][i]->outerHitId(l);
       }
     }
 
     for (unsigned int j = 0; j < numberOfLayers; ++j) {
-      // std::cout << std::hex <<&h_layers[j] << " " << std::dec <<
-      // h_layers[j].layerId << " " << h_layers[j].size << std::endl;
       for (unsigned int l = 0; l < h_layers[j].size; ++l) {
         auto hitId = h_layers[j].layerId * maxNumberOfHits + l;
-        // std::cout << " " << h_x[hitId]<< " "<<h_y[hitId]<< " "<<h_z[hitId]<<
-        // " "<< std::endl;
         assert(h_x[hitId] != 0);
       }
     }
-
-    // //DEBUG!!!!
-    //   for (unsigned int i = 0; i < numberOfLayerPairs; ++i) {
-    //
-    //
-    //     std::cout << "layerPair " << i << " has doublets: " <<
-    //     h_doublets[i].size
-    //     << " on layers "  << h_doublets[i].innerLayerId << " and " <<
-    //     h_doublets[i].outerLayerId << std::endl;
-    //
-    //     for (unsigned int l = 0; l < hitDoublets[i]->size(); ++l) {
-    //       auto hitId = i * maxNumberOfDoublets * 2 + 2 * l;
-    //       auto innerHitOffset = h_doublets[i].innerLayerId * maxNumberOfHits;
-    //       auto outerHitOffset = h_doublets[i].outerLayerId * maxNumberOfHits;
-    //
-    //       std::cout << "Doublet " << l << " has hit " << h_indices[hitId] <<
-    //       ": " << h_x[innerHitOffset+h_indices[hitId]] << " , " <<
-    //       h_y[innerHitOffset+h_indices[hitId]] << " , " <<
-    //       h_z[innerHitOffset+h_indices[hitId]] << " and outer hit " <<
-    //       h_indices[hitId+1] << " : " <<
-    //       h_x[outerHitOffset+h_indices[hitId+1]] << " , "
-    //       <<h_y[outerHitOffset+h_indices[hitId+1]] << " , " <<
-    //       h_z[outerHitOffset+h_indices[hitId+1]] << std::endl;
-    //     }
-    //   }
 
     for (unsigned int j = 0; j < numberOfLayerPairs; ++j) {
       tmp_layerDoublets[j] = h_doublets[j];
@@ -374,7 +334,21 @@ void CAHitQuadrupletGeneratorGPU::hitNtuplets(
     cudaMemcpyAsync(d_layers, tmp_layers, numberOfLayers * sizeof(GPULayerHits),
                     cudaMemcpyHostToDevice, cudaStream_);
 
-    auto foundQuads = launchKernels(region);
+    launchKernels(region, index);
+}
+}
+
+void CAHitQuadrupletGeneratorGPU::fillResults(
+    const IntermediateHitDoublets &regionDoublets,
+    std::vector<OrderedHitSeeds> &result, const edm::EventSetup &es,
+    const SeedingLayerSetsHits &layers, const cudaStream_t &cudaStream)
+{
+    int index = 0;
+
+    for (const auto &regionLayerPairs : regionDoublets) {
+      const TrackingRegion &region = regionLayerPairs.region();
+      auto foundQuads = fetchKernelResult(index);
+      std::cout << foundQuads.size() << " found quads" << std::endl;
     unsigned int numberOfFoundQuadruplets = foundQuads.size();
     const QuantityDependsPtEval maxChi2Eval = maxChi2.evaluator(es);
 
@@ -385,6 +359,7 @@ void CAHitQuadrupletGeneratorGPU::hitNtuplets(
     std::array<GlobalPoint, 4> gps;
     std::array<GlobalError, 4> ges;
     std::array<bool, 4> barrels;
+
     // Loop over quadruplets
     for (unsigned int quadId = 0; quadId < numberOfFoundQuadruplets; ++quadId) {
 
@@ -396,7 +371,7 @@ void CAHitQuadrupletGeneratorGPU::hitNtuplets(
         auto doubletId = foundQuads[quadId][i].second;
 
         auto const &ahit =
-            hitDoublets[layerPair]->hit(doubletId, HitDoublets::inner);
+            hitDoublets[index][layerPair]->hit(doubletId, HitDoublets::inner);
         gps[i] = ahit->globalPosition();
         ges[i] = ahit->globalPositionError();
         barrels[i] = isBarrel(ahit->geographicalId().subdetId());
@@ -405,7 +380,7 @@ void CAHitQuadrupletGeneratorGPU::hitNtuplets(
       auto doubletId = foundQuads[quadId][2].second;
 
       auto const &ahit =
-          hitDoublets[layerPair]->hit(doubletId, HitDoublets::outer);
+          hitDoublets[index][layerPair]->hit(doubletId, HitDoublets::outer);
       gps[3] = ahit->globalPosition();
       ges[3] = ahit->globalPositionError();
       barrels[3] = isBarrel(ahit->geographicalId().subdetId());
@@ -421,11 +396,11 @@ void CAHitQuadrupletGeneratorGPU::hitNtuplets(
       const float thisMaxChi2 = maxChi2Eval.value(abscurv);
       if (theComparitor) {
         SeedingHitSet tmpTriplet(
-            hitDoublets[foundQuads[quadId][0].first]->hit(
+            hitDoublets[index][foundQuads[quadId][0].first]->hit(
                 foundQuads[quadId][0].second, HitDoublets::inner),
-            hitDoublets[foundQuads[quadId][2].first]->hit(
+            hitDoublets[index][foundQuads[quadId][2].first]->hit(
                 foundQuads[quadId][2].second, HitDoublets::inner),
-            hitDoublets[foundQuads[quadId][2].first]->hit(
+            hitDoublets[index][foundQuads[quadId][2].first]->hit(
                 foundQuads[quadId][2].second, HitDoublets::outer));
         if (!theComparitor->compatible(tmpTriplet)) {
           continue;
@@ -470,13 +445,13 @@ void CAHitQuadrupletGeneratorGPU::hitNtuplets(
           continue;
       }
       result[index].emplace_back(
-          hitDoublets[foundQuads[quadId][0].first]->hit(
+          hitDoublets[index][foundQuads[quadId][0].first]->hit(
               foundQuads[quadId][0].second, HitDoublets::inner),
-          hitDoublets[foundQuads[quadId][1].first]->hit(
+          hitDoublets[index][foundQuads[quadId][1].first]->hit(
               foundQuads[quadId][1].second, HitDoublets::inner),
-          hitDoublets[foundQuads[quadId][2].first]->hit(
+          hitDoublets[index][foundQuads[quadId][2].first]->hit(
               foundQuads[quadId][2].second, HitDoublets::inner),
-          hitDoublets[foundQuads[quadId][2].first]->hit(
+          hitDoublets[index][foundQuads[quadId][2].first]->hit(
               foundQuads[quadId][2].second, HitDoublets::outer));
     }
 
