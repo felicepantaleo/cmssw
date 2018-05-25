@@ -40,12 +40,9 @@ public:
   void acquireGPUCuda(const edm::HeterogeneousEvent &iEvent,
                       const edm::EventSetup &iSetup,
                       cuda::stream_t<> &cudaStream) override;
-
   void produceGPUCuda(edm::HeterogeneousEvent &iEvent,
                       const edm::EventSetup &iSetup,
                       cuda::stream_t<> &cudaStream) override;
-  void acquireCPU(const edm::HeterogeneousEvent &iEvent,
-                  const edm::EventSetup &iSetup) override;
   void produceCPU(edm::HeterogeneousEvent &iEvent,
                   const edm::EventSetup &iSetup) override;
 
@@ -61,8 +58,8 @@ private:
 
 CAHitNtupletHeterogeneousEDProducer::CAHitNtupletHeterogeneousEDProducer(
     const edm::ParameterSet &iConfig)
-    : doubletToken_(consumes<IntermediateHitDoublets>(
-          iConfig.getParameter<edm::InputTag>("doublets"))),
+    : HeterogeneousEDProducer<heterogeneous::HeterogeneousDevices<
+          heterogeneous::GPUCuda, heterogeneous::CPU>>(iConfig), doubletToken_(consumes<IntermediateHitDoublets>(iConfig.getParameter<edm::InputTag>("doublets"))),
       generator_(iConfig, consumesCollector()) {
   produces<RegionsSeedingHitSets>();
 }
@@ -94,7 +91,7 @@ void CAHitNtupletHeterogeneousEDProducer::produceGPUCuda(
 
   if (!emptyRegionDoublets) {
     edm::Handle<IntermediateHitDoublets> hdoublets;
-    iEvent.event().getByToken(doubletToken_, hdoublets);
+    iEvent.getByToken(doubletToken_, hdoublets);
     const auto &regionDoublets = *hdoublets;
     const SeedingLayerSetsHits &seedingLayerHits =
         regionDoublets.seedingLayerHits();
@@ -154,9 +151,6 @@ void CAHitNtupletHeterogeneousEDProducer::acquireGPUCuda(
                            cudaStream.id());
   }
 }
-
-void CAHitNtupletHeterogeneousEDProducer::acquireCPU(
-    const edm::HeterogeneousEvent &iEvent, const edm::EventSetup &iSetup) {}
 
 void CAHitNtupletHeterogeneousEDProducer::produceCPU(
     edm::HeterogeneousEvent &iEvent, const edm::EventSetup &iSetup) {}
