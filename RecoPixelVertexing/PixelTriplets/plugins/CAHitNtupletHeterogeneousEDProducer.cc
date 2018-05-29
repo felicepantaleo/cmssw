@@ -58,8 +58,7 @@ private:
 
 CAHitNtupletHeterogeneousEDProducer::CAHitNtupletHeterogeneousEDProducer(
     const edm::ParameterSet &iConfig)
-    : HeterogeneousEDProducer<heterogeneous::HeterogeneousDevices<
-          heterogeneous::GPUCuda, heterogeneous::CPU>>(iConfig), doubletToken_(consumes<IntermediateHitDoublets>(iConfig.getParameter<edm::InputTag>("doublets"))),
+    : HeterogeneousEDProducer(iConfig), doubletToken_(consumes<IntermediateHitDoublets>(iConfig.getParameter<edm::InputTag>("doublets"))),
       generator_(iConfig, consumesCollector()) {
   produces<RegionsSeedingHitSets>();
 }
@@ -82,7 +81,7 @@ void CAHitNtupletHeterogeneousEDProducer::fillDescriptions(
 
 void CAHitNtupletHeterogeneousEDProducer::beginStreamGPUCuda(
     edm::StreamID streamId, cuda::stream_t<> &cudaStream) {
-
+  generator_.allocateOnGPU();
 }
 
 void CAHitNtupletHeterogeneousEDProducer::produceGPUCuda(

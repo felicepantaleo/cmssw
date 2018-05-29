@@ -50,7 +50,7 @@ CAHitQuadrupletGeneratorGPU::CAHitQuadrupletGeneratorGPU(
     theComparitor.reset(SeedComparitorFactory::get()->create(
         comparitorName, comparitorPSet, iC));
   }
-  allocateOnGPU();
+
 }
 
 void CAHitQuadrupletGeneratorGPU::fillDescriptions(
