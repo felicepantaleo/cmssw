@@ -15,7 +15,7 @@ struct CALayer {
     return otherString == theName;
   }
 
-  std::string name() const { return theName; }
+  const std::string& name() const { return theName; }
 
   std::vector<int> theOuterLayerPairs;
   std::vector<int> theInnerLayerPairs;
