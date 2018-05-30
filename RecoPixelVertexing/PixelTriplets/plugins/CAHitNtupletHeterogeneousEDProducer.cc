@@ -12,6 +12,7 @@
 #include "HeterogeneousCore/CUDAServices/interface/CUDAService.h"
 #include "HeterogeneousCore/Producer/interface/HeterogeneousEDProducer.h"
 
+#include "CAHitQuadrupletGenerator.h"
 #include "CAHitQuadrupletGeneratorGPU.h"
 #include "RecoPixelVertexing/PixelTriplets/interface/OrderedHitSeeds.h"
 #include "RecoTracker/TkHitPairs/interface/IntermediateHitDoublets.h"
@@ -31,7 +32,7 @@ class CAHitNtupletHeterogeneousEDProducer
           heterogeneous::GPUCuda, heterogeneous::CPU>> {
 public:
   CAHitNtupletHeterogeneousEDProducer(const edm::ParameterSet &iConfig);
-  ~CAHitNtupletHeterogeneousEDProducer();
+  ~CAHitNtupletHeterogeneousEDProducer() = default;
 
   static void fillDescriptions(edm::ConfigurationDescriptions &descriptions);
   void beginStreamGPUCuda(edm::StreamID streamId,
@@ -50,7 +51,9 @@ private:
   edm::EDGetTokenT<IntermediateHitDoublets> doubletToken_;
 
   edm::RunningAverage localRA_;
-  CAHitQuadrupletGeneratorGPU generator_;
+  CAHitQuadrupletGeneratorGPU GPUGenerator_;
+  CAHitQuadrupletGenerator CPUGenerator_;
+
   bool emptyRegionDoublets = false;
   std::unique_ptr<RegionsSeedingHitSets> seedingHitSets;
   std::vector<OrderedHitSeeds> ntuplets;
@@ -58,13 +61,12 @@ private:
 
 CAHitNtupletHeterogeneousEDProducer::CAHitNtupletHeterogeneousEDProducer(
     const edm::ParameterSet &iConfig)
-    : HeterogeneousEDProducer(iConfig), doubletToken_(consumes<IntermediateHitDoublets>(iConfig.getParameter<edm::InputTag>("doublets"))),
-      generator_(iConfig, consumesCollector()) {
+    : HeterogeneousEDProducer(iConfig),
+      doubletToken_(consumes<IntermediateHitDoublets>(
+          iConfig.getParameter<edm::InputTag>("doublets"))),
+      GPUGenerator_(iConfig, consumesCollector()),
+      CPUGenerator_(iConfig, consumesCollector()) {
   produces<RegionsSeedingHitSets>();
-}
-
-CAHitNtupletHeterogeneousEDProducer::~CAHitNtupletHeterogeneousEDProducer() {
-
 }
 
 void CAHitNtupletHeterogeneousEDProducer::fillDescriptions(
@@ -73,42 +75,17 @@ void CAHitNtupletHeterogeneousEDProducer::fillDescriptions(
 
   desc.add<edm::InputTag>("doublets", edm::InputTag("hitPairEDProducer"));
   CAHitQuadrupletGeneratorGPU::fillDescriptions(desc);
-
+  HeterogeneousEDProducer::fillPSetDescription(desc);
   auto label = CAHitQuadrupletGeneratorGPU::fillDescriptionsLabel() +
                std::string("EDProducer");
   descriptions.add(label, desc);
-}
+} 
 
 void CAHitNtupletHeterogeneousEDProducer::beginStreamGPUCuda(
     edm::StreamID streamId, cuda::stream_t<> &cudaStream) {
-  generator_.allocateOnGPU();
+  GPUGenerator_.allocateOnGPU();
 }
 
-void CAHitNtupletHeterogeneousEDProducer::produceGPUCuda(
-    edm::HeterogeneousEvent &iEvent, const edm::EventSetup &iSetup,
-    cuda::stream_t<> &cudaStream) {
-
-  if (!emptyRegionDoublets) {
-    edm::Handle<IntermediateHitDoublets> hdoublets;
-    iEvent.getByToken(doubletToken_, hdoublets);
-    const auto &regionDoublets = *hdoublets;
-    const SeedingLayerSetsHits &seedingLayerHits =
-        regionDoublets.seedingLayerHits();
-    int index = 0;
-    for (const auto &regionLayerPairs : regionDoublets) {
-      const TrackingRegion &region = regionLayerPairs.region();
-      auto seedingHitSetsFiller = seedingHitSets->beginRegion(&region);
-      generator_.fillResults(regionDoublets, ntuplets, iSetup, seedingLayerHits,
-                             cudaStream.id());
-      fillNtuplets(seedingHitSetsFiller, ntuplets[index]);
-      ntuplets[index].clear();
-      index++;
-    }
-    localRA_.update(seedingHitSets->size());
-  }
-  iEvent.put(std::move(seedingHitSets));
-
-}
 void CAHitNtupletHeterogeneousEDProducer::acquireGPUCuda(
     const edm::HeterogeneousEvent &iEvent, const edm::EventSetup &iSetup,
     cuda::stream_t<> &cudaStream) {
@@ -135,7 +112,7 @@ void CAHitNtupletHeterogeneousEDProducer::acquireGPUCuda(
     emptyRegionDoublets = true;
   } else {
     seedingHitSets->reserve(regionDoublets.regionSize(), localRA_.upper());
-    generator_.initEvent(iEvent.event(), iSetup);
+    GPUGenerator_.initEvent(iEvent.event(), iSetup);
 
     LogDebug("CAHitNtupletHeterogeneousEDProducer")
         << "Creating ntuplets for " << regionDoublets.regionSize()
@@ -146,12 +123,84 @@ void CAHitNtupletHeterogeneousEDProducer::acquireGPUCuda(
     for (auto &ntuplet : ntuplets)
       ntuplet.reserve(localRA_.upper());
 
-    generator_.hitNtuplets(regionDoublets, ntuplets, iSetup, seedingLayerHits,
-                           cudaStream.id());
+    GPUGenerator_.hitNtuplets(regionDoublets, ntuplets, iSetup,
+                              seedingLayerHits, cudaStream.id());
   }
 }
 
+void CAHitNtupletHeterogeneousEDProducer::produceGPUCuda(
+    edm::HeterogeneousEvent &iEvent, const edm::EventSetup &iSetup,
+    cuda::stream_t<> &cudaStream) {
+
+  if (!emptyRegionDoublets) {
+    edm::Handle<IntermediateHitDoublets> hdoublets;
+    iEvent.getByToken(doubletToken_, hdoublets);
+    const auto &regionDoublets = *hdoublets;
+    const SeedingLayerSetsHits &seedingLayerHits =
+        regionDoublets.seedingLayerHits();
+    int index = 0;
+    for (const auto &regionLayerPairs : regionDoublets) {
+      const TrackingRegion &region = regionLayerPairs.region();
+      auto seedingHitSetsFiller = seedingHitSets->beginRegion(&region);
+      GPUGenerator_.fillResults(regionDoublets, ntuplets, iSetup,
+                                seedingLayerHits, cudaStream.id());
+      fillNtuplets(seedingHitSetsFiller, ntuplets[index]);
+      ntuplets[index].clear();
+      index++;
+    }
+    localRA_.update(seedingHitSets->size());
+  }
+  iEvent.put(std::move(seedingHitSets));
+}
+
 void CAHitNtupletHeterogeneousEDProducer::produceCPU(
-    edm::HeterogeneousEvent &iEvent, const edm::EventSetup &iSetup) {}
+    edm::HeterogeneousEvent &iEvent, const edm::EventSetup &iSetup) {
+  edm::Handle<IntermediateHitDoublets> hdoublets;
+  iEvent.getByToken(doubletToken_, hdoublets);
+  const auto &regionDoublets = *hdoublets;
+
+  const SeedingLayerSetsHits &seedingLayerHits =
+      regionDoublets.seedingLayerHits();
+  if (seedingLayerHits.numberOfLayersInSet() <
+      CAHitQuadrupletGenerator::minLayers) {
+    throw cms::Exception("LogicError")
+        << "CAHitNtupletEDProducer expects "
+           "SeedingLayerSetsHits::numberOfLayersInSet() to be >= "
+        << CAHitQuadrupletGenerator::minLayers << ", got "
+        << seedingLayerHits.numberOfLayersInSet()
+        << ". This is likely caused by a configuration error of this module, "
+           "HitPairEDProducer, or SeedingLayersEDProducer.";
+  }
+
+  auto seedingHitSets = std::make_unique<RegionsSeedingHitSets>();
+  if (regionDoublets.empty()) {
+    iEvent.put(std::move(seedingHitSets));
+    return;
+  }
+  seedingHitSets->reserve(regionDoublets.regionSize(), localRA_.upper());
+  CPUGenerator_.initEvent(iEvent.event(), iSetup);
+
+  LogDebug("CAHitNtupletEDProducer")
+      << "Creating ntuplets for " << regionDoublets.regionSize()
+      << " regions, and " << regionDoublets.layerPairsSize() << " layer pairs";
+  std::vector<OrderedHitSeeds> ntuplets;
+  ntuplets.resize(regionDoublets.regionSize());
+  for (auto &ntuplet : ntuplets)
+    ntuplet.reserve(localRA_.upper());
+
+  CPUGenerator_.hitNtuplets(regionDoublets, ntuplets, iSetup, seedingLayerHits);
+  int index = 0;
+  for (const auto &regionLayerPairs : regionDoublets) {
+    const TrackingRegion &region = regionLayerPairs.region();
+    auto seedingHitSetsFiller = seedingHitSets->beginRegion(&region);
+
+    fillNtuplets(seedingHitSetsFiller, ntuplets[index]);
+    ntuplets[index].clear();
+    index++;
+  }
+  localRA_.update(seedingHitSets->size());
+
+  iEvent.put(std::move(seedingHitSets));
+}
 
 DEFINE_FWK_MODULE(CAHitNtupletHeterogeneousEDProducer);
