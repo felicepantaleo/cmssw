@@ -93,8 +93,8 @@ CAHitQuadrupletGeneratorGPU::~CAHitQuadrupletGeneratorGPU() {
 
 namespace {
 void createGraphStructure(const SeedingLayerSetsHits &layers, CAGraph &g,
-                          GPULayerHits *h_layers, unsigned int maxNumberOfHits,
-                          float *h_x, float *h_y, float *h_z) {
+                          GPULayerHits *h_layers_, unsigned int maxNumberOfHits_,
+                          float *h_x_, float *h_y_, float *h_z_) {
   for (unsigned int i = 0; i < layers.size(); i++) {
     for (unsigned int j = 0; j < 4; ++j) {
       auto vertexIndex = 0;
@@ -187,15 +187,15 @@ void CAHitQuadrupletGeneratorGPU::hitNtuplets(
 
   hitDoublets.resize(regionDoublets.regionSize());
 
-  for (unsigned int lpIdx = 0; lpIdx < maxNumberOfLayerPairs; ++lpIdx) {
-    h_doublets[lpIdx].size = 0;
+  for (unsigned int lpIdx = 0; lpIdx < maxNumberOfLayerPairs_; ++lpIdx) {
+    h_doublets_[lpIdx].size = 0;
   }
-  numberOfRootLayerPairs = 0;
-  numberOfLayerPairs = 0;
-  numberOfLayers = 0;
+  numberOfRootLayerPairs_ = 0;
+  numberOfLayerPairs_ = 0;
+  numberOfLayers_ = 0;
 
-  for (unsigned int layerIdx = 0; layerIdx < maxNumberOfLayers; ++layerIdx) {
-    h_layers[layerIdx].size = 0;
+  for (unsigned int layerIdx = 0; layerIdx < maxNumberOfLayers_; ++layerIdx) {
+    h_layers_[layerIdx].size = 0;
   }
 
   int index = 0;
@@ -203,120 +203,120 @@ void CAHitQuadrupletGeneratorGPU::hitNtuplets(
     const TrackingRegion &region = regionLayerPairs.region();
     hitDoublets[index].clear();
     if (index == 0) {
-      createGraphStructure(layers, g, h_layers, maxNumberOfHits, h_x, h_y, h_z);
+      createGraphStructure(layers, g, h_layers_, maxNumberOfHits_, h_x_, h_y_, h_z_);
     } else {
       clearGraphStructure(layers, g);
     }
 
     fillGraph(layers, regionLayerPairs, g, hitDoublets[index]);
-    numberOfLayers = g.theLayers.size();
-    numberOfLayerPairs = hitDoublets[index].size();
+    numberOfLayers_ = g.theLayers.size();
+    numberOfLayerPairs_ = hitDoublets[index].size();
     std::vector<bool> layerAlreadyParsed(g.theLayers.size(), false);
 
-    for (unsigned int i = 0; i < numberOfLayerPairs; ++i) {
-      h_doublets[i].size = hitDoublets[index][i]->size();
-      h_doublets[i].innerLayerId = g.theLayerPairs[i].theLayers[0];
-      h_doublets[i].outerLayerId = g.theLayerPairs[i].theLayers[1];
+    for (unsigned int i = 0; i < numberOfLayerPairs_; ++i) {
+      h_doublets_[i].size = hitDoublets[index][i]->size();
+      h_doublets_[i].innerLayerId = g.theLayerPairs[i].theLayers[0];
+      h_doublets_[i].outerLayerId = g.theLayerPairs[i].theLayers[1];
 
-      if (layerAlreadyParsed[h_doublets[i].innerLayerId] == false) {
-        layerAlreadyParsed[h_doublets[i].innerLayerId] = true;
-        h_layers[h_doublets[i].innerLayerId].size =
+      if (layerAlreadyParsed[h_doublets_[i].innerLayerId] == false) {
+        layerAlreadyParsed[h_doublets_[i].innerLayerId] = true;
+        h_layers_[h_doublets_[i].innerLayerId].size =
             hitDoublets[index][i]->innerLayer().hits().size();
-        h_layers[h_doublets[i].innerLayerId].layerId =
-            h_doublets[i].innerLayerId;
+        h_layers_[h_doublets_[i].innerLayerId].layerId =
+            h_doublets_[i].innerLayerId;
 
-        for (unsigned int l = 0; l < h_layers[h_doublets[i].innerLayerId].size;
+        for (unsigned int l = 0; l < h_layers_[h_doublets_[i].innerLayerId].size;
              ++l) {
           auto hitId =
-              h_layers[h_doublets[i].innerLayerId].layerId * maxNumberOfHits +
+              h_layers_[h_doublets_[i].innerLayerId].layerId * maxNumberOfHits_ +
               l;
-          h_x[hitId] =
+          h_x_[hitId] =
               hitDoublets[index][i]->innerLayer().hits()[l]->globalPosition().x();
-          h_y[hitId] =
+          h_y_[hitId] =
               hitDoublets[index][i]->innerLayer().hits()[l]->globalPosition().y();
-          h_z[hitId] =
+          h_z_[hitId] =
               hitDoublets[index][i]->innerLayer().hits()[l]->globalPosition().z();
         }
       }
-      if (layerAlreadyParsed[h_doublets[i].outerLayerId] == false) {
-        layerAlreadyParsed[h_doublets[i].outerLayerId] = true;
-        h_layers[h_doublets[i].outerLayerId].size =
+      if (layerAlreadyParsed[h_doublets_[i].outerLayerId] == false) {
+        layerAlreadyParsed[h_doublets_[i].outerLayerId] = true;
+        h_layers_[h_doublets_[i].outerLayerId].size =
             hitDoublets[index][i]->outerLayer().hits().size();
-        h_layers[h_doublets[i].outerLayerId].layerId =
-            h_doublets[i].outerLayerId;
-        for (unsigned int l = 0; l < h_layers[h_doublets[i].outerLayerId].size;
+        h_layers_[h_doublets_[i].outerLayerId].layerId =
+            h_doublets_[i].outerLayerId;
+        for (unsigned int l = 0; l < h_layers_[h_doublets_[i].outerLayerId].size;
              ++l) {
           auto hitId =
-              h_layers[h_doublets[i].outerLayerId].layerId * maxNumberOfHits +
+              h_layers_[h_doublets_[i].outerLayerId].layerId * maxNumberOfHits_ +
               l;
-          h_x[hitId] =
+          h_x_[hitId] =
               hitDoublets[index][i]->outerLayer().hits()[l]->globalPosition().x();
-          h_y[hitId] =
+          h_y_[hitId] =
               hitDoublets[index][i]->outerLayer().hits()[l]->globalPosition().y();
-          h_z[hitId] =
+          h_z_[hitId] =
               hitDoublets[index][i]->outerLayer().hits()[l]->globalPosition().z();
         }
       }
 
       for (unsigned int rl : g.theRootLayers) {
-        if (rl == h_doublets[i].innerLayerId) {
-          auto rootlayerPairId = numberOfRootLayerPairs;
-          h_rootLayerPairs[rootlayerPairId] = i;
-          numberOfRootLayerPairs++;
+        if (rl == h_doublets_[i].innerLayerId) {
+          auto rootlayerPairId = numberOfRootLayerPairs_;
+          h_rootLayerPairs_[rootlayerPairId] = i;
+          numberOfRootLayerPairs_++;
         }
       }
 
       for (unsigned int l = 0; l < hitDoublets[index][i]->size(); ++l) {
-        auto hitId = i * maxNumberOfDoublets * 2 + 2 * l;
-        assert(maxNumberOfDoublets >= hitDoublets[index][i]->size());
-        h_indices[hitId] = hitDoublets[index][i]->innerHitId(l);
-        h_indices[hitId + 1] = hitDoublets[index][i]->outerHitId(l);
+        auto hitId = i * maxNumberOfDoublets_ * 2 + 2 * l;
+        assert(maxNumberOfDoublets_ >= hitDoublets[index][i]->size());
+        h_indices_[hitId] = hitDoublets[index][i]->innerHitId(l);
+        h_indices_[hitId + 1] = hitDoublets[index][i]->outerHitId(l);
       }
     }
 
-    for (unsigned int j = 0; j < numberOfLayers; ++j) {
-      for (unsigned int l = 0; l < h_layers[j].size; ++l) {
-        auto hitId = h_layers[j].layerId * maxNumberOfHits + l;
-        assert(h_x[hitId] != 0);
+    for (unsigned int j = 0; j < numberOfLayers_; ++j) {
+      for (unsigned int l = 0; l < h_layers_[j].size; ++l) {
+        auto hitId = h_layers_[j].layerId * maxNumberOfHits_ + l;
+        assert(h_x_[hitId] != 0);
       }
     }
 
-    for (unsigned int j = 0; j < numberOfLayerPairs; ++j) {
-      tmp_layerDoublets[j] = h_doublets[j];
-      tmp_layerDoublets[j].indices = &d_indices[j * maxNumberOfDoublets * 2];
-      cudaMemcpyAsync(&d_indices[j * maxNumberOfDoublets * 2],
-                      &h_indices[j * maxNumberOfDoublets * 2],
-                      tmp_layerDoublets[j].size * 2 * sizeof(int),
+    for (unsigned int j = 0; j < numberOfLayerPairs_; ++j) {
+      tmp_layerDoublets_[j] = h_doublets_[j];
+      tmp_layerDoublets_[j].indices = &d_indices_[j * maxNumberOfDoublets_ * 2];
+      cudaMemcpyAsync(&d_indices_[j * maxNumberOfDoublets_ * 2],
+                      &h_indices_[j * maxNumberOfDoublets_ * 2],
+                      tmp_layerDoublets_[j].size * 2 * sizeof(int),
                       cudaMemcpyHostToDevice, cudaStream_);
     }
 
-    for (unsigned int j = 0; j < numberOfLayers; ++j) {
-      tmp_layers[j] = h_layers[j];
-      tmp_layers[j].x = &d_x[maxNumberOfHits * j];
+    for (unsigned int j = 0; j < numberOfLayers_; ++j) {
+      tmp_layers_[j] = h_layers_[j];
+      tmp_layers_[j].x = &d_x_[maxNumberOfHits_ * j];
 
-      cudaMemcpyAsync(&d_x[maxNumberOfHits * j], &h_x[j * maxNumberOfHits],
-                      tmp_layers[j].size * sizeof(float),
+      cudaMemcpyAsync(&d_x_[maxNumberOfHits_ * j], &h_x_[j * maxNumberOfHits_],
+                      tmp_layers_[j].size * sizeof(float),
                       cudaMemcpyHostToDevice, cudaStream_);
 
-      tmp_layers[j].y = &d_y[maxNumberOfHits * j];
-      cudaMemcpyAsync(&d_y[maxNumberOfHits * j], &h_y[j * maxNumberOfHits],
-                      tmp_layers[j].size * sizeof(float),
+      tmp_layers_[j].y = &d_y_[maxNumberOfHits_ * j];
+      cudaMemcpyAsync(&d_y_[maxNumberOfHits_ * j], &h_y_[j * maxNumberOfHits_],
+                      tmp_layers_[j].size * sizeof(float),
                       cudaMemcpyHostToDevice, cudaStream_);
 
-      tmp_layers[j].z = &d_z[maxNumberOfHits * j];
+      tmp_layers_[j].z = &d_z_[maxNumberOfHits_ * j];
 
-      cudaMemcpyAsync(&d_z[maxNumberOfHits * j], &h_z[j * maxNumberOfHits],
-                      tmp_layers[j].size * sizeof(float),
+      cudaMemcpyAsync(&d_z_[maxNumberOfHits_ * j], &h_z_[j * maxNumberOfHits_],
+                      tmp_layers_[j].size * sizeof(float),
                       cudaMemcpyHostToDevice, cudaStream_);
     }
 
-    cudaMemcpyAsync(d_rootLayerPairs, h_rootLayerPairs,
-                    numberOfRootLayerPairs * sizeof(unsigned int),
+    cudaMemcpyAsync(d_rootLayerPairs_, h_rootLayerPairs_,
+                    numberOfRootLayerPairs_ * sizeof(unsigned int),
                     cudaMemcpyHostToDevice, cudaStream_);
-    cudaMemcpyAsync(d_doublets, tmp_layerDoublets,
-                    numberOfLayerPairs * sizeof(GPULayerDoublets),
+    cudaMemcpyAsync(d_doublets_, tmp_layerDoublets_,
+                    numberOfLayerPairs_ * sizeof(GPULayerDoublets),
                     cudaMemcpyHostToDevice, cudaStream_);
-    cudaMemcpyAsync(d_layers, tmp_layers, numberOfLayers * sizeof(GPULayerHits),
+    cudaMemcpyAsync(d_layers_, tmp_layers_, numberOfLayers_ * sizeof(GPULayerHits),
                     cudaMemcpyHostToDevice, cudaStream_);
 
     launchKernels(region, index);
@@ -367,7 +367,7 @@ void CAHitQuadrupletGeneratorGPU::fillResults(
         gps[3] = ahit->globalPosition();
         ges[3] = ahit->globalPositionError();
         barrels[3] = isBarrel(ahit->geographicalId().subdetId());
-  
+
         // TODO:
         // - if we decide to always do the circle fit for 4 hits, we don't
         //   need ThirdHitPredictionFromCircle for the curvature; then we
@@ -438,7 +438,6 @@ void CAHitQuadrupletGeneratorGPU::fillResults(
             hitDoublets[index][foundQuads[quadId][2].first]->hit(
                 foundQuads[quadId][2].second, HitDoublets::outer));
       }
-
       index++;
   }
 }

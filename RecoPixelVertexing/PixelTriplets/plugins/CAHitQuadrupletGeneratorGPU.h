@@ -149,38 +149,38 @@ private:
 
     cudaStream_t cudaStream_;
 
-    static constexpr int maxNumberOfQuadruplets = 5000;
-    static constexpr int maxCellsPerHit = 200;
-    static constexpr int maxNumberOfLayerPairs = 13;
-    static constexpr unsigned int maxNumberOfRootLayerPairs = 13;
-    static constexpr int maxNumberOfLayers = 10;
-    static constexpr int maxNumberOfDoublets = 2000;
-    static constexpr int maxNumberOfHits = 1000;
-    static constexpr int maxNumberOfRegions = 30;
+    static constexpr int maxNumberOfQuadruplets_ = 5000;
+    static constexpr int maxCellsPerHit_ = 200;
+    static constexpr int maxNumberOfLayerPairs_ = 13;
+    static constexpr unsigned int maxNumberOfRootLayerPairs_ = 13;
+    static constexpr int maxNumberOfLayers_ = 10;
+    static constexpr int maxNumberOfDoublets_ = 2000;
+    static constexpr int maxNumberOfHits_ = 1000;
+    static constexpr int maxNumberOfRegions_ = 30;
 
-    unsigned int numberOfRootLayerPairs = 0;
-    unsigned int numberOfLayerPairs = 0;
-    unsigned int numberOfLayers = 0;
+    unsigned int numberOfRootLayerPairs_ = 0;
+    unsigned int numberOfLayerPairs_ = 0;
+    unsigned int numberOfLayers_ = 0;
 
 
-    GPULayerDoublets* h_doublets;
-    GPULayerHits* h_layers;
+    GPULayerDoublets* h_doublets_;
+    GPULayerHits* h_layers_;
 
-    unsigned int* h_indices;
-    float *h_x, *h_y, *h_z;
-    float *d_x, *d_y, *d_z;
-    unsigned int* d_rootLayerPairs;
-    GPULayerHits* d_layers;
-    GPULayerDoublets* d_doublets;
-    unsigned int* d_indices;
-    unsigned int* h_rootLayerPairs;
-    std::vector< GPUSimpleVector<maxNumberOfQuadruplets, Quadruplet> *> h_foundNtuplets;
-    GPUCACell* device_theCells;
-    GPUSimpleVector<maxCellsPerHit, unsigned int>* device_isOuterHitOfCell;
-    std::vector<GPUSimpleVector<maxNumberOfQuadruplets, Quadruplet> *> d_foundNtuplets;
+    unsigned int* h_indices_;
+    float *h_x_, *h_y_, *h_z_;
+    float *d_x_, *d_y_, *d_z_;
+    unsigned int* d_rootLayerPairs_;
+    GPULayerHits* d_layers_;
+    GPULayerDoublets* d_doublets_;
+    unsigned int* d_indices_;
+    unsigned int* h_rootLayerPairs_;
+    std::vector< GPUSimpleVector<maxNumberOfQuadruplets_, Quadruplet> *> h_foundNtuplets_;
+    GPUCACell* device_theCells_;
+    GPUSimpleVector<maxCellsPerHit_, unsigned int>* device_isOuterHitOfCell_;
+    std::vector<GPUSimpleVector<maxNumberOfQuadruplets_, Quadruplet> *> d_foundNtuplets_;
 
-    GPULayerHits* tmp_layers;
-    GPULayerDoublets* tmp_layerDoublets;
+    GPULayerHits* tmp_layers_;
+    GPULayerDoublets* tmp_layerDoublets_;
 
 };
 #endif
