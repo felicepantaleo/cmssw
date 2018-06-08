@@ -55,8 +55,8 @@ private:
   CAHitQuadrupletGenerator CPUGenerator_;
 
   bool emptyRegionDoublets = false;
-  std::unique_ptr<RegionsSeedingHitSets> seedingHitSets;
-  std::vector<OrderedHitSeeds> ntuplets;
+  std::unique_ptr<RegionsSeedingHitSets> seedingHitSets_;
+  std::vector<OrderedHitSeeds> ntuplets_;
 };
 
 CAHitNtupletHeterogeneousEDProducer::CAHitNtupletHeterogeneousEDProducer(
@@ -79,7 +79,7 @@ void CAHitNtupletHeterogeneousEDProducer::fillDescriptions(
   auto label = CAHitQuadrupletGeneratorGPU::fillDescriptionsLabel() +
                std::string("EDProducer");
   descriptions.add(label, desc);
-} 
+}
 
 void CAHitNtupletHeterogeneousEDProducer::beginStreamGPUCuda(
     edm::StreamID streamId, cuda::stream_t<> &cudaStream) {
@@ -106,24 +106,24 @@ void CAHitNtupletHeterogeneousEDProducer::acquireGPUCuda(
            "HitPairEDProducer, or SeedingLayersEDProducer.";
   }
 
-  seedingHitSets = std::make_unique<RegionsSeedingHitSets>();
+  seedingHitSets_ = std::make_unique<RegionsSeedingHitSets>();
 
   if (regionDoublets.empty()) {
     emptyRegionDoublets = true;
   } else {
-    seedingHitSets->reserve(regionDoublets.regionSize(), localRA_.upper());
+    seedingHitSets_->reserve(regionDoublets.regionSize(), localRA_.upper());
     GPUGenerator_.initEvent(iEvent.event(), iSetup);
 
     LogDebug("CAHitNtupletHeterogeneousEDProducer")
-        << "Creating ntuplets for " << regionDoublets.regionSize()
+        << "Creating ntuplets_ for " << regionDoublets.regionSize()
         << " regions, and " << regionDoublets.layerPairsSize()
         << " layer pairs";
-    ntuplets.clear();
-    ntuplets.resize(regionDoublets.regionSize());
-    for (auto &ntuplet : ntuplets)
+    ntuplets_.clear();
+    ntuplets_.resize(regionDoublets.regionSize());
+    for (auto &ntuplet : ntuplets_)
       ntuplet.reserve(localRA_.upper());
 
-    GPUGenerator_.hitNtuplets(regionDoublets, ntuplets, iSetup,
+    GPUGenerator_.hitNtuplets(regionDoublets, ntuplets_, iSetup,
                               seedingLayerHits, cudaStream.id());
   }
 }
@@ -141,16 +141,16 @@ void CAHitNtupletHeterogeneousEDProducer::produceGPUCuda(
     int index = 0;
     for (const auto &regionLayerPairs : regionDoublets) {
       const TrackingRegion &region = regionLayerPairs.region();
-      auto seedingHitSetsFiller = seedingHitSets->beginRegion(&region);
-      GPUGenerator_.fillResults(regionDoublets, ntuplets, iSetup,
+      auto seedingHitSetsFiller = seedingHitSets_->beginRegion(&region);
+      GPUGenerator_.fillResults(regionDoublets, ntuplets_, iSetup,
                                 seedingLayerHits, cudaStream.id());
-      fillNtuplets(seedingHitSetsFiller, ntuplets[index]);
-      ntuplets[index].clear();
+      fillNtuplets(seedingHitSetsFiller, ntuplets_[index]);
+      ntuplets_[index].clear();
       index++;
     }
-    localRA_.update(seedingHitSets->size());
+    localRA_.update(seedingHitSets_->size());
   }
-  iEvent.put(std::move(seedingHitSets));
+  iEvent.put(std::move(seedingHitSets_));
 }
 
 void CAHitNtupletHeterogeneousEDProducer::produceCPU(
@@ -181,21 +181,21 @@ void CAHitNtupletHeterogeneousEDProducer::produceCPU(
   CPUGenerator_.initEvent(iEvent.event(), iSetup);
 
   LogDebug("CAHitNtupletEDProducer")
-      << "Creating ntuplets for " << regionDoublets.regionSize()
+      << "Creating ntuplets_ for " << regionDoublets.regionSize()
       << " regions, and " << regionDoublets.layerPairsSize() << " layer pairs";
-  std::vector<OrderedHitSeeds> ntuplets;
-  ntuplets.resize(regionDoublets.regionSize());
-  for (auto &ntuplet : ntuplets)
+  std::vector<OrderedHitSeeds> ntuplets_;
+  ntuplets_.resize(regionDoublets.regionSize());
+  for (auto &ntuplet : ntuplets_)
     ntuplet.reserve(localRA_.upper());
 
-  CPUGenerator_.hitNtuplets(regionDoublets, ntuplets, iSetup, seedingLayerHits);
+  CPUGenerator_.hitNtuplets(regionDoublets, ntuplets_, iSetup, seedingLayerHits);
   int index = 0;
   for (const auto &regionLayerPairs : regionDoublets) {
     const TrackingRegion &region = regionLayerPairs.region();
     auto seedingHitSetsFiller = seedingHitSets->beginRegion(&region);
 
-    fillNtuplets(seedingHitSetsFiller, ntuplets[index]);
-    ntuplets[index].clear();
+    fillNtuplets(seedingHitSetsFiller, ntuplets_[index]);
+    ntuplets_[index].clear();
     index++;
   }
   localRA_.update(seedingHitSets->size());
