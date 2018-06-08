@@ -145,7 +145,6 @@ void fillGraph(const SeedingLayerSetsHits &layers,
       }
 
       if (j > 0) {
-
         auto innerVertex = std::find(g.theLayers.begin(), g.theLayers.end(),
                                      layers[i][j - 1].name());
 
@@ -176,20 +175,6 @@ void fillGraph(const SeedingLayerSetsHits &layers,
     }
   }
 
-  //   std::cout << "number of layer pairs " << hitDoublets.size() << std::endl;
-  //
-  // for (unsigned int i = 0; i < hitDoublets.size(); ++i) {
-  //   std::cout << i << " " << hitDoublets[i]->size() << std::endl;
-  // }
-  //
-  // for (unsigned int i = 0; i < g.theLayerPairs.size(); ++i) {
-  //   std::cout << "layer pair " << i << " "
-  //             << g.theLayers[g.theLayerPairs[i].theLayers[0]].name()
-  //             << " hits: " << hitDoublets[i]->innerLayer().size() << " and "
-  //             << g.theLayers[g.theLayerPairs[i].theLayers[1]].name()
-  //             << " hits: " << hitDoublets[i]->outerLayer().size() <<
-  //             std::endl;
-  // }
 }
 } // namespace
 
@@ -348,113 +333,112 @@ void CAHitQuadrupletGeneratorGPU::fillResults(
     for (const auto &regionLayerPairs : regionDoublets) {
       const TrackingRegion &region = regionLayerPairs.region();
       auto foundQuads = fetchKernelResult(index);
-      std::cout << foundQuads.size() << " found quads" << std::endl;
-    unsigned int numberOfFoundQuadruplets = foundQuads.size();
-    const QuantityDependsPtEval maxChi2Eval = maxChi2.evaluator(es);
+      unsigned int numberOfFoundQuadruplets = foundQuads.size();
+      const QuantityDependsPtEval maxChi2Eval = maxChi2.evaluator(es);
 
-    // re-used thoughout
-    std::array<float, 4> bc_r;
-    std::array<float, 4> bc_z;
-    std::array<float, 4> bc_errZ2;
-    std::array<GlobalPoint, 4> gps;
-    std::array<GlobalError, 4> ges;
-    std::array<bool, 4> barrels;
+      // re-used thoughout
+      std::array<float, 4> bc_r;
+      std::array<float, 4> bc_z;
+      std::array<float, 4> bc_errZ2;
+      std::array<GlobalPoint, 4> gps;
+      std::array<GlobalError, 4> ges;
+      std::array<bool, 4> barrels;
+      // Loop over quadruplets
+      for (unsigned int quadId = 0; quadId < numberOfFoundQuadruplets; ++quadId) {
+        auto isBarrel = [](const unsigned id) -> bool {
+          return id == PixelSubdetector::PixelBarrel;
+        };
+        for (unsigned int i = 0; i < 3; ++i) {
+          auto layerPair = foundQuads[quadId][i].first;
+          auto doubletId = foundQuads[quadId][i].second;
 
-    // Loop over quadruplets
-    for (unsigned int quadId = 0; quadId < numberOfFoundQuadruplets; ++quadId) {
+          auto const &ahit =
+              hitDoublets[index][layerPair]->hit(doubletId, HitDoublets::inner);
+          gps[i] = ahit->globalPosition();
+          ges[i] = ahit->globalPositionError();
+          barrels[i] = isBarrel(ahit->geographicalId().subdetId());
 
-      auto isBarrel = [](const unsigned id) -> bool {
-        return id == PixelSubdetector::PixelBarrel;
-      };
-      for (unsigned int i = 0; i < 3; ++i) {
-        auto layerPair = foundQuads[quadId][i].first;
-        auto doubletId = foundQuads[quadId][i].second;
+        }
+        auto layerPair = foundQuads[quadId][2].first;
+        auto doubletId = foundQuads[quadId][2].second;
 
         auto const &ahit =
-            hitDoublets[index][layerPair]->hit(doubletId, HitDoublets::inner);
-        gps[i] = ahit->globalPosition();
-        ges[i] = ahit->globalPositionError();
-        barrels[i] = isBarrel(ahit->geographicalId().subdetId());
-      }
-      auto layerPair = foundQuads[quadId][2].first;
-      auto doubletId = foundQuads[quadId][2].second;
+            hitDoublets[index][layerPair]->hit(doubletId, HitDoublets::outer);
+        gps[3] = ahit->globalPosition();
+        ges[3] = ahit->globalPositionError();
+        barrels[3] = isBarrel(ahit->geographicalId().subdetId());
+  
+        // TODO:
+        // - if we decide to always do the circle fit for 4 hits, we don't
+        //   need ThirdHitPredictionFromCircle for the curvature; then we
+        //   could remove extraHitRPhitolerance configuration parameter
+        ThirdHitPredictionFromCircle predictionRPhi(gps[0], gps[2],
+                                                    extraHitRPhitolerance);
+        const float curvature = predictionRPhi.curvature(
+            ThirdHitPredictionFromCircle::Vector2D(gps[1].x(), gps[1].y()));
+        const float abscurv = std::abs(curvature);
+        const float thisMaxChi2 = maxChi2Eval.value(abscurv);
+        if (theComparitor) {
+          SeedingHitSet tmpTriplet(
+              hitDoublets[index][foundQuads[quadId][0].first]->hit(
+                  foundQuads[quadId][0].second, HitDoublets::inner),
+              hitDoublets[index][foundQuads[quadId][2].first]->hit(
+                  foundQuads[quadId][2].second, HitDoublets::inner),
+              hitDoublets[index][foundQuads[quadId][2].first]->hit(
+                  foundQuads[quadId][2].second, HitDoublets::outer));
+          if (!theComparitor->compatible(tmpTriplet)) {
+            continue;
+          }
+        }
 
-      auto const &ahit =
-          hitDoublets[index][layerPair]->hit(doubletId, HitDoublets::outer);
-      gps[3] = ahit->globalPosition();
-      ges[3] = ahit->globalPositionError();
-      barrels[3] = isBarrel(ahit->geographicalId().subdetId());
-      // TODO:
-      // - if we decide to always do the circle fit for 4 hits, we don't
-      //   need ThirdHitPredictionFromCircle for the curvature; then we
-      //   could remove extraHitRPhitolerance configuration parameter
-      ThirdHitPredictionFromCircle predictionRPhi(gps[0], gps[2],
-                                                  extraHitRPhitolerance);
-      const float curvature = predictionRPhi.curvature(
-          ThirdHitPredictionFromCircle::Vector2D(gps[1].x(), gps[1].y()));
-      const float abscurv = std::abs(curvature);
-      const float thisMaxChi2 = maxChi2Eval.value(abscurv);
-      if (theComparitor) {
-        SeedingHitSet tmpTriplet(
+        float chi2 = std::numeric_limits<float>::quiet_NaN();
+        // TODO: Do we have any use case to not use bending correction?
+        if (useBendingCorrection) {
+          // Following PixelFitterByConformalMappingAndLine
+          const float simpleCot = (gps.back().z() - gps.front().z()) /
+                                  (gps.back().perp() - gps.front().perp());
+          const float pt = 1.f / PixelRecoUtilities::inversePt(abscurv, es);
+          for (int i = 0; i < 4; ++i) {
+            const GlobalPoint &point = gps[i];
+            const GlobalError &error = ges[i];
+            bc_r[i] = sqrt(sqr(point.x() - region.origin().x()) +
+                           sqr(point.y() - region.origin().y()));
+            bc_r[i] += pixelrecoutilities::LongitudinalBendingCorrection(pt, es)(
+                bc_r[i]);
+            bc_z[i] = point.z() - region.origin().z();
+            bc_errZ2[i] =
+                (barrels[i]) ? error.czz() : error.rerr(point) * sqr(simpleCot);
+          }
+          RZLine rzLine(bc_r, bc_z, bc_errZ2, RZLine::ErrZ2_tag());
+          chi2 = rzLine.chi2();
+        } else {
+          RZLine rzLine(gps, ges, barrels);
+          chi2 = rzLine.chi2();
+        }
+        if (edm::isNotFinite(chi2) || chi2 > thisMaxChi2) {
+          continue;
+        }
+        // TODO: Do we have any use case to not use circle fit? Maybe
+        // HLT where low-pT inefficiency is not a problem?
+        if (fitFastCircle) {
+          FastCircleFit c(gps, ges);
+          chi2 += c.chi2();
+          if (edm::isNotFinite(chi2))
+            continue;
+          if (fitFastCircleChi2Cut && chi2 > thisMaxChi2)
+            continue;
+        }
+        result[index].emplace_back(
             hitDoublets[index][foundQuads[quadId][0].first]->hit(
                 foundQuads[quadId][0].second, HitDoublets::inner),
+            hitDoublets[index][foundQuads[quadId][1].first]->hit(
+                foundQuads[quadId][1].second, HitDoublets::inner),
             hitDoublets[index][foundQuads[quadId][2].first]->hit(
                 foundQuads[quadId][2].second, HitDoublets::inner),
             hitDoublets[index][foundQuads[quadId][2].first]->hit(
                 foundQuads[quadId][2].second, HitDoublets::outer));
-        if (!theComparitor->compatible(tmpTriplet)) {
-          continue;
-        }
       }
 
-      float chi2 = std::numeric_limits<float>::quiet_NaN();
-      // TODO: Do we have any use case to not use bending correction?
-      if (useBendingCorrection) {
-        // Following PixelFitterByConformalMappingAndLine
-        const float simpleCot = (gps.back().z() - gps.front().z()) /
-                                (gps.back().perp() - gps.front().perp());
-        const float pt = 1.f / PixelRecoUtilities::inversePt(abscurv, es);
-        for (int i = 0; i < 4; ++i) {
-          const GlobalPoint &point = gps[i];
-          const GlobalError &error = ges[i];
-          bc_r[i] = sqrt(sqr(point.x() - region.origin().x()) +
-                         sqr(point.y() - region.origin().y()));
-          bc_r[i] += pixelrecoutilities::LongitudinalBendingCorrection(pt, es)(
-              bc_r[i]);
-          bc_z[i] = point.z() - region.origin().z();
-          bc_errZ2[i] =
-              (barrels[i]) ? error.czz() : error.rerr(point) * sqr(simpleCot);
-        }
-        RZLine rzLine(bc_r, bc_z, bc_errZ2, RZLine::ErrZ2_tag());
-        chi2 = rzLine.chi2();
-      } else {
-        RZLine rzLine(gps, ges, barrels);
-        chi2 = rzLine.chi2();
-      }
-      if (edm::isNotFinite(chi2) || chi2 > thisMaxChi2) {
-        continue;
-      }
-      // TODO: Do we have any use case to not use circle fit? Maybe
-      // HLT where low-pT inefficiency is not a problem?
-      if (fitFastCircle) {
-        FastCircleFit c(gps, ges);
-        chi2 += c.chi2();
-        if (edm::isNotFinite(chi2))
-          continue;
-        if (fitFastCircleChi2Cut && chi2 > thisMaxChi2)
-          continue;
-      }
-      result[index].emplace_back(
-          hitDoublets[index][foundQuads[quadId][0].first]->hit(
-              foundQuads[quadId][0].second, HitDoublets::inner),
-          hitDoublets[index][foundQuads[quadId][1].first]->hit(
-              foundQuads[quadId][1].second, HitDoublets::inner),
-          hitDoublets[index][foundQuads[quadId][2].first]->hit(
-              foundQuads[quadId][2].second, HitDoublets::inner),
-          hitDoublets[index][foundQuads[quadId][2].first]->hit(
-              foundQuads[quadId][2].second, HitDoublets::outer));
-    }
-
-    index++;
+      index++;
   }
 }
