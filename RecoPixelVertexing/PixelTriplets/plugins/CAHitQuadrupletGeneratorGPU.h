@@ -20,6 +20,7 @@
 
 #include "RecoTracker/TkHitPairs/interface/IntermediateHitDoublets.h"
 #include "RecoPixelVertexing/PixelTriplets/interface/OrderedHitSeeds.h"
+#include "GPUCACell.h"
 
 class TrackingRegion;
 class SeedingLayerSetsHits;
@@ -173,14 +174,11 @@ private:
     GPULayerDoublets* d_doublets;
     unsigned int* d_indices;
     unsigned int* h_rootLayerPairs;
-    // GPUSimpleVector<maxNumberOfQuadruplets, Quadruplet> * h_foundNtuplets;
-    // GPUCACell* device_theCells;
-    // GPUSimpleVector<maxCellsPerHit, unsigned int>* device_isOuterHitOfCell;
-    // GPUSimpleVector<maxNumberOfQuadruplets, Quadruplet> * d_foundNtuplets;
-    std::vector<void*> h_foundNtuplets;
-    void* device_theCells;
-    void* device_isOuterHitOfCell;
-    std::vector<void*> d_foundNtuplets;
+    std::vector< GPUSimpleVector<maxNumberOfQuadruplets, Quadruplet> *> h_foundNtuplets;
+    GPUCACell* device_theCells;
+    GPUSimpleVector<maxCellsPerHit, unsigned int>* device_isOuterHitOfCell;
+    std::vector<GPUSimpleVector<maxNumberOfQuadruplets, Quadruplet> *> d_foundNtuplets;
+
     GPULayerHits* tmp_layers;
     GPULayerDoublets* tmp_layerDoublets;
 
