@@ -486,6 +486,5 @@ CAHitQuadrupletGeneratorGPU::fetchKernelResult(int regionIndex) {
                                 (*h_foundNtupletsVec_[regionIndex])[i].layerPairsAndCellId[2].x)}};
     quadsInterface.push_back(tmpQuad);
   }
-  std::cout << h_foundNtupletsVec_[regionIndex]->size() << std::endl;
   return quadsInterface;
 }
