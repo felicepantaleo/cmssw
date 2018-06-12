@@ -6,6 +6,7 @@
 
 #include "GPUHitsAndDoublets.h"
 #include "GPUSimpleVector.h"
+#include "HeterogeneousCore/CUDAUtilities/interface/GPUSimpleVector.h"
 #include <cuda.h>
 struct Quadruplet {
   int2 layerPairsAndCellId[3];
@@ -22,9 +23,6 @@ public:
 
     theInnerHitId = innerHitId;
     theOuterHitId = outerHitId;
-
-    theDoublets = doublets;
-
     theDoubletId = doubletId;
     theLayerPairId = layerPairId;
 
@@ -189,11 +187,11 @@ public:
 
   // trying to free the track building process from hardcoded layers, leaving
   // the visit of the graph based on the neighborhood connections between cells.
+  #if defined(__NVCC__) || defined(__CUDACC__)
 
-  template <int maxNumberOfQuadruplets>
   __device__ inline void find_ntuplets(
       const GPUCACell *cells,
-      GPUSimpleVector<maxNumberOfQuadruplets, Quadruplet> *foundNtuplets,
+      GPU::SimpleVector<Quadruplet> *foundNtuplets,
       GPUSimpleVector<3, unsigned int> &tmpNtuplet,
       const unsigned int minHitsPerNtuplet) const {
 
@@ -202,22 +200,21 @@ public:
     // it has no compatible neighbor
     // the ntuplets is then saved if the number of hits it contains is greater
     // than a threshold
-    Quadruplet tmpQuadruplet;
 
-    if (tmpNtuplet.size() >= minHitsPerNtuplet - 1) {
-            for (int i = 0; i < minHitsPerNtuplet - 1; ++i) {
-        tmpQuadruplet.layerPairsAndCellId[i].x =
-            cells[tmpNtuplet.m_data[i]].theLayerPairId;
+
+    if ((unsigned int)(tmpNtuplet.size()) >= minHitsPerNtuplet - 1) {
+      Quadruplet tmpQuadruplet;
+      for (unsigned int i = 0; i < minHitsPerNtuplet - 1; ++i) {
+        tmpQuadruplet.layerPairsAndCellId[i].x = cells[tmpNtuplet.m_data[i]].theLayerPairId;
         tmpQuadruplet.layerPairsAndCellId[i].y = tmpNtuplet.m_data[i];
       }
-      foundNtuplets->push_back_ts(tmpQuadruplet);
+      foundNtuplets->push_back(tmpQuadruplet);
 
     }
 
     else {
 
       for (int j = 0; j < theOuterNeighbors.size(); ++j) {
-
         auto otherCell = theOuterNeighbors.m_data[j];
         tmpNtuplet.push_back(otherCell);
         cells[otherCell].find_ntuplets(cells, foundNtuplets, tmpNtuplet,
@@ -228,6 +225,7 @@ public:
     }
   }
 
+#endif
   template <int maxNumberOfQuadruplets>
   __host__ inline void find_ntuplets_host(
       const GPUCACell *cells,
@@ -265,7 +263,6 @@ public:
 private:
   unsigned int theInnerHitId;
   unsigned int theOuterHitId;
-  const GPULayerDoublets *theDoublets;
   float theInnerX;
   float theOuterX;
   float theInnerY;

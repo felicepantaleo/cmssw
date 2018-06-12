@@ -20,6 +20,7 @@
 
 #include "RecoTracker/TkHitPairs/interface/IntermediateHitDoublets.h"
 #include "RecoPixelVertexing/PixelTriplets/interface/OrderedHitSeeds.h"
+#include "HeterogeneousCore/CUDAUtilities/interface/GPUSimpleVector.h"
 #include "GPUCACell.h"
 
 class TrackingRegion;
@@ -174,10 +175,20 @@ private:
     GPULayerDoublets* d_doublets_;
     unsigned int* d_indices_;
     unsigned int* h_rootLayerPairs_;
-    std::vector< GPUSimpleVector<maxNumberOfQuadruplets_, Quadruplet> *> h_foundNtuplets_;
+    std::vector< GPU::SimpleVector<Quadruplet>* > h_foundNtupletsVec_;
+    std::vector< Quadruplet* > h_foundNtupletsData_;
+
+
+    std::vector<GPU::SimpleVector<Quadruplet>*> d_foundNtupletsVec_;
+    std::vector<GPU::SimpleVector<Quadruplet>*> tmp_foundNtupletsVec_;
+
+    std::vector<Quadruplet*> d_foundNtupletsData_;
+
+
+    // std::vector< GPUSimpleVector<maxNumberOfQuadruplets_, Quadruplet> *> h_foundNtuplets_;
     GPUCACell* device_theCells_;
     GPUSimpleVector<maxCellsPerHit_, unsigned int>* device_isOuterHitOfCell_;
-    std::vector<GPUSimpleVector<maxNumberOfQuadruplets_, Quadruplet> *> d_foundNtuplets_;
+    // std::vector<GPUSimpleVector<maxNumberOfQuadruplets_, Quadruplet> *> d_foundNtuplets_;
 
     GPULayerHits* tmp_layers_;
     GPULayerDoublets* tmp_layerDoublets_;

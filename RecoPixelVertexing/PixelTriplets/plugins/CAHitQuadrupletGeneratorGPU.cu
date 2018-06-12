@@ -2,16 +2,16 @@
 // Author: Felice Pantaleo, CERN
 //
 
-#include "CAHitQuadrupletGeneratorGPU.h"
+#include "HeterogeneousCore/CUDAUtilities/interface/cudaCheck.h"
 #include "GPUCACell.h"
+#include "CAHitQuadrupletGeneratorGPU.h"
 
-template <int maxNumberOfQuadruplets_>
 __global__ void
 kernel_debug(unsigned int numberOfLayerPairs_, unsigned int numberOfLayers_,
              const GPULayerDoublets *gpuDoublets,
              const GPULayerHits *gpuHitsOnLayers, GPUCACell *cells,
              GPUSimpleVector<200, unsigned int> *isOuterHitOfCell,
-             GPUSimpleVector<maxNumberOfQuadruplets_, Quadruplet> *foundNtuplets,
+             GPU::SimpleVector<Quadruplet> *foundNtuplets,
              float ptmin, float region_origin_x, float region_origin_y,
              float region_origin_radius, const float thetaCut,
              const float phiCut, const float hardPtCut,
@@ -237,12 +237,11 @@ __global__ void kernel_debug_find_ntuplets(
   }
 }
 
-template <int maxNumberOfQuadruplets_>
 __global__ void kernel_create(
     const unsigned int numberOfLayerPairs_, const GPULayerDoublets *gpuDoublets,
     const GPULayerHits *gpuHitsOnLayers, GPUCACell *cells,
     GPUSimpleVector<200, unsigned int> *isOuterHitOfCell,
-    GPUSimpleVector<maxNumberOfQuadruplets_, Quadruplet> *foundNtuplets,
+    GPU::SimpleVector<Quadruplet> *foundNtuplets,
     const float region_origin_x, const float region_origin_y,
     unsigned int maxNumberOfDoublets_, unsigned int maxNumberOfHits_) {
 
@@ -310,11 +309,10 @@ kernel_connect(unsigned int numberOfLayerPairs_,
   }
 }
 
-template <int maxNumberOfQuadruplets_>
 __global__ void kernel_find_ntuplets(
     unsigned int numberOfRootLayerPairs_, const GPULayerDoublets *gpuDoublets,
     GPUCACell *cells,
-    GPUSimpleVector<maxNumberOfQuadruplets_, Quadruplet> *foundNtuplets,
+    GPU::SimpleVector<Quadruplet> *foundNtuplets,
     unsigned int *rootLayerPairs, unsigned int minHitsPerNtuplet,
     unsigned int maxNumberOfDoublets_) {
 
@@ -337,7 +335,6 @@ __global__ void kernel_find_ntuplets(
 }
 
 void CAHitQuadrupletGeneratorGPU::deallocateOnGPU() {
-  cudaStreamDestroy(cudaStream_);
 
   cudaFreeHost(h_indices_);
   cudaFreeHost(h_doublets_);
@@ -346,7 +343,13 @@ void CAHitQuadrupletGeneratorGPU::deallocateOnGPU() {
   cudaFreeHost(h_z_);
   cudaFreeHost(h_rootLayerPairs_);
   for (int i = 0; i < maxNumberOfRegions_; ++i)
-    cudaFreeHost(h_foundNtuplets_[i]);
+  {
+    cudaFreeHost(h_foundNtupletsVec_[i]);
+    cudaFreeHost(h_foundNtupletsData_[i]);
+    cudaFreeHost(tmp_foundNtupletsVec_[i]);
+    cudaFree(d_foundNtupletsVec_[i]);
+    cudaFree(d_foundNtupletsData_[i]);
+  }
   cudaFreeHost(tmp_layers_);
   cudaFreeHost(tmp_layerDoublets_);
   cudaFreeHost(h_layers_);
@@ -359,14 +362,10 @@ void CAHitQuadrupletGeneratorGPU::deallocateOnGPU() {
   cudaFree(d_rootLayerPairs_);
   cudaFree(device_theCells_);
   cudaFree(device_isOuterHitOfCell_);
-  for (int i = 0; i < maxNumberOfRegions_; ++i)
-    cudaFree(d_foundNtuplets_[i]);
 }
 
 void CAHitQuadrupletGeneratorGPU::allocateOnGPU() {
-  cudaStreamCreateWithFlags(&cudaStream_, cudaStreamNonBlocking);
-
-  cudaMallocHost(&h_doublets_, maxNumberOfLayerPairs_ * sizeof(GPULayerDoublets));
+  cudaCheck(cudaMallocHost(&h_doublets_, maxNumberOfLayerPairs_ * sizeof(GPULayerDoublets)));
 
   cudaMallocHost(&h_indices_,
                  maxNumberOfLayerPairs_ * maxNumberOfDoublets_ * 2 * sizeof(int));
@@ -388,22 +387,36 @@ void CAHitQuadrupletGeneratorGPU::allocateOnGPU() {
   // ALLOCATIONS FOR THE INTERMEDIATE RESULTS (STAYS ON WORKER)
   //////////////////////////////////////////////////////////
 
-  cudaMalloc(&device_theCells_,
-             maxNumberOfLayerPairs_ * maxNumberOfDoublets_ * sizeof(GPUCACell));
+  cudaCheck(cudaMalloc(&device_theCells_,
+             maxNumberOfLayerPairs_ * maxNumberOfDoublets_ * sizeof(GPUCACell)));
 
-  cudaMalloc(&device_isOuterHitOfCell_,
+  cudaCheck(cudaMalloc(&device_isOuterHitOfCell_,
              maxNumberOfLayers_ * maxNumberOfHits_ *
-                 sizeof(GPUSimpleVector<maxCellsPerHit_, unsigned int>));
-  cudaMemset(device_isOuterHitOfCell_, 0,
+                 sizeof(GPUSimpleVector<maxCellsPerHit_, unsigned int>)));
+  cudaCheck(cudaMemset(device_isOuterHitOfCell_, 0,
              maxNumberOfLayers_ * maxNumberOfHits_ *
-                 sizeof(GPUSimpleVector<maxCellsPerHit_, unsigned int>));
-  h_foundNtuplets_.resize(maxNumberOfRegions_);
-  d_foundNtuplets_.resize(maxNumberOfRegions_);
+                 sizeof(GPUSimpleVector<maxCellsPerHit_, unsigned int>)));
+
+  h_foundNtupletsVec_.resize(maxNumberOfRegions_);
+  h_foundNtupletsData_.resize(maxNumberOfRegions_);
+  d_foundNtupletsVec_.resize(maxNumberOfRegions_);
+  d_foundNtupletsData_.resize(maxNumberOfRegions_);
+  tmp_foundNtupletsVec_.resize(maxNumberOfRegions_);
+
   for (int i = 0; i < maxNumberOfRegions_; ++i) {
-    cudaMalloc(&d_foundNtuplets_[i],
-               sizeof(GPUSimpleVector<maxNumberOfQuadruplets_, Quadruplet>));
-    cudaMallocHost(&h_foundNtuplets_[i],
-                   sizeof(GPUSimpleVector<maxNumberOfQuadruplets_, Quadruplet>));
+    cudaCheck(cudaMalloc(&d_foundNtupletsVec_[i],
+               sizeof(GPU::SimpleVector<Quadruplet>)));
+    cudaCheck(cudaMalloc(&d_foundNtupletsData_[i], sizeof(Quadruplet)*maxNumberOfQuadruplets_));
+    cudaCheck(cudaMallocHost(&h_foundNtupletsVec_[i],
+                   sizeof(GPU::SimpleVector<Quadruplet>)));
+    cudaCheck(cudaMallocHost(&h_foundNtupletsData_[i], sizeof(Quadruplet)*maxNumberOfQuadruplets_));
+    cudaCheck(cudaMallocHost(&tmp_foundNtupletsVec_[i],
+                   sizeof(GPU::SimpleVector<Quadruplet>)));
+    new (h_foundNtupletsVec_[i]) GPU::SimpleVector<Quadruplet>(maxNumberOfQuadruplets_, h_foundNtupletsData_[i]);
+    new (tmp_foundNtupletsVec_[i]) GPU::SimpleVector<Quadruplet>(maxNumberOfQuadruplets_, d_foundNtupletsData_[i]);
+
+    cudaMemcpy(d_foundNtupletsVec_[i], tmp_foundNtupletsVec_[i], sizeof(GPU::SimpleVector<Quadruplet>), cudaMemcpyDefault);
+
   }
 
   cudaMallocHost(&tmp_layers_, maxNumberOfLayers_ * sizeof(GPULayerHits));
@@ -419,10 +432,10 @@ void CAHitQuadrupletGeneratorGPU::launchKernels(const TrackingRegion &region,
   dim3 numberOfBlocks_create(32, numberOfLayerPairs_);
   dim3 numberOfBlocks_connect(16, numberOfLayerPairs_);
   dim3 numberOfBlocks_find(8, numberOfRootLayerPairs_);
-  h_foundNtuplets_[regionIndex]->reset();
+  h_foundNtupletsVec_[regionIndex]->reset();
   kernel_create<<<numberOfBlocks_create, 32, 0, cudaStream_>>>(
       numberOfLayerPairs_, d_doublets_, d_layers_, device_theCells_,
-      device_isOuterHitOfCell_, d_foundNtuplets_[regionIndex],
+      device_isOuterHitOfCell_, d_foundNtupletsVec_[regionIndex],
       region.origin().x(), region.origin().y(), maxNumberOfDoublets_,
       maxNumberOfHits_);
 
@@ -435,12 +448,16 @@ void CAHitQuadrupletGeneratorGPU::launchKernels(const TrackingRegion &region,
 
   kernel_find_ntuplets<<<numberOfBlocks_find, 1024, 0, cudaStream_>>>(
       numberOfRootLayerPairs_, d_doublets_, device_theCells_,
-      d_foundNtuplets_[regionIndex],
+      d_foundNtupletsVec_[regionIndex],
       d_rootLayerPairs_, 4, maxNumberOfDoublets_);
 
-  cudaMemcpyAsync(h_foundNtuplets_[regionIndex], d_foundNtuplets_[regionIndex],
-                  sizeof(GPUSimpleVector<maxNumberOfQuadruplets_, Quadruplet>),
+  cudaMemcpyAsync(h_foundNtupletsVec_[regionIndex], d_foundNtupletsVec_[regionIndex],
+                  sizeof(GPU::SimpleVector<Quadruplet>),
                   cudaMemcpyDeviceToHost, cudaStream_);
+  cudaMemcpyAsync(h_foundNtupletsData_[regionIndex], d_foundNtupletsData_[regionIndex],
+                                  h_foundNtupletsVec_[regionIndex]->size()*sizeof(Quadruplet),
+                                  cudaMemcpyDeviceToHost, cudaStream_);
+
 }
 
 std::vector<std::array<std::pair<int, int>, 3>>
@@ -452,23 +469,23 @@ CAHitQuadrupletGeneratorGPU::fetchKernelResult(int regionIndex) {
                   cudaStream_);
 
   std::vector<std::array<std::pair<int, int>, 3>> quadsInterface;
-
-  for (int i = 0; i < h_foundNtuplets_[regionIndex]->size(); ++i) {
+  h_foundNtupletsVec_[regionIndex]->set_data(h_foundNtupletsData_[regionIndex]);
+  for (int i = 0; i < h_foundNtupletsVec_[regionIndex]->size(); ++i) {
     std::array<std::pair<int, int>, 3> tmpQuad = {
-        {std::make_pair(h_foundNtuplets_[regionIndex]->m_data[i].layerPairsAndCellId[0].x,
-                        h_foundNtuplets_[regionIndex]->m_data[i].layerPairsAndCellId[0].y -
+        {std::make_pair((*h_foundNtupletsVec_[regionIndex])[i].layerPairsAndCellId[0].x,
+                        (*h_foundNtupletsVec_[regionIndex])[i].layerPairsAndCellId[0].y -
                             maxNumberOfDoublets_ *
-                                h_foundNtuplets_[regionIndex]->m_data[i].layerPairsAndCellId[0].x),
-         std::make_pair(h_foundNtuplets_[regionIndex]->m_data[i].layerPairsAndCellId[1].x,
-                        h_foundNtuplets_[regionIndex]->m_data[i].layerPairsAndCellId[1].y -
+                                (*h_foundNtupletsVec_[regionIndex])[i].layerPairsAndCellId[0].x),
+         std::make_pair((*h_foundNtupletsVec_[regionIndex])[i].layerPairsAndCellId[1].x,
+                        (*h_foundNtupletsVec_[regionIndex])[i].layerPairsAndCellId[1].y -
                             maxNumberOfDoublets_ *
-                                h_foundNtuplets_[regionIndex]->m_data[i].layerPairsAndCellId[1].x),
-         std::make_pair(h_foundNtuplets_[regionIndex]->m_data[i].layerPairsAndCellId[2].x,
-                        h_foundNtuplets_[regionIndex]->m_data[i].layerPairsAndCellId[2].y -
+                                (*h_foundNtupletsVec_[regionIndex])[i].layerPairsAndCellId[1].x),
+         std::make_pair((*h_foundNtupletsVec_[regionIndex])[i].layerPairsAndCellId[2].x,
+                        (*h_foundNtupletsVec_[regionIndex])[i].layerPairsAndCellId[2].y -
                             maxNumberOfDoublets_ *
-                                h_foundNtuplets_[regionIndex]->m_data[i].layerPairsAndCellId[2].x)}};
+                                (*h_foundNtupletsVec_[regionIndex])[i].layerPairsAndCellId[2].x)}};
     quadsInterface.push_back(tmpQuad);
   }
-
+  std::cout << h_foundNtupletsVec_[regionIndex]->size() << std::endl;
   return quadsInterface;
 }
