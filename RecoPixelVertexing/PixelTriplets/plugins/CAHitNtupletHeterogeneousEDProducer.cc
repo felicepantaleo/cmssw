@@ -76,8 +76,7 @@ void CAHitNtupletHeterogeneousEDProducer::fillDescriptions(
   desc.add<edm::InputTag>("doublets", edm::InputTag("hitPairEDProducer"));
   CAHitQuadrupletGeneratorGPU::fillDescriptions(desc);
   HeterogeneousEDProducer::fillPSetDescription(desc);
-  auto label = CAHitQuadrupletGeneratorGPU::fillDescriptionsLabel() +
-               std::string("EDProducer");
+  auto label = "caHitQuadrupletHeterogeneousEDProducer";
   descriptions.add(label, desc);
 }
 
