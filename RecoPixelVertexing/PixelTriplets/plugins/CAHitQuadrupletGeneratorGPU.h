@@ -184,11 +184,8 @@ private:
 
     std::vector<Quadruplet*> d_foundNtupletsData_;
 
-
-    // std::vector< GPUSimpleVector<maxNumberOfQuadruplets_, Quadruplet> *> h_foundNtuplets_;
     GPUCACell* device_theCells_;
-    GPUSimpleVector<maxCellsPerHit_, unsigned int>* device_isOuterHitOfCell_;
-    // std::vector<GPUSimpleVector<maxNumberOfQuadruplets_, Quadruplet> *> d_foundNtuplets_;
+    GPU::VecArray< unsigned int, maxCellsPerHit_>* device_isOuterHitOfCell_;
 
     GPULayerHits* tmp_layers_;
     GPULayerDoublets* tmp_layerDoublets_;
