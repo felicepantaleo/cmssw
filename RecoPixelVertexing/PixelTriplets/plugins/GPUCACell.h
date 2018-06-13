@@ -5,7 +5,7 @@
 #define GPU_CACELL_H_
 
 #include "GPUHitsAndDoublets.h"
-#include "GPUSimpleVector.h"
+#include "HeterogeneousCore/CUDAUtilities/interface/GPUVecArray.h"
 #include "HeterogeneousCore/CUDAUtilities/interface/GPUSimpleVector.h"
 #include <cuda.h>
 struct Quadruplet {
@@ -192,7 +192,7 @@ public:
   __device__ inline void find_ntuplets(
       const GPUCACell *cells,
       GPU::SimpleVector<Quadruplet> *foundNtuplets,
-      GPUSimpleVector<3, unsigned int> &tmpNtuplet,
+      GPU::VecArray<unsigned int,3> &tmpNtuplet,
       const unsigned int minHitsPerNtuplet) const {
 
     // the building process for a track ends if:
@@ -205,8 +205,8 @@ public:
     if ((unsigned int)(tmpNtuplet.size()) >= minHitsPerNtuplet - 1) {
       Quadruplet tmpQuadruplet;
       for (unsigned int i = 0; i < minHitsPerNtuplet - 1; ++i) {
-        tmpQuadruplet.layerPairsAndCellId[i].x = cells[tmpNtuplet.m_data[i]].theLayerPairId;
-        tmpQuadruplet.layerPairsAndCellId[i].y = tmpNtuplet.m_data[i];
+        tmpQuadruplet.layerPairsAndCellId[i].x = cells[tmpNtuplet[i]].theLayerPairId;
+        tmpQuadruplet.layerPairsAndCellId[i].y = tmpNtuplet[i];
       }
       foundNtuplets->push_back(tmpQuadruplet);
 
@@ -215,8 +215,8 @@ public:
     else {
 
       for (int j = 0; j < theOuterNeighbors.size(); ++j) {
-        auto otherCell = theOuterNeighbors.m_data[j];
-        tmpNtuplet.push_back(otherCell);
+        auto otherCell = theOuterNeighbors[j];
+        tmpNtuplet.push_back_unsafe(otherCell);
         cells[otherCell].find_ntuplets(cells, foundNtuplets, tmpNtuplet,
                                        minHitsPerNtuplet);
 
@@ -229,16 +229,16 @@ public:
   template <int maxNumberOfQuadruplets>
   __host__ inline void find_ntuplets_host(
       const GPUCACell *cells,
-      GPUSimpleVector<maxNumberOfQuadruplets, Quadruplet> *foundNtuplets,
-      GPUSimpleVector<3, unsigned int> &tmpNtuplet,
+      GPU::VecArray<Quadruplet, maxNumberOfQuadruplets> *foundNtuplets,
+      GPU::VecArray<unsigned int, 3> &tmpNtuplet,
       const unsigned int minHitsPerNtuplet) const {
 
     Quadruplet tmpQuadruplet;
     if (tmpNtuplet.size() >= minHitsPerNtuplet - 1) {
       for (int i = 0; i < minHitsPerNtuplet - 1; ++i) {
         tmpQuadruplet.layerPairsAndCellId[i].x =
-            cells[tmpNtuplet.m_data[i]].theLayerPairId;
-        tmpQuadruplet.layerPairsAndCellId[i].y = tmpNtuplet.m_data[i];
+            cells[tmpNtuplet[i]].theLayerPairId;
+        tmpQuadruplet.layerPairsAndCellId[i].y = tmpNtuplet[i];
       }
       foundNtuplets->push_back(tmpQuadruplet);
 
@@ -246,8 +246,8 @@ public:
 
     else {
       for (int j = 0; j < theOuterNeighbors.size(); ++j) {
-        auto otherCell = theOuterNeighbors.m_data[j];
-        tmpNtuplet.push_back(otherCell);
+        auto otherCell = theOuterNeighbors[j];
+        tmpNtuplet.push_back_unsafe(otherCell);
         cells[otherCell].find_ntuplets_host(cells, foundNtuplets, tmpNtuplet,
                                             minHitsPerNtuplet);
 
@@ -255,7 +255,7 @@ public:
       }
     }
   }
-  GPUSimpleVector<40, unsigned int> theOuterNeighbors;
+  GPU::VecArray< unsigned int, 40> theOuterNeighbors;
 
   int theDoubletId;
   int theLayerPairId;
