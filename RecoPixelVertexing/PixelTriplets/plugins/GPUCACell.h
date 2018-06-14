@@ -209,17 +209,13 @@ public:
         tmpQuadruplet.layerPairsAndCellId[i].y = tmpNtuplet[i];
       }
       foundNtuplets->push_back(tmpQuadruplet);
-
     }
-
     else {
-
       for (int j = 0; j < theOuterNeighbors.size(); ++j) {
         auto otherCell = theOuterNeighbors[j];
         tmpNtuplet.push_back_unsafe(otherCell);
         cells[otherCell].find_ntuplets(cells, foundNtuplets, tmpNtuplet,
                                        minHitsPerNtuplet);
-
         tmpNtuplet.pop_back();
       }
     }
@@ -238,6 +234,7 @@ public:
       for (int i = 0; i < minHitsPerNtuplet - 1; ++i) {
         tmpQuadruplet.layerPairsAndCellId[i].x =
             cells[tmpNtuplet[i]].theLayerPairId;
+
         tmpQuadruplet.layerPairsAndCellId[i].y = tmpNtuplet[i];
       }
       foundNtuplets->push_back(tmpQuadruplet);

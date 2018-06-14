@@ -84,7 +84,7 @@ template <class T, int maxSize> struct VecArray {
   __inline__ constexpr int size() const { return m_size; }
 
   __inline__ constexpr T& operator[](int i) { return m_data[i]; }
-  
+
   __inline__ constexpr const T& operator[](int i) const { return m_data[i]; }
 
 
