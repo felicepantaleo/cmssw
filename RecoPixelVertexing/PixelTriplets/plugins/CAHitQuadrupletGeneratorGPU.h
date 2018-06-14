@@ -150,13 +150,13 @@ private:
 
     cudaStream_t cudaStream_;
 
-    static constexpr int maxNumberOfQuadruplets_ = 5000;
-    static constexpr int maxCellsPerHit_ = 200;
+    static constexpr int maxNumberOfQuadruplets_ = 10000;
+    static constexpr int maxCellsPerHit_ = 512;
     static constexpr int maxNumberOfLayerPairs_ = 13;
     static constexpr unsigned int maxNumberOfRootLayerPairs_ = 13;
     static constexpr int maxNumberOfLayers_ = 10;
-    static constexpr int maxNumberOfDoublets_ = 2000;
-    static constexpr int maxNumberOfHits_ = 1000;
+    static constexpr int maxNumberOfDoublets_ = 262144;
+    static constexpr int maxNumberOfHits_ = 4098;
     static constexpr int maxNumberOfRegions_ = 30;
 
     unsigned int numberOfRootLayerPairs_ = 0;
