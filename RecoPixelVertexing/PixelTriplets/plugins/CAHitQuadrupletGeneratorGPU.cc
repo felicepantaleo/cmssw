@@ -1,6 +1,8 @@
 //
 // Author: Felice Pantaleo, CERN
 //
+
+#include "FWCore/MessageLogger/interface/MessageLogger.h"
 #include "CAHitQuadrupletGeneratorGPU.h"
 #include "RecoPixelVertexing/PixelTriplets/interface/ThirdHitPredictionFromCircle.h"
 
@@ -266,8 +268,11 @@ void CAHitQuadrupletGeneratorGPU::hitNtuplets(
         }
       }
       auto numberOfDoublets = hitDoublets[index][i]->size();
-      assert(maxNumberOfDoublets_ >= numberOfDoublets);
-
+      if(numberOfDoublets > maxNumberOfDoublets_)
+      {
+          edm::LogError("CAHitQuadrupletGeneratorGPU")<<" too many doublets: " << numberOfDoublets << " max is " <<  maxNumberOfDoublets_;
+          return;
+      }
       for (unsigned int l = 0; l < numberOfDoublets; ++l) {
         auto hitId = i * maxNumberOfDoublets_ * 2 + 2 * l;
         h_indices_[hitId] = hitDoublets[index][i]->innerHitId(l);
@@ -287,7 +292,11 @@ void CAHitQuadrupletGeneratorGPU::hitNtuplets(
     }
 
     for (unsigned int j = 0; j < numberOfLayers_; ++j) {
-      assert(h_layers_[j].size<=maxNumberOfHits_);
+        if(h_layers_[j].size > maxNumberOfHits_)
+        {
+            edm::LogError("CAHitQuadrupletGeneratorGPU")<<" too many hits: " << h_layers_[j].size << " max is " << maxNumberOfHits_;
+            return;
+        }
       tmp_layers_[j] = h_layers_[j];
       tmp_layers_[j].x = &d_x_[maxNumberOfHits_ * j];
 
