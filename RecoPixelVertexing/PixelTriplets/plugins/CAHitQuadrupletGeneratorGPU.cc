@@ -265,21 +265,17 @@ void CAHitQuadrupletGeneratorGPU::hitNtuplets(
           numberOfRootLayerPairs_++;
         }
       }
+      auto numberOfDoublets = hitDoublets[index][i]->size();
+      assert(maxNumberOfDoublets_ >= numberOfDoublets);
 
-      for (unsigned int l = 0; l < hitDoublets[index][i]->size(); ++l) {
+      for (unsigned int l = 0; l < numberOfDoublets; ++l) {
         auto hitId = i * maxNumberOfDoublets_ * 2 + 2 * l;
-        assert(maxNumberOfDoublets_ >= hitDoublets[index][i]->size());
         h_indices_[hitId] = hitDoublets[index][i]->innerHitId(l);
         h_indices_[hitId + 1] = hitDoublets[index][i]->outerHitId(l);
       }
     }
 
-    for (unsigned int j = 0; j < numberOfLayers_; ++j) {
-      for (unsigned int l = 0; l < h_layers_[j].size; ++l) {
-        auto hitId = h_layers_[j].layerId * maxNumberOfHits_ + l;
-        assert(h_x_[hitId] != 0);
-      }
-    }
+
 
     for (unsigned int j = 0; j < numberOfLayerPairs_; ++j) {
       tmp_layerDoublets_[j] = h_doublets_[j];
@@ -291,6 +287,7 @@ void CAHitQuadrupletGeneratorGPU::hitNtuplets(
     }
 
     for (unsigned int j = 0; j < numberOfLayers_; ++j) {
+      assert(h_layers_[j].size<=maxNumberOfHits_);
       tmp_layers_[j] = h_layers_[j];
       tmp_layers_[j].x = &d_x_[maxNumberOfHits_ * j];
 
