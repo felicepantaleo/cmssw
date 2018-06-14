@@ -156,7 +156,7 @@ private:
     static constexpr unsigned int maxNumberOfRootLayerPairs_ = 13;
     static constexpr int maxNumberOfLayers_ = 10;
     static constexpr int maxNumberOfDoublets_ = 262144;
-    static constexpr int maxNumberOfHits_ = 4098;
+    static constexpr int maxNumberOfHits_ = 10000;
     static constexpr int maxNumberOfRegions_ = 30;
 
     unsigned int numberOfRootLayerPairs_ = 0;
