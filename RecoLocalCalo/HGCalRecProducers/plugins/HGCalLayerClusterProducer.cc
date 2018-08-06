@@ -93,7 +93,7 @@ HGCalLayerClusterProducer::HGCalLayerClusterProducer(const edm::ParameterSet &ps
     algo = std::make_unique<HGCalImagingAlgo>(vecDeltas, kappa, ecut, algoId, dependSensor, dEdXweights, thicknessCorrection, fcPerMip, fcPerEle, nonAgedNoises, noiseMip, verbosity);
   }
 
-
+  produces<std::vector<bool> >("InitialLayerClustersMask");
   produces<std::vector<reco::BasicCluster> >();
   produces<std::vector<reco::BasicCluster> >("sharing");
 
@@ -184,6 +184,9 @@ void HGCalLayerClusterProducer::produce(edm::Event& evt,
     edm::Ptr<reco::BasicCluster> ptr(clusterHandle,i);
     clusterPtrs.push_back(ptr);
   }
+  std::unique_ptr<std::vector<bool> > layerClustersMask(new std::vector<bool>);
+  layerClustersMask->resize(clusterHandle->size(),true);
+  evt.put(std::move(layerClustersMask),"InitialLayerClustersMask");
 
   if(doSharing){
     for( unsigned i = 0; i < clusterHandleSharing->size(); ++i ) {
