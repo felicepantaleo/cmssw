@@ -8,20 +8,25 @@
 
 using namespace Eigen;
 
-__global__ void kernelFullFit(Rfit::Matrix3xNd * hits,
-    Rfit::Matrix3Nd * hits_cov,
+__global__ void kernelFullFit(const Rfit::Matrix3xNd * __restrict__ hits,
+    const Rfit::Matrix3Nd * __restrict__  hits_cov,
     double B,
     bool errors,
     bool scattering,
-    Rfit::circle_fit * circle_fit_resultsGPU,
-    Rfit::line_fit * line_fit_resultsGPU) {
-  Vector4d fast_fit = Rfit::Fast_fit(*hits);
+    Rfit::circle_fit * __restrict__ circle_fit_resultsGPU,
+    Rfit::line_fit * __restrict__ line_fit_resultsGPU) {
+
+  Vector4d fast_fit;
+  fast_fit = Rfit::Fast_fit(*hits);
 
   u_int n = hits->cols();
-  Rfit::VectorNd rad = (hits->block(0, 0, 2, n).colwise().norm());
 
-  Rfit::Matrix2xNd hits2D_local = (hits->block(0,0,2,n)).eval();
-  Rfit::Matrix2Nd hits_cov2D_local = (hits_cov->block(0, 0, 2 * n, 2 * n)).eval();
+
+  Rfit::Matrix2xNd hits2D_local;
+  Rfit::Matrix2Nd hits_cov2D_local;
+  hits2D_local = (hits->block(0,0,2,n)).eval();
+  hits_cov2D_local = (hits_cov->block(0, 0, 2 * n, 2 * n)).eval();
+
   Rfit::printIt(&hits2D_local, "kernelFullFit - hits2D_local: ", false);
   Rfit::printIt(&hits_cov2D_local, "kernelFullFit - hits_cov2D_local: ", false);
   /*
@@ -30,6 +35,7 @@ __global__ void kernelFullFit(Rfit::Matrix3xNd * hits,
   printf("kernelFullFit - hits_cov2D address: %p\n", &hits2D_local);
   printf("kernelFullFit - hits_cov2D_local address: %p\n", &hits_cov2D_local);
   */
+
   /* At some point I gave up and locally construct block on the stack, so that
      the next invocation to Rfit::Circle_fit works properly. Failing to do so
      implied basically an empty collection of hits and covariances. That could
@@ -38,17 +44,19 @@ __global__ void kernelFullFit(Rfit::Matrix3xNd * hits,
      creations of the blocks. To be understood and compared against the myriad
      of compilation warnings we have.
      */
+   Rfit::VectorNd rad;
+     rad = (hits->block(0, 0, 2, n).colwise().norm().eval());
+     __syncthreads();
   (*circle_fit_resultsGPU) =
     Rfit::Circle_fit(hits->block(0,0,2,n), hits_cov->block(0, 0, 2 * n, 2 * n),
       fast_fit, rad, B, errors, scattering);
+
   /*
   (*circle_fit_resultsGPU) =
     Rfit::Circle_fit(hits2D_local, hits_cov2D_local,
       fast_fit, rad, B, errors, scattering);
    */
-  (*line_fit_resultsGPU) = Rfit::Line_fit(*hits, *hits_cov, *circle_fit_resultsGPU, fast_fit, errors);
-
-  return;
+   (*line_fit_resultsGPU) = Rfit::Line_fit(*hits, *hits_cov, *circle_fit_resultsGPU, fast_fit, errors);
 }
 
 __global__ void kernelFastFit(Rfit::Matrix3xNd * hits, Vector4d * results) {
@@ -137,7 +145,7 @@ void testFit() {
 
   kernelFastFit<<<1, 1>>>(hitsGPU, fast_fit_resultsGPU);
   cudaDeviceSynchronize();
-  
+
   cudaMemcpy(fast_fit_resultsGPUret, fast_fit_resultsGPU, sizeof(Vector4d), cudaMemcpyDeviceToHost);
   std::cout << "Fitted values (FastFit, [X0, Y0, R, tan(theta)]): GPU\n" << *fast_fit_resultsGPUret << std::endl;
   assert(isEqualFuzzy(fast_fit_results, (*fast_fit_resultsGPUret)));
@@ -196,7 +204,7 @@ void testFitOneGo(bool errors, bool scattering, double epsilon=1e-6) {
   u_int n = hits.cols();
   Rfit::VectorNd rad = (hits.block(0, 0, 2, n).colwise().norm());
 
-  Rfit::circle_fit circle_fit_results = Rfit::Circle_fit(hits.block(0, 0, 2, n), 
+  Rfit::circle_fit circle_fit_results = Rfit::Circle_fit(hits.block(0, 0, 2, n),
       hits_cov.block(0, 0, 2 * n, 2 * n),
       fast_fit_results, rad, B, errors, scattering);
   // LINE_FIT CPU
@@ -244,19 +252,20 @@ void testFitOneGo(bool errors, bool scattering, double epsilon=1e-6) {
 }
 
 int main (int argc, char * argv[]) {
-//  testFit();
-  std::cout << "TEST FIT, NO ERRORS, NO SCATTERING" << std::endl;
-  testFitOneGo(false, false);
-
-  // The default 1e-6 is failing....
-  std::cout << "TEST FIT, ERRORS, NO SCATTER" << std::endl;
-  testFitOneGo(true, false, 1e-5);
-
-  std::cout << "TEST FIT, NO ERRORS, SCATTER" << std::endl;
-  testFitOneGo(false, true);
-
-  std::cout << "TEST FIT, ERRORS AND SCATTER" << std::endl;
-  testFitOneGo(true, true, 1e-5);
+  testFit();
+// cudaDeviceSetCacheConfig(cudaFuncCachePreferL1);
+//   std::cout << "TEST FIT, NO ERRORS, NO SCATTERING" << std::endl;
+//   testFitOneGo(false, false);
+//
+//   // The default 1e-6 is failing....
+//   std::cout << "TEST FIT, ERRORS, NO SCATTER" << std::endl;
+//   testFitOneGo(true, false, 1e-5);
+//
+//   std::cout << "TEST FIT, NO ERRORS, SCATTER" << std::endl;
+//   testFitOneGo(false, true);
+//
+//   std::cout << "TEST FIT, ERRORS AND SCATTER" << std::endl;
+//   testFitOneGo(true, true, 1e-5);
 
   return 0;
 }

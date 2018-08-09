@@ -1,4 +1,6 @@
+#include "HeterogeneousCore/CUDAUtilities/interface/cudaCheck.h"
 #include "RecoPixelVertexing/PixelTrackFitting/interface/PixelTrackReconstructionGPU.h"
+
 #include <Eigen/Core>
 #include <Eigen/Eigenvalues>
 
@@ -6,113 +8,197 @@
 
 using namespace Eigen;
 
-__global__ void KernelFullFitAllHits(float * hits_and_covariances,
-    int hits_in_fit,
-    int cumulative_size,
-    double B,
-    Rfit::helix_fit * results) {
-  // Reshape Eigen components from hits_and_covariances, using proper thread and block indices
-  // Perform the fit
-  // Store the results in the proper vector, using again correct indices
+__global__ void
+KernelFastFitAllHits(float *hits_and_covariances, int hits_in_fit,
+                     int cumulative_size, float B, Rfit::helix_fit *results,
+                     Rfit::Matrix3xNd *hits, Rfit::Matrix3Nd *hits_cov,
+                     Rfit::circle_fit *circle_fit, Vector4d *fast_fit,
+                     Rfit::line_fit *line_fit) {
+
+  // Reshape Eigen components from hits_and_covariances, using proper thread and
+  // block indices Perform the fit Store the results in the proper vector, using
+  // again correct indices
 
   // Loop for hits_in_fit times:
   //   first 3 are the points
   //   the rest is the covariance matrix, 3x3
   int start = (blockIdx.x * blockDim.x + threadIdx.x) * hits_in_fit * 12;
-  int helix_start = (blockIdx.x * blockDim.x + threadIdx.x); 
+  int helix_start = (blockIdx.x * blockDim.x + threadIdx.x);
   if (start >= cumulative_size) {
     return;
   }
 
   if (DEBUG) {
-    printf("BlockDim.x: %d, BlockIdx.x: %d, threadIdx.x: %d, start: %d, cumulative_size: %d\n",
-        blockDim.x, blockIdx.x, threadIdx.x, start, cumulative_size);
+    printf("BlockDim.x: %d, BlockIdx.x: %d, threadIdx.x: %d, start: %d, "
+           "cumulative_size: %d\n",
+           blockDim.x, blockIdx.x, threadIdx.x, start, cumulative_size);
   }
 
-  Rfit::Matrix3xNd hits(3,hits_in_fit);
-  Rfit::Matrix3Nd hits_cov(3 * hits_in_fit, 3 * hits_in_fit);
+  hits[helix_start].resize(3, hits_in_fit);
+  hits_cov[helix_start].resize(3 * hits_in_fit, 3 * hits_in_fit);
 
   // Prepare data structure (stack)
   for (unsigned int i = 0; i < hits_in_fit; ++i) {
-    hits.col(i) << hits_and_covariances[start],
-      hits_and_covariances[start+1],hits_and_covariances[start+2];
+    hits[helix_start].col(i) << hits_and_covariances[start],
+        hits_and_covariances[start + 1], hits_and_covariances[start + 2];
     start += 3;
 
     for (auto j = 0; j < 3; ++j) {
       for (auto l = 0; l < 3; ++l) {
-        hits_cov(i + j * hits_in_fit, i + l * hits_in_fit) = hits_and_covariances[start];
+        hits_cov[helix_start](i + j * hits_in_fit, i + l * hits_in_fit) =
+            hits_and_covariances[start];
         start++;
       }
     }
   }
 
-  if (DEBUG) {
-    printf("KernelFullFitAllHits hits(0,0): %d\t%f\n", helix_start, hits(0,0));
-    printf("KernelFullFitAllHits hits(0,1): %d\t%f\n", helix_start, hits(0,1));
-    printf("KernelFullFitAllHits hits(0,2): %d\t%f\n", helix_start, hits(0,2));
-    printf("KernelFullFitAllHits hits(0,3): %d\t%f\n", helix_start, hits(0,3));
-    printf("KernelFullFitAllHits hits(1,0): %d\t%f\n", helix_start, hits(1,0));
-    printf("KernelFullFitAllHits hits(1,1): %d\t%f\n", helix_start, hits(1,1));
-    printf("KernelFullFitAllHits hits(1,2): %d\t%f\n", helix_start, hits(1,2));
-    printf("KernelFullFitAllHits hits(1,3): %d\t%f\n", helix_start, hits(1,3));
-    printf("KernelFullFitAllHits hits(2,0): %d\t%f\n", helix_start, hits(2,0));
-    printf("KernelFullFitAllHits hits(2,1): %d\t%f\n", helix_start, hits(2,1));
-    printf("KernelFullFitAllHits hits(2,2): %d\t%f\n", helix_start, hits(2,2));
-    printf("KernelFullFitAllHits hits(2,3): %d\t%f\n", helix_start, hits(2,3));
-    Rfit::printIt(&hits);
-    Rfit::printIt(&hits_cov);
+  fast_fit[helix_start] = Rfit::Fast_fit(hits[helix_start]);
+}
+
+__global__ void
+KernelCircleFitAllHits(float *hits_and_covariances, int hits_in_fit,
+                       int cumulative_size, float B, Rfit::helix_fit *results,
+                       Rfit::Matrix3xNd *hits, Rfit::Matrix3Nd *hits_cov,
+                       Rfit::circle_fit *circle_fit, Vector4d *fast_fit,
+                       Rfit::line_fit *line_fit) {
+
+  // Reshape Eigen components from hits_and_covariances, using proper thread and
+  // block indices Perform the fit Store the results in the proper vector, using
+  // again correct indices
+
+  // Loop for hits_in_fit times:
+  //   first 3 are the points
+  //   the rest is the covariance matrix, 3x3
+  int start = (blockIdx.x * blockDim.x + threadIdx.x) * hits_in_fit * 12;
+  int helix_start = (blockIdx.x * blockDim.x + threadIdx.x);
+  if (start >= cumulative_size) {
+    return;
   }
 
-  // Perform actual fit
-  Vector4d fast_fit = Rfit::Fast_fit(hits);
-
   if (DEBUG) {
-    printf("KernelFullFitAllHits fast_fit(0): %d %f\n", helix_start, fast_fit(0));
-    printf("KernelFullFitAllHits fast_fit(1): %d %f\n", helix_start, fast_fit(1));
-    printf("KernelFullFitAllHits fast_fit(2): %d %f\n", helix_start, fast_fit(2));
-    printf("KernelFullFitAllHits fast_fit(3): %d %f\n", helix_start, fast_fit(3));
+    printf("BlockDim.x: %d, BlockIdx.x: %d, threadIdx.x: %d, start: %d, "
+           "cumulative_size: %d\n",
+           blockDim.x, blockIdx.x, threadIdx.x, start, cumulative_size);
   }
 
-  u_int n = hits.cols();
-  if (true)
-    printf("KernelFullFitAllHits using %d hits: %d\n", n, helix_start);
+  u_int n = hits[helix_start].cols();
 
-  Rfit::VectorNd rad = (hits.block(0, 0, 2, n).colwise().norm());
+  Rfit::VectorNd rad = (hits[helix_start].block(0, 0, 2, n).colwise().norm());
 
-  Rfit::circle_fit circle = 
-    Rfit::Circle_fit(hits.block(0,0,2,n), hits_cov.block(0, 0, 2 * n, 2 * n),
-      fast_fit, rad, B, true, true);
+  circle_fit[helix_start] =
+      Rfit::Circle_fit(hits[helix_start].block(0, 0, 2, n),
+                       hits_cov[helix_start].block(0, 0, 2 * n, 2 * n),
+                       fast_fit[helix_start], rad, B, true, true);
 
-  if (DEBUG) {
-    printf("KernelFullFitAllHits circle.par(0): %d %f\n", helix_start, circle.par(0));
-    printf("KernelFullFitAllHits circle.par(1): %d %f\n", helix_start, circle.par(1));
-    printf("KernelFullFitAllHits circle.par(2): %d %f\n", helix_start, circle.par(2));
+  if (1) {
+    printf("KernelFullFitAllHits circle.par(0): %d %f\n", helix_start,
+           circle_fit[helix_start].par(0));
+    printf("KernelFullFitAllHits circle.par(1): %d %f\n", helix_start,
+           circle_fit[helix_start].par(1));
+    printf("KernelFullFitAllHits circle.par(2): %d %f\n", helix_start,
+           circle_fit[helix_start].par(2));
+  }
+}
+
+__global__ void
+KernelLineFitAllHits(float *hits_and_covariances, int hits_in_fit,
+                     int cumulative_size, float B, Rfit::helix_fit *results,
+                     Rfit::Matrix3xNd *hits, Rfit::Matrix3Nd *hits_cov,
+                     Rfit::circle_fit *circle_fit, Vector4d *fast_fit,
+                     Rfit::line_fit *line_fit) {
+
+  // Reshape Eigen components from hits_and_covariances, using proper thread and
+  // block indices Perform the fit Store the results in the proper vector, using
+  // again correct indices
+
+  // Loop for hits_in_fit times:
+  //   first 3 are the points
+  //   the rest is the covariance matrix, 3x3
+  int start = (blockIdx.x * blockDim.x + threadIdx.x) * hits_in_fit * 12;
+  int helix_start = (blockIdx.x * blockDim.x + threadIdx.x);
+  if (start >= cumulative_size) {
+    return;
   }
 
-  Rfit::line_fit line = Rfit::Line_fit(hits, hits_cov, circle, fast_fit, true);
+  if (DEBUG) {
+    printf("BlockDim.x: %d, BlockIdx.x: %d, threadIdx.x: %d, start: %d, "
+           "cumulative_size: %d\n",
+           blockDim.x, blockIdx.x, threadIdx.x, start, cumulative_size);
+  }
 
-  par_uvrtopak(circle, B, true);
+  line_fit[helix_start] =
+      Rfit::Line_fit(hits[helix_start], hits_cov[helix_start],
+                     circle_fit[helix_start], fast_fit[helix_start], true);
+
+  par_uvrtopak(circle_fit[helix_start], B, true);
 
   // Grab helix_fit from the proper location in the output vector
   Rfit::helix_fit &helix = results[helix_start];
-  helix.par << circle.par, line.par;
+  helix.par << circle_fit[helix_start].par, line_fit[helix_start].par;
   // TODO: pass properly error booleans
   if (1) {
     helix.cov = MatrixXd::Zero(5, 5);
-    helix.cov.block(0, 0, 3, 3) = circle.cov;
-    helix.cov.block(3, 3, 2, 2) = line.cov;
+    helix.cov.block(0, 0, 3, 3) = circle_fit[helix_start].cov;
+    helix.cov.block(3, 3, 2, 2) = line_fit[helix_start].cov;
   }
-  helix.q = circle.q;
-  helix.chi2_circle = circle.chi2;
-  helix.chi2_line = line.chi2;
+  helix.q = circle_fit[helix_start].q;
+  helix.chi2_circle = circle_fit[helix_start].chi2;
+  helix.chi2_line = line_fit[helix_start].chi2;
+
+  if (1) {
+    printf("KernelFullFitAllHits line.par(0): %d %f\n", helix_start,
+           circle_fit[helix_start].par(0));
+    printf("KernelFullFitAllHits line.par(1): %d %f\n", helix_start,
+           line_fit[helix_start].par(1));
+  }
 }
 
-void PixelTrackReconstructionGPU::launchKernelFit(float * hits_and_covariancesGPU, 
-    int cumulative_size, int hits_in_fit, float B, Rfit::helix_fit * results) {
-  const dim3 threads_per_block(32,1);
-  // We need to partition data in blocks of:
-  // 12(3+9) * hits_in_fit
-  int num_blocks = cumulative_size/(hits_in_fit*12)/threads_per_block.x + 1;
-  KernelFullFitAllHits<<<num_blocks, threads_per_block>>>(hits_and_covariancesGPU, hits_in_fit, cumulative_size, B, results);
-}
+void PixelTrackReconstructionGPU::launchKernelFit(
+    float *hits_and_covariancesGPU, int cumulative_size, int hits_in_fit,
+    float B, Rfit::helix_fit *results) {
+  const dim3 threads_per_block(32, 1);
+  int num_blocks =
+      cumulative_size / (hits_in_fit * 12) / threads_per_block.x + 1;
+  auto numberOfSeeds = cumulative_size / (hits_in_fit * 12);
+  Rfit::Matrix3xNd *hitsGPU;
+  cudaCheck(cudaMalloc((void **)&hitsGPU,
+                       48 * numberOfSeeds * sizeof(Rfit::Matrix3xNd(3, 4))));
+  Rfit::Matrix3Nd *hits_covGPU = nullptr;
+  cudaCheck(cudaMalloc((void **)&hits_covGPU,
+                       48 * numberOfSeeds * sizeof(Rfit::Matrix3Nd(12, 12))));
 
+  Vector4d *fast_fit_resultsGPU = nullptr;
+  cudaCheck(cudaMalloc((void **)&fast_fit_resultsGPU,
+                       48 * numberOfSeeds * sizeof(Vector4d)));
+
+  Rfit::circle_fit *circle_fit_resultsGPU = nullptr;
+  cudaCheck(cudaMalloc((void **)&circle_fit_resultsGPU,
+                       48 * numberOfSeeds * sizeof(Rfit::circle_fit)));
+  Rfit::line_fit *line_fit_resultsGPU = nullptr;
+
+  cudaCheck(cudaMalloc((void **)&line_fit_resultsGPU,
+                       numberOfSeeds * sizeof(Rfit::line_fit)));
+
+  KernelFastFitAllHits<<<num_blocks, threads_per_block>>>(
+      hits_and_covariancesGPU, hits_in_fit, cumulative_size, B, results,
+      hitsGPU, hits_covGPU, circle_fit_resultsGPU, fast_fit_resultsGPU,
+      line_fit_resultsGPU);
+  cudaCheck(cudaGetLastError());
+  KernelCircleFitAllHits<<<num_blocks, threads_per_block>>>(
+      hits_and_covariancesGPU, hits_in_fit, cumulative_size, B, results,
+      hitsGPU, hits_covGPU, circle_fit_resultsGPU, fast_fit_resultsGPU,
+      line_fit_resultsGPU);
+  cudaCheck(cudaGetLastError());
+
+  KernelLineFitAllHits<<<num_blocks, threads_per_block>>>(
+      hits_and_covariancesGPU, hits_in_fit, cumulative_size, B, results,
+      hitsGPU, hits_covGPU, circle_fit_resultsGPU, fast_fit_resultsGPU,
+      line_fit_resultsGPU);
+  cudaCheck(cudaGetLastError());
+
+  cudaFree(hitsGPU);
+  cudaFree(hits_covGPU);
+  cudaFree(fast_fit_resultsGPU);
+  cudaFree(circle_fit_resultsGPU);
+  cudaFree(line_fit_resultsGPU);
+}
