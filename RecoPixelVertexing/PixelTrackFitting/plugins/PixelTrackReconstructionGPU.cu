@@ -59,7 +59,7 @@ KernelFastFitAllHits(float *hits_and_covariances,
 
 __global__ void
 KernelCircleFitAllHits(float *hits_and_covariances, int hits_in_fit,
-                       int cumulative_size, float B, Rfit::helix_fit *results,
+                       int cumulative_size, float B, float factor, Rfit::helix_fit *results,
                        Rfit::Matrix3xNd *hits, Rfit::Matrix3Nd *hits_cov,
                        Rfit::circle_fit *circle_fit, Vector4d *fast_fit,
                        Rfit::line_fit *line_fit)
@@ -89,7 +89,7 @@ KernelCircleFitAllHits(float *hits_and_covariances, int hits_in_fit,
   circle_fit[helix_start] =
       Rfit::Circle_fit(hits[helix_start].block(0, 0, 2, n),
                        hits_cov[helix_start].block(0, 0, 2 * n, 2 * n),
-                       fast_fit[helix_start], rad, B, true, true);
+                       fast_fit[helix_start], rad, B, factor, true);
 
 #ifdef GPU_DEBUG
     printf("KernelCircleFitAllHits circle.par(0): %d %f\n", helix_start,
@@ -104,7 +104,7 @@ KernelCircleFitAllHits(float *hits_and_covariances, int hits_in_fit,
 
 __global__ void
 KernelLineFitAllHits(float *hits_and_covariances, int hits_in_fit,
-                     int cumulative_size, float B, Rfit::helix_fit *results,
+                     int cumulative_size, float B, float factor, Rfit::helix_fit *results,
                      Rfit::Matrix3xNd *hits, Rfit::Matrix3Nd *hits_cov,
                      Rfit::circle_fit *circle_fit, Vector4d *fast_fit,
                      Rfit::line_fit *line_fit)
@@ -131,7 +131,7 @@ KernelLineFitAllHits(float *hits_and_covariances, int hits_in_fit,
 
   line_fit[helix_start] =
       Rfit::Line_fit(hits[helix_start], hits_cov[helix_start],
-                     circle_fit[helix_start], fast_fit[helix_start], true);
+                     circle_fit[helix_start], fast_fit[helix_start], B, factor, true);
 
   par_uvrtopak(circle_fit[helix_start], B, true);
 
@@ -163,6 +163,7 @@ void PixelTrackReconstructionGPU::launchKernelFit(
     float B, Rfit::helix_fit *results)
 {
   const dim3 threads_per_block(32, 1);
+  float factor = 0.025f;
   int num_blocks = cumulative_size / (hits_in_fit * 12) / threads_per_block.x + 1;
   auto numberOfSeeds = cumulative_size / (hits_in_fit * 12);
 
@@ -193,13 +194,13 @@ void PixelTrackReconstructionGPU::launchKernelFit(
   cudaCheck(cudaGetLastError());
 
   KernelCircleFitAllHits<<<num_blocks, threads_per_block>>>(
-      hits_and_covariancesGPU, hits_in_fit, cumulative_size, B, results,
+      hits_and_covariancesGPU, hits_in_fit, cumulative_size, B, factor,results,
       hitsGPU, hits_covGPU, circle_fit_resultsGPU, fast_fit_resultsGPU,
       line_fit_resultsGPU);
   cudaCheck(cudaGetLastError());
 
   KernelLineFitAllHits<<<num_blocks, threads_per_block>>>(
-      hits_and_covariancesGPU, hits_in_fit, cumulative_size, B, results,
+      hits_and_covariancesGPU, hits_in_fit, cumulative_size, B, factor, results,
       hitsGPU, hits_covGPU, circle_fit_resultsGPU, fast_fit_resultsGPU,
       line_fit_resultsGPU);
   cudaCheck(cudaGetLastError());
