@@ -204,14 +204,10 @@ __host__ __device__ inline Matrix2Nd cov_radtocart(const Matrix2xNd& p2D,
     {
         for (u_int j = i; j < n; ++j)
         {
-            cov_cart(i, j) =
-                cov_rad(i, j) * p2D(1, i) * rad_inv(i) * p2D(1, j) * rad_inv(j);
-            cov_cart(i + n, j + n) =
-                cov_rad(i, j) * p2D(0, i) * rad_inv(i) * p2D(0, j) * rad_inv(j);
-            cov_cart(i, j + n) =
-                -cov_rad(i, j) * p2D(1, i) * rad_inv(i) * p2D(0, j) * rad_inv(j);
-            cov_cart(i + n, j) =
-                -cov_rad(i, j) * p2D(0, i) * rad_inv(i) * p2D(1, j) * rad_inv(j);
+            cov_cart(i, j) = cov_rad(i, j) * p2D(1, i) * rad_inv(i) * p2D(1, j) * rad_inv(j);
+            cov_cart(i + n, j + n) = cov_rad(i, j) * p2D(0, i) * rad_inv(i) * p2D(0, j) * rad_inv(j);
+            cov_cart(i, j + n) = -cov_rad(i, j) * p2D(1, i) * rad_inv(i) * p2D(0, j) * rad_inv(j);
+            cov_cart(i + n, j) = -cov_rad(i, j) * p2D(0, i) * rad_inv(i) * p2D(1, j) * rad_inv(j);
 
             cov_cart(j, i) = cov_cart(i, j);
             cov_cart(j + n, i + n) = cov_cart(i + n, j + n);
@@ -249,10 +245,7 @@ __host__ __device__ inline MatrixNd cov_carttorad(const Matrix2xNd& p2D,
             cov_rad(i, i) = cov_cart(i, i);
         else
         {
-            cov_rad(i, i) =
-                rad_inv2(i) * (cov_cart(i, i) * sqr(p2D(1, i)) +
-                               cov_cart(i + n, i + n) * sqr(p2D(0, i)) -
-                               2. * cov_cart(i, i + n) * p2D(0, i) * p2D(1, i));
+            cov_rad(i, i) = rad_inv2(i) * (cov_cart(i, i) * sqr(p2D(1, i)) + cov_cart(i + n, i + n) * sqr(p2D(0, i)) - 2. * cov_cart(i, i + n) * p2D(0, i) * p2D(1, i));
         }
     }
     return cov_rad;
@@ -274,9 +267,8 @@ orthogonal system.
 
 */
 
-__host__ __device__ inline MatrixNd cov_carttorad_prefit(
-    const Matrix2xNd& p2D, const Matrix2Nd& cov_cart, const Vector4d& fast_fit,
-    const VectorNd& rad)
+__host__ __device__ inline MatrixNd cov_carttorad_prefit(const Matrix2xNd& p2D, const Matrix2Nd& cov_cart,
+const Vector4d& fast_fit, const VectorNd& rad)
 {
     u_int n = p2D.cols();
     MatrixNd cov_rad = MatrixXd::Zero(n, n);
@@ -330,8 +322,7 @@ cylinder (after rotation)
 \return weight points' weights' vector for the line fit (ODR).
 */
 
-__host__ __device__ inline VectorNd Weight_line_scatter(
-    const Matrix2Nd& Vr_inv)
+__host__ __device__ inline VectorNd Weight_line_scatter(const Matrix2Nd& Vr_inv)
 {
     return Vr_inv.colwise().sum().transpose();
 }
@@ -348,9 +339,7 @@ line) component of the errors.
 \return weight points' weights' vector for the line fit (ODR).
 */
 
-__host__ __device__ inline VectorNd Weight_line(const ArrayNd& x_err2,
-                                                const ArrayNd& y_err2,
-                                                const double& tan_theta)
+__host__ __device__ inline VectorNd Weight_line(const ArrayNd& x_err2, const ArrayNd& y_err2, const double& tan_theta)
 {
     return (1. + sqr(tan_theta)) * 1. / (x_err2 + y_err2 * sqr(tan_theta));
 }
@@ -366,8 +355,7 @@ between the first hit and the center of the fitted circle.
 \return q int 1 or -1.
 */
 
-__host__ __device__ inline int64_t Charge(const Matrix2xNd& p2D,
-                                          const Vector3d& par_uvr)
+__host__ __device__ inline int64_t Charge(const Matrix2xNd& p2D, const Vector3d& par_uvr)
 {
     return ((p2D(0, 1) - p2D(0, 0)) * (par_uvr.y() - p2D(1, 0)) - (p2D(1, 1) - p2D(1, 0)) * (par_uvr.x() - p2D(0, 0)) > 0) ? -1 : 1;
 }
@@ -382,8 +370,7 @@ be transformed and particle charge.
 \param error flag for errors computation.
 */
 
-__host__ __device__ inline void par_uvrtopak(circle_fit& circle, const double B,
-                                             const bool& error)
+__host__ __device__ inline void par_uvrtopak(circle_fit& circle, const double B, const bool& error)
 {
     Vector3d par_pak;
     const double temp0 = circle.par.head(2).squaredNorm();
@@ -395,9 +382,7 @@ __host__ __device__ inline void par_uvrtopak(circle_fit& circle, const double B,
         const double temp2 = sqr(circle.par(0)) * 1. / temp0;
         const double temp3 = 1. / temp1 * circle.q;
         Matrix3d J4;
-        J4 << -circle.par(1) * temp2 * 1. / sqr(circle.par(0)),
-            temp2 * 1. / circle.par(0), 0., circle.par(0) * temp3,
-            circle.par(1) * temp3, -circle.q, 0., 0., B;
+        J4 << -circle.par(1) * temp2 * 1. / sqr(circle.par(0)), temp2 * 1. / circle.par(0), 0., circle.par(0) * temp3, circle.par(1) * temp3, -circle.q, 0., 0., B;
         circle.cov = J4 * circle.cov * J4.transpose();
     }
     circle.par = par_pak;
@@ -418,10 +403,7 @@ is needed) TO FIX
 \return x_err2 squared errors in the x axis.
 */
 
-__host__ __device__ inline VectorNd X_err2(const Matrix3Nd& V,
-                                           const circle_fit& circle,
-                                           const MatrixNx5d& J,
-                                           const bool& error, u_int n)
+__host__ __device__ inline VectorNd X_err2(const Matrix3Nd& V, const circle_fit& circle, const MatrixNx5d& J, const bool& error, u_int n)
 {
     VectorNd x_err2(n);
     for (u_int i = 0; i < n; ++i)
@@ -719,8 +701,7 @@ __host__ __device__ inline Vector4d Fast_fit(const Matrix3xNd& hits)
     const Vector2d e = hits.block(0, n - 1, 2, 1) - result.head(2);
     printIt(&e, "Fast_fit - e: ");
     printIt(&d, "Fast_fit - d: ");
-    // Compute the arc-length between first and last point: L = R * theta = R *
-    // atan (tan (Theta) )
+    // Compute the arc-length between first and last point: L = R * theta = R * atan (tan (Theta) )
     const double dr = result(2) * atan2(cross2D(d, e), d.dot(e));
     // Simple difference in Z between last and first hit
     const double dz = hits(2, n - 1) - hits(2, 0);
@@ -728,8 +709,7 @@ __host__ __device__ inline Vector4d Fast_fit(const Matrix3xNd& hits)
     result(3) = (dr / dz);
 
 #if RFIT_DEBUG
-    printf("Fast_fit: [%f, %f, %f, %f]\n", result(0), result(1), result(2),
-           result(3));
+    printf("Fast_fit: [%f, %f, %f, %f]\n", result(0), result(1), result(2), result(3));
 #endif
     return result;
 }
@@ -792,8 +772,7 @@ __host__ __device__ inline circle_fit Circle_fit(
         cov_rad = cov_carttorad_prefit(hits2D, V, fast_fit, rad);
         printIt(&cov_rad, "circle_fit - cov_rad:");
         // cov_rad = cov_carttorad(hits2D, V);
-        MatrixNd scatter_cov_rad =
-            Scatter_cov_rad(hits2D, fast_fit, rad, B, factor);
+        MatrixNd scatter_cov_rad = Scatter_cov_rad(hits2D, fast_fit, rad, B, factor);
         printIt(&scatter_cov_rad, "circle_fit - scatter_cov_rad:");
         printIt(&hits2D, "circle_fit - hits2D bis:");
 #if RFIT_DEBUG
@@ -894,8 +873,7 @@ __host__ __device__ inline circle_fit Circle_fit(
     par_uvr_ << -v(0) * v2x2_inv, -v(1) * v2x2_inv, h * v2x2_inv;
 
     circle_fit circle;
-    circle.par << par_uvr_(0) * s_inv + h_(0), par_uvr_(1) * s_inv + h_(1),
-        par_uvr_(2) * s_inv;
+    circle.par << par_uvr_(0) * s_inv + h_(0), par_uvr_(1) * s_inv + h_(1), par_uvr_(2) * s_inv;
     circle.q = Charge(hits2D, circle.par);
     circle.chi2 = abs(chi2) * renorm * 1. / sqr(2 * v(2) * par_uvr_(2) * s);
     printIt(&circle.par, "circle_fit - CIRCLE PARAMETERS:");
@@ -945,9 +923,7 @@ __host__ __device__ inline circle_fit Circle_fit(
             // C[2][2] = 2. * (Vcs_[0][0] * Vcs_[0][0] + Vcs_[0][0] * Vcs_[0][1] +
             // Vcs_[1][1] * Vcs_[1][0] + Vcs_[1][1] * Vcs_[1][1]) + 4. * (Vcs_[0][0] *
             // t00 + Vcs_[0][1] * t01 + Vcs_[1][0] * t10 + Vcs_[1][1] * t11);
-            Vxyz.block(2 * n, 2 * n, n, n) =
-                2. * (Vcsxx * Vcsxx + Vcsxx * Vcsxy + Vcsyy * Vcsyx + Vcsyy * Vcsyy) +
-                4. * (Vcsxx * t00 + Vcsxy * t01 + Vcsyx * t10 + Vcsyy * t11);
+            Vxyz.block(2 * n, 2 * n, n, n) = 2. * (Vcsxx * Vcsxx + Vcsxx * Vcsxy + Vcsyy * Vcsyx + Vcsyy * Vcsyy) + 4. * (Vcsxx * t00 + Vcsxy * t01 + Vcsyx * t10 + Vcsyy * t11);
         }
 
         const MatrixNd H = MatrixXd::Identity(n, n).rowwise() - weight.transpose();
@@ -1041,17 +1017,14 @@ __host__ __device__ inline circle_fit Circle_fit(
         Matrix<double, 3, 4> J3;  // Jacobian (v0,v1,v2,c)->(X0,Y0,R)
         {
             const double t = 1. / h;
-            J3 << -v2x2_inv, 0, v(0) * sqr(v2x2_inv) * 2., 0, 0, -v2x2_inv,
-                v(1) * sqr(v2x2_inv) * 2., 0, 0, 0,
-                -h * sqr(v2x2_inv) * 2. - (2. * c + v(2)) * v2x2_inv * t, -t;
+            J3 << -v2x2_inv, 0, v(0) * sqr(v2x2_inv) * 2., 0, 0, -v2x2_inv, v(1) * sqr(v2x2_inv) * 2., 0, 0, 0, -h * sqr(v2x2_inv) * 2. - (2. * c + v(2)) * v2x2_inv * t, -t;
         }
         printIt(&J3, "circle_fit - J3:");
 
         const RowVector2Nd Jq = mc.transpose() * s * 1. / n;  // var(q)
         printIt(&Jq, "circle_fit - Jq:");
 
-        Matrix3d cov_uvr =
-            J3 * Cvc * J3.transpose() * sqr(s_inv)  // cov(X0,Y0,R)
+        Matrix3d cov_uvr = J3 * Cvc * J3.transpose() * sqr(s_inv)  // cov(X0,Y0,R)
             + (par_uvr_ * par_uvr_.transpose()) * (Jq * V * Jq.transpose());
 
         circle.cov = cov_uvr + cov_uvr.transpose();
@@ -1099,10 +1072,13 @@ A fast pre-fit is performed in order to evaluate weights and to compute
 errors.
 */
 
-__host__ __device__ inline line_fit Line_fit(
-    const Matrix3xNd& hits, const Matrix3Nd& hits_cov, const circle_fit& circle,
-    const Vector4d& fast_fit, const double B, const double factor,
-    const bool error = true)
+__host__ __device__ inline line_fit Line_fit(const Matrix3xNd& hits,
+                                             const Matrix3Nd& hits_cov,
+                                             const circle_fit& circle,
+                                             const Vector4d& fast_fit,
+                                             const double B,
+                                             const double factor,
+                                             const bool error = true)
 {
     u_int n = hits.cols();
     // PROJECTION ON THE CILINDER
@@ -1135,8 +1111,7 @@ __host__ __device__ inline line_fit Line_fit(
         p2D(0, i) = atan2_ * circle.par(2);
 
         // associated Jacobian, used in weights and errors computation
-        const double temp0 =
-            -circle.q * circle.par(2) * 1. / (sqr(dot) + sqr(cross));
+        const double temp0 = -circle.q * circle.par(2) * 1. / (sqr(dot) + sqr(cross));
         double d_X0 = 0, d_Y0 = 0, d_R = 0.;  // good approximation for big pt and eta
         if (error)
         {
@@ -1326,8 +1301,7 @@ __host__ __device__ inline line_fit Line_fit(
             const double t1 = sqr(t0);
             const double sqrt_ = sqrt(v1_2 + v0_2);
             const double t2 = 1. / sqrt_;
-            J3 << -t0, v(0) * t1, 0, -c * v(0) * t0 * t2, v0_2 * c * t1 * t2,
-                -sqrt_ * t0;
+            J3 << -t0, v(0) * t1, 0, -c * v(0) * t0 * t2, v0_2 * c * t1 * t2, -sqrt_ * t0;
         }
         Matrix<double, 3, 2> JT = J3.transpose().eval();
         line.cov = J3 * cnc * JT;
