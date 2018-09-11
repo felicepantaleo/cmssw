@@ -19,7 +19,7 @@
 #include "RecoTracker/TkSeedingLayers/interface/SeedComparitor.h"
 #include "RecoTracker/TkSeedingLayers/interface/SeedComparitorFactory.h"
 #include "RecoPixelVertexing/PixelTriplets/plugins/RecHitsMap.h"
-
+#include "RecoLocalTracker/SiPixelClusterizer/interface/PixelTrackingGPUConstants.h"
 
 #include "GPUCACell.h"
 
@@ -155,7 +155,7 @@ private:
     static constexpr int maxNumberOfLayerPairs_ = 13;
     static constexpr int maxNumberOfLayers_ = 10;
     static constexpr int maxNumberOfDoublets_ = 262144;
-    static constexpr int maxNumberOfHits_ = 6000;
+    // static constexpr int maxNumberOfHits_ = 6000;
     static constexpr int maxNumberOfRegions_ = 2;
 
     std::vector<GPU::SimpleVector<Quadruplet>*> h_foundNtupletsVec_;
