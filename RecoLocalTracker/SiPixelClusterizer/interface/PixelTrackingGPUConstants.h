@@ -4,7 +4,7 @@
 #include <cstdint>
 
 namespace GPUConstants {
-  constexpr uint16_t maxNumberOfHits = 20000;
+  constexpr uint16_t maxNumberOfHits = 30000;
 
 }
 #endif
