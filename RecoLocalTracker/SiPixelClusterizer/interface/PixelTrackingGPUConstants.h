@@ -3,7 +3,7 @@
 
 #include <cstdint>
 
-namespace GPUConstants {
+namespace PixelGPUConstants {
   constexpr uint16_t maxNumberOfHits = 30000;
 
 }

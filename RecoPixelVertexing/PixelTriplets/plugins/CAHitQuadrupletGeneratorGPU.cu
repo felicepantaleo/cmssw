@@ -123,9 +123,9 @@ void CAHitQuadrupletGeneratorGPU::allocateOnGPU()
   cudaCheck(cudaMemset(device_nCells_, 0, sizeof(uint32_t)));
 
   cudaCheck(cudaMalloc(&device_isOuterHitOfCell_,
-             GPUConstants::maxNumberOfHits * sizeof(GPU::VecArray<unsigned int, maxCellsPerHit_>)));
+             PixelGPUConstants::maxNumberOfHits * sizeof(GPU::VecArray<unsigned int, maxCellsPerHit_>)));
   cudaCheck(cudaMemset(device_isOuterHitOfCell_, 0,
-             GPUConstants::maxNumberOfHits * sizeof(GPU::VecArray<unsigned int, maxCellsPerHit_>)));
+             PixelGPUConstants::maxNumberOfHits * sizeof(GPU::VecArray<unsigned int, maxCellsPerHit_>)));
 
   h_foundNtupletsVec_.resize(maxNumberOfRegions_);
   h_foundNtupletsData_.resize(maxNumberOfRegions_);
@@ -157,7 +157,7 @@ void CAHitQuadrupletGeneratorGPU::launchKernels(const TrackingRegion &region,
   h_foundNtupletsVec_[regionIndex]->reset();
 
   auto nhits = hh.nHits;
-  assert(nhits <= GPUConstants::maxNumberOfHits);
+  assert(nhits <= PixelGPUConstants::maxNumberOfHits);
   auto numberOfBlocks = (maxNumberOfDoublets_ + 512 - 1)/512;
   kernel_connect<<<numberOfBlocks, 512, 0, cudaStream>>>(
       d_foundNtupletsVec_[regionIndex], // needed only to be reset, ready for next kernel
@@ -165,7 +165,7 @@ void CAHitQuadrupletGeneratorGPU::launchKernels(const TrackingRegion &region,
       device_isOuterHitOfCell_,
       region.ptMin(),
       region.originRBound(), caThetaCut, caPhiCut, caHardPtCut,
-      maxNumberOfDoublets_, GPUConstants::maxNumberOfHits
+      maxNumberOfDoublets_, PixelGPUConstants::maxNumberOfHits
   );
   cudaCheck(cudaGetLastError());
 
@@ -201,7 +201,7 @@ void CAHitQuadrupletGeneratorGPU::launchKernels(const TrackingRegion &region,
 void CAHitQuadrupletGeneratorGPU::cleanup(cudaStream_t cudaStream) {
   // this lazily resets temporary memory for the next event, and is not needed for reading the output
   cudaCheck(cudaMemsetAsync(device_isOuterHitOfCell_, 0,
-                            GPUConstants::maxNumberOfHits * sizeof(GPU::VecArray<unsigned int, maxCellsPerHit_>),
+                            PixelGPUConstants::maxNumberOfHits * sizeof(GPU::VecArray<unsigned int, maxCellsPerHit_>),
                             cudaStream));
   cudaCheck(cudaMemsetAsync(device_nCells_,0,sizeof(uint32_t),cudaStream));
 }
