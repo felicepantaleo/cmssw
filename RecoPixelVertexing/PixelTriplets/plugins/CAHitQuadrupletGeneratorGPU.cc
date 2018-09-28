@@ -53,6 +53,9 @@ void CAHitQuadrupletGeneratorGPU::fillDescriptions(edm::ParameterSetDescription 
   desc.add<double>("CAThetaCut", 0.00125);
   desc.add<double>("CAPhiCut", 10);
   desc.add<double>("CAHardPtCut", 0);
+  desc.add<double>("fitMaxChi2", 30);
+  desc.add<double>("fitMaxTip", 0.1);
+
   desc.addOptional<bool>("CAOnlyOneLastHitPerLayerFilter")->setComment(
       "Deprecated and has no effect. To be fully removed later when the "
       "parameter is no longer used in HLT configurations.");
