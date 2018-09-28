@@ -5,6 +5,8 @@
 
 namespace PixelGPUConstants {
   constexpr uint16_t maxNumberOfHits = 40000;       // data at pileup 50 has 18300 +/- 3500 hits; 40000 is around 6 sigma away
+  constexpr uint16_t maxNumberOfQuadruplets = 10000;
+  constexpr int MaxNumOfDoublets = 1024*1024*256;
 
 }
 

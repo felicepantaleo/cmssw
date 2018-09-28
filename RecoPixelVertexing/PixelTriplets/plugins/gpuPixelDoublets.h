@@ -16,8 +16,6 @@
 
 namespace gpuPixelDoublets {
 
-  constexpr uint32_t MaxNumOfDoublets = 1024*1024*256;
-
   template<typename Hist>
   __device__
   void doubletsFromHisto(uint8_t const * __restrict__ layerPairs,
@@ -117,7 +115,7 @@ namespace gpuPixelDoublets {
           if (std::min(std::abs(int16_t(iphi[oi]-mep)), std::abs(int16_t(mep-iphi[oi]))) > iphicut)
             continue;
           if (z0cutoff(oi) || ptcut(oi)) continue;
-          auto ind = atomicInc(nCells, MaxNumOfDoublets);
+          auto ind = atomicInc(nCells, PixelGPUConstants::MaxNumOfDoublets);
           // int layerPairId, int doubletId, int innerHitId, int outerHitId)
           cells[ind].init(hh, pairLayerId, ind, i, oi);
           isOuterHitOfCell[oi].push_back(ind);
