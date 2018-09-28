@@ -22,7 +22,7 @@
 #include "RecoTracker/TkSeedingLayers/interface/SeedComparitorFactory.h"
 #include "RecoPixelVertexing/PixelTriplets/plugins/RecHitsMap.h"
 #include "RecoPixelVertexing/PixelTrackFitting/interface/RiemannFit.h"
-
+#include "RecoPixelVertexing/PixelTriplets/plugins/CAHitNtupletHeterogeneousProduct.h"
 #include "GPUCACell.h"
 
 class TrackingRegion;
@@ -153,11 +153,13 @@ private:
     const float caPhiCut = 0.1f;
     const float caHardPtCut = 0.f;
 
-    static constexpr int maxNumberOfQuadruplets_ = 10000;
+    const float fitMaxChi2_=50.f;
+    const float fitMaxTip_=0.1f;
+    const float nSigmaTipMaxTolerance_=1.f;
+
     static constexpr int maxCellsPerHit_ = 256;
     static constexpr int maxNumberOfLayerPairs_ = 13;
     static constexpr int maxNumberOfLayers_ = 10;
-    static constexpr int maxNumberOfDoublets_ = 262144;
     static constexpr int maxNumberOfRegions_ = 2;
 
     std::vector<GPU::SimpleVector<Quadruplet>*> h_foundNtupletsVec_;
@@ -165,6 +167,10 @@ private:
 
     std::vector<GPU::SimpleVector<Quadruplet>*> d_foundNtupletsVec_;
     std::vector<Quadruplet*> d_foundNtupletsData_;
+
+    std::vector<CAHitNtupletHeterogeneousProduct::GPUProduct*> h_foundGPUPixelTracks_;
+    std::vector<CAHitNtupletHeterogeneousProduct::GPUProduct*> d_foundGPUPixelTracks_;
+
 
     GPUCACell* device_theCells_ = nullptr;
     GPU::VecArray< unsigned int, maxCellsPerHit_>* device_isOuterHitOfCell_ = nullptr;
