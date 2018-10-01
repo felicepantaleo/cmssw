@@ -21,3 +21,6 @@
 </bin>
 
 <bin file="fastDPHI_t.cpp"/>
+<bin file="fakeRecoTrack.cc"/>
+  <use   name="DataFormats/CLHEP"/>
+  <use   name="DataFormats/TrackReco"/>
