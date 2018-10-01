@@ -19,60 +19,28 @@ struct FakeRecoTrack {
   uint8_t stopreason = 0;
   char padTrackExtra[22];
 
-  inline double getchi2() const
-{
-    return chi2;
-}
+  inline constexpr double get_chi2() const { return chi2; }
 
-inline double getndof() const
-{
-    return ndof;
-}
+  inline constexpr double get_ndof() const { return ndof; }
 
-inline int getcharge() const
-{
-    return charge;
-}
+  inline constexpr int get_charge() const { return charge; }
 
-inline double getpx() const
-{
-    return momentum[0];
-}
+  inline constexpr double get_px() const { return momentum[0]; }
 
+  inline constexpr double get_py() const { return momentum[1]; }
+  inline constexpr double get_pz() const { return momentum[2]; }
 
-inline double getpy() const
-{
-    return momentum[1];
-}
-inline double getpz() const
-{
-    return momentum[2];
-}
+  inline constexpr double get_vx() const { return vertexPos[0]; }
 
+  inline constexpr double get_vy() const { return vertexPos[1]; }
+  inline constexpr double get_vz() const { return vertexPos[2]; }
 
-inline double getvx() const
-{
-    return vertexPos[0];
-}
-
-inline double getvy() const
-{
-    return vertexPos[1];
-}
-inline double getvz() const
-{
-    return vertexPos[2];
-}
-
-inline int covIndex(int i, int j) const
-{
+  inline constexpr int covIndex(int i, int j) const {
     int a = (i <= j ? i : j);
     int b = (i <= j ? j : i);
     return b * (b + 1) / 2 + a;
-}
-inline double getcovariance(int i, int j) const
-{
+  }
+  inline constexpr double get_covariance(int i, int j) const {
     return covariance[covIndex(i, j)];
-}
-
+  }
 };
