@@ -81,16 +81,16 @@ int main() {
 
   std::cout << "\nChecking that they have the same content " << std::endl;
 
-  assert(fakeTrack.getchi2() == emptyTrack->chi2());
-  assert(fakeTrack.getndof() == emptyTrack->ndof());
-  assert(fakeTrack.getcharge() == emptyTrack->charge());
-  assert(fakeTrack.getpx() == emptyTrack->px());
-  assert(fakeTrack.getpy() == emptyTrack->py());
-  assert(fakeTrack.getpz() == emptyTrack->pz());
-  assert(fakeTrack.getvx() == emptyTrack->vx());
-  assert(fakeTrack.getvy() == emptyTrack->vy());
-  assert(fakeTrack.getvz() == emptyTrack->vz());
-  assert(fakeTrack.getcovariance(1, 1) == emptyTrack->covariance(1, 1));
+  assert(fakeTrack.get_chi2() == emptyTrack->chi2());
+  assert(fakeTrack.get_ndof() == emptyTrack->ndof());
+  assert(fakeTrack.get_charge() == emptyTrack->charge());
+  assert(fakeTrack.get_px() == emptyTrack->px());
+  assert(fakeTrack.get_py() == emptyTrack->py());
+  assert(fakeTrack.get_pz() == emptyTrack->pz());
+  assert(fakeTrack.get_vx() == emptyTrack->vx());
+  assert(fakeTrack.get_vy() == emptyTrack->vy());
+  assert(fakeTrack.get_vz() == emptyTrack->vz());
+  assert(fakeTrack.get_covariance(1, 1) == emptyTrack->covariance(1, 1));
   reco::Track* disguisedTrack = (reco::Track*)&fakeTrack;
   assert(disguisedTrack->chi2() == emptyTrack->chi2());
   assert(disguisedTrack->ndof() == emptyTrack->ndof());
