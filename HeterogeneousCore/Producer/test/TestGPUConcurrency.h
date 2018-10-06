@@ -1,5 +1,5 @@
-#ifndef TestGPUConcurrency_h
-#define TestGPUConcurrency_h
+#ifndef HeterogeneousCore_Producer_test_TestGPUConcurrency_h
+#define HeterogeneousCore_Producer_test_TestGPUConcurrency_h
 
 #include "HeterogeneousCore/CUDACore/interface/GPUCuda.h"
 #include "HeterogeneousCore/Producer/interface/HeterogeneousEDProducer.h"
@@ -41,4 +41,4 @@ private:
   unsigned int sleep_;
 };
 
-#endif // TestGPUConcurrency_h
+#endif // HeterogeneousCore_Producer_test_TestGPUConcurrency_h
