@@ -1,5 +1,5 @@
-#ifndef TestGPUConcurrencyAlgo_h
-#define TestGPUConcurrencyAlgo_h
+#ifndef HeterogeneousCore_Producer_test_TestGPUConcurrencyAlgo_h
+#define HeterogeneousCore_Producer_test_TestGPUConcurrencyAlgo_h
 
 #include <cuda_runtime.h>
 
@@ -20,4 +20,4 @@ private:
   unsigned int sleep_;
 };
 
-#endif // TestGPUConcurrencyAlgo_h
+#endif // HeterogeneousCore_Producer_test_TestGPUConcurrencyAlgo_h
