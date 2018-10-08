@@ -6,18 +6,20 @@
 #include "RecoPixelVertexing/PixelTrackFitting/interface/RiemannFit.h"
 #include "RecoLocalTracker/SiPixelClusterizer/interface/PixelTrackingGPUConstants.h"
 #include "HeterogeneousCore/CUDAUtilities/interface/GPUVecArray.h"
+#include "RecoPixelVertexing/PixelTriplets/interface/FakeRecoTrack.h"
+
 #include "GPUCACell.h"
 
 
 namespace CAHitNtupletHeterogeneousProduct {
   using CPUProduct = int;
 
-  struct GPUPixelTrack {
-      Rfit::helix_fit fitResults;
-      Quadruplet quadruplet;
+  struct GPUProduct {
+      Rfit::helix_fit* d_fitResults;
+      FakeRecoTrack* d_recoTracks;
+      std::vector<GPU::SimpleVector<Quadruplet>*> d_foundNtuplets;
+      std::vector<Quadruplet*> d_foundNtupletsData;
   };
-
-  using GPUProduct = GPU::VecArray<GPUPixelTrack, PixelGPUConstants::maxNumberOfQuadruplets>;
 
   using HeterogeneousGPUPixelTrack = HeterogeneousProductImpl<heterogeneous::CPUProduct<CPUProduct>,
                                                             heterogeneous::GPUCudaProduct<GPUProduct> >;

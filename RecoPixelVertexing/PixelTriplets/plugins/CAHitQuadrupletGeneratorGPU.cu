@@ -4,9 +4,11 @@
 
 #include <cstdint>
 #include <cuda_runtime.h>
+#include <memory>
 
 #include "HeterogeneousCore/CUDAUtilities/interface/cudaCheck.h"
 #include "RecoLocalTracker/SiPixelRecHits/interface/pixelCPEforGPU.h"
+#include "DataFormats/TrackReco/interface/Track.h"
 #include "CAHitQuadrupletGeneratorGPU.h"
 #include "GPUCACell.h"
 #include "gpuPixelDoublets.h"
@@ -162,25 +164,72 @@ KernelLineFitAllHits(GPU::SimpleVector<Quadruplet> * foundNtuplets,
 #endif
 }
 
+// __global__
+// void kernel_filterGPUPixelTracks(Rfit::helix_fit * const __restrict__  helix_fit_results,
+//   GPU::SimpleVector<Quadruplet> * const __restrict__ foundNtuplets,
+//   CAHitNtupletHeterogeneousProduct::GPUProduct* filteredPixelTracks, float fitMaxChi2, float fitMaxTip, float nSigmaTipMaxTolerance )
+// {
+//   const auto nSeeds = foundNtuplets->size();
+//   auto idx = threadIdx.x + blockIdx.x * blockDim.x;
+//   if(idx < nSeeds)
+//   {
+//     const auto& helix = helix_fit_results[idx];
+//     float valTip = helix.par(1);
+//     float errTip = std::sqrt(helix.cov(1, 1));
+//     if( (std::abs(valTip) - fitMaxTip < nSigmaTipMaxTolerance * errTip ) and
+//         (helix.chi2_circle + helix.chi2_line <= fitMaxChi2))
+//     {
+//       filteredPixelTracks->emplace_back(CAHitNtupletHeterogeneousProduct::GPUPixelTrack{helix, (*foundNtuplets)[idx]});
+//     }
+//   }
+// }
+
+
 __global__
-void kernel_filterGPUPixelTracks(Rfit::helix_fit * const __restrict__  helix_fit_results,
+void kernel_makeGPUPixelTracks(Rfit::helix_fit * const __restrict__  helix_fit_results,
+  Rfit::circle_fit * const __restrict__ circle_fit_results,
   GPU::SimpleVector<Quadruplet> * const __restrict__ foundNtuplets,
-  CAHitNtupletHeterogeneousProduct::GPUProduct* filteredPixelTracks, float fitMaxChi2, float fitMaxTip, float nSigmaTipMaxTolerance )
+  FakeRecoTrack* recoTracks)
 {
   const auto nSeeds = foundNtuplets->size();
   auto idx = threadIdx.x + blockIdx.x * blockDim.x;
   if(idx < nSeeds)
   {
     const auto& helix = helix_fit_results[idx];
+    auto& recoTrack = recoTracks[idx];
+    recoTrack.charge = circle_fit_results[idx].q;
+    recoTrack.chi2 = helix.chi2_circle + helix.chi2_line;
+    recoTrack.ndof = 3;
+    recoTrack.covariance[0] =  helix.cov(0,0);
+    recoTrack.covariance[1] =  helix.cov(0,1);
+    recoTrack.covariance[2] =  helix.cov(1,1);
+    recoTrack.covariance[3] =  helix.cov(0,2);
+    recoTrack.covariance[4] =  helix.cov(1,2);
+    recoTrack.covariance[5] =  helix.cov(2,2);
+    recoTrack.covariance[6] =  helix.cov(0,3);
+    recoTrack.covariance[7] =  helix.cov(1,3);
+    recoTrack.covariance[8] =  helix.cov(2,3);
+    recoTrack.covariance[9] =  helix.cov(3,3);
+    recoTrack.covariance[10] = helix.cov(0,4);
+    recoTrack.covariance[11] = helix.cov(1,4);
+    recoTrack.covariance[12] = helix.cov(2,4);
+    recoTrack.covariance[13] = helix.cov(3,4);
+    recoTrack.covariance[14] = helix.cov(4,4);
     float valTip = helix.par(1);
     float errTip = std::sqrt(helix.cov(1, 1));
-    if( (std::abs(valTip) - fitMaxTip < nSigmaTipMaxTolerance * errTip ) and
-        (helix.chi2_circle + helix.chi2_line <= fitMaxChi2))
-    {
-      filteredPixelTracks->emplace_back(CAHitNtupletHeterogeneousProduct::GPUPixelTrack{helix, (*foundNtuplets)[idx]});
-    }
+    recoTrack.vertexPos[0] =
+    // Vector5d par;  //!<(phi,Tip,pt,cotan(theta)),Zip)
+    // Matrix5d cov;
+    // /*!< ()->cov() \n
+    //   |(phi,phi)|(Tip,phi)|(p_t,phi)|(c_t,phi)|(Zip,phi)| \n
+    //   |(phi,Tip)|(Tip,Tip)|(p_t,Tip)|(c_t,Tip)|(Zip,Tip)| \n
+    //   |(phi,p_t)|(Tip,p_t)|(p_t,p_t)|(c_t,p_t)|(Zip,p_t)| \n
+    //   |(phi,c_t)|(Tip,c_t)|(p_t,c_t)|(c_t,c_t)|(Zip,c_t)| \n
+    //   |(phi,Zip)|(Tip,Zip)|(p_t,Zip)|(c_t,Zip)|(Zip,Zip)|
+    // */
   }
 }
+
 
 __global__ void
 kernel_checkOverflows(GPU::SimpleVector<Quadruplet> *foundNtuplets,
@@ -290,7 +339,10 @@ void CAHitQuadrupletGeneratorGPU::deallocateOnGPU()
   cudaFree(circle_fit_resultsGPU_);
   cudaFree(line_fit_resultsGPU_);
   cudaFree(helix_fit_resultsGPU_);
+  cudaFree(d_recoTracks_);
 }
+
+
 
 void CAHitQuadrupletGeneratorGPU::allocateOnGPU()
 {
@@ -350,6 +402,13 @@ void CAHitQuadrupletGeneratorGPU::allocateOnGPU()
 
   cudaCheck(cudaMalloc(&helix_fit_resultsGPU_, sizeof(Rfit::helix_fit)*PixelGPUConstants::maxNumberOfQuadruplets));
   cudaCheck(cudaMemset(helix_fit_resultsGPU_, 0x00, sizeof(Rfit::helix_fit)*PixelGPUConstants::maxNumberOfQuadruplets));
+
+  cudaCheck(cudaMalloc(&d_recoTracks_, sizeof(FakeRecoTrack)*PixelGPUConstants::maxNumberOfQuadruplets)));
+  h_product_.fitResults = helix_fit_resultsGPU_;
+  h_product_.d_foundNtuplets = d_foundNtupletsVec_;
+  h_product.d_foundNtupletsData = d_foundNtupletsData_;
+  h_product.d_recoTracks = d_recoTracks_;
+
 }
 
 void CAHitQuadrupletGeneratorGPU::launchKernels(const TrackingRegion &region,

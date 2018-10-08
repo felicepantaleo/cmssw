@@ -23,6 +23,8 @@
 #include "RecoPixelVertexing/PixelTriplets/plugins/RecHitsMap.h"
 #include "RecoPixelVertexing/PixelTrackFitting/interface/RiemannFit.h"
 #include "RecoPixelVertexing/PixelTriplets/plugins/CAHitNtupletHeterogeneousProduct.h"
+#include "RecoPixelVertexing/PixelTriplets/interface/FakeRecoTrack.h"
+
 #include "GPUCACell.h"
 
 class TrackingRegion;
@@ -158,8 +160,6 @@ private:
     const float nSigmaTipMaxTolerance_=1.f;
 
     static constexpr int maxCellsPerHit_ = 256;
-    static constexpr int maxNumberOfLayerPairs_ = 13;
-    static constexpr int maxNumberOfLayers_ = 10;
     static constexpr int maxNumberOfRegions_ = 2;
 
     std::vector<GPU::SimpleVector<Quadruplet>*> h_foundNtupletsVec_;
@@ -168,8 +168,7 @@ private:
     std::vector<GPU::SimpleVector<Quadruplet>*> d_foundNtupletsVec_;
     std::vector<Quadruplet*> d_foundNtupletsData_;
 
-    std::vector<CAHitNtupletHeterogeneousProduct::GPUProduct*> h_foundGPUPixelTracks_;
-    std::vector<CAHitNtupletHeterogeneousProduct::GPUProduct*> d_foundGPUPixelTracks_;
+    GPUProduct h_product_;
 
 
     GPUCACell* device_theCells_ = nullptr;
@@ -179,6 +178,10 @@ private:
     HitsOnCPU const * hitsOnCPU=nullptr;
 
     RecHitsMap<TrackingRecHit const *> hitmap_ = RecHitsMap<TrackingRecHit const *>(nullptr);
+    FakeRecoTrack* d_recoTracks_;
+    GPU::VecArray<reco::Track, PixelGPUConstants::maxNumberOfQuadruplets>* d_recoTracks;
+    GPU::VecArray<reco::Track, PixelGPUConstants::maxNumberOfQuadruplets>* h_recoTracks;
+
 
     // Riemann Fit stuff
     Rfit::Matrix3xNd *hitsGPU_ = nullptr;
