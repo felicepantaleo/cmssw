@@ -43,12 +43,10 @@ private:
 
     std::vector< std::vector< std::vector<unsigned int> > > histogram_; // a histogram of layerClusters IDs per layer
 
+    
     const unsigned int nEtaBins_ = 30;
     const unsigned int nPhiBins_ = 126;
     const unsigned int nLayers_ = 104;
-
-
-
 };
 
 #endif
