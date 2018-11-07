@@ -217,7 +217,9 @@ void kernel_makeGPUPixelTracks(Rfit::helix_fit * const __restrict__  helix_fit_r
     recoTrack.covariance[14] = helix.cov(4,4);
     float valTip = helix.par(1);
     float errTip = std::sqrt(helix.cov(1, 1));
-    recoTrack.vertexPos[0] =
+
+    //TODO: Fill the parameters of the track and point of closest approach position
+    // recoTrack.vertexPos[0] =
     // Vector5d par;  //!<(phi,Tip,pt,cotan(theta)),Zip)
     // Matrix5d cov;
     // /*!< ()->cov() \n
