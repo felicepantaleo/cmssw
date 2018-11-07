@@ -2,6 +2,9 @@
 #include "RecoPixelVertexing/PixelTriplets/interface/FakeRecoTrack.h"
 #include <iostream>
 #include <stdio.h>
+
+int main() {
+
 double fakee[] = { 1.1,
              1.2, 2.2,
              1.3, 2.3, 3.3,
@@ -9,7 +12,6 @@ double fakee[] = { 1.1,
              1.5, 2.5, 3.5, 4.5, 5.5 };
 
 
-int main() {
   reco::TrackBase::CovarianceMatrix covfake(fakee, fakee + 15);
 
   double chi2 = 1.2;
@@ -19,12 +21,6 @@ int main() {
   int charge = 1;
   reco::Track* emptyTrack = new reco::Track(chi2, ndof, pos, mom, charge, covfake);
 
-  // reco::TrackBase::CovarianceMatrix cov;
-  //  for (int i = 0; i < 5; ++i) {
-  //        for (int j = 0; j <= i; ++j) {
-  //            std::cout << cov(i, j) << std::endl;
-  //        }
-  //    }
 
   std::cout << "size of the reco track " << sizeof(*emptyTrack) << std::endl;
   std::cout << "Printing the content of the reco::track " << std::endl;
