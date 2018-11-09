@@ -23,6 +23,8 @@
 #include "RecoPixelVertexing/PixelTriplets/plugins/RecHitsMap.h"
 #include "RecoPixelVertexing/PixelTrackFitting/interface/RiemannFit.h"
 
+
+// FIXME  (split header???)
 #include "GPUCACell.h"
 
 class TrackingRegion;
@@ -38,6 +40,7 @@ public:
 
     using HitsOnGPU = siPixelRecHitsHeterogeneousProduct::HitsOnGPU;
     using HitsOnCPU = siPixelRecHitsHeterogeneousProduct::HitsOnCPU;
+    using hindex_type = siPixelRecHitsHeterogeneousProduct::hindex_type;
 
     static constexpr unsigned int minLayers = 4;
     typedef OrderedHitSeeds ResultType;
@@ -58,6 +61,7 @@ public:
 
     void hitNtuplets(const TrackingRegion &region, HitsOnCPU const & hh,
                      const edm::EventSetup& es,
+                     bool doRiemannFit,
                      bool transferToCPU,
                      cudaStream_t stream);
     void cleanup(cudaStream_t stream);
@@ -136,9 +140,8 @@ private:
         const bool enabled_;
     };
 
-    void  launchKernels(const TrackingRegion &, int, HitsOnCPU const & hh, bool transferToCPU, cudaStream_t);
+    void launchKernels(const TrackingRegion &, int, HitsOnCPU const & hh, bool doRiemannFit, bool transferToCPU, cudaStream_t);
     std::vector<std::array<int,4>> fetchKernelResult(int);
-
 
     float bField_;
 
