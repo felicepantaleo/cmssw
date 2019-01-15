@@ -24,7 +24,9 @@
 #include "FWCore/ParameterSet/interface/ConfigurationDescriptions.h"
 #include "FWCore/ParameterSet/interface/ParameterSetDescription.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
+#include "FWCore/ServiceRegistry/interface/Service.h"
 #include "HeterogeneousCore/CUDACore/interface/CUDAScopedContext.h"
+#include "HeterogeneousCore/CUDAServices/interface/CUDAService.h"
 #include "RecoLocalTracker/SiPixelClusterizer/interface/SiPixelFedCablingMapGPUWrapper.h"
 #include "RecoTracker/Record/interface/CkfComponentsRecord.h"
 
@@ -62,6 +64,7 @@ private:
   std::unique_ptr<PixelUnpackingRegions> regions_;
 
   pixelgpudetails::SiPixelRawToClusterGPUKernel gpuAlgo_;
+  std::unique_ptr<pixelgpudetails::SiPixelRawToClusterGPUKernel::WordFedAppender> wordFedAppender_;
   PixelDataFormatter::Errors errors_;
 
   const bool includeErrors_;
@@ -90,6 +93,11 @@ SiPixelRawToClusterCUDA::SiPixelRawToClusterCUDA(const edm::ParameterSet& iConfi
   }
 
   if(usePilotBlade_) edm::LogInfo("SiPixelRawToCluster")  << " Use pilot blade data (FED 40)";
+
+  edm::Service<CUDAService> cs;
+  if(cs->enabled()) {
+    wordFedAppender_ = std::make_unique<pixelgpudetails::SiPixelRawToClusterGPUKernel::WordFedAppender>();
+  }
 }
 
 void SiPixelRawToClusterCUDA::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
@@ -164,7 +172,6 @@ void SiPixelRawToClusterCUDA::acquire(const edm::Event& iEvent, const edm::Event
 
   // In CPU algorithm this loop is part of PixelDataFormatter::interpretRawData()
   ErrorChecker errorcheck;
-  auto wordFedAppender = pixelgpudetails::SiPixelRawToClusterGPUKernel::WordFedAppender(ctx.stream());
   for(int fedId: fedIds_) {
     if (!usePilotBlade_ && (fedId==40) ) continue; // skip pilot blade data
     if (regions_ && !regions_->mayUnpackFED(fedId)) continue;
@@ -212,13 +219,13 @@ void SiPixelRawToClusterCUDA::acquire(const edm::Event& iEvent, const edm::Event
     const cms_uint32_t * ew = (const cms_uint32_t *)(trailer);
 
     assert(0 == (ew-bw)%2);
-    wordFedAppender.initializeWordFed(fedId, wordCounterGPU, bw, (ew-bw));
+    wordFedAppender_->initializeWordFed(fedId, wordCounterGPU, bw, (ew-bw));
     wordCounterGPU+=(ew-bw);
 
   } // end of for loop
 
   gpuAlgo_.makeClustersAsync(gpuMap, gpuModulesToUnpack, gpuGains,
-                             wordFedAppender,
+                             *wordFedAppender_,
                              std::move(errors_),
                              wordCounterGPU, fedCounter, convertADCtoElectrons_,
                              useQuality_, includeErrors_,
