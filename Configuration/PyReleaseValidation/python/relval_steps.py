@@ -2024,10 +2024,10 @@ step3_pixelTrackingOnly = {
     '--eventcontent': 'RECOSIM,DQM',
 }
 step3_riemannFit = {
-    '--procModifiers': 'riemannFit',
+    '--procModifiers': 'brokenLine',
 }
 step3_riemannFitGPU = {
-    '--procModifiers': 'riemannFitGPU',
+    '--procModifiers': 'brokenLineGPU',
 }
 step3_gpu = {
     '--procModifiers': 'gpu',
