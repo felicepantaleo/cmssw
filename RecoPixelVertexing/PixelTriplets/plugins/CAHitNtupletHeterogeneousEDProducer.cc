@@ -94,7 +94,7 @@ void CAHitNtupletHeterogeneousEDProducer::fillDescriptions(
 
   desc.add<edm::InputTag>("trackingRegions", edm::InputTag("globalTrackingRegionFromBeamSpot"));
   desc.add<edm::InputTag>("heterogeneousPixelRecHitSrc", edm::InputTag("siPixelRecHitsPreSplitting"));
-  desc.add<bool>("doRiemannFit", true);  // mandatory!
+  desc.add<bool>("doRiemannFit", false);  // false == BrokenLine
   desc.add<bool>("gpuEnableTransfer", true);
   desc.add<bool>("gpuEnableConversion", true);
 

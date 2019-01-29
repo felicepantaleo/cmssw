@@ -23,7 +23,7 @@
 #include "RecoPixelVertexing/PixelTriplets/plugins/RecHitsMap.h"
 
 #include "CAHitQuadrupletGeneratorKernels.h"
-#include "RiemannFitOnGPU.h"
+#include "HelixFitOnGPU.h"
 
 #include "RecoPixelVertexing/PixelTriplets/plugins/pixelTuplesHeterogeneousProduct.h"
 
@@ -94,7 +94,7 @@ private:
 
 
     CAHitQuadrupletGeneratorKernels kernels;
-    RiemannFitOnGPU fitter;
+    HelixFitOnGPU fitter;
 
     // not really used at the moment
     const float caThetaCut = 0.00125f;

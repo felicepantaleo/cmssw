@@ -50,6 +50,13 @@
   <flags CXXFLAGS="-DEIGEN_NO_DEBUG"/>
 </bin>
 
+<bin file="PixelTrackRiemannFit.cc" name = "PixelTrackBrokenLineFit">
+  <use name="eigen"/>
+  <use name="cuda"/>
+  <use name="root"/>
+  <flags CXXFLAGS="-DEIGEN_NO_DEBUG -DUSE_BL"/>
+</bin>
+
 <bin file="PixelTrackRiemannFit.cc" name = "PixelTrackRiemannFit_Debug">
   <use name="eigen"/>
   <use name="cuda"/>
