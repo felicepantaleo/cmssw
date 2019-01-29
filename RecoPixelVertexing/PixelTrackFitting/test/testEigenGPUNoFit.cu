@@ -158,7 +158,9 @@ void testInverse4x4() {
 
 void testInverse5x5() {
 	std::cout << "TEST INVERSE 5x5" << std::endl;
-	Matrix5d m = Matrix5d::Random();
+        Matrix5d m;
+        fillMatrix(m);
+        m += m.transpose().eval();
 	Matrix5d m_inv = m.inverse();
 	Matrix5d *mGPU = nullptr;
 	Matrix5d *mGPUret = nullptr;
