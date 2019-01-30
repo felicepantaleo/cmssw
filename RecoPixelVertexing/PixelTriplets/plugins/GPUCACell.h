@@ -159,7 +159,7 @@ public:
     tmpNtuplet.push_back_unsafe(theDoubletId);
     assert(tmpNtuplet.size()<=4);
 
-    if(theOuterNeighbors.size()>0) { // continue
+    if(theOuterNeighbors.size()>0) {
       for (int j = 0; j < theOuterNeighbors.size(); ++j) {
         auto otherCell = theOuterNeighbors[j];
         cells[otherCell].find_ntuplets(cells, foundNtuplets, apc, tmpNtuplet,
