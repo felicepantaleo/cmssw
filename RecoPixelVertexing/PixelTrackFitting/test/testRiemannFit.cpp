@@ -1,9 +1,16 @@
 #include <iostream>
 
+// #define __host__
+// #define __device__
+
 #include <Eigen/Core>
 #include <Eigen/Eigenvalues>
 
+#ifdef USE_BL
+#include "RecoPixelVertexing/PixelTrackFitting/interface/BrokenLine.h"
+#else
 #include "RecoPixelVertexing/PixelTrackFitting/interface/RiemannFit.h"
+#endif
 
 #include "test_common.h"
 
@@ -57,25 +64,50 @@ void testFit() {
   std::cout << "Generated cov:\n" << hits_ge << std::endl;
 
   // FAST_FIT_CPU
+#ifdef USE_BL
+  Vector4d fast_fit_results; BrokenLine::BL_Fast_fit(hits, fast_fit_results);
+#else
   Vector4d fast_fit_results; Rfit::Fast_fit(hits, fast_fit_results);
+#endif
   std::cout << "Fitted values (FastFit, [X0, Y0, R, tan(theta)]):\n" << fast_fit_results << std::endl;
 
 
   // CIRCLE_FIT CPU
   constexpr uint32_t N = Rfit::Map3x4d::ColsAtCompileTime;
   constexpr auto n = N;
-  Rfit::VectorNd<N> rad = (hits.block(0, 0, 2, n).colwise().norm());
 
+#ifdef USE_BL
+  BrokenLine::PreparedBrokenLineData<N> data;
+  BrokenLine::karimaki_circle_fit circle_fit_results;
+  Rfit::Matrix3d Jacob;
+  Rfit::MatrixNplusONEd<N> C_U;
+    
+  BrokenLine::prepareBrokenLineData(hits,fast_fit_results,B,data);
+  Rfit::line_fit line_fit_results;
+  BrokenLine::BL_Line_fit(hits_ge,fast_fit_results,B,data,line_fit_results);
+  BrokenLine::BL_Circle_fit(hits,hits_ge,fast_fit_results,B,data,circle_fit_results,Jacob,C_U);
+  Jacob << 1,0,0,
+    0,1,0,
+    0,0,-B/std::copysign(Rfit::sqr(circle_fit_results.par(2)),circle_fit_results.par(2));
+  circle_fit_results.par(2)=B/std::abs(circle_fit_results.par(2));
+  circle_fit_results.cov=Jacob*circle_fit_results.cov*Jacob.transpose();
+#else
+  Rfit::VectorNd<N> rad = (hits.block(0, 0, 2, n).colwise().norm());
   Rfit::Matrix2Nd<N> hits_cov =  MatrixXd::Zero(2 * n, 2 * n);
   Rfit::loadCovariance2D(hits_ge,hits_cov);
   Rfit::circle_fit circle_fit_results = Rfit::Circle_fit(hits.block(0, 0, 2, n),
       hits_cov,
       fast_fit_results, rad, B, true);
-  std::cout << "Fitted values (CircleFit):\n" << circle_fit_results.par << std::endl;
-
   // LINE_FIT CPU
   Rfit::line_fit line_fit_results = Rfit::Line_fit(hits, hits_ge, circle_fit_results, fast_fit_results, B, true);
-  std::cout << "Fitted values (LineFit):\n" << line_fit_results.par << std::endl;
+  Rfit::par_uvrtopak(circle_fit_results, B, true);
+
+#endif
+  
+  std::cout << "Fitted values (CircleFit):\n" << circle_fit_results.par
+	    << "\nchi2 " << circle_fit_results.chi2 << std::endl;
+  std::cout << "Fitted values (LineFit):\n" << line_fit_results.par
+	    << "\nchi2 " << line_fit_results.chi2 << std::endl;
 
   std::cout << "Fitted cov (CircleFit) CPU:\n" << circle_fit_results.cov << std::endl;
   std::cout << "Fitted cov (LineFit): CPU\n" << line_fit_results.cov << std::endl;

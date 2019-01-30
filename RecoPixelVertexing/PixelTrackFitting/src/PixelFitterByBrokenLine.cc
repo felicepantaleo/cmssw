@@ -58,26 +58,20 @@ std::unique_ptr<reco::Track> PixelFitterByBrokenLine::run(
     isBarrel[i] = recHit->detUnit()->type().isBarrel();
   }
 
-  float bField = 1 / PixelRecoUtilities::fieldInInvGev(*es_);
+  assert(nhits==4);
+  Rfit::Matrix3xNd<4> riemannHits;
 
-  Matrix<double, 3, Dynamic, 0, 3, max_nop> brokenLineHits(3, nhits);
-
-  Matrix<double, Dynamic, Dynamic, 0, 3 * max_nop, 3 * max_nop> brokenLineHits_cov =
-      MatrixXd::Zero(3 * nhits, 3 * nhits);
+  Eigen::Matrix<float,6,4> riemannHits_ge = Eigen::Matrix<float,6,4>::Zero();
 
   for (unsigned int i = 0; i < nhits; ++i) {
-    brokenLineHits.col(i) << points[i].x(), points[i].y(), points[i].z();
+    riemannHits.col(i) << points[i].x(), points[i].y(), points[i].z();
 
-    const auto& errorMatrix = errors[i].matrix4D();
-
-    for (auto j = 0; j < 3; ++j) {
-      for (auto l = 0; l < 3; ++l) {
-        brokenLineHits_cov(i + j * nhits, i + l * nhits) = errorMatrix(j, l);
-      }
-    }
+    riemannHits_ge.col(i) <<  errors[i].cxx(), errors[i].cyx(), errors[i].cyy(),
+                              errors[i].czx(), errors[i].czy(), errors[i].czz();
   }
+  float bField = 1 / PixelRecoUtilities::fieldInInvGev(*es_);
 
-  helix_fit fittedTrack = BrokenLine::Helix_fit(brokenLineHits, brokenLineHits_cov, bField);
+  Rfit::helix_fit fittedTrack = BrokenLine::BL_Helix_fit(riemannHits, riemannHits_ge, bField);
   
   int iCharge = fittedTrack.q;
 
