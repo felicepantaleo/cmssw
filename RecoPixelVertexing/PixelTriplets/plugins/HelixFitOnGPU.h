@@ -1,5 +1,5 @@
-#ifndef RecoPixelVertexing_PixelTrackFitting_plugins_RiemannFitOnGPU_h
-#define RecoPixelVertexing_PixelTrackFitting_plugins_RiemannFitOnGPU_h
+#ifndef RecoPixelVertexing_PixelTrackFitting_plugins_HelixFitOnGPU_h
+#define RecoPixelVertexing_PixelTrackFitting_plugins_HelixFitOnGPU_h
 
 #include "RecoPixelVertexing/PixelTrackFitting/interface/FitResult.h"
 #include "RecoPixelVertexing/PixelTriplets/plugins/pixelTuplesHeterogeneousProduct.h"
@@ -20,7 +20,7 @@ namespace Rfit {
 }
 
 
-class RiemannFitOnGPU {
+class HelixFitOnGPU {
 public:
 
    using HitsOnGPU = siPixelRecHitsHeterogeneousProduct::HitsOnGPU;
@@ -28,11 +28,11 @@ public:
 
    using TuplesOnGPU = pixelTuplesHeterogeneousProduct::TuplesOnGPU;
 
-   RiemannFitOnGPU() = default;
-   ~RiemannFitOnGPU() { deallocateOnGPU();}
+   HelixFitOnGPU() = default;
+   ~HelixFitOnGPU() { deallocateOnGPU();}
 
    void setBField(double bField) { bField_ = bField;}
-   void launchKernels(HitsOnCPU const & hh, uint32_t nhits, uint32_t maxNumberOfTuples, cudaStream_t cudaStream);
+   void launchRiemannKernels(HitsOnCPU const & hh, uint32_t nhits, uint32_t maxNumberOfTuples, cudaStream_t cudaStream);
 
    void allocateOnGPU(TuplesOnGPU::Container const * tuples, Rfit::helix_fit * helix_fit_results);
    void deallocateOnGPU();

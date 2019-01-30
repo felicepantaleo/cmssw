@@ -1,7 +1,7 @@
-#include "RiemannFitOnGPU.h"
+#include "HelixFitOnGPU.h"
 #include "HeterogeneousCore/CUDAUtilities/interface/cudaCheck.h"
 
-void RiemannFitOnGPU::allocateOnGPU(TuplesOnGPU::Container const * tuples, Rfit::helix_fit * helix_fit_results) {
+void HelixFitOnGPU::allocateOnGPU(TuplesOnGPU::Container const * tuples, Rfit::helix_fit * helix_fit_results) {
 
   tuples_d = tuples;
   helix_fit_results_d = helix_fit_results;
@@ -22,7 +22,7 @@ void RiemannFitOnGPU::allocateOnGPU(TuplesOnGPU::Container const * tuples, Rfit:
 
 }
 
-void RiemannFitOnGPU::deallocateOnGPU() {
+void HelixFitOnGPU::deallocateOnGPU() {
 
   cudaFree(hitsGPU_);
   cudaFree(hits_geGPU_);

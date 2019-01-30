@@ -2,7 +2,7 @@
 // Author: Felice Pantaleo, CERN
 //
 
-#include "RiemannFitOnGPU.h"
+#include "HelixFitOnGPU.h"
 #include "RecoPixelVertexing/PixelTrackFitting/interface/RiemannFit.h"
 
 #include <cstdint>
@@ -167,7 +167,7 @@ void kernelLineFitAllHits(TuplesOnGPU::Container const * __restrict__ foundNtupl
 }
 
 
-void RiemannFitOnGPU::launchKernels(HitsOnCPU const & hh, uint32_t nhits, uint32_t maxNumberOfTuples, cudaStream_t cudaStream)
+void HelixFitOnGPU::launchRiemannKernels(HitsOnCPU const & hh, uint32_t nhits, uint32_t maxNumberOfTuples, cudaStream_t cudaStream)
 {
     assert(tuples_d); assert(fast_fit_resultsGPU_);
 
