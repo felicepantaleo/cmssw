@@ -174,7 +174,11 @@ void CAHitQuadrupletGeneratorGPU::launchKernels(HitsOnCPU const & hh,
   if (doRiemannFit) {
     fitter.launchRiemannKernels(hh, hh.nHits, CAConstants::maxNumberOfQuadruplets(), cudaStream);
     kernels.classifyTuples(hh, gpu_, cudaStream);
+  } else {
+    fitter.launchBrokenLineKernels(hh, hh.nHits, CAConstants::maxNumberOfQuadruplets(), cudaStream);
+    kernels.classifyTuples(hh, gpu_, cudaStream);
   }
+
   if (transferToCPU) {
     cudaCheck(cudaMemcpyAsync(tuples_,gpu_.tuples_d,
                               sizeof(TuplesOnGPU::Container),
