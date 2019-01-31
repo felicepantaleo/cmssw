@@ -33,6 +33,7 @@ public:
 
    void setBField(double bField) { bField_ = bField;}
    void launchRiemannKernels(HitsOnCPU const & hh, uint32_t nhits, uint32_t maxNumberOfTuples, cudaStream_t cudaStream);
+   void launchBrokenLineKernels(HitsOnCPU const & hh, uint32_t nhits, uint32_t maxNumberOfTuples, cudaStream_t cudaStream);
 
    void allocateOnGPU(TuplesOnGPU::Container const * tuples, Rfit::helix_fit * helix_fit_results);
    void deallocateOnGPU();
