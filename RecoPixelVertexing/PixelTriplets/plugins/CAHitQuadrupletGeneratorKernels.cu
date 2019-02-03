@@ -75,7 +75,7 @@ kernel_fishboneCleaner(GPUCACell const * cells, uint32_t const * __restrict__ nC
                             pixelTuplesHeterogeneousProduct::Quality * quality
                            ) {
 
-   constexpr auto bad = pixelTuplesHeterogeneousProduct::bad;
+  constexpr auto bad = pixelTuplesHeterogeneousProduct::bad;
 
   auto cellIndex = threadIdx.x + blockIdx.x * blockDim.x;
 
@@ -95,9 +95,9 @@ kernel_fastDuplicateRemover(GPUCACell const * cells, uint32_t const * __restrict
                             pixelTuplesHeterogeneousProduct::Quality * quality
                            ) {
 
-   constexpr auto bad = pixelTuplesHeterogeneousProduct::bad;
-   constexpr auto dup = pixelTuplesHeterogeneousProduct::dup;
-   // constexpr auto loose = pixelTuplesHeterogeneousProduct::loose;
+  constexpr auto bad = pixelTuplesHeterogeneousProduct::bad;
+  constexpr auto dup = pixelTuplesHeterogeneousProduct::dup;
+  // constexpr auto loose = pixelTuplesHeterogeneousProduct::loose;
 
   auto cellIndex = threadIdx.x + blockIdx.x * blockDim.x;
 
