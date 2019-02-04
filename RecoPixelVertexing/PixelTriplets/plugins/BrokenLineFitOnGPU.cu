@@ -47,15 +47,30 @@ void kernelBLFastFit(TuplesOnGPU::Container const * __restrict__ foundNtuplets,
   Rfit::Map4d   fast_fit(pfast_fit+local_start);
   Rfit::Map6x4f hits_ge(phits_ge+local_start);
 
+#ifdef BL_DUMP_HITS
+  __shared__ int done;
+  done = 0;
+  __syncthreads(); 
+  bool dump =  (foundNtuplets->size(helix_start)==5 &&
+                0 == atomicAdd(&done,1));
+  auto imax = foundNtuplets->size(helix_start);
+#else
+  auto imax = hits_in_fit;
+#endif
+
   // Prepare data structure
   auto const * hitId = foundNtuplets->begin(helix_start);
-  for (unsigned int i = 0; i < hits_in_fit; ++i) {
+  for (unsigned int i = 0; i < imax; ++i) {
     auto hit = hitId[i];
-    // printf("Hit global: %f,%f,%f\n", hhp->xg_d[hit],hhp->yg_d[hit],hhp->zg_d[hit]);
     float ge[6];
     hhp->cpeParams->detParams(hhp->detInd_d[hit]).frame.toGlobal(hhp->xerr_d[hit], 0, hhp->yerr_d[hit], ge);
-    // printf("Error: %d: %f,%f,%f,%f,%f,%f\n",hhp->detInd_d[hit],ge[0],ge[1],ge[2],ge[3],ge[4],ge[5]);
-
+#ifdef BL_DUMP_HITS
+    if (dump){
+      printf("Hit global: %d: %d hits.col(%d) << %f,%f,%f\n", helix_start, hhp->detInd_d[hit],i,hhp->xg_d[hit],hhp->yg_d[hit],hhp->zg_d[hit]);
+      printf("Error: %d: %d  hits_ge.col(%d) << %e,%e,%e,%e,%e,%e\n",helix_start,hhp->detInd_d[hit],i,ge[0],ge[1],ge[2],ge[3],ge[4],ge[5]);
+    }
+    if (i>=hits_in_fit) continue;
+#endif
     hits.col(i) << hhp->xg_d[hit], hhp->yg_d[hit], hhp->zg_d[hit];
     hits_ge.col(i) << ge[0],ge[1],ge[2],ge[3],ge[4],ge[5];
   }
@@ -98,14 +113,13 @@ void kernelBLFit(TuplesOnGPU::Container const * __restrict__ foundNtuplets,
   
   BrokenLine::PreparedBrokenLineData<N> data;
   Rfit::Matrix3d Jacob;
-  Rfit::MatrixNplusONEd<N> C_U;
 
   BrokenLine::karimaki_circle_fit circle;
   Rfit::line_fit line;
  
   BrokenLine::prepareBrokenLineData(hits,fast_fit,B,data);
   BrokenLine::BL_Line_fit(hits_ge,fast_fit,B,data,line);
-  BrokenLine::BL_Circle_fit(hits,hits_ge,fast_fit,B,data,circle,Jacob,C_U);
+  BrokenLine::BL_Circle_fit(hits,hits_ge,fast_fit,B,data,circle);
   Jacob << 1,0,0,
     0,1,0,
     0,0,-B/std::copysign(Rfit::sqr(circle.par(2)),circle.par(2));
