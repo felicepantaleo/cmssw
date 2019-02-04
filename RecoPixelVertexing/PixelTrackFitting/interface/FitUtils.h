@@ -4,9 +4,68 @@
 
 #include "FitResult.h"
 
+#include "HeterogeneousCore/CUDAUtilities/interface/cuda_assert.h"
+
+#include "DataFormats/Math/interface/choleskyInversion.h"
+
 
 namespace Rfit
 {
+
+
+  constexpr double d = 1.e-4;          //!< used in numerical derivative (J2 in Circle_fit())
+
+
+
+  using VectorXd = Eigen::VectorXd;
+  using MatrixXd = Eigen::MatrixXd;
+  template<int N>
+  using MatrixNd = Eigen::Matrix<double, N, N>;
+  template<int N>
+  using MatrixNplusONEd = Eigen::Matrix<double, N+1, N+1>; 
+  template<int N>
+  using ArrayNd = Eigen::Array<double, N, N>;
+  template<int N>
+  using Matrix2Nd = Eigen::Matrix<double, 2 * N, 2 * N>;
+  template<int N>
+  using Matrix3Nd = Eigen::Matrix<double, 3 * N, 3 * N>;
+  template<int N>
+  using Matrix2xNd = Eigen::Matrix<double, 2, N>;
+  template<int N>
+  using Array2xNd = Eigen::Array<double, 2, N>;
+  template<int N>
+  using MatrixNx3d = Eigen::Matrix<double, N, 3>;
+  template<int N>
+  using MatrixNx5d = Eigen::Matrix<double, N, 5>;
+  template<int N>
+  using VectorNd = Eigen::Matrix<double, N, 1>;
+  template<int N>
+  using VectorNplusONEd  = Eigen::Matrix<double, N+1, 1>;
+  template<int N>
+  using Vector2Nd = Eigen::Matrix<double, 2 * N, 1>;
+  template<int N>
+  using Vector3Nd = Eigen::Matrix<double, 3 * N, 1>;
+  template<int N>
+  using RowVectorNd = Eigen::Matrix<double, 1, 1, N>;
+  template<int N>
+  using RowVector2Nd = Eigen::Matrix<double, 1, 2 * N>;
+
+
+  using Matrix2x3d = Eigen::Matrix<double, 2, 3>;
+
+  
+  using Matrix3f = Eigen::Matrix3f;
+  using Vector3f = Eigen::Vector3f;
+  using Vector4f = Eigen::Vector4f;
+  using Vector6f = Eigen::Matrix<double, 6, 1>;
+
+
+
+  
+  using u_int = unsigned int;
+
+
+
   
   template <class C>
   __host__ __device__ void printIt(C* m, const char* prefix = "")
@@ -26,7 +85,7 @@ namespace Rfit
     \brief raise to square.
   */
   template <typename T>
-  __host__ __device__ inline T sqr(const T a)
+  constexpr T sqr(const T a)
   {
     return a * a;
   }
@@ -48,8 +107,8 @@ namespace Rfit
    *  load error in CMSSW format to our formalism
    *  
    */
-  template<typename M6x4f, typename M2Nd>
-  __host__ __device__ void loadCovariance2D(M6x4f const & ge,  M2Nd & hits_cov) {
+  template<typename M6xNf, typename M2Nd>
+  __host__ __device__ void loadCovariance2D(M6xNf const & ge,  M2Nd & hits_cov) {
     // Index numerology:
     // i: index of the hits/point (0,..,3)
     // j: index of space component (x,y,z)
@@ -62,7 +121,7 @@ namespace Rfit
     // | 0  1  3 |
     // | 1  2  4 |
     // | 3  4  5 |
-    constexpr uint32_t  hits_in_fit = 4; // Fixme
+    constexpr uint32_t hits_in_fit = M6xNf::ColsAtCompileTime;
     for (uint32_t i=0; i< hits_in_fit; ++i) {
       auto ge_idx = 0; auto j=0; auto l=0;
       hits_cov(i + j * hits_in_fit, i + l * hits_in_fit) = ge.col(i)[ge_idx];
@@ -74,8 +133,8 @@ namespace Rfit
     }
   }
   
-  template<typename M6x4f, typename M3xNd>
-  __host__ __device__ void loadCovariance(M6x4f const & ge,  M3xNd & hits_cov) {
+  template<typename M6xNf, typename M3xNd>
+  __host__ __device__ void loadCovariance(M6xNf const & ge,  M3xNd & hits_cov) {
     
     // Index numerology:
     // i: index of the hits/point (0,..,3)
@@ -89,7 +148,7 @@ namespace Rfit
     // | 0  1  3 |
     // | 1  2  4 |
     // | 3  4  5 |
-    constexpr uint32_t  hits_in_fit = 4; // Fixme
+    constexpr uint32_t hits_in_fit = M6xNf::ColsAtCompileTime;
     for (uint32_t i=0; i<hits_in_fit; ++i) {
       auto ge_idx = 0; auto j=0; auto l=0;
       hits_cov(i + j * hits_in_fit, i + l * hits_in_fit) = ge.col(i)[ge_idx];
@@ -109,34 +168,34 @@ namespace Rfit
     }
   }
 
-
-/*!
+  /*!
     \brief Transform circle parameter from (X0,Y0,R) to (phi,Tip,p_t) and
     consequently covariance matrix.
     \param circle_uvr parameter (X0,Y0,R), covariance matrix to
     be transformed and particle charge.
     \param B magnetic field in Gev/cm/c unit.
     \param error flag for errors computation.
-*/
-__host__ __device__ inline void par_uvrtopak(circle_fit& circle, const double B, const bool error)
-{
+  */
+  __host__ __device__
+  inline void par_uvrtopak(circle_fit& circle, const double B, const bool error)
+  {
     Vector3d par_pak;
     const double temp0 = circle.par.head(2).squaredNorm();
     const double temp1 = sqrt(temp0);
     par_pak << atan2(circle.q * circle.par(0), -circle.q * circle.par(1)),
-        circle.q * (temp1 - circle.par(2)), circle.par(2) * B;
+      circle.q * (temp1 - circle.par(2)), circle.par(2) * B;
     if (error)
-    {
+      {
         const double temp2 = sqr(circle.par(0)) * 1. / temp0;
         const double temp3 = 1. / temp1 * circle.q;
         Matrix3d J4;
         J4 << -circle.par(1) * temp2 * 1. / sqr(circle.par(0)), temp2 * 1. / circle.par(0), 0., 
-               circle.par(0) * temp3, circle.par(1) * temp3, -circle.q,
-               0., 0., B;
+	  circle.par(0) * temp3, circle.par(1) * temp3, -circle.q,
+	  0., 0., B;
         circle.cov = J4 * circle.cov * J4.transpose();
-    }
+      }
     circle.par = par_pak;
-}
+  }
   
 }
 

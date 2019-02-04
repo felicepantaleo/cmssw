@@ -3,7 +3,6 @@
 
 #include "FitUtils.h"
 
-
 namespace Rfit
 {
 
@@ -312,6 +311,7 @@ template<typename M2xN>
     return ((p2D(0, 1) - p2D(0, 0)) * (par_uvr.y() - p2D(1, 0)) - (p2D(1, 1) - p2D(1, 0)) * (par_uvr.x() - p2D(0, 0)) > 0)? -1 : 1;
 }
 
+
 /*!
     \brief Compute the eigenvector associated to the minimum eigenvalue.
     \param A the Matrix you want to know eigenvector and eigenvalue.
@@ -511,7 +511,8 @@ __host__ __device__ inline circle_fit Circle_fit(const  M2xN& hits2D,
         printIt(&V, "circle_fit - V:");
         cov_rad += scatter_cov_rad;
         printIt(&cov_rad, "circle_fit - cov_rad:");
-        G = cov_rad.inverse();
+        choleskyInversion::invert(cov_rad,G);
+        // G = cov_rad.inverse();
 	renorm = G.sum();
         G *= 1. / renorm;
         weight = Weight_circle(G);
@@ -858,7 +859,7 @@ inline line_fit Line_fit(const M3xN& hits,
 
   // associated Jacobian, used in weights and errors computation
   Matrix6d Cov = Matrix6d::Zero();
-  Matrix2d cov_sz[4];  // FIXME: should be "N"
+  Matrix2d cov_sz[N];
   for (u_int i = 0; i < n; ++i)
   {
     Vector2d p = hits.block(0, i, 2, 1) - o;
@@ -928,11 +929,12 @@ inline line_fit Line_fit(const M3xN& hits,
 #endif
 
   // Build A^T V-1 A, where V-1 is the covariance of only the Y components.
-  MatrixNd<N> Vy_inv = cov_with_ms.inverse();
-  Eigen::Matrix<double, 2, 2> Inv_Cov = A*Vy_inv*A.transpose();
-
+  MatrixNd<N> Vy_inv; choleskyInversion::invert(cov_with_ms,Vy_inv);
+  // MatrixNd<N> Vy_inv = cov_with_ms.inverse();
+  Eigen::Matrix<double, 2, 2> Cov_params = A*Vy_inv*A.transpose();
   // Compute the Covariance Matrix of the fit parameters
-  Eigen::Matrix<double, 2, 2> Cov_params = Inv_Cov.inverse();
+  choleskyInversion::invert(Cov_params,Cov_params);
+
 
   // Now Compute the Parameters in the form [2,1]
   // The first component is q.
@@ -1010,7 +1012,7 @@ inline line_fit Line_fit(const M3xN& hits,
 */
 
 template<int N>
-inline helix_fit Helix_fit(const Matrix3xNd<N>& hits, const Eigen::Matrix<float,6,4>& hits_ge, const double B,
+inline helix_fit Helix_fit(const Matrix3xNd<N>& hits, const Eigen::Matrix<float,6,N>& hits_ge, const double B,
                            const bool error)
 {
     constexpr u_int n = N;
@@ -1019,7 +1021,7 @@ inline helix_fit Helix_fit(const Matrix3xNd<N>& hits, const Eigen::Matrix<float,
     // Fast_fit gives back (X0, Y0, R, theta) w/o errors, using only 3 points.
     Vector4d fast_fit; 
     Fast_fit(hits,fast_fit);
-    Rfit::Matrix2Nd<4> hits_cov =  MatrixXd::Zero(2 * n, 2 * n);
+    Rfit::Matrix2Nd<N> hits_cov =  MatrixXd::Zero(2 * n, 2 * n);
     Rfit::loadCovariance2D(hits_ge,hits_cov);
     circle_fit circle = Circle_fit(hits.block(0, 0, 2, n),
                                    hits_cov,

@@ -113,14 +113,13 @@ void kernelBLFit(TuplesOnGPU::Container const * __restrict__ foundNtuplets,
   
   BrokenLine::PreparedBrokenLineData<N> data;
   Rfit::Matrix3d Jacob;
-  Rfit::MatrixNplusONEd<N> C_U;
 
   BrokenLine::karimaki_circle_fit circle;
   Rfit::line_fit line;
  
   BrokenLine::prepareBrokenLineData(hits,fast_fit,B,data);
   BrokenLine::BL_Line_fit(hits_ge,fast_fit,B,data,line);
-  BrokenLine::BL_Circle_fit(hits,hits_ge,fast_fit,B,data,circle,Jacob,C_U);
+  BrokenLine::BL_Circle_fit(hits,hits_ge,fast_fit,B,data,circle);
   Jacob << 1,0,0,
     0,1,0,
     0,0,-B/std::copysign(Rfit::sqr(circle.par(2)),circle.par(2));
