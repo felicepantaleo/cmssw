@@ -61,7 +61,8 @@ class HGVHistoProducerAlgo {
   void bookCaloParticleHistos(DQMStore::ConcurrentBooker& ibook, Histograms& histograms,int pdgid);
 
   void bookClusterHistos(DQMStore::ConcurrentBooker& ibook, Histograms& histograms,unsigned layers, std::vector<int> thicknesses);
-
+  void layerClusters_to_CaloParticles(const reco::CaloClusterCollection &clusters,
+				   std::vector<CaloParticle> const & cP, unsigned layers) const ;
   void fill_caloparticle_histos(const Histograms& histograms,
 				int pdgid,
 				const CaloParticle & caloparticle,
@@ -90,6 +91,20 @@ class HGVHistoProducerAlgo {
 
   DetId findmaxhit(const reco::CaloCluster & cluster) const;  
 
+  struct detIdInfoInCaloParticle
+  {
+    bool operator==(const detIdInfoInCaloParticle& o) const { return caloParticleId == o.caloParticleId;};
+    unsigned int caloParticleId;
+    float fraction;
+  };
+
+  struct caloParticleOnLayer
+  {
+    unsigned int caloParticleId;
+    float energy=0;
+    std::vector<std::pair<DetId, float> > hits_and_fractions;
+    std::unordered_map<int, float> layerClusterIdAndEnergy;
+  };
  private:
 
   double getEta(double eta) const;
@@ -116,6 +131,7 @@ class HGVHistoProducerAlgo {
   double minDisToMaxperthickperlayer, maxDisToMaxperthickperlayer; int nintDisToMaxperthickperlayer;
   double minDisToMaxperthickperlayerenewei, maxDisToMaxperthickperlayerenewei; int nintDisToMaxperthickperlayerenewei;
   double minCellsEneDensperthick, maxCellsEneDensperthick; int nintCellsEneDensperthick;
+
 
 };
 
