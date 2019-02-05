@@ -2,7 +2,7 @@
 #define RecoPixelVertexing_PixelTrackFitting_interface_FitUtils_h
 
 
-#include "FitResult.h"
+#include "RecoPixelVertexing/PixelTrackFitting/interface/FitResult.h"
 
 #include "HeterogeneousCore/CUDAUtilities/interface/cuda_assert.h"
 

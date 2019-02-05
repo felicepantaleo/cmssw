@@ -1,7 +1,7 @@
 #ifndef RECOPIXELVERTEXING_PIXELTRACKFITTING_BROKENLINE_H
 #define RECOPIXELVERTEXING_PIXELTRACKFITTING_BROKENLINE_H
 
-#include "FitUtils.h"
+#include "RecoPixelVertexing/PixelTrackFitting/interface/FitUtils.h"
 
 #include <Eigen/Eigenvalues>
 

@@ -56,12 +56,12 @@ CAHitQuadrupletGeneratorGPU::~CAHitQuadrupletGeneratorGPU() {
 void CAHitQuadrupletGeneratorGPU::hitNtuplets(
     HitsOnCPU const& hh,
     edm::EventSetup const& es,
-    bool doRiemannFit,
+    bool useRiemannFit,
     bool transferToCPU,
     cudaStream_t cudaStream)
 {
   hitsOnCPU = &hh;
-  launchKernels(hh, doRiemannFit, transferToCPU, cudaStream);
+  launchKernels(hh, useRiemannFit, transferToCPU, cudaStream);
 }
 
 void CAHitQuadrupletGeneratorGPU::fillResults(
@@ -165,19 +165,18 @@ void CAHitQuadrupletGeneratorGPU::allocateOnGPU()
 }
 
 void CAHitQuadrupletGeneratorGPU::launchKernels(HitsOnCPU const & hh,
-                                                bool doRiemannFit,
+                                                bool useRiemannFit,
                                                 bool transferToCPU,
                                                 cudaStream_t cudaStream)
 {
 
   kernels.launchKernels(hh, gpu_, cudaStream); 
-  if (doRiemannFit) {
+  if (useRiemannFit) {
     fitter.launchRiemannKernels(hh, hh.nHits, CAConstants::maxNumberOfQuadruplets(), cudaStream);
-    kernels.classifyTuples(hh, gpu_, cudaStream);
   } else {
     fitter.launchBrokenLineKernels(hh, hh.nHits, CAConstants::maxNumberOfQuadruplets(), cudaStream);
-    kernels.classifyTuples(hh, gpu_, cudaStream);
   }
+  kernels.classifyTuples(hh, gpu_, cudaStream);
 
   if (transferToCPU) {
     cudaCheck(cudaMemcpyAsync(tuples_,gpu_.tuples_d,
