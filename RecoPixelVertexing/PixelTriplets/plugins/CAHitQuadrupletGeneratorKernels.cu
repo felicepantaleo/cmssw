@@ -203,8 +203,7 @@ void kernel_VerifyFit(TuplesOnGPU::Container const * __restrict__ tuples,
 
   quality[idx] = pixelTuplesHeterogeneousProduct::bad;
 
-  // only quadruplets
-  if (tuples->size(idx)<4) { 
+  if (tuples->size(idx)<3) { 
     return;
   }
 
