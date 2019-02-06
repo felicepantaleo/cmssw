@@ -28,7 +28,7 @@ public:
 
   static void fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
     edm::ParameterSetDescription desc;
-    desc.add<bool>("useRiemannFit", false);
+    desc.add<bool>("useRiemannFit", false)->setComment("true for Riemann, false for BrokenLine");
     descriptions.add("pixelNtupletsFitterDefault", desc);
   }
 

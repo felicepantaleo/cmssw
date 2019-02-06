@@ -69,7 +69,7 @@ public:
 
     void hitNtuplets(HitsOnCPU const & hh,
                      const edm::EventSetup& es,
-                     bool doRiemannFit,
+                     bool useRiemannFit,
                      bool transferToCPU,
                      cudaStream_t stream);
 
@@ -87,7 +87,7 @@ public:
 
 private:
 
-    void launchKernels(HitsOnCPU const & hh, bool doRiemannFit, bool transferToCPU, cudaStream_t);
+    void launchKernels(HitsOnCPU const & hh, bool useRiemannFit, bool transferToCPU, cudaStream_t);
 
 
     std::vector<std::array<int,4>> fetchKernelResult(int);
