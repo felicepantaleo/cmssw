@@ -144,6 +144,7 @@ public:
 
   __device__
   inline void find_ntuplets(
+      Hits const & hh,
       GPUCACell * __restrict__ cells,
       TuplesOnGPU::Container & foundNtuplets, 
       AtomicPairCounter & apc,
@@ -162,16 +163,29 @@ public:
     if(theOuterNeighbors.size()>0) {
       for (int j = 0; j < theOuterNeighbors.size(); ++j) {
         auto otherCell = theOuterNeighbors[j];
-        cells[otherCell].find_ntuplets(cells, foundNtuplets, apc, tmpNtuplet,
+        cells[otherCell].find_ntuplets(hh, cells, foundNtuplets, apc, tmpNtuplet,
                                        minHitsPerNtuplet);
       }
     } else {  // if long enough save...
       if ((unsigned int)(tmpNtuplet.size()) >= minHitsPerNtuplet-1) {
-        hindex_type hits[6]; auto nh=0U;
-        for (auto c : tmpNtuplet) hits[nh++] = cells[c].theInnerHitId;
-        hits[nh] = theOuterHitId; 
-        uint16_t it = foundNtuplets.bulkFill(apc,hits,tmpNtuplet.size()+1);
-        for (auto c : tmpNtuplet) cells[c].theTracks.push_back(it);
+        // triplets accepted only pointing to the hole
+        auto hole = [&]()->bool {
+          constexpr float r4 = 16.f;
+          auto const & c0 = cells[tmpNtuplet[0]];
+          auto ri = c0.get_inner_r(hh);
+          auto zi = c0.get_inner_z(hh);
+          auto ro = get_outer_r(hh);
+          auto zo = get_outer_z(hh);
+          auto z4 = std::abs(zi + (r4-ri)*(zo-zi)/(ro-ri));
+          return z4>25.f && z4<33.f;
+        };
+        if (tmpNtuplet.size()>=3 || hole()) {
+          hindex_type hits[6]; auto nh=0U;
+          for (auto c : tmpNtuplet) hits[nh++] = cells[c].theInnerHitId;
+          hits[nh] = theOuterHitId; 
+          uint16_t it = foundNtuplets.bulkFill(apc,hits,tmpNtuplet.size()+1);
+          for (auto c : tmpNtuplet) cells[c].theTracks.push_back(it);
+        };
       }
     }
     tmpNtuplet.pop_back();
