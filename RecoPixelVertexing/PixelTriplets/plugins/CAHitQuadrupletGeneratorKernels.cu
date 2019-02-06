@@ -169,12 +169,14 @@ kernel_connect(AtomicPairCounter * apc1, AtomicPairCounter * apc2,  // just to z
 
 __global__ 
 void kernel_find_ntuplets(
+    GPUCACell::Hits const *  __restrict__ hhp,
     GPUCACell * __restrict__ cells, uint32_t const * nCells,
     TuplesOnGPU::Container * foundNtuplets, AtomicPairCounter * apc,
     unsigned int minHitsPerNtuplet)
 {
 
   // recursive: not obvious to widen
+  auto const & hh = *hhp;
 
   auto cellIndex = threadIdx.x + blockIdx.x * blockDim.x;
   if (cellIndex >= (*nCells) ) return;
@@ -182,7 +184,7 @@ void kernel_find_ntuplets(
   if (thisCell.theLayerPairId!=0 && thisCell.theLayerPairId!=3 && thisCell.theLayerPairId!=8) return; // inner layer is 0 FIXME
   GPUCACell::TmpTuple stack;
   stack.reset();
-  thisCell.find_ntuplets(cells, *foundNtuplets, *apc, stack, minHitsPerNtuplet);
+  thisCell.find_ntuplets(hh, cells, *foundNtuplets, *apc, stack, minHitsPerNtuplet);
   assert(stack.size()==0);
   // printf("in %d found quadruplets: %d\n", cellIndex, apc->get());
 }
@@ -281,10 +283,11 @@ void CAHitQuadrupletGeneratorKernels::launchKernels( // here goes algoparms....
   cudaCheck(cudaGetLastError());
 
   kernel_find_ntuplets<<<numberOfBlocks, blockSize, 0, cudaStream>>>(
+      hh.gpu_d,
       device_theCells_, device_nCells_,
       gpu_.tuples_d,
       gpu_.apc_d,
-      4
+      3
   );
   cudaCheck(cudaGetLastError());
 
