@@ -206,7 +206,9 @@ void HGVHistoProducerAlgo::layerClusters_to_CaloParticles (const reco::CaloClust
   
   auto nLayerClusters = clusters.size();
   auto nCaloParticles = cP.size();
-  std::unordered_map<DetId, std::vector<HGVHistoProducerAlgo::detIdInfoInCaloParticle> > detIdToCaloParticleId_Map;
+  std::unordered_map<DetId, std::vector<HGVHistoProducerAlgo::detIdInfoInCluster> > detIdToCaloParticleId_Map;
+  std::unordered_map<DetId, std::vector<HGVHistoProducerAlgo::detIdInfoInCluster> > detIdToLayerClusterId_Map;
+
   std::vector<std::vector<caloParticleOnLayer> > cPOnLayer;
   cPOnLayer.resize(nCaloParticles);
   for(unsigned int i = 0; i< nCaloParticles; ++i)
@@ -219,6 +221,7 @@ void HGVHistoProducerAlgo::layerClusters_to_CaloParticles (const reco::CaloClust
       cPOnLayer[i][j].hits_and_fractions.clear();
     }
   }
+
   for(unsigned int cpId =0; cpId < nCaloParticles; ++cpId)
   {
     const SimClusterRefVector& simClusterRefVector = cP[cpId].simClusters();    
@@ -236,19 +239,19 @@ void HGVHistoProducerAlgo::layerClusters_to_CaloParticles (const reco::CaloClust
           auto hit_find_it = detIdToCaloParticleId_Map.find(hitid);
           if (hit_find_it == detIdToCaloParticleId_Map.end())
           {
-            detIdToCaloParticleId_Map[hitid] = std::vector<HGVHistoProducerAlgo::detIdInfoInCaloParticle> ();
-            detIdToCaloParticleId_Map[hitid].emplace_back(HGVHistoProducerAlgo::detIdInfoInCaloParticle{cpId,it_haf.second});
+            detIdToCaloParticleId_Map[hitid] = std::vector<HGVHistoProducerAlgo::detIdInfoInCluster> ();
+            detIdToCaloParticleId_Map[hitid].emplace_back(HGVHistoProducerAlgo::detIdInfoInCluster{cpId,it_haf.second});
           }
           else
           {
-            auto findHitIt = std::find(detIdToCaloParticleId_Map[hitid].begin(), detIdToCaloParticleId_Map[hitid].end(), HGVHistoProducerAlgo::detIdInfoInCaloParticle{cpId,it_haf.second}) ;
+            auto findHitIt = std::find(detIdToCaloParticleId_Map[hitid].begin(), detIdToCaloParticleId_Map[hitid].end(), HGVHistoProducerAlgo::detIdInfoInCluster{cpId,it_haf.second}) ;
             if( findHitIt != detIdToCaloParticleId_Map[hitid].end() )
             {
               findHitIt->fraction +=it_haf.second;
             }
             else
             {
-              detIdToCaloParticleId_Map[hitid].emplace_back(HGVHistoProducerAlgo::detIdInfoInCaloParticle{cpId,it_haf.second});
+              detIdToCaloParticleId_Map[hitid].emplace_back(HGVHistoProducerAlgo::detIdInfoInCluster{cpId,it_haf.second});
 
             }
           }
@@ -264,7 +267,7 @@ void HGVHistoProducerAlgo::layerClusters_to_CaloParticles (const reco::CaloClust
 
   for (unsigned int lcId = 0; lcId < nLayerClusters; ++lcId) 
   {
-    const std::vector<std::pair<DetId, float> > hits_and_fractions = clusters[lcId].hitsAndFractions();
+    const std::vector<std::pair<DetId, float> >& hits_and_fractions = clusters[lcId].hitsAndFractions();
     unsigned int numberOfHitsInLC = hits_and_fractions.size();
 
     std::vector<int> hitsToCaloParticleId(numberOfHitsInLC);
@@ -280,36 +283,48 @@ void HGVHistoProducerAlgo::layerClusters_to_CaloParticles (const reco::CaloClust
     std::unordered_map<unsigned, unsigned> occurrencesCPinLC;
     std::unordered_map<unsigned, float> CPEnergyInLC;
     unsigned int numberOfNoiseHitsInLC = 0;
-
-
     // std::cout << "\n\n\nnew layer cluster with hits: " << numberOfHitsInLC << std::endl;
 
     for (unsigned int hitId = 0; hitId < numberOfHitsInLC; hitId++)
     {
         DetId rh_detid = hits_and_fractions[hitId].first;
         auto rhFraction = hits_and_fractions[hitId].second;
-      
+
         std::map<DetId,const HGCRecHit *>::const_iterator itcheck= hitMap_->find(rh_detid);
         const HGCRecHit *hit = itcheck->second;
-        auto hit_find_it = detIdToCaloParticleId_Map.find(rh_detid);
-        if (rhFraction > 0.f or hit_find_it == detIdToCaloParticleId_Map.end())
+
+
+        auto hit_find_in_LC = detIdToLayerClusterId_Map.find(rh_detid);
+        if (hit_find_in_LC == detIdToLayerClusterId_Map.end())
+        {
+          detIdToLayerClusterId_Map[rh_detid] = std::vector<HGVHistoProducerAlgo::detIdInfoInCluster> ();
+        }
+        detIdToLayerClusterId_Map[rh_detid].emplace_back(HGVHistoProducerAlgo::detIdInfoInCluster{lcId,rhFraction});
+
+        auto hit_find_in_CP = detIdToCaloParticleId_Map.find(rh_detid);
+        
+
+        if (rhFraction == 0.f or hit_find_in_CP == detIdToCaloParticleId_Map.end())
         {
           hitsToCaloParticleId[hitId] = -1;
         }
         else
         {
-          auto maxFraction = 0.f;
+          auto maxCPEnergyInLC = 0.f;
           auto maxCPId = -1;
-          for(auto& h: hit_find_it->second)
+          for(auto& h: hit_find_in_CP->second)
           {
-            if(h.fraction >maxFraction) maxCPId = h.caloParticleId;
+            CPEnergyInLC[h.clusterId] += h.fraction*hit->energy();
+            cPOnLayer[h.clusterId][lcLayerId].layerClusterIdAndEnergy[lcId] += h.fraction*hit->energy();
 
-            CPEnergyInLC[h.caloParticleId] += h.fraction*hit->energy();
-            cPOnLayer[h.caloParticleId][lcLayerId].layerClusterIdAndEnergy[lcId] += h.fraction*hit->energy();
+            if(h.fraction >maxCPEnergyInLC) 
+            {
+                maxCPEnergyInLC = CPEnergyInLC[h.clusterId];
+                maxCPId = h.clusterId;
+            }
           }
           hitsToCaloParticleId[hitId] = maxCPId;
         }
-      
     }
 
     for(auto& c: hitsToCaloParticleId)
@@ -357,10 +372,8 @@ void HGVHistoProducerAlgo::layerClusters_to_CaloParticles (const reco::CaloClust
               << std::setw(12) <<maxCPId_byNumberOfHits << "\t"  << std::setw(10) <<  maxCPNumberOfHitsInLC<< "\t"<< std::setw(20)<< maxCPId_byEnergy
               << "\t"  << std::setw(5) <<  maxEnergySharedLCandCP << "\t" << std::setw(22) <<totalCPEnergyOnLayer << "\t"  << std::setw(22) <<  energyFractionOfLCinCP 
               << "\t"  << std::setw(25) <<  energyFractionOfCPinLC << std::endl;
-
   }
 
-  
   for(unsigned int cpId =0; cpId < nCaloParticles; ++cpId)
   {
     
@@ -381,7 +394,6 @@ void HGVHistoProducerAlgo::layerClusters_to_CaloParticles (const reco::CaloClust
       }
       if(CPenergy >0.f) CPEnergyFractionInLC = maxEnergyLCinCP/CPenergy;
       
-
       std::cout << "LayerId:\t"<< std::setw(20) << "caloparticle\t"  << std::setw(20) <<  "cp total energy\t" << std::setw(20) << 
       "cpEnergyOnLayer\t" << std::setw(20) << "CPNhitsOnLayer\t" << std::setw(20) << "lcWithMaxEnergyInCP\t" << std::setw(20) <<
       "maxEnergyLCinCP\t" << std::setw(20) << "CPEnergyFractionInLC" << std::endl;

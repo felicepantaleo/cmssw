@@ -91,10 +91,10 @@ class HGVHistoProducerAlgo {
 
   DetId findmaxhit(const reco::CaloCluster & cluster) const;  
 
-  struct detIdInfoInCaloParticle
+  struct detIdInfoInCluster
   {
-    bool operator==(const detIdInfoInCaloParticle& o) const { return caloParticleId == o.caloParticleId;};
-    unsigned int caloParticleId;
+    bool operator==(const detIdInfoInCluster& o) const { return clusterId == o.clusterId;};
+    unsigned int clusterId;
     float fraction;
   };
 
