@@ -206,8 +206,15 @@ void HGVHistoProducerAlgo::layerClusters_to_CaloParticles (const reco::CaloClust
   
   auto nLayerClusters = clusters.size();
   auto nCaloParticles = cP.size();
+
   std::unordered_map<DetId, std::vector<HGVHistoProducerAlgo::detIdInfoInCluster> > detIdToCaloParticleId_Map;
   std::unordered_map<DetId, std::vector<HGVHistoProducerAlgo::detIdInfoInCluster> > detIdToLayerClusterId_Map;
+  
+  // this contains the ids of the caloparticles contributing with at least one hit to the layer cluster and the reconstruction error
+  std::vector<std::vector<std::pair<unsigned int, float> > > cpsInLayerCluster;
+  cpsInLayerCluster.resize(nLayerClusters);
+
+
 
   std::vector<std::vector<caloParticleOnLayer> > cPOnLayer;
   cPOnLayer.resize(nCaloParticles);
@@ -252,13 +259,11 @@ void HGVHistoProducerAlgo::layerClusters_to_CaloParticles (const reco::CaloClust
             else
             {
               detIdToCaloParticleId_Map[hitid].emplace_back(HGVHistoProducerAlgo::detIdInfoInCluster{cpId,it_haf.second});
-
             }
           }
           // std::cout << "increasing layer energy for " << cpId << " " << cpLayerId << " by " << it_haf.second*hit->energy() <<  std::endl;
           cPOnLayer[cpId][cpLayerId].energy += it_haf.second*hit->energy();
           cPOnLayer[cpId][cpLayerId].hits_and_fractions.emplace_back(hitid,it_haf.second); 
-
         }
       }
     }
@@ -283,48 +288,49 @@ void HGVHistoProducerAlgo::layerClusters_to_CaloParticles (const reco::CaloClust
     std::unordered_map<unsigned, unsigned> occurrencesCPinLC;
     std::unordered_map<unsigned, float> CPEnergyInLC;
     unsigned int numberOfNoiseHitsInLC = 0;
-    // std::cout << "\n\n\nnew layer cluster with hits: " << numberOfHitsInLC << std::endl;
-
+    
     for (unsigned int hitId = 0; hitId < numberOfHitsInLC; hitId++)
     {
-        DetId rh_detid = hits_and_fractions[hitId].first;
-        auto rhFraction = hits_and_fractions[hitId].second;
+      DetId rh_detid = hits_and_fractions[hitId].first;
+      auto rhFraction = hits_and_fractions[hitId].second;
 
-        std::map<DetId,const HGCRecHit *>::const_iterator itcheck= hitMap_->find(rh_detid);
-        const HGCRecHit *hit = itcheck->second;
+      std::map<DetId,const HGCRecHit *>::const_iterator itcheck= hitMap_->find(rh_detid);
+      const HGCRecHit *hit = itcheck->second;
 
 
-        auto hit_find_in_LC = detIdToLayerClusterId_Map.find(rh_detid);
-        if (hit_find_in_LC == detIdToLayerClusterId_Map.end())
+      auto hit_find_in_LC = detIdToLayerClusterId_Map.find(rh_detid);
+      if (hit_find_in_LC == detIdToLayerClusterId_Map.end())
+      {
+        detIdToLayerClusterId_Map[rh_detid] = std::vector<HGVHistoProducerAlgo::detIdInfoInCluster> ();
+      }
+      detIdToLayerClusterId_Map[rh_detid].emplace_back(HGVHistoProducerAlgo::detIdInfoInCluster{lcId,rhFraction});
+
+      auto hit_find_in_CP = detIdToCaloParticleId_Map.find(rh_detid);
+      
+      // if the fraction is zero or the hit does not belong to any calo particle, set the caloparticleId for the hit to -1
+      // this will contribute to the number of noise hits
+
+      if (rhFraction == 0.f or hit_find_in_CP == detIdToCaloParticleId_Map.end())
+      {
+        hitsToCaloParticleId[hitId] = -1;
+      }
+      else
+      {
+        auto maxCPEnergyInLC = 0.f;
+        auto maxCPId = -1;
+        for(auto& h: hit_find_in_CP->second)
         {
-          detIdToLayerClusterId_Map[rh_detid] = std::vector<HGVHistoProducerAlgo::detIdInfoInCluster> ();
-        }
-        detIdToLayerClusterId_Map[rh_detid].emplace_back(HGVHistoProducerAlgo::detIdInfoInCluster{lcId,rhFraction});
-
-        auto hit_find_in_CP = detIdToCaloParticleId_Map.find(rh_detid);
-        
-
-        if (rhFraction == 0.f or hit_find_in_CP == detIdToCaloParticleId_Map.end())
-        {
-          hitsToCaloParticleId[hitId] = -1;
-        }
-        else
-        {
-          auto maxCPEnergyInLC = 0.f;
-          auto maxCPId = -1;
-          for(auto& h: hit_find_in_CP->second)
+          CPEnergyInLC[h.clusterId] += h.fraction*hit->energy();
+          cPOnLayer[h.clusterId][lcLayerId].layerClusterIdToEnergyAndScore[lcId].first += h.fraction*hit->energy();
+          cpsInLayerCluster[lcId].emplace_back(std::make_pair<int, float>(h.clusterId, 0.f));
+          if(h.fraction >maxCPEnergyInLC) 
           {
-            CPEnergyInLC[h.clusterId] += h.fraction*hit->energy();
-            cPOnLayer[h.clusterId][lcLayerId].layerClusterIdAndEnergy[lcId] += h.fraction*hit->energy();
-
-            if(h.fraction >maxCPEnergyInLC) 
-            {
-                maxCPEnergyInLC = CPEnergyInLC[h.clusterId];
-                maxCPId = h.clusterId;
-            }
+            maxCPEnergyInLC = CPEnergyInLC[h.clusterId];
+            maxCPId = h.clusterId;
           }
-          hitsToCaloParticleId[hitId] = maxCPId;
         }
+        hitsToCaloParticleId[hitId] = maxCPId;
+      }
     }
 
     for(auto& c: hitsToCaloParticleId)
@@ -365,41 +371,126 @@ void HGVHistoProducerAlgo::layerClusters_to_CaloParticles (const reco::CaloClust
       energyFractionOfLCinCP = maxEnergySharedLCandCP/clusters[lcId].energy();
       energyFractionOfCPinLC = maxEnergySharedLCandCP/totalCPEnergyOnLayer;
     }
-    std::cout << "LayerId:"<< "\t" << std::setw(12) << "layerCluster"<<  "\t" << std::setw(10) <<  "lc energy"<< "\t"  << std::setw(5) << "nhits" << "\t"  << std::setw(25) <<  "noise hits" << "\t"  << std::setw(12) <<  
-              "CPmaxhitsinLC"<< "\t" <<std::setw(10) <<"nhitsCP"<< "\t" <<std::setw(20) << "maxCPenergyinLC" << "\t"  << std::setw(5) <<  "E\t"  
+    std::cout  << std::setw(10) << "LayerId:"<< "\t" << std::setw(12) << "layerCluster"<<  "\t" << std::setw(10) <<  "lc energy"<< "\t"  << std::setw(5) << "nhits" << "\t"  << std::setw(12) <<  "noise hits" << "\t"  << std::setw(12) <<  
+              "CPmaxhitsinLC"<< "\t" <<std::setw(8) <<"nhitsCP"<< "\t" <<std::setw(20) << "maxCPenergyinLC" << "\t"  << std::setw(8) <<  "E\t"  
               << std::setw(22) << "totalCPEnergyOnLayer"<< "\t" << std::setw(22) << "energyFractionOfLCinCP" << "\t"  << std::setw(25) <<  "energyFractionOfCPinLC" << "\t" <<  std::endl;
-    std::cout <<  lcLayerId << "\t"  << std::setw(12) <<  lcId << "\t"  << std::setw(10) <<  clusters[lcId].energy()<< "\t" << std::setw(5) <<  numberOfHitsInLC << "\t"  << std::setw(12) <<  numberOfNoiseHitsInLC << "\t"
-              << std::setw(12) <<maxCPId_byNumberOfHits << "\t"  << std::setw(10) <<  maxCPNumberOfHitsInLC<< "\t"<< std::setw(20)<< maxCPId_byEnergy
-              << "\t"  << std::setw(5) <<  maxEnergySharedLCandCP << "\t" << std::setw(22) <<totalCPEnergyOnLayer << "\t"  << std::setw(22) <<  energyFractionOfLCinCP 
+    std::cout << std::setw(10) <<  lcLayerId << "\t"  << std::setw(12) <<  lcId << "\t"  << std::setw(10) <<  clusters[lcId].energy()<< "\t" << std::setw(5) <<  numberOfHitsInLC << "\t"  << std::setw(12) <<  numberOfNoiseHitsInLC << "\t"
+              << std::setw(12) <<maxCPId_byNumberOfHits << "\t"  << std::setw(8) <<  maxCPNumberOfHitsInLC<< "\t"<< std::setw(20)<< maxCPId_byEnergy
+              << "\t"  << std::setw(8) <<  maxEnergySharedLCandCP << "\t" << std::setw(22) <<totalCPEnergyOnLayer << "\t"  << std::setw(22) <<  energyFractionOfLCinCP 
               << "\t"  << std::setw(25) <<  energyFractionOfCPinLC << std::endl;
   }
+
+  for (unsigned int lcId = 0; lcId < nLayerClusters; ++lcId) 
+  {
+    // find the unique caloparticles id contributing to the layer clusters
+    std::sort(cpsInLayerCluster[lcId].begin(), cpsInLayerCluster[lcId].end());
+    auto last = std::unique(cpsInLayerCluster[lcId].begin(), cpsInLayerCluster[lcId].end());
+    cpsInLayerCluster[lcId].erase(last, cpsInLayerCluster[lcId].end());
+    const std::vector<std::pair<DetId, float> >& hits_and_fractions = clusters[lcId].hitsAndFractions();
+    unsigned int numberOfHitsInLC = hits_and_fractions.size();
+    float invLayerClusterEnergySquared = 1.f/(clusters[lcId].energy()*clusters[lcId].energy());
+    for(unsigned int i = 0; i < numberOfHitsInLC; ++i)
+    {
+      DetId rh_detid = hits_and_fractions[i].first;
+      float rhFraction = hits_and_fractions[i].second;
+      bool hitWithNoCP = false;
+      if(rhFraction ==0) continue;
+      auto hit_find_in_CP = detIdToCaloParticleId_Map.find(rh_detid);      
+      if(hit_find_in_CP == detIdToCaloParticleId_Map.end()) hitWithNoCP = true;
+      auto itcheck= hitMap_->find(rh_detid);
+      const HGCRecHit *hit = itcheck->second;
+      float hitEnergySquared = hit->energy()*hit->energy();
+
+      for(auto& cpPair : cpsInLayerCluster[lcId])
+      {
+        float cpFraction = 0.f;
+        if(!hitWithNoCP)
+        {
+          auto findHitIt = std::find(detIdToCaloParticleId_Map[rh_detid].begin(), detIdToCaloParticleId_Map[rh_detid].end(), HGVHistoProducerAlgo::detIdInfoInCluster{cpPair.first,0.f});
+          if(findHitIt != detIdToCaloParticleId_Map[rh_detid].end())
+            cpFraction = findHitIt->fraction;
+        }
+        cpPair.second += (rhFraction - cpFraction)*(rhFraction - cpFraction)*hitEnergySquared*invLayerClusterEnergySquared;
+      }
+    }
+
+    if(cpsInLayerCluster[lcId].empty()) std::cout << "layerCluster Id: \t" << lcId << "\tCP id:\t-1 " << "\t error \t-1" <<std::endl;
+
+    for(auto& cpPair : cpsInLayerCluster[lcId])
+    {
+      std::cout << "layerCluster Id: \t" << lcId << "\t CP id: \t" << cpPair.first << "\t error \t" << cpPair.second << std::endl;
+    }
+  }
+
+  
 
   for(unsigned int cpId =0; cpId < nCaloParticles; ++cpId)
   {
     
     for(unsigned int layerId = 0; layerId< layers*2; ++layerId)
     {
-      int CPNumberOfHits = cPOnLayer[cpId][layerId].hits_and_fractions.size();
+      unsigned int CPNumberOfHits = cPOnLayer[cpId][layerId].hits_and_fractions.size();
       float CPenergy = cPOnLayer[cpId][layerId].energy;
+      if(CPNumberOfHits==0) continue;
       int lcWithMaxEnergyInCP = -1;
       float maxEnergyLCinCP = 0.f;
       float CPEnergyFractionInLC = 0.f;
-      for(auto& lc : cPOnLayer[cpId][layerId].layerClusterIdAndEnergy)
+      for(auto& lc : cPOnLayer[cpId][layerId].layerClusterIdToEnergyAndScore)
       {
-        if(lc.second > maxEnergyLCinCP)
+        if(lc.second.first > maxEnergyLCinCP)
         {
-          maxEnergyLCinCP = lc.second;
+          maxEnergyLCinCP = lc.second.first;
           lcWithMaxEnergyInCP = lc.first;
         }
       }
       if(CPenergy >0.f) CPEnergyFractionInLC = maxEnergyLCinCP/CPenergy;
       
-      std::cout << "LayerId:\t"<< std::setw(20) << "caloparticle\t"  << std::setw(20) <<  "cp total energy\t" << std::setw(20) << 
+      std::cout << std::setw(10) << "LayerId:\t"<< std::setw(20) << "caloparticle\t"  << std::setw(20) <<  "cp total energy\t" << std::setw(20) << 
       "cpEnergyOnLayer\t" << std::setw(20) << "CPNhitsOnLayer\t" << std::setw(20) << "lcWithMaxEnergyInCP\t" << std::setw(20) <<
       "maxEnergyLCinCP\t" << std::setw(20) << "CPEnergyFractionInLC" << std::endl;
-      std::cout << layerId << "\t"  << std::setw(20) <<  cpId << "\t"  << std::setw(20) <<  cP[cpId].energy() <<
+      std::cout << std::setw(10) << layerId << "\t"  << std::setw(20) <<  cpId << "\t"  << std::setw(20) <<  cP[cpId].energy() <<
       "\t"  << std::setw(20) <<  CPenergy << "\t"  << std::setw(20) <<  CPNumberOfHits << 
       "\t"  << std::setw(20) <<  lcWithMaxEnergyInCP << "\t"  << std::setw(20) <<  maxEnergyLCinCP << "\t"  << std::setw(20) <<  CPEnergyFractionInLC << std::endl;
+
+      for(unsigned int i=0; i< CPNumberOfHits; ++i)
+      {
+        auto& cp_hitDetId = cPOnLayer[cpId][layerId].hits_and_fractions[i].first;
+        auto& cpFraction = cPOnLayer[cpId][layerId].hits_and_fractions[i].second;
+      
+
+        bool hitWithNoLC = false;
+        if(cpFraction ==0.f) continue; //hopefully this should never happen
+        auto hit_find_in_LC = detIdToLayerClusterId_Map.find(cp_hitDetId);      
+        if(hit_find_in_LC == detIdToLayerClusterId_Map.end()) hitWithNoLC = true;
+        auto itcheck= hitMap_->find(cp_hitDetId);
+        const HGCRecHit *hit = itcheck->second;
+        float hitEnergySquared = hit->energy()*hit->energy();
+        float invCPEnergySquared = 1.f/(CPenergy*CPenergy);
+        for(auto& lcPair : cPOnLayer[cpId][layerId].layerClusterIdToEnergyAndScore)
+        {
+          unsigned int layerClusterId = lcPair.first;
+          float lcFraction = 0.f;
+
+          if(!hitWithNoLC)
+          {
+            auto findHitIt = std::find(detIdToLayerClusterId_Map[cp_hitDetId].begin(), detIdToLayerClusterId_Map[cp_hitDetId].end(), HGVHistoProducerAlgo::detIdInfoInCluster{layerClusterId,0.f});
+            if(findHitIt != detIdToLayerClusterId_Map[cp_hitDetId].end())
+              lcFraction = findHitIt->fraction;
+          }
+          lcPair.second.second += (lcFraction - cpFraction)*(lcFraction - cpFraction)*hitEnergySquared*invCPEnergySquared;
+        }
+      }
+     
+     
+
+      if(cPOnLayer[cpId][layerId].layerClusterIdToEnergyAndScore.empty()) std::cout << "CP Id: \t" << cpId << "\tLC id:\t-1 " << "\t error \t-1" <<std::endl;
+
+      for(auto& lcPair : cPOnLayer[cpId][layerId].layerClusterIdToEnergyAndScore)
+      {
+        std::cout << "CP Id: \t" << cpId << "\t LC id: \t" << lcPair.first << "\t error \t" << lcPair.second.second << std::endl;
+      }
+
+
     }
   }
 }

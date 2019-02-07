@@ -103,7 +103,7 @@ class HGVHistoProducerAlgo {
     unsigned int caloParticleId;
     float energy=0;
     std::vector<std::pair<DetId, float> > hits_and_fractions;
-    std::unordered_map<int, float> layerClusterIdAndEnergy;
+    std::unordered_map<int, std::pair<float,float>> layerClusterIdToEnergyAndScore;
   };
  private:
 
