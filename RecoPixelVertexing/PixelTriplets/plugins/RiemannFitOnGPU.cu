@@ -241,18 +241,18 @@ void HelixFitOnGPU::launchRiemannKernels(HitsOnCPU const & hh, uint32_t nhits, u
 
 
       // penta
-      kernelFastFit<5><<<numberOfBlocks, blockSize, 0, cudaStream>>>(
+      kernelFastFit<4><<<numberOfBlocks, blockSize, 0, cudaStream>>>(
           tuples_d, tupleMultiplicity_d, 5,
           hh.gpu_d,
           hitsGPU_, hits_geGPU_, fast_fit_resultsGPU_,offset);
       cudaCheck(cudaGetLastError());
 
-      kernelCircleFit<5><<<numberOfBlocks, blockSize, 0, cudaStream>>>(
+      kernelCircleFit<4><<<numberOfBlocks, blockSize, 0, cudaStream>>>(
           tupleMultiplicity_d, 5, bField_,
           hitsGPU_, hits_geGPU_, fast_fit_resultsGPU_, circle_fit_resultsGPU_, offset);
       cudaCheck(cudaGetLastError());
 
-      kernelLineFit<5><<<numberOfBlocks, blockSize, 0, cudaStream>>>(
+      kernelLineFit<4><<<numberOfBlocks, blockSize, 0, cudaStream>>>(
              tupleMultiplicity_d, 5,  bField_, helix_fit_results_d,
              hitsGPU_, hits_geGPU_, fast_fit_resultsGPU_, circle_fit_resultsGPU_,
              offset);
