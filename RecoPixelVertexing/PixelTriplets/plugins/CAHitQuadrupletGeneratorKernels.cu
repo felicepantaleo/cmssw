@@ -172,6 +172,7 @@ void kernel_find_ntuplets(
     GPUCACell::Hits const *  __restrict__ hhp,
     GPUCACell * __restrict__ cells, uint32_t const * nCells,
     TuplesOnGPU::Container * foundNtuplets, AtomicPairCounter * apc,
+    GPUCACell::TupleMultiplicity * tupleMultiplicity,
     unsigned int minHitsPerNtuplet)
 {
 
@@ -184,9 +185,25 @@ void kernel_find_ntuplets(
   if (thisCell.theLayerPairId!=0 && thisCell.theLayerPairId!=3 && thisCell.theLayerPairId!=8) return; // inner layer is 0 FIXME
   GPUCACell::TmpTuple stack;
   stack.reset();
-  thisCell.find_ntuplets(hh, cells, *foundNtuplets, *apc, stack, minHitsPerNtuplet);
+  thisCell.find_ntuplets(hh, cells, *foundNtuplets, *apc, *tupleMultiplicity, stack, minHitsPerNtuplet);
   assert(stack.size()==0);
   // printf("in %d found quadruplets: %d\n", cellIndex, apc->get());
+}
+
+
+__global__
+void kernel_fillMultiplicity(
+      TuplesOnGPU::Container const * __restrict__ foundNtuplets, 
+      GPUCACell::TupleMultiplicity * tupleMultiplicity
+     )
+{
+  auto it = blockIdx.x * blockDim.x + threadIdx.x;
+
+  if (it>=foundNtuplets->nbins()) return;
+
+  auto nhits = foundNtuplets->size(it);
+  if (nhits<3) return;
+  tupleMultiplicity->fillDirect(nhits,it);
 }
 
 
@@ -286,12 +303,21 @@ void CAHitQuadrupletGeneratorKernels::launchKernels( // here goes algoparms....
       device_theCells_, device_nCells_,
       gpu_.tuples_d,
       gpu_.apc_d,
+      device_tupleMultiplicity,
       3
   );
   cudaCheck(cudaGetLastError());
 
   numberOfBlocks = (TuplesOnGPU::Container::totbins() + blockSize - 1)/blockSize;
   cudautils::finalizeBulk<<<numberOfBlocks, blockSize, 0, cudaStream>>>(gpu_.apc_d,gpu_.tuples_d);
+
+  cudautils::launchFinalize(device_tupleMultiplicity,device_tmws,cudaStream);
+
+
+  blockSize = 128;
+  numberOfBlocks = (CAConstants::maxTuples() + blockSize - 1) / blockSize;
+  kernel_fillMultiplicity<<<numberOfBlocks, blockSize, 0, cudaStream>>>(gpu_.tuples_d,device_tupleMultiplicity);
+  cudaCheck(cudaGetLastError());
 
   if (lateFishbone_) {
     auto nthTot = 128;

@@ -17,6 +17,7 @@ public:
    using TuplesOnGPU = pixelTuplesHeterogeneousProduct::TuplesOnGPU;
 
    using HitToTuple = CAConstants::HitToTuple;
+   using TupleMultiplicity = CAConstants::TupleMultiplicity;
 
    CAHitQuadrupletGeneratorKernels(bool earlyFishbone, bool lateFishbone) :
     earlyFishbone_(earlyFishbone),
@@ -42,6 +43,8 @@ private:
     HitToTuple * device_hitToTuple_ = nullptr;
     AtomicPairCounter * device_hitToTuple_apc_ = nullptr;
 
+    TupleMultiplicity * device_tupleMultiplicity = nullptr;
+    uint8_t * device_tmws;    
 
     const bool earlyFishbone_;
     const bool lateFishbone_;

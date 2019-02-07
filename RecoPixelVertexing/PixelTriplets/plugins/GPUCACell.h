@@ -29,6 +29,8 @@ public:
 
   using TuplesOnGPU = pixelTuplesHeterogeneousProduct::TuplesOnGPU;
 
+  using TupleMultiplicity = CAConstants::TupleMultiplicity;
+
   GPUCACell() = default;
 #ifdef __CUDACC__
 
@@ -148,6 +150,7 @@ public:
       GPUCACell * __restrict__ cells,
       TuplesOnGPU::Container & foundNtuplets, 
       AtomicPairCounter & apc,
+      TupleMultiplicity & tupleMultiplicity,
       TmpTuple & tmpNtuplet,
       const unsigned int minHitsPerNtuplet) const
   {
@@ -163,8 +166,8 @@ public:
     if(theOuterNeighbors.size()>0) {
       for (int j = 0; j < theOuterNeighbors.size(); ++j) {
         auto otherCell = theOuterNeighbors[j];
-        cells[otherCell].find_ntuplets(hh, cells, foundNtuplets, apc, tmpNtuplet,
-                                       minHitsPerNtuplet);
+        cells[otherCell].find_ntuplets(hh, cells, foundNtuplets, apc, tupleMultiplicity, 
+                                       tmpNtuplet, minHitsPerNtuplet);
       }
     } else {  // if long enough save...
       if ((unsigned int)(tmpNtuplet.size()) >= minHitsPerNtuplet-1) {
@@ -185,6 +188,7 @@ public:
           hits[nh] = theOuterHitId; 
           uint16_t it = foundNtuplets.bulkFill(apc,hits,tmpNtuplet.size()+1);
           for (auto c : tmpNtuplet) cells[c].theTracks.push_back(it);
+          tupleMultiplicity.countDirect(tmpNtuplet.size()+1);
         };
       }
     }
