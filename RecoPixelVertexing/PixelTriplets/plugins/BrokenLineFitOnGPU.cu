@@ -21,9 +21,13 @@ using TuplesOnGPU = pixelTuplesHeterogeneousProduct::TuplesOnGPU;
 
 using namespace Eigen;
 
+
+#define BL_DUMP_HITS
+
 template<int N>
 __global__
 void kernelBLFastFit(TuplesOnGPU::Container const * __restrict__ foundNtuplets,
+    CAConstants::TupleMultiplicity const * __restrict__ tupleMultiplicity,
     HitsOnGPU const * __restrict__ hhp,
     double * __restrict__ phits,
     float * __restrict__ phits_ge,
@@ -35,14 +39,21 @@ void kernelBLFastFit(TuplesOnGPU::Container const * __restrict__ foundNtuplets,
 
   assert(pfast_fit); assert(foundNtuplets);
 
+  // look in bin for this hit multiplicity
   auto local_start = (blockIdx.x * blockDim.x + threadIdx.x);
-  auto helix_start = local_start + offset;
 
-  if (helix_start>=foundNtuplets->nbins()) return;
+#ifdef GPU_DEBUG
+  if (0==local_start) printf("%d Ntuple for %d hits to fit\n",tupleMultiplicity->size(hits_in_fit), hits_in_fit);
+#endif
 
-  if (foundNtuplets->size(helix_start)<hits_in_fit) {
-    return;
-  }
+  auto tuple_start = local_start + offset;
+  if (tuple_start >= tupleMultiplicity->size(hits_in_fit)) return;
+
+  // get it for the ntuple container (one to one to helix)
+  auto helix_start = *(tupleMultiplicity->begin(hits_in_fit)+tuple_start);
+  assert (helix_start < foundNtuplets->nbins());
+
+  assert (foundNtuplets->size(helix_start)==hits_in_fit);
 
   Rfit::Map3xNd<N> hits(phits+local_start);
   Rfit::Map4d   fast_fit(pfast_fit+local_start);
@@ -54,14 +65,11 @@ void kernelBLFastFit(TuplesOnGPU::Container const * __restrict__ foundNtuplets,
   __syncthreads(); 
   bool dump =  (foundNtuplets->size(helix_start)==5 &&
                 0 == atomicAdd(&done,1));
-  auto imax = foundNtuplets->size(helix_start);
-#else
-  auto imax = hits_in_fit;
 #endif
 
   // Prepare data structure
   auto const * hitId = foundNtuplets->begin(helix_start);
-  for (unsigned int i = 0; i < imax; ++i) {
+  for (unsigned int i = 0; i < hits_in_fit; ++i) {
     auto hit = hitId[i];
     float ge[6];
     hhp->cpeParams->detParams(hhp->detInd_d[hit]).frame.toGlobal(hhp->xerr_d[hit], 0, hhp->yerr_d[hit], ge);
@@ -70,7 +78,6 @@ void kernelBLFastFit(TuplesOnGPU::Container const * __restrict__ foundNtuplets,
       printf("Hit global: %d: %d hits.col(%d) << %f,%f,%f\n", helix_start, hhp->detInd_d[hit],i,hhp->xg_d[hit],hhp->yg_d[hit],hhp->zg_d[hit]);
       printf("Error: %d: %d  hits_ge.col(%d) << %e,%e,%e,%e,%e,%e\n",helix_start,hhp->detInd_d[hit],i,ge[0],ge[1],ge[2],ge[3],ge[4],ge[5]);
     }
-    if (i>=hits_in_fit) continue;
 #endif
     hits.col(i) << hhp->xg_d[hit], hhp->yg_d[hit], hhp->zg_d[hit];
     hits_ge.col(i) << ge[0],ge[1],ge[2],ge[3],ge[4],ge[5];
@@ -88,6 +95,7 @@ void kernelBLFastFit(TuplesOnGPU::Container const * __restrict__ foundNtuplets,
 template<int N>
 __global__
 void kernelBLFit(TuplesOnGPU::Container const * __restrict__ foundNtuplets,
+    CAConstants::TupleMultiplicity const * __restrict__ tupleMultiplicity,
     double B,
     Rfit::helix_fit *results,
     double * __restrict__ phits,
@@ -100,13 +108,19 @@ void kernelBLFit(TuplesOnGPU::Container const * __restrict__ foundNtuplets,
 
   assert(results); assert(pfast_fit);
 
-  auto local_start = (blockIdx.x * blockDim.x + threadIdx.x);
-  auto helix_start = local_start + offset;
 
-  if (helix_start>=foundNtuplets->nbins()) return;
-  if (foundNtuplets->size(helix_start)<hits_in_fit) {
-    return;
-  }
+  // same as above...
+
+  // look in bin for this hit multiplicity
+  auto local_start = (blockIdx.x * blockDim.x + threadIdx.x);
+  auto tuple_start = local_start + offset;
+  if (tuple_start >= tupleMultiplicity->size(hits_in_fit)) return;
+
+  // get it for the ntuple container (one to one to helix)
+  auto helix_start = *(tupleMultiplicity->begin(hits_in_fit)+tuple_start);
+  assert (helix_start<foundNtuplets->nbins());
+
+  assert (foundNtuplets->size(helix_start)==hits_in_fit);
 
 
   Rfit::Map3xNd<N> hits(phits+local_start);
@@ -142,10 +156,11 @@ void kernelBLFit(TuplesOnGPU::Container const * __restrict__ foundNtuplets,
   helix.chi2_line = line.chi2;
 
 #ifdef GPU_DEBUG
-  printf("kernelBLFit circle.par(0,1,2): %d %f,%f,%f\n", helix_start,
+  if ( !(circle.chi2>=0) || !(line.chi2>=0) ) printf("kernelBLFit failed! %f/%f\n", helix.chi2_circle,helix.chi2_line);
+  printf("kernelBLFit %d circle.par(0,1,2): %d %f,%f,%f\n", hits_in_fit, helix_start,
          circle.par(0), circle.par(1), circle.par(2));
-  printf("kernelLineFitAllHits line.par(0,1): %d %f,%f\n", helix_start, line.par(0),line.par(1));
-  printf("kernelLineFitAllHits chi2 cov %f/%f %f,%f,%f,%f,%f\n",helix.chi2_circle,helix.chi2_line, 
+  printf("kernelBLHits line.par(0,1): %d %f,%f\n", helix_start, line.par(0),line.par(1));
+  printf("kernelBLHits chi2 cov %f/%f  %f,%f,%f,%f,%f\n",helix.chi2_circle,helix.chi2_line, 
          helix.cov(0,0),helix.cov(1,1),helix.cov(2,2),helix.cov(3,3),helix.cov(4,4));
 #endif
 }
@@ -162,27 +177,41 @@ void HelixFitOnGPU::launchBrokenLineKernels(HitsOnCPU const & hh, uint32_t nhits
 
       // fit triplets
       kernelBLFastFit<3><<<numberOfBlocks, blockSize, 0, cudaStream>>>(
-          tuples_d, hh.gpu_d,
+          tuples_d, tupleMultiplicity_d, hh.gpu_d,
           hitsGPU_, hits_geGPU_, fast_fit_resultsGPU_,offset);
       cudaCheck(cudaGetLastError());
 
       kernelBLFit<3><<<numberOfBlocks, blockSize, 0, cudaStream>>>(
-             tuples_d, bField_, helix_fit_results_d,
+             tuples_d, tupleMultiplicity_d, bField_, helix_fit_results_d,
              hitsGPU_, hits_geGPU_, fast_fit_resultsGPU_,
              offset);
       cudaCheck(cudaGetLastError());
 
       // fit quads
       kernelBLFastFit<4><<<numberOfBlocks, blockSize, 0, cudaStream>>>(
-          tuples_d, hh.gpu_d,
+          tuples_d, tupleMultiplicity_d, hh.gpu_d,
           hitsGPU_, hits_geGPU_, fast_fit_resultsGPU_,offset);
       cudaCheck(cudaGetLastError());
 
       kernelBLFit<4><<<numberOfBlocks, blockSize, 0, cudaStream>>>(
-             tuples_d, bField_, helix_fit_results_d,
+             tuples_d, tupleMultiplicity_d, bField_, helix_fit_results_d,
              hitsGPU_, hits_geGPU_, fast_fit_resultsGPU_,
              offset);
       cudaCheck(cudaGetLastError());
+
+      // fit penta
+      kernelBLFastFit<5><<<numberOfBlocks, blockSize, 0, cudaStream>>>(
+          tuples_d, tupleMultiplicity_d, hh.gpu_d,
+          hitsGPU_, hits_geGPU_, fast_fit_resultsGPU_,offset);
+      cudaCheck(cudaGetLastError());
+
+      kernelBLFit<5><<<numberOfBlocks, blockSize, 0, cudaStream>>>(
+             tuples_d, tupleMultiplicity_d, bField_, helix_fit_results_d,
+             hitsGPU_, hits_geGPU_, fast_fit_resultsGPU_,
+             offset);
+      cudaCheck(cudaGetLastError());
+
+
     }
 
 

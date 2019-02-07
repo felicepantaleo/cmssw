@@ -24,6 +24,9 @@ public:
     lateFishbone_(lateFishbone){}
    ~CAHitQuadrupletGeneratorKernels() { deallocateOnGPU();}
 
+
+   TupleMultiplicity const * tupleMultiplicity() const { return device_tupleMultiplicity;}
+
    void launchKernels(HitsOnCPU const & hh, TuplesOnGPU & tuples_d, cudaStream_t cudaStream);
 
    void classifyTuples(HitsOnCPU const & hh, TuplesOnGPU & tuples_d, cudaStream_t cudaStream);

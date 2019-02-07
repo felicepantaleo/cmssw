@@ -39,6 +39,7 @@ public:
    using HitsOnCPU = siPixelRecHitsHeterogeneousProduct::HitsOnCPU;
 
    using TuplesOnGPU = pixelTuplesHeterogeneousProduct::TuplesOnGPU;
+   using TupleMultiplicity = CAConstants::TupleMultiplicity;
 
    HelixFitOnGPU() = default;
    ~HelixFitOnGPU() { deallocateOnGPU();}
@@ -47,7 +48,7 @@ public:
    void launchRiemannKernels(HitsOnCPU const & hh, uint32_t nhits, uint32_t maxNumberOfTuples, cudaStream_t cudaStream);
    void launchBrokenLineKernels(HitsOnCPU const & hh, uint32_t nhits, uint32_t maxNumberOfTuples, cudaStream_t cudaStream);
 
-   void allocateOnGPU(TuplesOnGPU::Container const * tuples, Rfit::helix_fit * helix_fit_results);
+   void allocateOnGPU(TuplesOnGPU::Container const * tuples, TupleMultiplicity const * tupleMultiplicity, Rfit::helix_fit * helix_fit_results);
    void deallocateOnGPU();
 
 
@@ -57,6 +58,7 @@ private:
 
     // fowarded
     TuplesOnGPU::Container const * tuples_d = nullptr;
+    TupleMultiplicity const * tupleMultiplicity_d = nullptr;
     double bField_;
     Rfit::helix_fit * helix_fit_results_d = nullptr;
 

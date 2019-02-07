@@ -152,7 +152,7 @@ void CAHitQuadrupletGeneratorGPU::allocateOnGPU()
   cudaCheck(cudaMallocHost(&quality_, sizeof(Quality)*maxNumberOfQuadruplets_));
 
   kernels.allocateOnGPU();
-  fitter.allocateOnGPU(gpu_.tuples_d, gpu_.helix_fit_results_d);
+  fitter.allocateOnGPU(gpu_.tuples_d, kernels.tupleMultiplicity(), gpu_.helix_fit_results_d);
 
 
 }
