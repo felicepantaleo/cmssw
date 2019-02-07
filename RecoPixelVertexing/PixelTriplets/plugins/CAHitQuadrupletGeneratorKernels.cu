@@ -231,14 +231,15 @@ void kernel_VerifyFit(TuplesOnGPU::Container const * __restrict__ tuples,
   isNaN |=  !(fit_results[idx].chi2_line+fit_results[idx].chi2_circle < 100.f);  // catch NaN as well
 
 #ifdef GPU_DEBUG
- if (isNaN) printf("NaN or Bad Fit %d %f/%f\n",idx,fit_results[idx].chi2_line,fit_results[idx].chi2_circle);
+ if (isNaN) printf("NaN or Bad Fit %d size %d chi2 %f/%f\n",idx,tuples->size(idx), fit_results[idx].chi2_line,fit_results[idx].chi2_circle);
 #endif
 
   // impose "region cuts" (NaN safe)
   // phi,Tip,pt,cotan(theta)),Zip
-  bool ok = std::abs(fit_results[idx].par(1)) < 0.1f 
-         && fit_results[idx].par(2) > 0.3f
+  bool ok = std::abs(fit_results[idx].par(1)) < ( tuples->size(idx)>3 ? 0.1f : 0.05f) 
+         && fit_results[idx].par(2) > ( tuples->size(idx)>3 ? 0.3f : 0.5f)
          && std::abs(fit_results[idx].par(4)) < 12.f;
+  
   ok &= (!isNaN);
   quality[idx] = ok ? pixelTuplesHeterogeneousProduct::loose : pixelTuplesHeterogeneousProduct::bad; 
 }
