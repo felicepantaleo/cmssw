@@ -108,9 +108,7 @@ void kernelBLFit(
     uint32_t offset)
 {
 
-  constexpr uint32_t hitsInFit = N;
-
-  assert(hitsInFit<=nHits);
+  assert(N<=nHits);
 
   assert(results); assert(pfast_fit);
 
@@ -204,21 +202,35 @@ void HelixFitOnGPU::launchBrokenLineKernels(HitsOnCPU const & hh, uint32_t hitsI
              4, offset);
       cudaCheck(cudaGetLastError());
 
-      // fit penta (only first 4)
-      kernelBLFastFit<4><<<numberOfBlocks, blockSize, 0, cudaStream>>>(
+      if (fit5as4_) {
+        // fit penta (only first 4)
+        kernelBLFastFit<4><<<numberOfBlocks, blockSize, 0, cudaStream>>>(
           tuples_d, tupleMultiplicity_d, hh.gpu_d,
           hitsGPU_, hits_geGPU_, fast_fit_resultsGPU_,
           5, offset);
-      cudaCheck(cudaGetLastError());
+        cudaCheck(cudaGetLastError());
 
-      kernelBLFit<4><<<numberOfBlocks, blockSize, 0, cudaStream>>>(
+        kernelBLFit<4><<<numberOfBlocks, blockSize, 0, cudaStream>>>(
              tupleMultiplicity_d, bField_, helix_fit_results_d,
              hitsGPU_, hits_geGPU_, fast_fit_resultsGPU_,
              5, offset);
-      cudaCheck(cudaGetLastError());
+        cudaCheck(cudaGetLastError());
+      } else {
+        // fit penta (all 5)
+        kernelBLFastFit<5><<<numberOfBlocks, blockSize, 0, cudaStream>>>(
+          tuples_d, tupleMultiplicity_d, hh.gpu_d,
+          hitsGPU_, hits_geGPU_, fast_fit_resultsGPU_,
+          5, offset);
+        cudaCheck(cudaGetLastError());
 
+        kernelBLFit<5><<<numberOfBlocks, blockSize, 0, cudaStream>>>(
+             tupleMultiplicity_d, bField_, helix_fit_results_d,
+             hitsGPU_, hits_geGPU_, fast_fit_resultsGPU_,
+             5, offset);
+        cudaCheck(cudaGetLastError());
+      }
 
-    }
+    } // loop on concurrent fits
 
 
 }
