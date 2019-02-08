@@ -217,7 +217,6 @@ CAHitQuadrupletGeneratorGPU::fetchKernelResult(int)
     ++nTuples_;
     ++sizes[sz];
     for (auto j=tuples.begin(i); j!=tuples.end(i); ++j) add(*j);
-    // if (sz<4) continue;
     quadsInterface.emplace_back(std::array<int, 4>());
     quadsInterface.back()[0] = tuples.begin(i)[0];
     quadsInterface.back()[1] = tuples.begin(i)[1];

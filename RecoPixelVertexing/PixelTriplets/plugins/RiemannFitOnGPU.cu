@@ -181,10 +181,10 @@ void kernelLineFit(
   helix.chi2_line = line_fit.chi2;
 
 #ifdef GPU_DEBUG
-  printf("kernelLineFit size %d for %d hits circle.par(0,1,2): N,nHits, %d %f,%f,%f\n", helix_start,
+  printf("kernelLineFit size %d for %d hits circle.par(0,1,2): %d %f,%f,%f\n", N,nHits, helix_start,
          circle_fit[local_start].par(0), circle_fit[local_start].par(1), circle_fit[local_start].par(2));
   printf("kernelLineFit line.par(0,1): %d %f,%f\n", helix_start, line_fit.par(0),line_fit.par(1));
-  printf("kernelLineFit chi2 cov %f/%f %f,%f,%f,%f,%f\n",helix.chi2_circle,helix.chi2_line, 
+  printf("kernelLineFit chi2 cov %f/%f %e,%e,%e,%e,%e\n",helix.chi2_circle,helix.chi2_line, 
          helix.cov(0,0),helix.cov(1,1),helix.cov(2,2),helix.cov(3,3),helix.cov(4,4));
 #endif
 }

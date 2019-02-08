@@ -158,10 +158,10 @@ void kernelBLFit(
 
 #ifdef GPU_DEBUG
   if ( !(circle.chi2>=0) || !(line.chi2>=0) ) printf("kernelBLFit failed! %f/%f\n", helix.chi2_circle,helix.chi2_line);
-  printf("kernelBLFit %d circle.par(0,1,2): %d %f,%f,%f\n", hitsInFit, helix_start,
+  printf("kernelBLFit size %d for %d hits circle.par(0,1,2): %d %f,%f,%f\n", N,nHits, helix_start,
          circle.par(0), circle.par(1), circle.par(2));
   printf("kernelBLHits line.par(0,1): %d %f,%f\n", helix_start, line.par(0),line.par(1));
-  printf("kernelBLHits chi2 cov %f/%f  %f,%f,%f,%f,%f\n",helix.chi2_circle,helix.chi2_line, 
+  printf("kernelBLHits chi2 cov %f/%f  %e,%e,%e,%e,%e\n",helix.chi2_circle,helix.chi2_line, 
          helix.cov(0,0),helix.cov(1,1),helix.cov(2,2),helix.cov(3,3),helix.cov(4,4));
 #endif
 }
