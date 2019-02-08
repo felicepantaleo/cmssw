@@ -305,7 +305,7 @@ void CAHitQuadrupletGeneratorKernels::launchKernels( // here goes algoparms....
       gpu_.tuples_d,
       gpu_.apc_d,
       device_tupleMultiplicity,
-      3
+      minHitsPerNtuplet_      
   );
   cudaCheck(cudaGetLastError());
 

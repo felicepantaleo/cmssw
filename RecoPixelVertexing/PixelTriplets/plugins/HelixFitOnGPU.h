@@ -41,7 +41,7 @@ public:
    using TuplesOnGPU = pixelTuplesHeterogeneousProduct::TuplesOnGPU;
    using TupleMultiplicity = CAConstants::TupleMultiplicity;
 
-   HelixFitOnGPU() = default;
+   explicit HelixFitOnGPU(bool fit5as4) : fit5as4_(fit5as4) {}
    ~HelixFitOnGPU() { deallocateOnGPU();}
 
    void setBField(double bField) { bField_ = bField;}
@@ -62,13 +62,14 @@ private:
     double bField_;
     Rfit::helix_fit * helix_fit_results_d = nullptr;
 
-
-
    // Riemann Fit internals
    double *hitsGPU_ = nullptr;
    float *hits_geGPU_ = nullptr;
    double *fast_fit_resultsGPU_ = nullptr;
    Rfit::circle_fit *circle_fit_resultsGPU_ = nullptr;
+
+    const bool fit5as4_;
+
 
 };
 

@@ -19,7 +19,9 @@ public:
    using HitToTuple = CAConstants::HitToTuple;
    using TupleMultiplicity = CAConstants::TupleMultiplicity;
 
-   CAHitQuadrupletGeneratorKernels(bool earlyFishbone, bool lateFishbone) :
+   CAHitQuadrupletGeneratorKernels(uint32_t minHitsPerNtuplet,
+    bool earlyFishbone, bool lateFishbone) :
+    minHitsPerNtuplet_(minHitsPerNtuplet),
     earlyFishbone_(earlyFishbone),
     lateFishbone_(lateFishbone){}
    ~CAHitQuadrupletGeneratorKernels() { deallocateOnGPU();}
@@ -49,6 +51,7 @@ private:
     TupleMultiplicity * device_tupleMultiplicity = nullptr;
     uint8_t * device_tmws;    
 
+    const uint32_t minHitsPerNtuplet_;
     const bool earlyFishbone_;
     const bool lateFishbone_;
 
