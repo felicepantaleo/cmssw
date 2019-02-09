@@ -1,7 +1,7 @@
 #ifndef RecoPixelVertexing_PixelTrackFitting_interface_RiemannFit_h
 #define RecoPixelVertexing_PixelTrackFitting_interface_RiemannFit_h
 
-#include "FitUtils.h"
+#include "RecoPixelVertexing/PixelTrackFitting/interface/FitUtils.h"
 
 namespace Rfit
 {

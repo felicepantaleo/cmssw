@@ -1,7 +1,7 @@
 #ifndef RECOPIXELVERTEXING_PIXELTRACKFITTING_BROKENLINE_H
 #define RECOPIXELVERTEXING_PIXELTRACKFITTING_BROKENLINE_H
 
-#include "FitUtils.h"
+#include "RecoPixelVertexing/PixelTrackFitting/interface/FitUtils.h"
 
 #include <Eigen/Eigenvalues>
 
@@ -365,7 +365,7 @@ namespace BrokenLine {
       if(i>0 && i<n-1) circle_results.chi2+=sqr(u(i-1)/(s(i)-s(i-1))-u(i)*(s(i+1)-s(i-1))/((s(i+1)-s(i))*(s(i)-s(i-1)))+u(i+1)/(s(i+1)-s(i))+(s(i+1)-s(i-1))*u(n)/2)/VarBeta(i);
     }
     
-    assert(circle_results.chi2>=0);
+    // assert(circle_results.chi2>=0);
   }
   
   /*!
@@ -469,7 +469,7 @@ namespace BrokenLine {
 					      +u(i+1)/(S(i+1)-S(i)))/VarBeta(i);
     }
     
-    assert(line_results.chi2>=0);
+    // assert(line_results.chi2>=0);
   }
   
   /*!

@@ -1,12 +1,13 @@
 #include "HelixFitOnGPU.h"
 #include "HeterogeneousCore/CUDAUtilities/interface/cudaCheck.h"
 
-void HelixFitOnGPU::allocateOnGPU(TuplesOnGPU::Container const * tuples, Rfit::helix_fit * helix_fit_results) {
+void HelixFitOnGPU::allocateOnGPU(TuplesOnGPU::Container const * tuples, TupleMultiplicity const * tupleMultiplicity, Rfit::helix_fit * helix_fit_results) {
 
   tuples_d = tuples;
+  tupleMultiplicity_d = tupleMultiplicity;
   helix_fit_results_d = helix_fit_results;
 
-  assert(tuples_d); assert(helix_fit_results_d);
+  assert(tuples_d); assert(tupleMultiplicity_d); assert(helix_fit_results_d);
 
   cudaCheck(cudaMalloc(&hitsGPU_, maxNumberOfConcurrentFits_ * sizeof(Rfit::Matrix3xNd<4>)));
   cudaCheck(cudaMemset(hitsGPU_, 0x00, maxNumberOfConcurrentFits_ * sizeof(Rfit::Matrix3xNd<4>)));

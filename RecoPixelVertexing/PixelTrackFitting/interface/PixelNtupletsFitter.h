@@ -1,5 +1,5 @@
-#ifndef RecoPixelVertexing_PixelTrackFitting_PixelFitterByRiemannParaboloid_H
-#define RecoPixelVertexing_PixelTrackFitting_PixelFitterByRiemannParaboloid_H
+#ifndef RecoPixelVertexing_PixelTrackFitting_PixelNtupletsFitter_H
+#define RecoPixelVertexing_PixelTrackFitting_PixelNtupletsFitter_H
 
 #include <vector>
 
@@ -10,19 +10,17 @@
 #include "RecoPixelVertexing/PixelTrackFitting/interface/PixelFitterBase.h"
 #include "RecoTracker/TkTrackingRegions/interface/TrackingRegion.h"
 
-class PixelFitterByRiemannParaboloid final : public PixelFitterBase {
+class PixelNtupletsFitter final : public PixelFitterBase {
 public:
-  explicit PixelFitterByRiemannParaboloid(const edm::EventSetup *es, const MagneticField *field,
-      bool useErrors, bool useMultipleScattering);
-  ~PixelFitterByRiemannParaboloid() override = default;
+  explicit PixelNtupletsFitter(float nominalB, const MagneticField *field, bool useRiemannFit);
+  ~PixelNtupletsFitter() override = default;
   std::unique_ptr<reco::Track> run(const std::vector<const TrackingRecHit *>& hits,
                                    const TrackingRegion& region) const override;
 
 private:
-  const edm::EventSetup *es_;
+  float nominalB_;
   const MagneticField *field_;
-  bool useErrors_;
-  bool useMultipleScattering_;
+  bool useRiemannFit_;
 };
 
-#endif // RecoPixelVertexing_PixelTrackFitting_PixelFitterByRiemannParaboloid_H
+#endif // RecoPixelVertexing_PixelTrackFitting_PixelNtupletsFitter_H

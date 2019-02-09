@@ -169,12 +169,15 @@ kernel_connect(AtomicPairCounter * apc1, AtomicPairCounter * apc2,  // just to z
 
 __global__ 
 void kernel_find_ntuplets(
+    GPUCACell::Hits const *  __restrict__ hhp,
     GPUCACell * __restrict__ cells, uint32_t const * nCells,
     TuplesOnGPU::Container * foundNtuplets, AtomicPairCounter * apc,
+    GPUCACell::TupleMultiplicity * tupleMultiplicity,
     unsigned int minHitsPerNtuplet)
 {
 
   // recursive: not obvious to widen
+  auto const & hh = *hhp;
 
   auto cellIndex = threadIdx.x + blockIdx.x * blockDim.x;
   if (cellIndex >= (*nCells) ) return;
@@ -182,9 +185,25 @@ void kernel_find_ntuplets(
   if (thisCell.theLayerPairId!=0 && thisCell.theLayerPairId!=3 && thisCell.theLayerPairId!=8) return; // inner layer is 0 FIXME
   GPUCACell::TmpTuple stack;
   stack.reset();
-  thisCell.find_ntuplets(cells, *foundNtuplets, *apc, stack, minHitsPerNtuplet);
+  thisCell.find_ntuplets(hh, cells, *foundNtuplets, *apc, *tupleMultiplicity, stack, minHitsPerNtuplet);
   assert(stack.size()==0);
   // printf("in %d found quadruplets: %d\n", cellIndex, apc->get());
+}
+
+
+__global__
+void kernel_fillMultiplicity(
+      TuplesOnGPU::Container const * __restrict__ foundNtuplets, 
+      GPUCACell::TupleMultiplicity * tupleMultiplicity
+     )
+{
+  auto it = blockIdx.x * blockDim.x + threadIdx.x;
+
+  if (it>=foundNtuplets->nbins()) return;
+
+  auto nhits = foundNtuplets->size(it);
+  if (nhits<3) return;
+  tupleMultiplicity->fillDirect(nhits,it);
 }
 
 
@@ -201,8 +220,7 @@ void kernel_VerifyFit(TuplesOnGPU::Container const * __restrict__ tuples,
 
   quality[idx] = pixelTuplesHeterogeneousProduct::bad;
 
-  // only quadruplets
-  if (tuples->size(idx)<4) { 
+  if (tuples->size(idx)<3) { 
     return;
   }
 
@@ -213,14 +231,15 @@ void kernel_VerifyFit(TuplesOnGPU::Container const * __restrict__ tuples,
   isNaN |=  !(fit_results[idx].chi2_line+fit_results[idx].chi2_circle < 100.f);  // catch NaN as well
 
 #ifdef GPU_DEBUG
- if (isNaN) printf("NaN or Bad Fit %d %f/%f\n",idx,fit_results[idx].chi2_line,fit_results[idx].chi2_circle);
+ if (isNaN) printf("NaN or Bad Fit %d size %d chi2 %f/%f\n",idx,tuples->size(idx), fit_results[idx].chi2_line,fit_results[idx].chi2_circle);
 #endif
 
   // impose "region cuts" (NaN safe)
   // phi,Tip,pt,cotan(theta)),Zip
-  bool ok = std::abs(fit_results[idx].par(1)) < 0.1f 
-         && fit_results[idx].par(2) > 0.3f
+  bool ok = std::abs(fit_results[idx].par(1)) < ( tuples->size(idx)>3 ? 0.1f : 0.05f) 
+         && fit_results[idx].par(2) > ( tuples->size(idx)>3 ? 0.3f : 0.5f)
          && std::abs(fit_results[idx].par(4)) < 12.f;
+  
   ok &= (!isNaN);
   quality[idx] = ok ? pixelTuplesHeterogeneousProduct::loose : pixelTuplesHeterogeneousProduct::bad; 
 }
@@ -281,15 +300,25 @@ void CAHitQuadrupletGeneratorKernels::launchKernels( // here goes algoparms....
   cudaCheck(cudaGetLastError());
 
   kernel_find_ntuplets<<<numberOfBlocks, blockSize, 0, cudaStream>>>(
+      hh.gpu_d,
       device_theCells_, device_nCells_,
       gpu_.tuples_d,
       gpu_.apc_d,
-      4
+      device_tupleMultiplicity,
+      minHitsPerNtuplet_      
   );
   cudaCheck(cudaGetLastError());
 
   numberOfBlocks = (TuplesOnGPU::Container::totbins() + blockSize - 1)/blockSize;
   cudautils::finalizeBulk<<<numberOfBlocks, blockSize, 0, cudaStream>>>(gpu_.apc_d,gpu_.tuples_d);
+
+  cudautils::launchFinalize(device_tupleMultiplicity,device_tmws,cudaStream);
+
+
+  blockSize = 128;
+  numberOfBlocks = (CAConstants::maxTuples() + blockSize - 1) / blockSize;
+  kernel_fillMultiplicity<<<numberOfBlocks, blockSize, 0, cudaStream>>>(gpu_.tuples_d,device_tupleMultiplicity);
+  cudaCheck(cudaGetLastError());
 
   if (lateFishbone_) {
     auto nthTot = 128;
