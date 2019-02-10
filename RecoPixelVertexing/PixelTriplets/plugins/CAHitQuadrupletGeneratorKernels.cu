@@ -190,7 +190,7 @@ void kernel_find_ntuplets(
   if (0==threadIdx.x) local.zero();
   __syncthreads();
 
-  thisCell.find_ntuplets(hh, cells, *foundNtuplets, *apc, *tupleMultiplicity, stack, minHitsPerNtuplet);
+  thisCell.find_ntuplets(hh, cells, *foundNtuplets, *apc, local, stack, minHitsPerNtuplet);
   assert(stack.size()==0);
   // printf("in %d found quadruplets: %d\n", cellIndex, apc->get());
   __syncthreads();
