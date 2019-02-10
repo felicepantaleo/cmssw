@@ -134,6 +134,8 @@ public:
   using Counter = std::atomic<uint32_t>;
 #endif
 
+  using CountersOnly = HistoContainer<T,NBINS,0,S,I,NHISTS>;
+
   using index_type = I;
   using UT = typename std::make_unsigned<T>::type;
 
@@ -178,9 +180,21 @@ public:
     return (t >> shift) & mask;
   }
 
+  __host__ __device__
   void zero() {
     for (auto & i : off)
       i = 0;
+  }
+
+  __host__ __device__
+  void add(CountersOnly const & co) {
+    for (uint32_t i = 0; i<totbins(); ++i) {
+      #ifdef __CUDA_ARCH__
+      atomicAdd(off+i,co.off[i]);
+      #else
+      off[i]+=co.off[i]; 
+      #endif
+    }
   }
 
   static __host__ __device__

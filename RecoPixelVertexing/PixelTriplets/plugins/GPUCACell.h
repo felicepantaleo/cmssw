@@ -155,14 +155,14 @@ public:
   // trying to free the track building process from hardcoded layers, leaving
   // the visit of the graph based on the neighborhood connections between cells.
 
-
+  template<typename CM>
   __device__
   inline void find_ntuplets(
       Hits const & hh,
       GPUCACell * __restrict__ cells,
       TuplesOnGPU::Container & foundNtuplets, 
       AtomicPairCounter & apc,
-      TupleMultiplicity & tupleMultiplicity,
+      CM & tupleMultiplicity,
       TmpTuple & tmpNtuplet,
       const unsigned int minHitsPerNtuplet) const
   {
