@@ -27,7 +27,7 @@ void countMultiLocal(TK const * __restrict__ tk, Multiplicity * __restrict__ ass
    __shared__ Multiplicity::CountersOnly local;
    if (threadIdx.x==0) local.zero();
    __syncthreads();
-   local.countDirect(4);
+   local.countDirect(2+i%4);
    __syncthreads();
    if (threadIdx.x==0) assoc->add(local);
 }
@@ -37,7 +37,7 @@ __global__
 void countMulti(TK const * __restrict__ tk, Multiplicity * __restrict__ assoc, uint32_t n) {
    auto i = blockIdx.x * blockDim.x + threadIdx.x;
    if (i>=n) return;
-   assoc->countDirect(4);
+   assoc->countDirect(2+i%4);
 }
 
 
