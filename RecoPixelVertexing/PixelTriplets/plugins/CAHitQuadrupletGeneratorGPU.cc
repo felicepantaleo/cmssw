@@ -16,9 +16,6 @@
 
 #include "CAHitQuadrupletGeneratorGPU.h"
 
-
-#define GPU_DEBUG
-
 namespace {
 
   template <typename T> T sqr(T x) { return x * x; }
