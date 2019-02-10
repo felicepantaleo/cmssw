@@ -15,7 +15,38 @@ constexpr uint32_t MaxTk=8000;
 constexpr uint32_t MaxAssocs = 4*MaxTk;
 using Assoc = OneToManyAssoc<uint16_t,MaxElem,MaxAssocs>;
 
+using Multiplicity = OneToManyAssoc<uint16_t,8,MaxTk>;
+
 using TK = std::array<uint16_t,4>;
+
+__global__
+void countMultiLocal(TK const * __restrict__ tk, Multiplicity * __restrict__ assoc, uint32_t n) {
+   auto i = blockIdx.x * blockDim.x + threadIdx.x;
+   if (i>=n) return;
+
+   __shared__ Multiplicity::CountersOnly local;
+   if (threadIdx.x==0) local.zero();
+   __syncthreads();
+   local.countDirect(4);
+   __syncthreads();
+   if (threadIdx.x==0) assoc->add(local);
+}
+
+
+__global__
+void countMulti(TK const * __restrict__ tk, Multiplicity * __restrict__ assoc, uint32_t n) {
+   auto i = blockIdx.x * blockDim.x + threadIdx.x;
+   if (i>=n) return;
+   assoc->countDirect(4);
+}
+
+
+__global__
+void verifyMulti(Multiplicity * __restrict__ m1, Multiplicity * __restrict__ m2) {
+   auto i = blockIdx.x * blockDim.x + threadIdx.x;
+   if (i>=Multiplicity::totbins() ) return;
+   assert(m1->off[i]==m2->off[i]);
+}
 
 __global__ 
 void count(TK const * __restrict__ tk, Assoc * __restrict__ assoc, uint32_t n) {
@@ -154,6 +185,23 @@ int main() {
   }
   assert(0==la.size(N));
   std::cout << "found with ave occupancy " << double(ave)/N <<' '<< imax << std::endl;
+
+
+  // here verify use of block local counters
+  auto m1_d = cuda::memory::device::make_unique<Multiplicity[]>(current_device,1);
+  auto m2_d = cuda::memory::device::make_unique<Multiplicity[]>(current_device,1);
+  cudautils::launchZero(m1_d.get(),0);
+  cudautils::launchZero(m2_d.get(),0);
+
+  nBlocks = (4*N + nThreads - 1) / nThreads;
+  countMulti<<<nBlocks,nThreads>>>(v_d.get(),m1_d.get(),N);
+  countMultiLocal<<<nBlocks,nThreads>>>(v_d.get(),m2_d.get(),N);
+  verifyMulti<<<1,Multiplicity::totbins()>>>(m1_d.get(),m2_d.get());
+
+  cudautils::launchFinalize(m1_d.get(),ws_d.get(),0);
+  cudautils::launchFinalize(m2_d.get(),ws_d.get(),0);
+  verifyMulti<<<1,Multiplicity::totbins()>>>(m1_d.get(),m2_d.get());
+
 
   cudaCheck(cudaGetLastError());
   cudaCheck(cudaDeviceSynchronize());
