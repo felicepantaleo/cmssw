@@ -183,21 +183,30 @@ void kernel_find_ntuplets(
   if (cellIndex >= (*nCells) ) return;
   auto &thisCell = cells[cellIndex];
 
+#ifdef CA_USE_LOCAL_COUNTERS
   __shared__ GPUCACell::TupleMultiplicity::CountersOnly local;
   if (0==threadIdx.x) local.zero();
   __syncthreads();
+#endif
 
   if (thisCell.theLayerPairId==0 || thisCell.theLayerPairId==3 || thisCell.theLayerPairId==8) { // inner layer is 0 FIXME
     GPUCACell::TmpTuple stack;
     stack.reset();
-    thisCell.find_ntuplets(hh, cells, *foundNtuplets, *apc, local, stack, minHitsPerNtuplet);
+    thisCell.find_ntuplets(hh, cells, *foundNtuplets, *apc, 
+                           #ifdef CA_USE_LOCAL_COUNTERS
+                           local,
+                           #else
+                           *tupleMultiplicity,
+                           #endif 
+                           stack, minHitsPerNtuplet);
     assert(stack.size()==0);
     // printf("in %d found quadruplets: %d\n", cellIndex, apc->get());
   }
-  __syncthreads();
- 
-  if (0==threadIdx.x) tupleMultiplicity->add(local);
 
+#ifdef CA_USE_LOCAL_COUNTERS
+  __syncthreads(); 
+  if (0==threadIdx.x) tupleMultiplicity->add(local);
+#endif
 }
 
 
