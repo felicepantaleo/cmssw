@@ -21,54 +21,57 @@ using TK = std::array<uint16_t,4>;
 
 __global__
 void countMultiLocal(TK const * __restrict__ tk, Multiplicity * __restrict__ assoc, uint32_t n) {
-   auto i = blockIdx.x * blockDim.x + threadIdx.x;
-   if (i>=n) return;
+   int first = blockDim.x * blockIdx.x + threadIdx.x;
+   for (int i = first; i < n; i += gridDim.x*blockDim.x) {
 
-   __shared__ Multiplicity::CountersOnly local;
-   if (threadIdx.x==0) local.zero();
-   __syncthreads();
-   local.countDirect(2+i%4);
-   __syncthreads();
-   if (threadIdx.x==0) assoc->add(local);
+     __shared__ Multiplicity::CountersOnly local;
+     if (threadIdx.x==0) local.zero();
+     __syncthreads();
+     local.countDirect(2+i%4);
+     __syncthreads();
+     if (threadIdx.x==0) assoc->add(local);
+  }
 }
-
 
 __global__
 void countMulti(TK const * __restrict__ tk, Multiplicity * __restrict__ assoc, uint32_t n) {
-   auto i = blockIdx.x * blockDim.x + threadIdx.x;
-   if (i>=n) return;
-   assoc->countDirect(2+i%4);
+   int first = blockDim.x * blockIdx.x + threadIdx.x;
+   for (int i = first; i < n; i += gridDim.x*blockDim.x)
+     assoc->countDirect(2+i%4);
 }
 
 
 __global__
 void verifyMulti(Multiplicity * __restrict__ m1, Multiplicity * __restrict__ m2) {
-   auto i = blockIdx.x * blockDim.x + threadIdx.x;
-   if (i>=Multiplicity::totbins() ) return;
-   assert(m1->off[i]==m2->off[i]);
+   int first = blockDim.x * blockIdx.x + threadIdx.x;
+   for (int i = first; i < Multiplicity::totbins(); i += gridDim.x*blockDim.x)
+     assert(m1->off[i]==m2->off[i]);
 }
 
 __global__ 
 void count(TK const * __restrict__ tk, Assoc * __restrict__ assoc, uint32_t n) {
-   auto i = blockIdx.x * blockDim.x + threadIdx.x;
-   auto k = i/4;
-   auto j = i - 4*k;
-   assert(j<4);
-   if (k>=n) return;
-   if (tk[k][j]<MaxElem)
+   int first = blockDim.x * blockIdx.x + threadIdx.x;
+   for (int i = first; i < 4*n; i += gridDim.x*blockDim.x) {
+     auto k = i/4;
+     auto j = i - 4*k;
+     assert(j<4);
+     if (k>=n) return;
+     if (tk[k][j]<MaxElem)
      assoc->countDirect(tk[k][j]);
+   }
 }
 
 __global__
 void fill(TK const * __restrict__ tk, Assoc * __restrict__ assoc, uint32_t n) {
-   auto i = blockIdx.x * blockDim.x + threadIdx.x;
-   auto    k = i/4;
-   auto    j = i - 4*k;
-   assert(j<4);
-   if (k>=n) return;
-   if (tk[k][j]<MaxElem)
+   int first = blockDim.x * blockIdx.x + threadIdx.x;
+   for (int i = first; i < 4*n; i += gridDim.x*blockDim.x) {
+     auto    k = i/4;
+     auto    j = i - 4*k;
+     assert(j<4);
+     if (k>=n) return;
+     if (tk[k][j]<MaxElem)
      assoc->fillDirect(tk[k][j],k);
-
+   }
 }
 
 __global__
@@ -78,10 +81,11 @@ void verify(Assoc * __restrict__ assoc) {
 
 __global__
 void fillBulk(AtomicPairCounter * apc, TK const * __restrict__ tk, Assoc * __restrict__ assoc, uint32_t n) {
-   auto k = blockIdx.x * blockDim.x + threadIdx.x;
-   if (k>=n) return;
-   auto m = tk[k][3]<MaxElem ? 4 : 3;
-   assoc->bulkFill(*apc,&tk[k][0],m);
+   int first = blockDim.x * blockIdx.x + threadIdx.x;
+   for (int k = first; k < n; k += gridDim.x*blockDim.x) {
+     auto m = tk[k][3]<MaxElem ? 4 : 3;
+     assoc->bulkFill(*apc,&tk[k][0],m);
+   }
 }
 
 int main() {
