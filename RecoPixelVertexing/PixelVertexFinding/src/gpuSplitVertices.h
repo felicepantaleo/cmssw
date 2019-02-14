@@ -7,7 +7,6 @@
 #include "HeterogeneousCore/CUDAUtilities/interface/cuda_assert.h"
 
 #include "HeterogeneousCore/CUDAUtilities/interface/HistoContainer.h"
-#include "HeterogeneousCore/CUDAUtilities/interface/radixSort.h"
 
 
 #include "gpuVertexFinder.h"
@@ -25,13 +24,13 @@ namespace gpuVertexFinder {
 
 
     auto & __restrict__ data = *pdata;
-    auto nt = *data.ntrks;
+    auto nt = data.ntrks;
     float const * __restrict__ zt = data.zt;
     float const * __restrict__ ezt2 = data.ezt2;
     float * __restrict__ zv = data.zv;
     float * __restrict__ wv = data.wv;
     float const * __restrict__ chi2 = data.chi2;
-    uint32_t & nvFinal  = *data.nvFinal;
+    uint32_t & nvFinal  = data.nvFinal;
 
     int32_t const * __restrict__ nn = data.nn;
     int32_t * __restrict__ iv = data.iv;
@@ -58,7 +57,7 @@ namespace gpuVertexFinder {
 
     // copy to local
     for (auto k = threadIdx.x; k<nt; k+=blockDim.x) {
-      if (iv[k]==kv) {
+      if (iv[k]==int(kv)) {
         auto old = atomicInc(&nq,1024);
         zz[old] = zt[k]-zv[kv];
         newV[old] = zz[old]<0 ? 0 : 1;
@@ -70,7 +69,7 @@ namespace gpuVertexFinder {
     __shared__ float znew[2], wnew[2];  // the new vertices
     
     __syncthreads();
-    assert(nq==nn[kv]+1);
+    assert(int(nq)==nn[kv]+1);
     
 
     int  maxiter=20;
@@ -116,7 +115,7 @@ namespace gpuVertexFinder {
     
     // get a new global vertex
     __shared__ uint32_t igv;
-    if (0==threadIdx.x) igv = atomicInc(data.nvIntermediate,1024);
+    if (0==threadIdx.x) igv = atomicAdd(&data.nvIntermediate,1);
     __syncthreads();
     for (auto k = threadIdx.x; k<nq; k+=blockDim.x) {
       if(1==newV[k]) iv[it[k]]=igv;
