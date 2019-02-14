@@ -95,6 +95,11 @@ int main() {
 #ifdef __CUDACC__
   exitSansCUDADevices();
   auto current_device = cuda::device::current::get();
+#else
+  // make sure cuda emulation is working
+  std::cout << "cuda x's " << threadIdx.x << ' ' << blockIdx.x << ' ' << blockDim.x << ' ' << gridDim.x << std::endl;
+  std::cout << "cuda y's " << threadIdx.y << ' ' << blockIdx.y << ' ' << blockDim.y << ' ' << gridDim.y << std::endl;
+  std::cout << "cuda z's " << threadIdx.z << ' ' << blockIdx.z << ' ' << blockDim.z << ' ' << gridDim.z << std::endl;
 #endif
 
 
