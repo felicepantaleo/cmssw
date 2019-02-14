@@ -62,12 +62,12 @@ namespace cudautils {
 
   template<typename Histo>
   void launchFinalize(Histo * __restrict__ h, uint8_t *  __restrict__ ws=nullptr, cudaStream_t stream=0) {
-    uint32_t * off = (uint32_t *)( (char*)(h) +offsetof(Histo,off));
 #ifdef __CUDACC__
+    uint32_t * off = (uint32_t *)( (char*)(h) +offsetof(Histo,off));
     size_t wss = Histo::wsSize();
     CubDebugExit(cub::DeviceScan::InclusiveSum(ws, wss, off, off, Histo::totbins(), stream));
 #else
-    h.finalize();
+    h->finalize();
 #endif
   }
 
@@ -175,16 +175,18 @@ public:
 
   static constexpr auto histOff(uint32_t nh) { return NBINS*nh; }
 
-#ifdef __CUDACC__
   __host__
   static size_t wsSize() {
+#ifdef __CUDACC__
     uint32_t * v =nullptr;
     void * d_temp_storage = nullptr;
     size_t  temp_storage_bytes = 0;
     cub::DeviceScan::InclusiveSum(d_temp_storage, temp_storage_bytes, v, v, totbins());
     return temp_storage_bytes;
-  }
+#else
+    return 0;
 #endif
+  }
 
 
   static constexpr UT bin(T t) {
@@ -252,7 +254,7 @@ public:
   uint32_t bulkFill(AtomicPairCounter & apc, index_type const * v, uint32_t n) {
     auto c = apc.add(n);
     off[c.m] = c.n;
-    for(int j=0; j<n; ++j) bins[c.n+j]=v[j];
+    for(uint32_t j=0; j<n; ++j) bins[c.n+j]=v[j];
     return c.m;
   }
 
@@ -267,8 +269,8 @@ public:
   void bulkFinalizeFill(AtomicPairCounter const & apc) {
      auto m = apc.get().m;
      auto n = apc.get().n;
-     int first = m + blockDim.x * blockIdx.x + threadIdx.x;
-     for (int i = first; i < totbins(); i += gridDim.x*blockDim.x) {
+     auto first = m + blockDim.x * blockIdx.x + threadIdx.x;
+     for (auto i = first; i < totbins(); i += gridDim.x*blockDim.x) {
        off[i]=n;
      }
   }
