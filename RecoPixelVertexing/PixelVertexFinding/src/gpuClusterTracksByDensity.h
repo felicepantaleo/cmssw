@@ -7,7 +7,6 @@
 
 #include "HeterogeneousCore/CUDAUtilities/interface/HistoContainer.h"
 #include "HeterogeneousCore/CUDAUtilities/interface/cuda_assert.h"
-#include "HeterogeneousCore/CUDAUtilities/interface/radixSort.h"
 
 #include "gpuVertexFinder.h"
 
@@ -60,7 +59,7 @@ namespace gpuVertexFinder {
     assert(nt<=hist.capacity());
     
     // fill hist  (bin shall be wider than "eps")
-    for (int i = threadIdx.x; i < nt; i += blockDim.x) {
+    for (auto i = threadIdx.x; i < nt; i += blockDim.x) {
       assert(i<OnGPU::MAXTRACKS);
       int iz =  int(zt[i]*10.); // valid if eps<=0.1
       // iz = std::clamp(iz, INT8_MIN, INT8_MAX);  // sorry c++17 only
@@ -78,16 +77,16 @@ namespace gpuVertexFinder {
     hist.finalize(ws);
     __syncthreads();
     assert(hist.size()==nt);
-    for (int i = threadIdx.x; i < nt; i += blockDim.x) {
+    for (auto i = threadIdx.x; i < nt; i += blockDim.x) {
       hist.fill(izt[i],uint16_t(i));
     }
     __syncthreads();    
 
 
     // count neighbours
-    for (int i = threadIdx.x; i < nt; i += blockDim.x) {
+    for (auto i = threadIdx.x; i < nt; i += blockDim.x) {
       if (ezt2[i]>er2mx) continue;
-      auto loop = [&](int j) {
+      auto loop = [&](uint32_t j) {
         if (i==j) return;
         auto dist = std::abs(zt[i]-zt[j]);
         if (dist>eps) return;
@@ -101,9 +100,9 @@ namespace gpuVertexFinder {
     __syncthreads();
 
     // find closest above me .... (we ignore the possibility of two j at same distance from i)
-    for (int i = threadIdx.x; i < nt; i += blockDim.x) {
+    for (auto i = threadIdx.x; i < nt; i += blockDim.x) {
       float mdist=eps;
-      auto loop = [&](int j) {
+      auto loop = [&](uint32_t j) {
         if (nn[j]<nn[i]) return;
         if (nn[j]==nn[i] && zt[j]>=zt[i]) return; // if equal use natural order...
         auto dist = std::abs(zt[i]-zt[j]);
@@ -119,14 +118,14 @@ namespace gpuVertexFinder {
 
 #ifdef GPU_DEBUG
    //  mini verification
-   for (int i = threadIdx.x; i < nt; i += blockDim.x) {
-    if (iv[i]!=i) assert(iv[iv[i]]!=i);  
+   for (auto i = threadIdx.x; i < nt; i += blockDim.x) {
+    if (iv[i]!=int(i)) assert(iv[iv[i]]!=int(i));  
    }
    __syncthreads();
 #endif
 
    // consolidate graph (percolate index of seed)
-   for (int i = threadIdx.x; i < nt; i += blockDim.x) {
+   for (auto i = threadIdx.x; i < nt; i += blockDim.x) {
        auto m = iv[i];
        while (m!=iv[m]) m=iv[m];
        iv[i]=m;
@@ -135,17 +134,17 @@ namespace gpuVertexFinder {
 #ifdef GPU_DEBUG
    __syncthreads();
    //  mini verification
-   for (int i = threadIdx.x; i < nt; i += blockDim.x) {
-    if (iv[i]!=i) assert(iv[iv[i]]!=i);
+   for (auto i = threadIdx.x; i < nt; i += blockDim.x) {
+    if (iv[i]!=int(i)) assert(iv[iv[i]]!=int(i));
    }
 #endif
 
 #ifdef GPU_DEBUG
   // and verify that we did not spit any cluster...
-  for (int i = threadIdx.x; i < nt; i += blockDim.x) {
+  for (auto i = threadIdx.x; i < nt; i += blockDim.x) {
       auto minJ=i;
       auto mdist=eps;
-      auto loop = [&](int j) {
+      auto loop = [&](uint32_t j) {
         if (nn[j]<nn[i]) return;
         if (nn[j]==nn[i] && zt[j]>=zt[i]) return; // if equal use natural order...
         auto dist = std::abs(zt[i]-zt[j]);
@@ -168,8 +167,8 @@ namespace gpuVertexFinder {
     
     // find the number of different clusters, identified by a tracks with clus[i] == i and density larger than threshold;
     // mark these tracks with a negative id.
-    for (int i = threadIdx.x; i < nt; i += blockDim.x) {
-      if (iv[i] == i) {
+    for (auto i = threadIdx.x; i < nt; i += blockDim.x) {
+      if (iv[i] == int(i)) {
 	if  (nn[i]>=minT) {
 	  auto old = atomicInc(&foundClusters, 0xffffffff);
 	  iv[i] = -(old + 1);
@@ -183,7 +182,7 @@ namespace gpuVertexFinder {
     assert(foundClusters<OnGPU::MAXVTX);
     
     // propagate the negative id to all the tracks in the cluster.
-    for (int i = threadIdx.x; i < nt; i += blockDim.x) {
+    for (auto i = threadIdx.x; i < nt; i += blockDim.x) {
       if (iv[i] >= 0) {
 	// mark each track in a cluster with the same id as the first one
 	iv[i] = iv[iv[i]];
@@ -192,7 +191,7 @@ namespace gpuVertexFinder {
     __syncthreads();
     
     // adjust the cluster id to be a positive value starting from 0
-    for (int i = threadIdx.x; i < nt; i += blockDim.x) {
+    for (auto i = threadIdx.x; i < nt; i += blockDim.x) {
       iv[i] = - iv[i] - 1;
     }
     

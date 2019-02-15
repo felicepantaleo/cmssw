@@ -26,6 +26,10 @@
   <flags CXXFLAGS="-g"/>
 </bin>
 
+<bin file="cpuVertexFinder_t.cpp" name="cpuVertexFinderByDensity_t">
+  <flags CXXFLAGS="-g  -DGPU_DEBUG"/>
+</bin>
+
 <bin file="gpuVertexFinder_t.cu" name="gpuVertexFinderDBSCAN_t">
   <use name="cuda"/>
   <use name="cuda-api-wrappers"/>
@@ -39,8 +43,6 @@
   <flags CUDA_FLAGS="-g -DGPU_DEBUG -DUSE_ITERATIVE"/>
   <flags CXXFLAGS="-g"/>
 </bin>
-
-
 
 <bin file="cpuVertexFinder_t.cpp" name="cpuVertexFinderIterative_t">
   <flags CXXFLAGS="-g -DGPU_DEBUG -DUSE_ITERATIVE"/>
