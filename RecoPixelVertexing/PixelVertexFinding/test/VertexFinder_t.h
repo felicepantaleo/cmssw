@@ -9,10 +9,13 @@
 #include "HeterogeneousCore/CUDAUtilities/interface/exitSansCUDADevices.h"
 #ifdef USE_DBSCAN
 #include "RecoPixelVertexing/PixelVertexFinding/src/gpuClusterTracksDBSCAN.h"
+#define CLUSTERIZE clusterTracksDBSCAN
 #elif USE_ITERATIVE
 #include "RecoPixelVertexing/PixelVertexFinding/src/gpuClusterTracksIterative.h"
+#define CLUSTERIZE clusterTracksIterative
 #else
-#include "RecoPixelVertexing/PixelVertexFinding/src/gpuClusterTracks.h"
+#include "RecoPixelVertexing/PixelVertexFinding/src/gpuClusterTracksByDensity.h"
+#define CLUSTERIZE clusterTracksByDensity
 #endif
 
 #include "RecoPixelVertexing/PixelVertexFinding/src/gpuFitVertices.h"
@@ -142,8 +145,6 @@ int main() {
 
   std::cout << "M eps, pset " << kk << ' ' << eps << ' ' << (i%4) << std::endl;
   
-#define CLUSTERIZE clusterTracks
-
   if ( (i%4) == 0 ) par = {{eps, 0.02f,12.0f}};
   if ( (i%4) == 1 ) par = {{eps, 0.02f,9.0f}};
   if ( (i%4) == 2 ) par = {{eps, 0.01f,9.0f}};

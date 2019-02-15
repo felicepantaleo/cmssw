@@ -60,7 +60,7 @@ namespace gpuVertexFinder {
     loadTracks<<<numberOfBlocks,blockSize,0,stream>>>(tracks.gpu_d,onGPU_d, ptMin);
     cudaCheck(cudaGetLastError());
 
-    clusterTracks<<<1,1024-256,0,stream>>>(onGPU_d,minT,eps,errmax,chi2max);
+    CLUSTERIZE<<<1,1024-256,0,stream>>>(onGPU_d,minT,eps,errmax,chi2max);
     cudaCheck(cudaGetLastError());
     fitVertices<<<1,1024-256,0,stream>>>(onGPU_d,50.);
     cudaCheck(cudaGetLastError());
