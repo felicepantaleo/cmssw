@@ -16,33 +16,34 @@ namespace gpuVertexFinder {
 
     OnGPU() = default;
 
-    OnGPU(std::nullptr_t) noexcept:
-      ntrks{nullptr}, itrk{nullptr}, zt{nullptr}, ezt2{nullptr}, ptt2{nullptr},
-      zv{nullptr}, wv{nullptr}, chi2{nullptr}, ptv2{nullptr}, nvFinal{nullptr},
-      nvIntermediate{nullptr}, iv{nullptr}, sortInd{nullptr},
-      izt{nullptr}, nn{nullptr}
-    {}
+    uint32_t ntrks; // number of "selected tracks"
+    uint16_t itrk[MAXTRACKS]; // index of original track    
+    float zt[MAXTRACKS];   // input track z at bs
+    float ezt2[MAXTRACKS]; // input error^2 on the above
+    float ptt2[MAXTRACKS]; // input pt^2 on the above
 
-    uint32_t * ntrks; // number of "selected tracks"
-    uint16_t * itrk; // index of original track    
-    float * zt;   // input track z at bs
-    float * ezt2; // input error^2 on the above
-    float * ptt2; // input pt^2 on the above
-
-    float * zv;  // output z-posistion of found vertices
-    float * wv;  //  output weight (1/error^2) on the above
-    float * chi2;  // vertices chi2
-    float * ptv2;  // vertices pt^2
-    uint32_t * nvFinal;  // the number of vertices
-    uint32_t * nvIntermediate;  // the number of vertices after splitting pruning etc.
-    int32_t * iv;  // vertex index for each associated track
-    uint16_t * sortInd; // sorted index (by pt2)
+    float zv[MAXVTX];  // output z-posistion of found vertices
+    float wv[MAXVTX];  //  output weight (1/error^2) on the above
+    float chi2[MAXVTX];  // vertices chi2
+    float ptv2[MAXVTX];  // vertices pt^2
+    uint32_t nvFinal;  // the number of vertices
+    uint32_t nvIntermediate;  // the number of vertices after splitting pruning etc.
+    int32_t iv[MAXTRACKS];  // vertex index for each associated track
+    uint16_t sortInd[MAXVTX]; // sorted index (by pt2)
 
     // workspace  
-    uint8_t * izt;  // interized z-position of input tracks
-    int32_t * nn; // number of nearest neighbours (reused as number of dof for output vertices)
+    uint8_t izt[MAXTRACKS];  // interized z-position of input tracks
+    int32_t nn[MAXVTX]; // number of nearest neighbours (reused as number of dof for output vertices)
+
+    __host__ __device__
+    void init() { ntrks=0;nvFinal=0;nvIntermediate=0;}
+ 
   };
   
+#ifdef __CUDACC__
+  __global__
+  void init(OnGPU * pdata) {pdata->init();}
+#endif
 
   struct OnCPU {
     OnCPU() = default;
@@ -73,7 +74,6 @@ namespace gpuVertexFinder {
 	     float ichi2max,   // max normalized distance to cluster
              bool ienableTransfer
 	     ) :
-      onGPU(nullptr),
       minT(iminT),
       eps(ieps),
       errmax(ierrmax),
@@ -93,7 +93,6 @@ namespace gpuVertexFinder {
 
   private:
     OnCPU gpuProduct;
-    OnGPU onGPU;
     OnGPU * onGPU_d=nullptr;
 
     int minT;  // min number of neighbours to be "core"

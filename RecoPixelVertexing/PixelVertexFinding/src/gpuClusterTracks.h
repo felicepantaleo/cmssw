@@ -32,12 +32,12 @@ namespace gpuVertexFinder {
     auto er2mx = errmax*errmax;
     
     auto & __restrict__ data = *pdata;
-    auto nt = *data.ntrks;
+    auto nt = data.ntrks;
     float const * __restrict__ zt = data.zt;
     float const * __restrict__ ezt2 = data.ezt2;
 
-    uint32_t & nvFinal = *data.nvFinal;
-    uint32_t & nvIntermediate = *data.nvIntermediate;
+    uint32_t & nvFinal = data.nvFinal;
+    uint32_t & nvIntermediate = data.nvIntermediate;
     
     uint8_t  * __restrict__ izt = data.izt;
     int32_t * __restrict__ nn = data.nn;

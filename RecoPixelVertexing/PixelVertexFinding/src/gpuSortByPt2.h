@@ -20,9 +20,9 @@ namespace gpuVertexFinder {
                  OnGPU * pdata
                 )  {
     auto & __restrict__ data = *pdata;
-    auto nt = *data.ntrks;
+    auto nt = data.ntrks;
     float const * __restrict__ ptt2 = data.ptt2;
-    uint32_t const & nvFinal = *data.nvFinal;
+    uint32_t const & nvFinal = data.nvFinal;
 
     int32_t const * __restrict__ iv = data.iv;
     float * __restrict__ ptv2 = data.ptv2;

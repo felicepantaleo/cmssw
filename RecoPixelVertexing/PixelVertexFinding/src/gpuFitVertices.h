@@ -24,14 +24,14 @@ namespace gpuVertexFinder {
     constexpr bool verbose = false; // in principle the compiler should optmize out if false
 
     auto & __restrict__ data = *pdata;
-    auto nt = *data.ntrks;
+    auto nt = data.ntrks;
     float const * __restrict__ zt = data.zt;
     float const * __restrict__ ezt2 = data.ezt2;
     float * __restrict__ zv = data.zv;
     float * __restrict__ wv = data.wv;
     float * __restrict__ chi2 = data.chi2;
-    uint32_t & nvFinal  = *data.nvFinal;
-    uint32_t & nvIntermediate = *data.nvIntermediate;
+    uint32_t & nvFinal  = data.nvFinal;
+    uint32_t & nvIntermediate = data.nvIntermediate;
 
     int32_t * __restrict__ nn = data.nn;
     int32_t * __restrict__ iv = data.iv;
