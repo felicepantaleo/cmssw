@@ -8,8 +8,9 @@
 #include "HeterogeneousCore/CUDAUtilities/interface/cuda_assert.h"
 
 #include "HeterogeneousCore/CUDAUtilities/interface/HistoContainer.h"
+#ifdef __CUDA_ARCH__
 #include "HeterogeneousCore/CUDAUtilities/interface/radixSort.h"
-
+#endif
 
 #include "gpuVertexFinder.h"
 
@@ -31,13 +32,13 @@ namespace gpuVertexFinder {
     if (nvFinal<1) return;
 
     // can be done asynchronoisly at the end of previous event
-    for (int i = threadIdx.x; i < nvFinal; i += blockDim.x) {
+    for (auto i = threadIdx.x; i < nvFinal; i += blockDim.x) {
       ptv2[i]=0;
     }
     __syncthreads();
 
 
-    for (int i = threadIdx.x; i < nt; i += blockDim.x) {
+    for (auto i = threadIdx.x; i < nt; i += blockDim.x) {
       if (iv[i]>9990) continue;
       atomicAdd(&ptv2[iv[i]], ptt2[i]);
     }
@@ -47,9 +48,13 @@ namespace gpuVertexFinder {
       if (threadIdx.x==0) sortInd[0]=0;
       return;
     }
+#ifdef __CUDA_ARCH__
     __shared__ uint16_t ws[1024];
     radixSort(ptv2,sortInd,ws,nvFinal);
-
+#else
+    for(uint16_t i=0; i<nvFinal; ++i) sortInd[i]=i;
+    std::sort(sortInd,sortInd+nvFinal,[&](auto i, auto j){return ptv2[i]<ptv2[j];});
+#endif
     assert(ptv2[sortInd[nvFinal-1]]>=ptv2[sortInd[nvFinal-2]]);
     assert(ptv2[sortInd[1]]>=ptv2[sortInd[0]]);
   }

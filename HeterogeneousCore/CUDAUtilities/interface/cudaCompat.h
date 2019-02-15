@@ -29,7 +29,7 @@ namespace cudaCompat {
   extern thread_local dim3 gridDim;
 
  template<typename T1, typename T2>
- T1  atomicInc(T1* a, T2 b) {auto ret=*a; if ((*a)<b) (*a)++; return ret;}
+ T1  atomicInc(T1* a, T2 b) {auto ret=*a; if ((*a)<T1(b)) (*a)++; return ret;}
 
   
   template<typename T1, typename T2>

@@ -25,3 +25,9 @@
   <flags CUDA_FLAGS="-g -DGPU_DEBUG"/>
   <flags CXXFLAGS="-g"/>
 </bin>
+
+
+<bin file="cpuVertexFinder_t.cpp" name="cpuVertexFinder_t">
+  <flags CXXFLAGS="-g -DGPU_DEBUG"/>
+</bin>
+
