@@ -16,7 +16,7 @@ namespace gpuVertexFinder {
   // enough for <10K tracks we have
   __global__ 
   void clusterTracksDBSCAN(
-		     OnGPU * pdata,
+                     ZVertices * pdata, WorkSpace * pws,
 		     int minT,  // min number of neighbours to be "core"
 		     float eps, // max absolute distance to cluster
 		     float errmax, // max error to be "seed"
@@ -31,23 +31,24 @@ namespace gpuVertexFinder {
     auto er2mx = errmax*errmax;
     
     auto & __restrict__ data = *pdata;
-    auto nt = data.ntrks;
-    float const * __restrict__ zt = data.zt;
-    float const * __restrict__ ezt2 = data.ezt2;
+    auto & __restrict__ ws = *pws;
+    auto nt = ws.ntrks;
+    float const * __restrict__ zt = ws.zt;
+    float const * __restrict__ ezt2 = ws.ezt2;
 
     uint32_t & nvFinal = data.nvFinal;
-    uint32_t & nvIntermediate = data.nvIntermediate;
+    uint32_t & nvIntermediate = ws.nvIntermediate;
     
-    uint8_t  * __restrict__ izt = data.izt;
-    int32_t * __restrict__ nn = data.nn;
-    int32_t * __restrict__ iv = data.iv;
+    uint8_t  * __restrict__ izt = ws.izt;
+    int32_t * __restrict__ nn = data.ndof;
+    int32_t * __restrict__ iv = ws.iv;
     
     assert(pdata);
     assert(zt);
     
     using Hist=HistoContainer<uint8_t,256,16000,8,uint16_t>;
     __shared__ Hist hist;
-    __shared__ typename Hist::Counter ws[32];
+    __shared__ typename Hist::Counter hws[32];
     for (auto j=threadIdx.x; j<Hist::totbins(); j+=blockDim.x) { hist.off[j]=0;}
     __syncthreads();
     
@@ -57,7 +58,7 @@ namespace gpuVertexFinder {
     
     // fill hist  (bin shall be wider than "eps")
     for (auto i = threadIdx.x; i < nt; i += blockDim.x) {
-      assert(i<OnGPU::MAXTRACKS);
+      assert(i<ZVertices::MAXTRACKS);
       int iz =  int(zt[i]*10.); // valid if eps<=0.1
       // iz = std::clamp(iz, INT8_MIN, INT8_MAX);  // sorry c++17 only
       iz = std::min(std::max(iz, INT8_MIN),INT8_MAX);
@@ -69,9 +70,9 @@ namespace gpuVertexFinder {
       nn[i]=0;
     }
     __syncthreads();
-    if (threadIdx.x<32) ws[threadIdx.x]=0;  // used by prefix scan...
+    if (threadIdx.x<32) hws[threadIdx.x]=0;  // used by prefix scan...
     __syncthreads();
-    hist.finalize(ws);
+    hist.finalize(hws);
     __syncthreads();
     assert(hist.size()==nt);
     for (auto i = threadIdx.x; i < nt; i += blockDim.x) {
@@ -197,7 +198,7 @@ namespace gpuVertexFinder {
     }
     __syncthreads();
 
-    assert(foundClusters<OnGPU::MAXVTX);
+    assert(foundClusters<ZVertices::MAXVTX);
     
     // propagate the negative id to all the tracks in the cluster.
     for (auto i = threadIdx.x; i < nt; i += blockDim.x) {
