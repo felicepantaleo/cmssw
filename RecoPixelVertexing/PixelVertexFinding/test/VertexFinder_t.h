@@ -87,13 +87,14 @@ struct ClusterGenerator {
 };
 
 // a macro SORRY
-#define LOC_ONGPU(M) ((char*)(onGPU_d.get()) +offsetof(OnGPU,M))
-
+#define LOC_ONGPU(M) ((char*)(onGPU_d.get()) +offsetof(ZVertices,M))
+#define LOC_WS(M) ((char*)(ws_d.get()) +offsetof(WorkSpace,M))
 
 __global__
-void print(OnGPU const * pdata) {
+void print(ZVertices const * pdata, WorkSpace const * pws) {
   auto const & __restrict__ data = *pdata;
-  printf("nt,nv %d %d,%d\n",data.ntrks,data.nvFinal,data.nvIntermediate); 
+  auto const & __restrict__ ws = *pws;
+  printf("nt,nv %d %d,%d\n",ws.ntrks,data.nvFinal,ws.nvIntermediate); 
 
 }
 
@@ -104,9 +105,11 @@ int main() {
 
   auto current_device = cuda::device::current::get();
 
-  auto onGPU_d = cuda::memory::device::make_unique<OnGPU[]>(current_device, 1);
+  auto onGPU_d = cuda::memory::device::make_unique<ZVertices[]>(current_device, 1);
+  auto ws_d = cuda::memory::device::make_unique<WorkSpace[]>(current_device, 1);
 #else
-  auto onGPU_d = std::make_unique<OnGPU>();
+  auto onGPU_d = std::make_unique<ZVertices>();
+  auto ws_d = std::make_unique<WorkSpace>();
 #endif
 
   Event  ev;
@@ -124,23 +127,23 @@ int main() {
   gen(ev);
   
 #ifdef __CUDACC__
-  init<<<1,1,0,0>>>(onGPU_d.get());
+  init<<<1,1,0,0>>>(onGPU_d.get(),ws_d.get());
 #else
-  onGPU_d->init();
+  onGPU_d->init();ws_d->init();
 #endif
 
   std::cout << "v,t size " << ev.zvert.size() << ' ' << ev.ztrack.size() << std::endl;
   auto nt = ev.ztrack.size();
 #ifdef __CUDACC__
-  cuda::memory::copy(LOC_ONGPU(ntrks),&nt,sizeof(uint32_t));
-  cuda::memory::copy(LOC_ONGPU(zt),ev.ztrack.data(),sizeof(float)*ev.ztrack.size());
-  cuda::memory::copy(LOC_ONGPU(ezt2),ev.eztrack.data(),sizeof(float)*ev.eztrack.size());
-  cuda::memory::copy(LOC_ONGPU(ptt2),ev.pttrack.data(),sizeof(float)*ev.eztrack.size());
+  cuda::memory::copy(LOC_WS(ntrks),&nt,sizeof(uint32_t));
+  cuda::memory::copy(LOC_WS(zt),ev.ztrack.data(),sizeof(float)*ev.ztrack.size());
+  cuda::memory::copy(LOC_WS(ezt2),ev.eztrack.data(),sizeof(float)*ev.eztrack.size());
+  cuda::memory::copy(LOC_WS(ptt2),ev.pttrack.data(),sizeof(float)*ev.eztrack.size());
 #else
-  ::memcpy(LOC_ONGPU(ntrks),&nt,sizeof(uint32_t));  
-  ::memcpy(LOC_ONGPU(zt),ev.ztrack.data(),sizeof(float)*ev.ztrack.size());
-  ::memcpy(LOC_ONGPU(ezt2),ev.eztrack.data(),sizeof(float)*ev.eztrack.size());
-  ::memcpy(LOC_ONGPU(ptt2),ev.pttrack.data(),sizeof(float)*ev.eztrack.size());
+  ::memcpy(LOC_WS(ntrks),&nt,sizeof(uint32_t));  
+  ::memcpy(LOC_WS(zt),ev.ztrack.data(),sizeof(float)*ev.ztrack.size());
+  ::memcpy(LOC_WS(ezt2),ev.eztrack.data(),sizeof(float)*ev.eztrack.size());
+  ::memcpy(LOC_WS(ptt2),ev.pttrack.data(),sizeof(float)*ev.eztrack.size());
 #endif
 
   std::cout << "M eps, pset " << kk << ' ' << eps << ' ' << (i%4) << std::endl;
@@ -152,16 +155,16 @@ int main() {
 
   uint32_t nv=0;
 #ifdef __CUDACC__
-  print<<<1,1,0,0>>>(onGPU_d.get());
+  print<<<1,1,0,0>>>(onGPU_d.get(),ws_d.get());
   cudaCheck(cudaGetLastError());
   cudaDeviceSynchronize();
 
   cuda::launch(CLUSTERIZE,
 		 { 1, 512+256 },
-		 onGPU_d.get(),kk,par[0],
+		 onGPU_d.get(),ws_d.get(),kk,par[0],
 		 par[1],par[2]
 		 );
-  print<<<1,1,0,0>>>(onGPU_d.get());
+  print<<<1,1,0,0>>>(onGPU_d.get(),ws_d.get());
 
   cudaCheck(cudaGetLastError());
   cudaDeviceSynchronize();
@@ -169,20 +172,20 @@ int main() {
 
   cuda::launch(fitVertices, 
                { 1,1024-256 },
-               onGPU_d.get(),50.f
+               onGPU_d.get(),ws_d.get(),50.f
               );
   cudaCheck(cudaGetLastError());
   cuda::memory::copy(&nv, LOC_ONGPU(nvFinal), sizeof(uint32_t));
 
 #else
-  print(onGPU_d.get());
+  print(onGPU_d.get(),ws_d.get());
   CLUSTERIZE(
-                 onGPU_d.get(),kk,par[0],
+                 onGPU_d.get(),ws_d.get(),kk,par[0],
                  par[1],par[2]
                  );
-  print(onGPU_d.get());
+  print(onGPU_d.get(),ws_d.get());
   fitVertices(
-               onGPU_d.get(),50.f
+               onGPU_d.get(),ws_d.get(),50.f
               );
   nv = onGPU_d->nvFinal;
 #endif
@@ -217,12 +220,12 @@ int main() {
   zv = onGPU_d->zv;
   wv = onGPU_d->wv;
   ptv2 = onGPU_d->ptv2;
-  nn = onGPU_d->nn;
+  nn = onGPU_d->ndof;
   ind = onGPU_d->sortInd;
 #endif
 
 #ifdef __CUDACC__
-  cuda::memory::copy(nn, LOC_ONGPU(nn), nv*sizeof(int32_t));
+  cuda::memory::copy(nn, LOC_ONGPU(ndof), nv*sizeof(int32_t));
   cuda::memory::copy(chi2, LOC_ONGPU(chi2), nv*sizeof(float));
 #else
   memcpy(chi2, LOC_ONGPU(chi2), nv*sizeof(float));
@@ -237,14 +240,14 @@ int main() {
 #ifdef __CUDACC__
   cuda::launch(fitVertices,
                { 1,1024-256 },
-               onGPU_d.get(), 50.f
+               onGPU_d.get(),ws_d.get(), 50.f
               );
   cuda::memory::copy(&nv, LOC_ONGPU(nvFinal), sizeof(uint32_t));
-  cuda::memory::copy(nn, LOC_ONGPU(nn), nv*sizeof(int32_t));
+  cuda::memory::copy(nn, LOC_ONGPU(ndof), nv*sizeof(int32_t));
   cuda::memory::copy(chi2, LOC_ONGPU(chi2), nv*sizeof(float));
 #else
   fitVertices(
-               onGPU_d.get(),50.f
+               onGPU_d.get(),ws_d.get(),50.f
               );
   nv = onGPU_d->nvFinal;
   memcpy(chi2, LOC_ONGPU(chi2), nv*sizeof(float));
@@ -260,20 +263,20 @@ int main() {
   // one vertex per block!!!
   cuda::launch(splitVertices,
                { 1024, 64 },
-               onGPU_d.get(),
+               onGPU_d.get(),ws_d.get(),
                9.f
               );
-  cuda::memory::copy(&nv, LOC_ONGPU(nvIntermediate), sizeof(uint32_t));
+  cuda::memory::copy(&nv, LOC_WS(nvIntermediate), sizeof(uint32_t));
 #else
   gridDim.x = 1024; // nv ????
   assert(blockIdx.x==0);
   for(;blockIdx.x<gridDim.x; ++blockIdx.x)
     splitVertices(
-               onGPU_d.get(),
+               onGPU_d.get(),ws_d.get(),
                9.f
               );
    resetGrid();
-   nv = onGPU_d->nvIntermediate;
+   nv = ws_d->nvIntermediate;
 #endif
  std::cout << "after split " << nv << std::endl; 
 
@@ -281,19 +284,19 @@ int main() {
 #ifdef __CUDACC__
   cuda::launch(fitVertices,
                { 1,1024-256 },
-               onGPU_d.get(),5000.f
+               onGPU_d.get(),ws_d.get(),5000.f
               );
   cudaCheck(cudaGetLastError());
 
   cuda::launch(sortByPt2,
                { 1, 256 },
-               onGPU_d.get()
+               onGPU_d.get(),ws_d.get()
               );
   cudaCheck(cudaGetLastError());
   cuda::memory::copy(&nv, LOC_ONGPU(nvFinal), sizeof(uint32_t));
 #else
-  fitVertices(onGPU_d.get(),5000.f);
-  sortByPt2(onGPU_d.get());
+  fitVertices(onGPU_d.get(),ws_d.get(),5000.f);
+  sortByPt2(onGPU_d.get(),ws_d.get());
   nv = onGPU_d->nvFinal;
   memcpy(chi2, LOC_ONGPU(chi2), nv*sizeof(float));
 #endif
@@ -309,7 +312,7 @@ int main() {
   cuda::memory::copy(wv, LOC_ONGPU(wv), nv*sizeof(float));
   cuda::memory::copy(chi2, LOC_ONGPU(chi2), nv*sizeof(float));
   cuda::memory::copy(ptv2, LOC_ONGPU(ptv2), nv*sizeof(float));
-  cuda::memory::copy(nn, LOC_ONGPU(nn), nv*sizeof(int32_t));
+  cuda::memory::copy(nn, LOC_ONGPU(ndof), nv*sizeof(int32_t));
   cuda::memory::copy(ind, LOC_ONGPU(sortInd), nv*sizeof(uint16_t));
 #endif
   for (auto j=0U; j<nv; ++j) if (nn[j]>0) chi2[j]/=float(nn[j]); 

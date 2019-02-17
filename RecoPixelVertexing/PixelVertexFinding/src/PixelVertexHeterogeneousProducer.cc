@@ -44,7 +44,7 @@ public:
   static void fillDescriptions(edm::ConfigurationDescriptions &descriptions);
   void beginStreamGPUCuda(edm::StreamID streamId,
                           cuda::stream_t<> &cudaStream) override {
-    m_gpuAlgo.allocateOnGPU();
+    m_gpuAlgo.allocate();
   }
   void acquireGPUCuda(const edm::HeterogeneousEvent &iEvent,
                       const edm::EventSetup &iSetup,
