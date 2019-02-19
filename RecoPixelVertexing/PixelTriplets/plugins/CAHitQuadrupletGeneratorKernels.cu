@@ -323,7 +323,7 @@ void CAHitQuadrupletGeneratorKernels::launchKernels( // here goes algoparms....
       device_theCells_, device_nCells_,
       gpu_.tuples_d,
       gpu_.apc_d,
-      device_tupleMultiplicity,
+      device_tupleMultiplicity_,
       minHitsPerNtuplet_      
   );
   cudaCheck(cudaGetLastError());
@@ -331,12 +331,12 @@ void CAHitQuadrupletGeneratorKernels::launchKernels( // here goes algoparms....
   numberOfBlocks = (TuplesOnGPU::Container::totbins() + blockSize - 1)/blockSize;
   cudautils::finalizeBulk<<<numberOfBlocks, blockSize, 0, cudaStream>>>(gpu_.apc_d,gpu_.tuples_d);
 
-  cudautils::launchFinalize(device_tupleMultiplicity,device_tmws,cudaStream);
+  cudautils::launchFinalize(device_tupleMultiplicity_,device_tmws_,cudaStream);
 
 
   blockSize = 128;
   numberOfBlocks = (CAConstants::maxTuples() + blockSize - 1) / blockSize;
-  kernel_fillMultiplicity<<<numberOfBlocks, blockSize, 0, cudaStream>>>(gpu_.tuples_d,device_tupleMultiplicity);
+  kernel_fillMultiplicity<<<numberOfBlocks, blockSize, 0, cudaStream>>>(gpu_.tuples_d,device_tupleMultiplicity_);
   cudaCheck(cudaGetLastError());
 
   if (lateFishbone_) {

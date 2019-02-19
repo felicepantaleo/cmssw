@@ -10,7 +10,8 @@ CAHitQuadrupletGeneratorKernels::deallocateOnGPU()
   cudaFree(device_nCells_);
 //  cudaFree(device_hitToTuple_);
   cudaFree(device_hitToTuple_apc_);
-
+  cudaFree(device_tupleMultiplicity_);
+  cudaFree(device_tmws_);
 }
 
 void CAHitQuadrupletGeneratorKernels::allocateOnGPU()
@@ -32,9 +33,9 @@ void CAHitQuadrupletGeneratorKernels::allocateOnGPU()
 //   cudaCheck(cudaMalloc(&device_hitToTuple_, sizeof(HitToTuple)));
    cudaCheck(cudaMalloc(&device_hitToTuple_apc_, sizeof(AtomicPairCounter)));
 
-   cudaCheck(cudaMalloc(&device_tupleMultiplicity,sizeof(TupleMultiplicity)));
-   cudaCheck(cudaMemset(device_tupleMultiplicity,0,sizeof(TupleMultiplicity))); // overkill
-   cudaCheck(cudaMalloc(&device_tmws, TupleMultiplicity::wsSize()));
+   cudaCheck(cudaMalloc(&device_tupleMultiplicity_,sizeof(TupleMultiplicity)));
+   cudaCheck(cudaMemset(device_tupleMultiplicity_,0,sizeof(TupleMultiplicity))); // overkill
+   cudaCheck(cudaMalloc(&device_tmws_, TupleMultiplicity::wsSize()));
 }
 
 void CAHitQuadrupletGeneratorKernels::cleanup(cudaStream_t cudaStream) {
@@ -44,7 +45,7 @@ void CAHitQuadrupletGeneratorKernels::cleanup(cudaStream_t cudaStream) {
                             cudaStream));
   cudaCheck(cudaMemsetAsync(device_nCells_, 0, sizeof(uint32_t), cudaStream));
 
-  cudautils::launchZero(device_tupleMultiplicity,cudaStream);
+  cudautils::launchZero(device_tupleMultiplicity_,cudaStream);
 
 }
 

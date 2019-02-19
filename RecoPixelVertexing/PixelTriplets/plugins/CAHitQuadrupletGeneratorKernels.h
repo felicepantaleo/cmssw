@@ -27,7 +27,7 @@ public:
    ~CAHitQuadrupletGeneratorKernels() { deallocateOnGPU();}
 
 
-   TupleMultiplicity const * tupleMultiplicity() const { return device_tupleMultiplicity;}
+   TupleMultiplicity const * tupleMultiplicity() const { return device_tupleMultiplicity_;}
 
    void launchKernels(HitsOnCPU const & hh, TuplesOnGPU & tuples_d, cudaStream_t cudaStream);
 
@@ -48,8 +48,8 @@ private:
     HitToTuple * device_hitToTuple_ = nullptr;
     AtomicPairCounter * device_hitToTuple_apc_ = nullptr;
 
-    TupleMultiplicity * device_tupleMultiplicity = nullptr;
-    uint8_t * device_tmws;    
+    TupleMultiplicity * device_tupleMultiplicity_ = nullptr;
+    uint8_t * device_tmws_ = nullptr;    
 
     const uint32_t minHitsPerNtuplet_;
     const bool earlyFishbone_;
