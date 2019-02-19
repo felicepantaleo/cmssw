@@ -100,6 +100,18 @@ int main() {
   std::cout << "cuda x's " << threadIdx.x << ' ' << blockIdx.x << ' ' << blockDim.x << ' ' << gridDim.x << std::endl;
   std::cout << "cuda y's " << threadIdx.y << ' ' << blockIdx.y << ' ' << blockDim.y << ' ' << gridDim.y << std::endl;
   std::cout << "cuda z's " << threadIdx.z << ' ' << blockIdx.z << ' ' << blockDim.z << ' ' << gridDim.z << std::endl;
+  assert(threadIdx.x==0);
+  assert(threadIdx.y==0);
+  assert(threadIdx.z==0);
+  assert(blockIdx.x==0);
+  assert(blockIdx.y==0);
+  assert(blockIdx.z==0);
+  assert(blockDim.x==1);
+  assert(blockDim.y==1);
+  assert(blockDim.z==1);
+  assert(gridDim.x==1);
+  assert(gridDim.y==1);
+  assert(gridDim.z==1);
 #endif
 
 
