@@ -2,11 +2,13 @@
 namespace cudaCompat {
   thread_local dim3 blockIdx;
   thread_local dim3 gridDim;
+}
 
+namespace {
  struct InitGrid {
-   InitGrid() { resetGrid();}
+   InitGrid() { cudaCompat::resetGrid();}
  };
  
- InitGrid initGrid;
+ const InitGrid initGrid;
 
 }
