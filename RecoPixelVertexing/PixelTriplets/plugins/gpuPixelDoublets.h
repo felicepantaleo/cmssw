@@ -108,7 +108,7 @@ namespace gpuPixelDoublets {
 //        auto onlyB234 = outer==2 || outer==3;
         auto so = __ldg(hh.ysize_d+j);
         auto dy = inner==0 ? 3 : 2;
-        return onlyBarrel && mes>0 && so>0  && std::abs(so-mes)<dy;
+        return onlyBarrel && mes>0 && so>0  && std::abs(so-mes)>dy;
       };
 
       auto iphicut = phicuts[pairLayerId];
