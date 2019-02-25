@@ -97,31 +97,8 @@ namespace gpuPixelDoublets {
 
       // found hit corresponding to our cuda thread, now do the job
       auto mez = __ldg(hh.zg_d+i);
-
-#ifdef USE_ZCUT
-     // this statement is responsible for a 10% slow down of the kernel once all following cuts are optimized...
-     if (mez<minz[pairLayerId] || mez>maxz[pairLayerId]) continue;
-#endif
-
-#ifndef NO_CLSCUT
-      auto mes = __ldg(hh.ysize_d+i);
-
-      // if ideal treat inner ladder as outer
-      auto mi = __ldg(hh.detInd_d+i);
-      if (inner==0) assert(mi<96);    
-      const bool isOuterLadder = ideal_cond ? true : 0 == (mi/8)%2; // only for B1/B2/B3 B4 is opposite, FPIX:noclue...
-
-      // auto mesx = __ldg(hh.xsize_d+i);
-      // if (mesx<0) continue; // remove edges in x as overlap will take care
-
-      if (inner==0 && outer>3 && isOuterLadder)  // B1 and F1
-         if (mes>0 && mes<minYsizeB1) continue; // only long cluster  (5*8)
-      if (inner==1 && outer>3)  // B2 and F1
-         if (mes>0 && mes<minYsizeB2) continue;
-#endif // NO_CLSCUT
-
-      auto mep = iphi[i];
       auto mer = __ldg(hh.rg_d+i);
+      auto mes = __ldg(hh.ysize_d+i);
  
       constexpr float z0cut = 12.f;                     // cm
       constexpr float hardPtCut = 0.5f;                 // GeV
@@ -142,15 +119,13 @@ namespace gpuPixelDoublets {
           dr<0 || std::abs((mez*ro - mer*zo)) > z0cut*dr;
       };
 
-#ifndef NO_CLSCUT
       auto zsizeCut = [&](int j) {
         auto onlyBarrel = outer<4;
+//        auto onlyB234 = outer==2 || outer==3;
         auto so = __ldg(hh.ysize_d+j);
-        //auto sox = __ldg(hh.xsize_d+j);
-        auto dy = inner==0 ? ( isOuterLadder ? maxDYsize12: 100 ) : maxDYsize;
-        return onlyBarrel && mes>0 && so>0 && std::abs(so-mes)>dy;
+        auto dy = inner==0 ? 3 : 2;
+        return onlyBarrel && mes>0 && so>0  && std::abs(so-mes)>dy;
       };
-#endif
 
       auto iphicut = phicuts[pairLayerId];
 
@@ -181,10 +156,7 @@ namespace gpuPixelDoublets {
 
           if (std::min(std::abs(int16_t(iphi[oi]-mep)), std::abs(int16_t(mep-iphi[oi]))) > iphicut)
             continue;
-#ifndef ONLY_PHICUT
-#ifndef NO_CLSCUT
           if (zsizeCut(oi)) continue;
-#endif
           if (z0cutoff(oi) || ptcut(oi)) continue;
 #endif
           auto ind = atomicAdd(nCells, 1); 
