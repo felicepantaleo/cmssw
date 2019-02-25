@@ -82,7 +82,8 @@ namespace gpuPixelDoublets {
       auto mep = iphi[i];
       auto mez = __ldg(hh.zg_d+i);
       auto mer = __ldg(hh.rg_d+i);
-
+      auto mes = __ldg(hh.ysize_d+i);
+ 
       constexpr float z0cut = 12.f;                     // cm
       constexpr float hardPtCut = 0.5f;                 // GeV
       constexpr float minRadius = hardPtCut * 87.78f;   // cm (1 GeV track has 1 GeV/c / (e * 3.8T) ~ 87 cm radius in a 3.8T field)
@@ -100,6 +101,13 @@ namespace gpuPixelDoublets {
         auto dr = ro-mer;
         return dr > maxr[pairLayerId] ||
           dr<0 || std::abs((mez*ro - mer*zo)) > z0cut*dr;
+      };
+
+      auto zsizeCut = [&](int j) {
+        auto onlyBarrel = outer<4;
+//        auto onlyB234 = outer==2 || outer==3;
+        auto so = __ldg(hh.ysize_d+j);
+        return onlyBarrel && mes>0 && so>0  && std::abs(so-mes)>2;
       };
 
       auto iphicut = phicuts[pairLayerId];
@@ -131,6 +139,7 @@ namespace gpuPixelDoublets {
 
           if (std::min(std::abs(int16_t(iphi[oi]-mep)), std::abs(int16_t(mep-iphi[oi]))) > iphicut)
             continue;
+          if (zsizeCut(oi)) continue;
           if (z0cutoff(oi) || ptcut(oi)) continue;
           auto ind = atomicAdd(nCells, 1); 
           if (ind>=MaxNumOfDoublets) {atomicSub(nCells, 1); break; } // move to SimpleVector??
