@@ -79,6 +79,10 @@ namespace pixelCPEforGPU {
 
     float xerr[N];
     float yerr[N];
+
+    int16_t xsize[N]; // clipped at 127 if negative is edge....
+    int16_t ysize[N];
+
   };
 
 
@@ -172,6 +176,23 @@ namespace pixelCPEforGPU {
 
     auto mx = llxl+urxl;
     auto my = llyl+uryl;
+
+    auto xsize = int(urxl)+2-int(llxl);
+    auto ysize = int(uryl)+2-int(llyl);
+    assert(xsize>=0);  // 0 if bixpix...
+    assert(ysize>=0);
+
+    if(phase1PixelTopology::isBigPixX(cp.minRow[ic])) ++xsize;
+    if(phase1PixelTopology::isBigPixX(cp.maxRow[ic])) ++xsize;
+    if(phase1PixelTopology::isBigPixY(cp.minCol[ic])) ++ysize;
+    if(phase1PixelTopology::isBigPixY(cp.maxCol[ic])) ++ysize;
+
+    cp.xsize[ic] = std::min(xsize,127);
+    cp.ysize[ic] = std::min(ysize,127);
+
+    if(cp.minRow[ic]==0 || cp.maxRow[ic]==phase1PixelTopology::lastRowInModule) cp.xsize[ic] = -cp.xsize[ic];
+    if(cp.minCol[ic]==0 || cp.maxCol[ic]==phase1PixelTopology::lastColInModule) cp.ysize[ic] = -cp.ysize[ic];
+
 
     // apply the lorentz offset correction
     auto xPos = detParams.shiftX + comParams.thePitchX*(0.5f*float(mx)+float(phase1PixelTopology::xOffset));

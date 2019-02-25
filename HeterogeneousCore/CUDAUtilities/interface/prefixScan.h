@@ -30,8 +30,13 @@ template<typename T>
 __device__ __host__
 void
 __forceinline__
-blockPrefixScan(T * c, uint32_t size, T* ws=nullptr) {
+blockPrefixScan(T * c, uint32_t size, T* ws
+#ifndef __CUDA_ARCH__
+                =nullptr
+#endif
+               ) {
 #ifdef __CUDA_ARCH__
+  assert(ws);
   assert(size<=1024);
   assert(0==blockDim.x%32);
   auto first = threadIdx.x;

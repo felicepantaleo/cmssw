@@ -51,7 +51,11 @@ namespace cudautils {
   }
 
   template<typename Histo>
-  void launchZero(Histo * __restrict__ h, cudaStream_t stream = 0) {
+  void launchZero(Histo * __restrict__ h, cudaStream_t stream 
+#ifndef __CUDACC__
+                  = 0
+#endif
+                 ) {
     uint32_t * off = (uint32_t *)( (char*)(h) +offsetof(Histo,off));
 #ifdef __CUDACC__
     cudaMemsetAsync(off,0, 4*Histo::totbins(),stream);
@@ -61,8 +65,17 @@ namespace cudautils {
   }
 
   template<typename Histo>
-  void launchFinalize(Histo * __restrict__ h, uint8_t *  __restrict__ ws=nullptr, cudaStream_t stream=0) {
+  void launchFinalize(Histo * __restrict__ h, uint8_t *  __restrict__ ws
+#ifndef __CUDACC__
+                      =nullptr
+#endif
+                      , cudaStream_t stream
+#ifndef __CUDACC__
+                  = 0
+#endif
+                 ) {
 #ifdef __CUDACC__
+    assert(ws);
     uint32_t * off = (uint32_t *)( (char*)(h) +offsetof(Histo,off));
     size_t wss = Histo::wsSize();
     CubDebugExit(cub::DeviceScan::InclusiveSum(ws, wss, off, off, Histo::totbins(), stream));
@@ -75,7 +88,11 @@ namespace cudautils {
   template<typename Histo, typename T>
   void fillManyFromVector(Histo * __restrict__ h, uint8_t *  __restrict__ ws,  
                           uint32_t nh, T const * __restrict__ v, uint32_t const * __restrict__ offsets, uint32_t totSize, 
-                          int nthreads, cudaStream_t stream) {
+                          int nthreads, cudaStream_t stream
+#ifndef __CUDACC__
+                  = 0
+#endif
+                 ) {
     launchZero(h,stream);
 #ifdef __CUDACC__
     auto nblocks = (totSize + nthreads - 1) / nthreads;
@@ -204,32 +221,32 @@ public:
   __host__ __device__
   void add(CountersOnly const & co) {
     for (uint32_t i = 0; i<totbins(); ++i) {
-      #ifdef __CUDA_ARCH__
+#ifdef __CUDA_ARCH__
       atomicAdd(off+i,co.off[i]);
-      #else
+#else
       off[i]+=co.off[i]; 
-      #endif
+#endif
     }
   }
 
   static __host__ __device__
   __forceinline__
   uint32_t atomicIncrement(Counter & x) {
-    #ifdef __CUDA_ARCH__
+#ifdef __CUDA_ARCH__
     return atomicAdd(&x, 1);
-    #else
+#else
     return x++;
-    #endif
+#endif
   }
 
   static __host__ __device__
   __forceinline__
   uint32_t atomicDecrement(Counter & x) {
-    #ifdef __CUDA_ARCH__
+#ifdef __CUDA_ARCH__
     return atomicSub(&x, 1);
-    #else
+#else
     return x--;
-    #endif
+#endif
   }
 
  __host__ __device__
