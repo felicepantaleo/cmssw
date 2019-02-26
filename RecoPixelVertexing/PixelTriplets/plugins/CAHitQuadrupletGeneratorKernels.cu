@@ -375,7 +375,7 @@ void CAHitQuadrupletGeneratorKernels::buildDoublets(HitsOnCPU const & hh, cudaSt
 
   int stride=1;
   int threadsPerBlock = gpuPixelDoublets::getDoubletsFromHistoMaxBlockSize/stride;
-  int blocks = (3 * nhits + threadsPerBlock - 1) / threadsPerBlock;
+  int blocks = (2 * nhits + threadsPerBlock - 1) / threadsPerBlock;
   dim3 blks(1,blocks,1);
   dim3 thrs(stride,threadsPerBlock,1);
   gpuPixelDoublets::getDoubletsFromHisto<<<blks, thrs, 0, stream>>>(
