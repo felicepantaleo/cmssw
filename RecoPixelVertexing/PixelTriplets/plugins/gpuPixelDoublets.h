@@ -99,7 +99,7 @@ namespace gpuPixelDoublets {
       auto mez = __ldg(hh.zg_d+i);
 
       // if (outer==4 || outer==7)
-      // if (mez<minz[pairLayerId] || mez>maxz[pairLayerId]) continue;
+      if (mez<minz[pairLayerId] || mez>maxz[pairLayerId]) continue;
 
       auto mer = __ldg(hh.rg_d+i);
       auto mes = __ldg(hh.ysize_d+i);
