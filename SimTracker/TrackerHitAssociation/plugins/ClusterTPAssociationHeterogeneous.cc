@@ -158,7 +158,7 @@ void ClusterTPAssociationHeterogeneous::makeMap(const edm::HeterogeneousEvent &i
       for (auto itrk  = trackingParticle->g4Track_begin();
                 itrk != trackingParticle->g4Track_end(); ++itrk) {
         std::pair<uint32_t, EncodedEventId> trkid(itrk->trackId(), eid);
-        //std::cout << "creating map for id: " << trkid.first << " with tp: " << trackingParticle.key() << std::endl;
+        // std::cout << "creating map for id: " << trkid.first << " with tp: " << trackingParticle.key() << std::endl;
         mapping.insert(std::make_pair(trkid, trackingParticle));
       }
     }
@@ -296,7 +296,7 @@ ClusterTPAssociationHeterogeneous::produceLegacy(edm::HeterogeneousEvent &iEvent
 	     iset != simTkIds.end(); iset++) {
 	  auto ipos = mapping.find(*iset);
 	  if (ipos != mapping.end()) {
-	    //std::cout << "cluster in detid: " << detid << " from tp: " << ipos->second.key() << " " << iset->first << std::endl;
+	    std::cout << "cluster in detid: " << detid << " from tp: " << ipos->second.key() << " " << iset->first << std::endl;
 	    clusterTPList.emplace_back(OmniClusterRef(c_ref), ipos->second);
 	  }
 	}
