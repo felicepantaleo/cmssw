@@ -81,6 +81,10 @@ namespace gpuPixelDoublets {
       // found hit corresponding to our cuda thread, now do the job
       auto mep = iphi[i];
       auto mez = __ldg(hh.zg_d+i);
+
+      // if (outer==4 || outer==7)
+      // if (mez<minz[pairLayerId] || mez>maxz[pairLayerId]) continue;
+
       auto mer = __ldg(hh.rg_d+i);
       auto mes = __ldg(hh.ysize_d+i);
  
@@ -140,7 +144,7 @@ namespace gpuPixelDoublets {
 
           if (std::min(std::abs(int16_t(iphi[oi]-mep)), std::abs(int16_t(mep-iphi[oi]))) > iphicut)
             continue;
-          if (zsizeCut(oi)) continue;
+          // if (zsizeCut(oi)) continue;
           if (z0cutoff(oi) || ptcut(oi)) continue;
           auto ind = atomicAdd(nCells, 1); 
           if (ind>=MaxNumOfDoublets) {atomicSub(nCells, 1); break; } // move to SimpleVector??
@@ -173,9 +177,9 @@ namespace gpuPixelDoublets {
     constexpr int nPairs = 13;
     constexpr const uint8_t layerPairs[2*nPairs] = {
       0, 1,  1, 2,  2, 3,
-   // 0, 4,  1, 4,  2, 4,  4, 5,  5, 6,
-      0, 7,  1, 7,  2, 7,  7, 8,  8, 9,
-      0, 4,  1, 4,  2, 4,  4, 5,  5, 6
+      // 0, 4,  1, 4,  2, 4,  4, 5,  5, 6,
+      0, 7,  1, 7,  2, 7,  7, 8,  8, 9, // neg
+      0, 4,  1, 4,  2, 4,  4, 5,  5, 6,  // pos
     };
 
     constexpr int16_t phi0p05 = 522;    // round(521.52189...) = phi2short(0.05);
@@ -189,15 +193,15 @@ namespace gpuPixelDoublets {
     };
 
     float const minz[nPairs] = {
-      0., 0., 0.,
-      0., 0., 0., 0., 0.,
-      0., 0., 0., 0., 0.
+      -20., -22., -22.,
+      -30., -30.,-30., -70., -70.,
+        0., 10., 15., -70., -70.
     };
 
     float const maxz[nPairs] = {
-      20., 15., 12.,
-      30., 20., 20., 50., 50.,
-      30., 20., 20., 50., 50.
+      20., 22., 22.,
+       0., -10., -15., 70., 70.,
+      30., 30., 30., 70., 70.
     };
 
     float const maxr[nPairs] = {
