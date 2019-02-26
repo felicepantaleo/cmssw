@@ -97,6 +97,10 @@ namespace gpuPixelDoublets {
 
       // found hit corresponding to our cuda thread, now do the job
       auto mez = __ldg(hh.zg_d+i);
+
+      // if (outer==4 || outer==7)
+      // if (mez<minz[pairLayerId] || mez>maxz[pairLayerId]) continue;
+
       auto mer = __ldg(hh.rg_d+i);
       auto mes = __ldg(hh.ysize_d+i);
  
@@ -156,7 +160,7 @@ namespace gpuPixelDoublets {
 
           if (std::min(std::abs(int16_t(iphi[oi]-mep)), std::abs(int16_t(mep-iphi[oi]))) > iphicut)
             continue;
-          if (zsizeCut(oi)) continue;
+          // if (zsizeCut(oi)) continue;
           if (z0cutoff(oi) || ptcut(oi)) continue;
 #endif
           auto ind = atomicAdd(nCells, 1); 
