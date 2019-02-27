@@ -296,7 +296,7 @@ ClusterTPAssociationHeterogeneous::produceLegacy(edm::HeterogeneousEvent &iEvent
 	     iset != simTkIds.end(); iset++) {
 	  auto ipos = mapping.find(*iset);
 	  if (ipos != mapping.end()) {
-	    std::cout << "cluster in detid: " << detid << " from tp: " << ipos->second.key() << " " << iset->first << std::endl;
+	    // std::cout << "cluster in detid: " << detid << " from tp: " << ipos->second.key() << " " << iset->first << std::endl;
 	    clusterTPList.emplace_back(OmniClusterRef(c_ref), ipos->second);
 	  }
 	}

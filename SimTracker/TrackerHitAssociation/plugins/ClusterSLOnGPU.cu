@@ -42,7 +42,7 @@ void simLink(const SiPixelDigisCUDA::DeviceConstView *dd, uint32_t ndigis, const
 
   auto less = [] __host__ __device__ (std::array<uint32_t, 4> const & a, std::array<uint32_t, 4> const & b)->bool {
      // in this context we do not care of [2]
-     return a[0] < b[0] or (not b[0] < a[0] and a[1] < b[1]);
+     return a[0] < b[0] or ( (not (b[0]<a[0]) ) and (a[1]<b[1]) );
   };
 
   auto equal = [] __host__ __device__ (std::array<uint32_t, 4> const & a, std::array<uint32_t, 4> const & b)->bool {
