@@ -33,9 +33,9 @@ void kernel_checkOverflows(TuplesOnGPU::Container * foundNtuplets, AtomicPairCou
  __syncthreads();
   
  auto idx = threadIdx.x + blockIdx.x * blockDim.x;
- #ifdef GPU_DEBUG
+ #ifdef GPU_STAT
  if (0==idx) {
-   printf("number of found cells %d, found tuples %d with total hits %d,%d\n",*nCells, apc->get().m, foundNtuplets->size(), apc->get().n);
+   printf("number of found cells %d, found tuples %d with total hits %d out of %d\n",*nCells, apc->get().m, apc->get().n, nHits);
    assert(foundNtuplets->size(apc->get().m)==0);
    assert(foundNtuplets->size()==apc->get().n);
  }
