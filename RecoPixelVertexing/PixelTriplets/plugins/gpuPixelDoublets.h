@@ -85,7 +85,7 @@ namespace gpuPixelDoublets {
       auto mes = __ldg(hh.ysize_d+i);
 
 #ifndef NO_ZCUT
-      if (inner==0 && outer>3 )
+      if (inner==0 && outer>3 )  // B1 and F1
          if (mes>0 && mes<5*8) continue; // only long cluster
       if (mez<minz[pairLayerId] || mez>maxz[pairLayerId]) continue;
 #endif
