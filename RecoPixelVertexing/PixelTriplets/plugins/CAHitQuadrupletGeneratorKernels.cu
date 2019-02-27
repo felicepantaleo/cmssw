@@ -415,7 +415,7 @@ void kernel_printCounters(CAHitQuadrupletGeneratorKernels::Counters const * coun
    
    auto const & c = *counters;
    printf("Counters Raw %lld %lld %lld %lld %lld %lld\n",c.nEvents,c.nHits,c.nCells,c.nTuples,c.nUsedHits,c.nKilledCells);
-   printf("Counters Norm %lld %f %f %f %f %f\n",c.nEvents,c.nHits/double(c.nEvents),c.nCells/double(c.nEvents),
+   printf("Counters Norm %lld %.1f %.1f %.1f %.1f %.1f\n",c.nEvents,c.nHits/double(c.nEvents),c.nCells/double(c.nEvents),
                                                 c.nTuples/double(c.nEvents),c.nUsedHits/double(c.nEvents),c.nKilledCells/double(c.nEvents));
 
 }
