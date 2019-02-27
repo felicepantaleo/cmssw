@@ -8,8 +8,21 @@
 
 #include "GPUCACell.h"
 
+
+
+
 class CAHitQuadrupletGeneratorKernels {
 public:
+
+    // counters
+    struct Counters {
+      unsigned long long nEvents;
+      unsigned long long nHits;
+      unsigned long long nCells;
+      unsigned long long nTuples;
+      unsigned long long nUsedHits;
+      unsigned long long nKilledCells;
+    };
 
    using HitsOnGPU = siPixelRecHitsHeterogeneousProduct::HitsOnGPU;
    using HitsOnCPU = siPixelRecHitsHeterogeneousProduct::HitsOnCPU;
@@ -37,8 +50,11 @@ public:
    void allocateOnGPU();
    void deallocateOnGPU();
    void cleanup(cudaStream_t cudaStream);
+   void printCounters() const;
 
 private:
+
+    Counters * counters_ = nullptr;
 
     // workspace
     GPUCACell* device_theCells_ = nullptr;

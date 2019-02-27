@@ -5,6 +5,9 @@ void
 CAHitQuadrupletGeneratorKernels::deallocateOnGPU()
 {
 
+  printCounters();
+  cudaFree(counters_);
+
   cudaFree(device_theCells_);
   cudaFree(device_isOuterHitOfCell_);
   cudaFree(device_nCells_);
@@ -19,6 +22,9 @@ void CAHitQuadrupletGeneratorKernels::allocateOnGPU()
   //////////////////////////////////////////////////////////
   // ALLOCATIONS FOR THE INTERMEDIATE RESULTS (STAYS ON WORKER)
   //////////////////////////////////////////////////////////
+
+  cudaCheck(cudaMalloc(&counters_, sizeof(Counters)));
+  cudaCheck(cudaMemset(counters_,0,sizeof(Counters)));
 
   cudaCheck(cudaMalloc(&device_theCells_,
              CAConstants::maxNumberOfLayerPairs() * CAConstants::maxNumberOfDoublets() * sizeof(GPUCACell)));
