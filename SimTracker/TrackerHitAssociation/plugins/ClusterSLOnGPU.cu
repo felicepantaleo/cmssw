@@ -42,7 +42,7 @@ void simLink(const SiPixelDigisCUDA::DeviceConstView *dd, uint32_t ndigis, const
 
   auto less = [] __host__ __device__ (std::array<uint32_t, 4> const & a, std::array<uint32_t, 4> const & b)->bool {
      // in this context we do not care of [2]
-     return a[0] < b[0] or (not b[0] < a[0] and a[1] < b[1]);
+     return a[0] < b[0] or ( (not (b[0]<a[0]) ) and (a[1]<b[1]) );
   };
 
   auto equal = [] __host__ __device__ (std::array<uint32_t, 4> const & a, std::array<uint32_t, 4> const & b)->bool {
@@ -107,9 +107,10 @@ void dumpLink(int first, int ev, clusterSLOnGPU::HitsOnGPU const * hhp, uint32_t
   auto const & tk1 = sl.links_d[sl.tkId_d[i]];
   auto const & tk2 = sl.links_d[sl.tkId2_d[i]];
 
-  printf("HIT: %d %d %d %d %f %f %f %f %d %d %d %d %d %d %d\n", ev, i,
+  printf("HIT: %d %d %d %d %f %f %f %f %d %d %d %d %d %d %d %d %d\n", ev, i,
          hh.detInd_d[i], hh.charge_d[i],
          hh.xg_d[i], hh.yg_d[i], hh.zg_d[i], hh.rg_d[i], hh.iphi_d[i],
+         hh.xsize_d[i],hh.ysize_d[i],
          tk1[2], tk1[3], sl.n1_d[i],
          tk2[2], tk2[3], sl.n2_d[i]
         );
@@ -121,9 +122,10 @@ namespace clusterSLOnGPU {
   constexpr uint32_t invTK = 0; // std::numeric_limits<int32_t>::max();
 
   void printCSVHeader() {
-    printf("HIT: %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s\n", "ev", "ind",
+    printf("HIT: %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s\n", "ev", "ind",
         "det", "charge",
         "xg","yg","zg","rg","iphi",
+        "xsize","ysize",
         "tkId","pt","n1","tkId2","pt2","n2"
         );
   }

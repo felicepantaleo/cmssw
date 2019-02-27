@@ -26,16 +26,27 @@ __global__
 void kernel_checkOverflows(TuplesOnGPU::Container * foundNtuplets, AtomicPairCounter * apc,
                GPUCACell const * __restrict__ cells, uint32_t const * __restrict__ nCells,
                GPUCACell::OuterHitOfCell const * __restrict__ isOuterHitOfCell,
-               uint32_t nHits) {
+               uint32_t nHits, CAHitQuadrupletGeneratorKernels::Counters * counters) {
 
  __shared__ uint32_t killedCell;
  killedCell=0;
  __syncthreads();
-  
+
  auto idx = threadIdx.x + blockIdx.x * blockDim.x;
+
+ auto    & c = *counters;
+ // counters once per event
+ if(0==idx) {
+   atomicAdd(&c.nEvents,1);
+   atomicAdd(&c.nHits,nHits);
+   atomicAdd(&c.nCells,*nCells);   
+   atomicAdd(&c.nTuples,apc->get().m);
+   atomicAdd(&c.nUsedHits,apc->get().n);
+ }
+  
  #ifdef GPU_DEBUG
  if (0==idx) {
-   printf("number of found cells %d, found tuples %d with total hits %d,%d\n",*nCells, apc->get().m, foundNtuplets->size(), apc->get().n);
+   printf("number of found cells %d, found tuples %d with total hits %d out of %d\n",*nCells, apc->get().m, apc->get().n, nHits);
    assert(foundNtuplets->size(apc->get().m)==0);
    assert(foundNtuplets->size()==apc->get().n);
  }
@@ -65,7 +76,8 @@ void kernel_checkOverflows(TuplesOnGPU::Container * foundNtuplets, AtomicPairCou
  }
 
  __syncthreads();
-// if (threadIdx.x==0) printf("number of killed cells %d\n",killedCell);
+ if (threadIdx.x==0) atomicAdd(&c.nKilledCells,killedCell);
+ // if (threadIdx.x==0) printf("number of killed cells %d\n",killedCell);
 }
 
 
@@ -360,7 +372,8 @@ void CAHitQuadrupletGeneratorKernels::launchKernels( // here goes algoparms....
   kernel_checkOverflows<<<numberOfBlocks, blockSize, 0, cudaStream>>>(
                         gpu_.tuples_d, gpu_.apc_d,
                         device_theCells_, device_nCells_,
-                        device_isOuterHitOfCell_, nhits
+                        device_isOuterHitOfCell_, nhits,
+                        counters_
                        );
   cudaCheck(cudaGetLastError());
 #endif
@@ -394,4 +407,19 @@ void CAHitQuadrupletGeneratorKernels::classifyTuples(HitsOnCPU const & hh, Tuple
     numberOfBlocks = (CAConstants::maxNumberOfDoublets() + blockSize - 1)/blockSize;
     kernel_fastDuplicateRemover<<<numberOfBlocks, blockSize, 0, cudaStream>>>(device_theCells_, device_nCells_,tuples.tuples_d,tuples.helix_fit_results_d, tuples.quality_d);
 
+}
+
+
+__global__
+void kernel_printCounters(CAHitQuadrupletGeneratorKernels::Counters const * counters) {
+   
+   auto const & c = *counters;
+   printf("Counters Raw %lld %lld %lld %lld %lld %lld\n",c.nEvents,c.nHits,c.nCells,c.nTuples,c.nUsedHits,c.nKilledCells);
+   printf("Counters Norm %lld %.1f %.1f %.1f %.1f %.1f\n",c.nEvents,c.nHits/double(c.nEvents),c.nCells/double(c.nEvents),
+                                                c.nTuples/double(c.nEvents),c.nUsedHits/double(c.nEvents),c.nKilledCells/double(c.nEvents));
+
+}
+
+void CAHitQuadrupletGeneratorKernels::printCounters() const {
+  kernel_printCounters<<<1,1>>>(counters_);
 }
