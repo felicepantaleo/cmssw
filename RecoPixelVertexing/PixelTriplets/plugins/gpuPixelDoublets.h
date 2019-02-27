@@ -15,6 +15,8 @@
 #include "GPUCACell.h"
 #include "CAConstants.h"
 
+// #define NO_ZCUT
+
 namespace gpuPixelDoublets {
 
   constexpr uint32_t MaxNumOfDoublets = CAConstants::maxNumberOfDoublets();  // not really relevant
@@ -80,13 +82,16 @@ namespace gpuPixelDoublets {
 
       // found hit corresponding to our cuda thread, now do the job
       auto mez = __ldg(hh.zg_d+i);
+      auto mes = __ldg(hh.ysize_d+i);
 
-      // if (outer==4 || outer==7)
+#ifndef NO_ZCUT
+      if (inner==0 && outer>3 )
+         if (mes>0 && mes<5*8) continue; // only long cluster
       if (mez<minz[pairLayerId] || mez>maxz[pairLayerId]) continue;
+#endif
 
       auto mep = iphi[i];
       auto mer = __ldg(hh.rg_d+i);
-      auto mes = __ldg(hh.ysize_d+i);
  
       constexpr float z0cut = 12.f;                     // cm
       constexpr float hardPtCut = 0.5f;                 // GeV
@@ -144,7 +149,9 @@ namespace gpuPixelDoublets {
 
           if (std::min(std::abs(int16_t(iphi[oi]-mep)), std::abs(int16_t(mep-iphi[oi]))) > iphicut)
             continue;
+#ifndef  NO_ZCUT
           if (zsizeCut(oi)) continue;
+#endif
           if (z0cutoff(oi) || ptcut(oi)) continue;
           auto ind = atomicAdd(nCells, 1); 
           if (ind>=MaxNumOfDoublets) {atomicSub(nCells, 1); break; } // move to SimpleVector??
