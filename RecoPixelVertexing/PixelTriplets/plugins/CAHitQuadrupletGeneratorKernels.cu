@@ -276,6 +276,23 @@ void kernel_VerifyFit(TuplesOnGPU::Container const * __restrict__ tuples,
 }
 
 __global__
+void kernel_countTracks(TuplesOnGPU::Container const * __restrict__ tuples,
+                        Quality *  __restrict__ quality,
+                        CAHitQuadrupletGeneratorKernels::Counters * counters) {
+
+  auto idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx>= tuples->nbins()) return;
+  if (tuples->size(idx)==0) {
+    return;
+  }
+
+  if(quality[idx] != pixelTuplesHeterogeneousProduct::loose ) return;
+
+  atomicAdd(&(counters->nGoodTracks),1);
+
+}
+
+__global__
 void kernel_print_found_ntuplets(TuplesOnGPU::Container * foundNtuplets, uint32_t maxPrint) {
   for (int i = 0; i < std::min(maxPrint, foundNtuplets->size()); ++i) {
     printf("\nquadruplet %d: %d %d %d %d\n", i,
@@ -407,6 +424,8 @@ void CAHitQuadrupletGeneratorKernels::classifyTuples(HitsOnCPU const & hh, Tuple
     numberOfBlocks = (CAConstants::maxNumberOfDoublets() + blockSize - 1)/blockSize;
     kernel_fastDuplicateRemover<<<numberOfBlocks, blockSize, 0, cudaStream>>>(device_theCells_, device_nCells_,tuples.tuples_d,tuples.helix_fit_results_d, tuples.quality_d);
 
+    kernel_countTracks<<<numberOfBlocks, blockSize, 0, cudaStream>>>(tuples.tuples_d,tuples.quality_d,counters_);
+
 }
 
 
@@ -414,9 +433,10 @@ __global__
 void kernel_printCounters(CAHitQuadrupletGeneratorKernels::Counters const * counters) {
    
    auto const & c = *counters;
-   printf("Counters Raw %lld %lld %lld %lld %lld %lld\n",c.nEvents,c.nHits,c.nCells,c.nTuples,c.nUsedHits,c.nKilledCells);
-   printf("Counters Norm %lld %.1f %.1f %.1f %.1f %.1f\n",c.nEvents,c.nHits/double(c.nEvents),c.nCells/double(c.nEvents),
-                                                c.nTuples/double(c.nEvents),c.nUsedHits/double(c.nEvents),c.nKilledCells/double(c.nEvents));
+   printf("Counters Raw %lld %lld %lld %lld %lld %lld %lld\n",c.nEvents,c.nHits,c.nCells,c.nTuples,c.nGoodTracks,c.nUsedHits,c.nKilledCells);
+   printf("Counters Norm %lld %.1f %.1f %.1f %.1f %.1f %.1f\n",c.nEvents,c.nHits/double(c.nEvents),c.nCells/double(c.nEvents),
+                                                c.nTuples/double(c.nEvents),c.nGoodTracks/double(c.nEvents),
+                                                c.nUsedHits/double(c.nEvents),c.nKilledCells/double(c.nEvents));
 
 }
 
