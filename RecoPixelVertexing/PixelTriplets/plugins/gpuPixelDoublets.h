@@ -79,12 +79,12 @@ namespace gpuPixelDoublets {
       assert(i < offsets[inner+1]);
 
       // found hit corresponding to our cuda thread, now do the job
-      auto mep = iphi[i];
       auto mez = __ldg(hh.zg_d+i);
 
       // if (outer==4 || outer==7)
       if (mez<minz[pairLayerId] || mez>maxz[pairLayerId]) continue;
 
+      auto mep = iphi[i];
       auto mer = __ldg(hh.rg_d+i);
       auto mes = __ldg(hh.ysize_d+i);
  
@@ -111,7 +111,7 @@ namespace gpuPixelDoublets {
         auto onlyBarrel = outer<4;
 //        auto onlyB234 = outer==2 || outer==3;
         auto so = __ldg(hh.ysize_d+j);
-        auto dy = inner==0 ? 3 : 2;
+        auto dy = inner==0 ? 24 : 16;  // now size is *8....
         return onlyBarrel && mes>0 && so>0  && std::abs(so-mes)>dy;
       };
 
@@ -144,7 +144,7 @@ namespace gpuPixelDoublets {
 
           if (std::min(std::abs(int16_t(iphi[oi]-mep)), std::abs(int16_t(mep-iphi[oi]))) > iphicut)
             continue;
-          // if (zsizeCut(oi)) continue;
+          if (zsizeCut(oi)) continue;
           if (z0cutoff(oi) || ptcut(oi)) continue;
           auto ind = atomicAdd(nCells, 1); 
           if (ind>=MaxNumOfDoublets) {atomicSub(nCells, 1); break; } // move to SimpleVector??
