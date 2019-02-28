@@ -16,7 +16,9 @@
 #include "CAConstants.h"
 
 // #define ONLY_PHICUT
+
 #define NO_ZCUT
+#define HARD_ZCUTS
 
 namespace gpuPixelDoublets {
 
@@ -39,6 +41,20 @@ namespace gpuPixelDoublets {
                          float const * __restrict__ maxz,
                          float const * __restrict__ maxr)
   {
+
+#ifndef NO_ZCUT 
+    // ysize cuts (z in the barrel)
+#ifdef HARD_ZCUTS
+    constexpr int minYsize=40;
+    constexpr int maxDYsize12=24;
+    constexpr int maxDYsize=16;
+#else
+    constexpr int minYsize=36;
+    constexpr int maxDYsize12=28;
+    constexpr int maxDYsize=20;
+#endif
+#endif
+
     auto layerSize = [=](uint8_t li) { return offsets[li+1]-offsets[li]; };
 
     // nPairsMax to be optimized later (originally was 64).
@@ -85,9 +101,12 @@ namespace gpuPixelDoublets {
       auto mez = __ldg(hh.zg_d+i);
       auto mes = __ldg(hh.ysize_d+i);
 
+      // auto mesx = __ldg(hh.xsize_d+i);
+      // if (mesx<0) continue; // remove edges in x as overlap will take care
+     
 #ifndef NO_ZCUT
       if (inner==0 && outer>3 )  // B1 and F1
-         if (mes>0 && mes<5*8) continue; // only long cluster
+         if (mes>0 && mes<minYsize) continue; // only long cluster  (5*8)
       if (mez<minz[pairLayerId] || mez>maxz[pairLayerId]) continue;
 #endif
 
@@ -113,13 +132,15 @@ namespace gpuPixelDoublets {
           dr<0 || std::abs((mez*ro - mer*zo)) > z0cut*dr;
       };
 
+#ifndef NO_ZCUT
       auto zsizeCut = [&](int j) {
         auto onlyBarrel = outer<4;
-//        auto onlyB234 = outer==2 || outer==3;
         auto so = __ldg(hh.ysize_d+j);
-        auto dy = inner==0 ? 24 : 16;  // now size is *8....
-        return onlyBarrel && mes>0 && so>0  && std::abs(so-mes)>dy;
+        //auto sox = __ldg(hh.xsize_d+j);
+        auto dy = inner==0 ? maxDYsize12 : maxDYsize;  // now size is *8....
+        return onlyBarrel && mes>0 && so>0 && std::abs(so-mes)>dy;
       };
+#endif
 
       auto iphicut = phicuts[pairLayerId];
 
