@@ -15,7 +15,8 @@
 #include "GPUCACell.h"
 #include "CAConstants.h"
 
-// #define NO_ZCUT
+// #define ONLY_PHICUT
+#define NO_ZCUT
 
 namespace gpuPixelDoublets {
 
@@ -149,10 +150,12 @@ namespace gpuPixelDoublets {
 
           if (std::min(std::abs(int16_t(iphi[oi]-mep)), std::abs(int16_t(mep-iphi[oi]))) > iphicut)
             continue;
-#ifndef  NO_ZCUT
+#ifndef ONLY_PHICUT
+#ifndef NO_ZCUT
           if (zsizeCut(oi)) continue;
 #endif
           if (z0cutoff(oi) || ptcut(oi)) continue;
+#endif
           auto ind = atomicAdd(nCells, 1); 
           if (ind>=MaxNumOfDoublets) {atomicSub(nCells, 1); break; } // move to SimpleVector??
           // int layerPairId, int doubletId, int innerHitId, int outerHitId)
