@@ -336,6 +336,11 @@ void CAHitQuadrupletGeneratorKernels::launchKernels( // here goes algoparms....
   auto stride = 4;
   auto blockSize = nthTot/stride;
   auto numberOfBlocks = (maxNumberOfDoublets_ + blockSize - 1)/blockSize;
+  auto rescale = numberOfBlocks/65536;
+  blockSize*=(rescale+1);
+  numberOfBlocks = (maxNumberOfDoublets_ + blockSize - 1)/blockSize;
+  assert(numberOfBlocks<65536);
+  assert(blockSize>0 && 0==blockSize%16);
   dim3 blks(1,numberOfBlocks,1);
   dim3 thrs(stride,blockSize,1);
 
