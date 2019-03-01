@@ -101,14 +101,14 @@ namespace gpuPixelDoublets {
       auto mez = __ldg(hh.zg_d+i);
       auto mes = __ldg(hh.ysize_d+i);
 
+#ifndef NO_ZCUT
       auto mi = __ldg(hh.detInd_d+i);
       if (inner==0) assert(mi<96);     
       bool isOuterLadder = 0 == (mi/8)%2; // only for B1/B2/B3 B4 is opposite, FPIX:noclue...
 
       // auto mesx = __ldg(hh.xsize_d+i);
       // if (mesx<0) continue; // remove edges in x as overlap will take care
-     
-#ifndef NO_ZCUT
+
       if (inner==0 && outer>3 && isOuterLadder)  // B1 and F1
          if (mes>0 && mes<minYsize) continue; // only long cluster  (5*8)
       if (mez<minz[pairLayerId] || mez>maxz[pairLayerId]) continue;
@@ -141,7 +141,7 @@ namespace gpuPixelDoublets {
         auto onlyBarrel = outer<4;
         auto so = __ldg(hh.ysize_d+j);
         //auto sox = __ldg(hh.xsize_d+j);
-        auto dy = inner==0 ? maxDYsize12 : maxDYsize;  // now size is *8....
+        auto dy = inner==0 ? ( isOuterLadder ? maxDYsize12: 100 ) : maxDYsize;  // now size is *8....
         return onlyBarrel && mes>0 && so>0 && std::abs(so-mes)>dy;
       };
 #endif
