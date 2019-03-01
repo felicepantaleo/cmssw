@@ -141,7 +141,7 @@ namespace gpuPixelDoublets {
         auto onlyBarrel = outer<4;
         auto so = __ldg(hh.ysize_d+j);
         //auto sox = __ldg(hh.xsize_d+j);
-        auto dy = inner==0 ? maxDYsize12 : maxDYsize;  // now size is *8....
+        auto dy = inner==0 ? ( isOuterLadder ? maxDYsize12: 100 ) : maxDYsize;  // now size is *8....
         return onlyBarrel && mes>0 && so>0 && std::abs(so-mes)>dy;
       };
 #endif
