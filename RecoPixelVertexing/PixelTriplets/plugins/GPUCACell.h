@@ -18,8 +18,8 @@
 class GPUCACell {
 public:
 
-  static constexpr int maxCellsPerHit = 128; // was 256
-  using OuterHitOfCell = GPU::VecArray< unsigned int, maxCellsPerHit>;
+  static constexpr int maxCellsPerHit = CAConstants::maxCellsPerHit();
+  using OuterHitOfCell = CAConstants::OuterHitOfCell;
 
 
   using Hits = siPixelRecHitsHeterogeneousProduct::HitsOnGPU;
