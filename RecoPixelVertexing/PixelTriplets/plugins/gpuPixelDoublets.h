@@ -17,6 +17,8 @@
 
 // #define ONLY_PHICUT
 
+
+// default is soft cuts
 // #define NO_ZCUT
 // #define HARD_ZCUTS
 
@@ -45,11 +47,13 @@ namespace gpuPixelDoublets {
 #ifndef NO_ZCUT 
     // ysize cuts (z in the barrel)
 #ifdef HARD_ZCUTS
-    constexpr int minYsize=40;
+    constexpr int minYsizeB1=40;
+    constexpr int minYsizeB2=32;
     constexpr int maxDYsize12=24;
     constexpr int maxDYsize=16;
 #else
-    constexpr int minYsize=36;
+    constexpr int minYsizeB1=36;
+    constexpr int minYsizeB2=28;
     constexpr int maxDYsize12=28;
     constexpr int maxDYsize=20;
 #endif
@@ -99,9 +103,9 @@ namespace gpuPixelDoublets {
 
       // found hit corresponding to our cuda thread, now do the job
       auto mez = __ldg(hh.zg_d+i);
-      auto mes = __ldg(hh.ysize_d+i);
 
 #ifndef NO_ZCUT
+      auto mes = __ldg(hh.ysize_d+i);
       auto mi = __ldg(hh.detInd_d+i);
       if (inner==0) assert(mi<96);     
       bool isOuterLadder = 0 == (mi/8)%2; // only for B1/B2/B3 B4 is opposite, FPIX:noclue...
@@ -110,7 +114,9 @@ namespace gpuPixelDoublets {
       // if (mesx<0) continue; // remove edges in x as overlap will take care
 
       if (inner==0 && outer>3 && isOuterLadder)  // B1 and F1
-         if (mes>0 && mes<minYsize) continue; // only long cluster  (5*8)
+         if (mes>0 && mes<minYsizeB1) continue; // only long cluster  (5*8)
+      if (inner==1 && outer>3)  // B2 and F1
+         if (mes>0 && mes<minYsizeB2) continue;
       if (mez<minz[pairLayerId] || mez>maxz[pairLayerId]) continue;
 #endif
 
