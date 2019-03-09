@@ -39,6 +39,7 @@ namespace gpuVertexFinder {
       return;
     }
 
+    if (tuples.size(idx)<4) return; // no triplets
     if(quality[idx] != pixelTuplesHeterogeneousProduct::loose ) return;
 
     auto const & fittedTrack = fit[idx];
