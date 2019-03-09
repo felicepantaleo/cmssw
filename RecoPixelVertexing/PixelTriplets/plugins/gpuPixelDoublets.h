@@ -17,6 +17,7 @@
 
 // #define ONLY_PHICUT
 
+#define IDEAL_COND
 
 // default is soft cuts
 // #define NO_ZCUT
@@ -106,10 +107,13 @@ namespace gpuPixelDoublets {
 
 #ifndef NO_ZCUT
       auto mes = __ldg(hh.ysize_d+i);
+#ifndef IDEAL_COND
       auto mi = __ldg(hh.detInd_d+i);
-      if (inner==0) assert(mi<96);     
-      bool isOuterLadder = 0 == (mi/8)%2; // only for B1/B2/B3 B4 is opposite, FPIX:noclue...
-
+      if (inner==0) assert(mi<96);    
+      const bool isOuterLadder =  0 == (mi/8)%2; // only for B1/B2/B3 B4 is opposite, FPIX:noclue...
+#else
+      constexpr bool isOuterLadder =  true;  // if ideal no need to restrict to outer
+#endif
       // auto mesx = __ldg(hh.xsize_d+i);
       // if (mesx<0) continue; // remove edges in x as overlap will take care
 
@@ -118,7 +122,7 @@ namespace gpuPixelDoublets {
       if (inner==1 && outer>3)  // B2 and F1
          if (mes>0 && mes<minYsizeB2) continue;
       if (mez<minz[pairLayerId] || mez>maxz[pairLayerId]) continue;
-#endif
+#endif  // ZCUT
 
       auto mep = iphi[i];
       auto mer = __ldg(hh.rg_d+i);
