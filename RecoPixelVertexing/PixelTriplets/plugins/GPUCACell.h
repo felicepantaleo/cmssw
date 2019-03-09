@@ -15,6 +15,8 @@
 
 #include "RecoPixelVertexing/PixelTriplets/plugins/pixelTuplesHeterogeneousProduct.h"
 
+// #define ALL_TRIPLETS
+
 class GPUCACell {
 public:
 
@@ -183,8 +185,11 @@ public:
       }
     } else {  // if long enough save...
       if ((unsigned int)(tmpNtuplet.size()) >= minHitsPerNtuplet-1) {
+#ifndef ALL_TRIPLETS
         // triplets accepted only pointing to the hole
-        if (tmpNtuplet.size()>=3 || hole(hh, cells[tmpNtuplet[0]])) {
+        if (tmpNtuplet.size()>=3 || hole(hh, cells[tmpNtuplet[0]]))
+#endif
+       {
           hindex_type hits[6]; auto nh=0U;
           for (auto c : tmpNtuplet) hits[nh++] = cells[c].theInnerHitId;
           hits[nh] = theOuterHitId; 

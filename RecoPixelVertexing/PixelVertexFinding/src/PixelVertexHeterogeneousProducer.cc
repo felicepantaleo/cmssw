@@ -199,6 +199,7 @@ void PixelVertexHeterogeneousProducer::produceGPUCuda(
     }
     auto nt = itrk.size();
     if (nt==0) { std::cout << "vertex " << i << " with no tracks..." << std::endl; continue;}
+    if (nt<2) { itrk.clear(); continue;}  // remove outliers
     (*vertexes).emplace_back(reco::Vertex::Point(x,y,z), err, gpuProduct.chi2[i], nt-1, nt );
     auto & v = (*vertexes).back();
     for (auto it: itrk) {
@@ -210,13 +211,13 @@ void PixelVertexHeterogeneousProducer::produceGPUCuda(
     }
     itrk.clear();
   }
-  
+  /*
   assert(uind.size()==(*vertexes).size());
   if (!uind.empty()) {
     assert(0 == *uind.begin());
     assert(uind.size()-1 == *uind.rbegin());  
   }
-  
+  */
 
   if (verbose_) {
     edm::LogInfo("PixelVertexHeterogeneousProducer") << ": Found " << vertexes->size() << " vertexes\n";
