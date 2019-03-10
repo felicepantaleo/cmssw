@@ -414,7 +414,7 @@ void CAHitQuadrupletGeneratorKernels::buildDoublets(HitsOnCPU const & hh, cudaSt
   dim3 blks(1,blocks,1);
   dim3 thrs(stride,threadsPerBlock,1);
   gpuPixelDoublets::getDoubletsFromHisto<<<blks, thrs, 0, stream>>>(
-            device_theCells_, device_nCells_, hh.gpu_d, device_isOuterHitOfCell_);
+            device_theCells_, device_nCells_, hh.gpu_d, device_isOuterHitOfCell_, idealConditions_);
   cudaCheck(cudaGetLastError());
 }
 

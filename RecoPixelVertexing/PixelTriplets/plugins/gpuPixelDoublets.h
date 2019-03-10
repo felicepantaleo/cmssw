@@ -43,7 +43,7 @@ namespace gpuPixelDoublets {
                          float const * __restrict__ minz,
                          float const * __restrict__ maxz,
 #endif
-                         float const * __restrict__ maxr)
+                         float const * __restrict__ maxr, bool ideal_cond)
   {
 
 #ifndef NO_CLSCUT 
@@ -105,13 +105,12 @@ namespace gpuPixelDoublets {
 
 #ifndef NO_CLSCUT
       auto mes = __ldg(hh.ysize_d+i);
-#ifndef IDEAL_COND
+
+      // if ideal treat inner ladder as outer
       auto mi = __ldg(hh.detInd_d+i);
       if (inner==0) assert(mi<96);    
-      const bool isOuterLadder =  0 == (mi/8)%2; // only for B1/B2/B3 B4 is opposite, FPIX:noclue...
-#else
-      constexpr bool isOuterLadder =  true;  // if ideal no need to restrict to outer
-#endif
+      const bool isOuterLadder = ideal_cond ? true : 0 == (mi/8)%2; // only for B1/B2/B3 B4 is opposite, FPIX:noclue...
+
       // auto mesx = __ldg(hh.xsize_d+i);
       // if (mesx<0) continue; // remove edges in x as overlap will take care
 
@@ -148,7 +147,7 @@ namespace gpuPixelDoublets {
         auto onlyBarrel = outer<4;
         auto so = __ldg(hh.ysize_d+j);
         //auto sox = __ldg(hh.xsize_d+j);
-        auto dy = inner==0 ? ( isOuterLadder ? maxDYsize12: 100 ) : maxDYsize;  // now size is *8....
+        auto dy = inner==0 ? ( isOuterLadder ? maxDYsize12: 100 ) : maxDYsize;
         return onlyBarrel && mes>0 && so>0 && std::abs(so-mes)>dy;
       };
 #endif
@@ -214,7 +213,8 @@ namespace gpuPixelDoublets {
   void getDoubletsFromHisto(GPUCACell * cells,
                             uint32_t * nCells,
                             siPixelRecHitsHeterogeneousProduct::HitsOnGPU const *  __restrict__ hhp,
-                            GPUCACell::OuterHitOfCell * isOuterHitOfCell)
+                            GPUCACell::OuterHitOfCell * isOuterHitOfCell,
+                            bool ideal_cond)
   {
     constexpr int nPairs = 13;
     constexpr const uint8_t layerPairs[2*nPairs] = {
@@ -262,7 +262,7 @@ namespace gpuPixelDoublets {
 #ifndef NO_ZCUT
                       minz, maxz, 
 #endif
-                      maxr);
+                      maxr , ideal_cond);
   }
 
 
