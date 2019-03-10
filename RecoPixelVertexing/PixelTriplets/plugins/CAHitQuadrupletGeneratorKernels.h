@@ -34,10 +34,11 @@ public:
    using TupleMultiplicity = CAConstants::TupleMultiplicity;
 
    CAHitQuadrupletGeneratorKernels(uint32_t minHitsPerNtuplet,
-    bool earlyFishbone, bool lateFishbone) :
+    bool earlyFishbone, bool lateFishbone, bool idealConditions) :
     minHitsPerNtuplet_(minHitsPerNtuplet),
     earlyFishbone_(earlyFishbone),
-    lateFishbone_(lateFishbone){}
+    lateFishbone_(lateFishbone),
+    idealConditions_(idealConditions){}
    ~CAHitQuadrupletGeneratorKernels() { deallocateOnGPU();}
 
 
@@ -71,7 +72,7 @@ private:
     const uint32_t minHitsPerNtuplet_;
     const bool earlyFishbone_;
     const bool lateFishbone_;
-
+    const bool idealConditions_;
 };
 
 #endif // RecoPixelVertexing_PixelTriplets_plugins_CAHitQuadrupletGeneratorKernels_h
