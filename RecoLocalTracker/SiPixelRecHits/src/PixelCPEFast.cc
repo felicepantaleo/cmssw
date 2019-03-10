@@ -86,6 +86,10 @@ void PixelCPEFast::fillParamsForGpu() {
   m_commonParamsGPU.thePitchX = m_DetParams[0].thePitchX;
   m_commonParamsGPU.thePitchY = m_DetParams[0].thePitchY;
 
+  std::cout << "th, pitch " << m_commonParamsGPU.theThicknessB << ' ' << m_commonParamsGPU.theThicknessE
+            << m_commonParamsGPU.thePitchX << ' ' << m_commonParamsGPU.thePitchY << std::endl;
+
+
   //uint32_t oldLayer = 0;
   m_detParamsGPU.resize(m_DetParams.size());
   for (auto i=0U; i<m_DetParams.size(); ++i) {
