@@ -15,11 +15,10 @@
 #include "GPUCACell.h"
 #include "CAConstants.h"
 
+
+// useful for benchmark
 // #define ONLY_PHICUT
-
-#define IDEAL_COND
-
-#define NO_ZCUT
+// #define USE_ZCUT
 // #define NO_CLSCUT
 
 namespace gpuPixelDoublets {
@@ -39,7 +38,7 @@ namespace gpuPixelDoublets {
                          siPixelRecHitsHeterogeneousProduct::HitsOnGPU const &  __restrict__ hh,
                          GPUCACell::OuterHitOfCell * isOuterHitOfCell,
                          int16_t const * __restrict__ phicuts,
-#ifndef NO_ZCUT
+#ifdef USE_ZCUT
                          float const * __restrict__ minz,
                          float const * __restrict__ maxz,
 #endif
@@ -99,7 +98,8 @@ namespace gpuPixelDoublets {
       // found hit corresponding to our cuda thread, now do the job
       auto mez = __ldg(hh.zg_d+i);
 
-#ifndef NO_ZCUT
+#ifdef USE_ZCUT
+     // this statement is responsible for a 10% slow down of the kernel once all following cuts are optimized...
      if (mez<minz[pairLayerId] || mez>maxz[pairLayerId]) continue;
 #endif
 
@@ -234,7 +234,7 @@ namespace gpuPixelDoublets {
       phi0p07, phi0p06, phi0p06, phi0p05, phi0p05
     };
 
-#ifndef NO_ZCUT
+#ifdef USE_ZCUT
     float const minz[nPairs] = {
       -20., -22., -22.,
       -30., -30.,-30., -70., -70.,
@@ -259,7 +259,7 @@ namespace gpuPixelDoublets {
                       hh.iphi_d, *hh.hist_d, hh.hitsLayerStart_d,
                       hh, isOuterHitOfCell,
                       phicuts, 
-#ifndef NO_ZCUT
+#ifdef USE_ZCUT
                       minz, maxz, 
 #endif
                       maxr , ideal_cond);
