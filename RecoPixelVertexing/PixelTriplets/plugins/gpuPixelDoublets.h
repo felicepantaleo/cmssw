@@ -19,10 +19,8 @@
 
 #define IDEAL_COND
 
-// default is soft cuts
 #define NO_ZCUT
 // #define NO_CLSCUT
-// #define HARD_ZCUTS
 
 namespace gpuPixelDoublets {
 
@@ -41,25 +39,19 @@ namespace gpuPixelDoublets {
                          siPixelRecHitsHeterogeneousProduct::HitsOnGPU const &  __restrict__ hh,
                          GPUCACell::OuterHitOfCell * isOuterHitOfCell,
                          int16_t const * __restrict__ phicuts,
+#ifndef NO_ZCUT
                          float const * __restrict__ minz,
                          float const * __restrict__ maxz,
+#endif
                          float const * __restrict__ maxr)
   {
 
-
 #ifndef NO_CLSCUT 
-    // ysize cuts (z in the barrel)
-#ifdef HARD_ZCUTS
-    constexpr int minYsizeB1=40;
-    constexpr int minYsizeB2=32;
-    constexpr int maxDYsize12=24;
-    constexpr int maxDYsize=16;
-#else
+    // ysize cuts (z in the barrel)  times 8
     constexpr int minYsizeB1=36;
     constexpr int minYsizeB2=28;
     constexpr int maxDYsize12=28;
     constexpr int maxDYsize=20;
-#endif
 #endif
 
     auto layerSize = [=](uint8_t li) { return offsets[li+1]-offsets[li]; };
@@ -242,6 +234,7 @@ namespace gpuPixelDoublets {
       phi0p07, phi0p06, phi0p06, phi0p05, phi0p05
     };
 
+#ifndef NO_ZCUT
     float const minz[nPairs] = {
       -20., -22., -22.,
       -30., -30.,-30., -70., -70.,
@@ -253,6 +246,7 @@ namespace gpuPixelDoublets {
        0., -10., -15., 70., 70.,
       30., 30., 30., 70., 70.
     };
+#endif
 
     float const maxr[nPairs] = {
       20., 20., 20.,
@@ -264,7 +258,11 @@ namespace gpuPixelDoublets {
     doubletsFromHisto(layerPairs, nPairs, cells, nCells,
                       hh.iphi_d, *hh.hist_d, hh.hitsLayerStart_d,
                       hh, isOuterHitOfCell,
-                      phicuts, minz, maxz, maxr);
+                      phicuts, 
+#ifndef NO_ZCUT
+                      minz, maxz, 
+#endif
+                      maxr);
   }
 
 
