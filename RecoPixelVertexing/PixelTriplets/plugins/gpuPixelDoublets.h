@@ -20,7 +20,8 @@
 #define IDEAL_COND
 
 // default is soft cuts
-// #define NO_ZCUT
+#define NO_ZCUT
+// #define NO_CLSCUT
 // #define HARD_ZCUTS
 
 namespace gpuPixelDoublets {
@@ -47,7 +48,8 @@ namespace gpuPixelDoublets {
                          float const * __restrict__ maxr, bool ideal_cond)
   {
 
-#ifndef NO_ZCUT 
+
+#ifndef NO_CLSCUT 
     // ysize cuts (z in the barrel)
 #ifdef HARD_ZCUTS
     constexpr int minYsizeB1=40;
@@ -108,6 +110,10 @@ namespace gpuPixelDoublets {
       auto mez = __ldg(hh.zg_d+i);
 
 #ifndef NO_ZCUT
+     if (mez<minz[pairLayerId] || mez>maxz[pairLayerId]) continue;
+#endif
+
+#ifndef NO_CLSCUT
       auto mes = __ldg(hh.ysize_d+i);
 #ifndef IDEAL_COND
       auto mi = __ldg(hh.detInd_d+i);
@@ -123,8 +129,7 @@ namespace gpuPixelDoublets {
          if (mes>0 && mes<minYsizeB1) continue; // only long cluster  (5*8)
       if (inner==1 && outer>3)  // B2 and F1
          if (mes>0 && mes<minYsizeB2) continue;
-      if (mez<minz[pairLayerId] || mez>maxz[pairLayerId]) continue;
-#endif  // ZCUT
+#endif // NO_CLSCUT
 
       auto mep = iphi[i];
       auto mer = __ldg(hh.rg_d+i);
@@ -148,7 +153,7 @@ namespace gpuPixelDoublets {
           dr<0 || std::abs((mez*ro - mer*zo)) > z0cut*dr;
       };
 
-#ifndef NO_ZCUT
+#ifndef NO_CLSCUT
       auto zsizeCut = [&](int j) {
         auto onlyBarrel = outer<4;
         auto so = __ldg(hh.ysize_d+j);
@@ -188,7 +193,7 @@ namespace gpuPixelDoublets {
           if (std::min(std::abs(int16_t(iphi[oi]-mep)), std::abs(int16_t(mep-iphi[oi]))) > iphicut)
             continue;
 #ifndef ONLY_PHICUT
-#ifndef NO_ZCUT
+#ifndef NO_CLSCUT
           if (zsizeCut(oi)) continue;
 #endif
           if (z0cutoff(oi) || ptcut(oi)) continue;
