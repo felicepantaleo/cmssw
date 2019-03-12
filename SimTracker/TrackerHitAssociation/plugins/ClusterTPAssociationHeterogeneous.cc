@@ -218,7 +218,7 @@ void ClusterTPAssociationHeterogeneous::acquireGPUCuda(const edm::HeterogeneousE
       }
     }
     std::sort(digi2tp.begin(), digi2tp.end());
-    cudaCheck(cudaMemcpyAsync(gpuAlgo->slgpu.links_d, digi2tp.data(), sizeof(std::array<uint32_t, 5>)*digi2tp.size(), cudaMemcpyDefault, cudaStream.id()));
+    cudaCheck(cudaMemcpyAsync(gpuAlgo->slgpu.links_d, digi2tp.data(), sizeof(Clus2TP)*digi2tp.size(), cudaMemcpyDefault, cudaStream.id()));
     gpuAlgo->algo(gDigis, ndigis, gHits, nhits, digi2tp.size(), cudaStream);
 
   //  end gpu stuff ---------------------
