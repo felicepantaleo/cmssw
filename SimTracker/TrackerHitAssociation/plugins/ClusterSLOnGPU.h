@@ -18,6 +18,8 @@ namespace clusterSLOnGPU {
   using HitsOnGPU    = siPixelRecHitsHeterogeneousProduct::HitsOnGPU;
   using HitsOnCPU    = siPixelRecHitsHeterogeneousProduct::HitsOnCPU;
 
+  using Clus2TP = ClusterSLGPU::Clus2TP;
+
   class Kernel {
   public:
     Kernel(cuda::stream_t<>& stream, bool dump);
