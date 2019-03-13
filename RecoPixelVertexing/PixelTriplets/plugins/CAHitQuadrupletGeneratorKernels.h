@@ -34,7 +34,7 @@ public:
    using TupleMultiplicity = CAConstants::TupleMultiplicity;
 
    CAHitQuadrupletGeneratorKernels(uint32_t minHitsPerNtuplet,
-    bool earlyFishbone, bool lateFishbone, bool idealConditions) :
+    bool earlyFishbone, bool lateFishbone) :
     minHitsPerNtuplet_(minHitsPerNtuplet),
     earlyFishbone_(earlyFishbone),
     lateFishbone_(lateFishbone),
