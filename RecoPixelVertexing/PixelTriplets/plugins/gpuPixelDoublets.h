@@ -19,7 +19,7 @@
 // useful for benchmark
 // #define ONLY_PHICUT
 // #define USE_ZCUT
-// #define NO_CLSCUT
+#define NO_CLSCUT
 
 namespace gpuPixelDoublets {
 
