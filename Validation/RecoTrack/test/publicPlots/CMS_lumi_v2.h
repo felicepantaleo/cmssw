@@ -18,7 +18,9 @@ float cmsTextFont   = 61;  // default is helvetic-bold
 //bool writeExtraText = false;
 bool writeExtraText = true;
 //TString extraText   = "Preliminary";
-TString extraText   = "Simulation preliminary";
+// TString extraText   = "Simulation preliminary";
+TString extraText   = "Open Data";
+
 //TString extraText   = "Simulation private";
 float extraTextFont = 52;  // default is helvetica-italics
 
