@@ -10,31 +10,30 @@
 #include <array>
 #include "HGCalTilesConstants.h"
 
+
+template<hgcalTilesConstants::subdet subdet>
 class HGCalLayerTiles {
     public:
-       
 
-
-
-
-    //         int getEtaBin(float eta) const {
-    //     constexpr float etaRange = ticlConstants::maxEta - ticlConstants::minEta;
-    //     static_assert(etaRange>=0.f);
-    //     float r = nEtaBins_/etaRange;
-    //     int etaBin = (eta - ticlConstants::minEta)*r;
-    //     etaBin = std::min(etaBin,nEtaBins_);
-    //     etaBin = std::max(etaBin,0);
-    //     return etaBin;
-    // }
-
-    // int getPhiBin(float phi) const {
-    //     auto normPhi = normalizedPhi(phi);
-    //     float r = nPhiBins_*M_1_PI*0.5f;
-    //     int phiBin = (normPhi + M_PI)*r;
-        
-    //     return phiBin;
-    // }
-
+        int getXBin(float x) const {
+        constexpr float xRange = hgcalTilesConstants::maxX[subdet] - hgcalTilesConstants::minX[subdet];
+        static_assert(xRange>=0.);
+        constexpr float r = hgcalTilesConstants::nColumns[subdet]/xRange;
+        int xBin = (x - hgcalTilesConstants::minX[subdet])*r;
+        xBin = std::min(xBin,hgcalTilesConstants::nColumns[subdet]);
+        xBin = std::max(xBin,0);
+        return xBin;
+    }
+        int getYBin(float y) const {
+        constexpr float yRange = hgcalTilesConstants::maxY[subdet] - hgcalTilesConstants::minY[subdet];
+        static_assert(yRange>=0.);
+        constexpr float r = hgcalTilesConstants::nRows[subdet]/yRange;
+        int yBin = (y - hgcalTilesConstants::minY[subdet])*r;
+        yBin = std::min(yBin,hgcalTilesConstants::nRows[subdet]);
+        yBin = std::max(yBin,0);
+        return yBin;
+    }
+    //        
     // int globalBin(int etaBin, int phiBin) const {
     //     return phiBin + etaBin*nPhiBins_;
     // }
@@ -49,11 +48,8 @@ class HGCalLayerTiles {
     // }
 
     private:
-
         std::vector< std::vector<int> > tiles_;
-
-
-
+        
 };
 
 
