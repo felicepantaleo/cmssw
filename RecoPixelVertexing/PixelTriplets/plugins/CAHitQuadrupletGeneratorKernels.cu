@@ -255,11 +255,18 @@ void kernel_VerifyFit(TuplesOnGPU::Container const * __restrict__ tuples,
     return;
   }
 
+  const float par[4] = {0.68177776,  0.74609577, -0.08035491,  0.00315399};
+  constexpr float chi2CutFact = 30;  // *0.7 if Riemann....
+  auto chi2Cut = [&](float pt) {
+     pt = std::min(pt,10.f);
+     return chi2CutFact*(par[0]+pt*(par[1]+pt*(par[2]+pt*par[3]))); 
+  };
+
   bool isNaN = false;
   for (int i=0; i<5; ++i) {
     isNaN |=  fit_results[idx].par(i)!=fit_results[idx].par(i);
   }
-  isNaN |=  !(fit_results[idx].chi2_line+fit_results[idx].chi2_circle < 100.f);  // catch NaN as well
+  isNaN |=  !(fit_results[idx].chi2_line+fit_results[idx].chi2_circle < chi2Cut(fit_results[idx].par(2)));  // catch NaN as well
 
 #ifdef GPU_DEBUG
  if (isNaN) printf("NaN or Bad Fit %d size %d chi2 %f/%f\n",idx,tuples->size(idx), fit_results[idx].chi2_line,fit_results[idx].chi2_circle);
