@@ -957,7 +957,7 @@ inline line_fit Line_fit(const M3xN& hits,
 
   VectorNd<N> res = p2D_rot.row(1).transpose() - A.transpose() * sol;
   double chi2 = res.transpose()*Vy_inv*res;
-  chi2 = chi2 / float(n);
+  // chi2 = chi2 / float(n);  // wrong????
 
   line_fit line;
   line.par << m, q;
