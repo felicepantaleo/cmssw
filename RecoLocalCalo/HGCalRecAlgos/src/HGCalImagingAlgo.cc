@@ -9,6 +9,8 @@
 #include "RecoEcal/EgammaCoreTools/interface/PositionCalc.h"
 //
 #include "DataFormats/CaloRecHit/interface/CaloID.h"
+#include <utility> // make_pair
+
 #include "tbb/task_arena.h"
 #include "tbb/tbb.h"
 
@@ -163,22 +165,69 @@ std::vector<reco::BasicCluster> HGCalImagingAlgo::getClusters(bool doSharing) {
       } else {
         position = calculatePosition(clsOnLayer[i]); // energy-weighted position
         //   std::vector< KDNode >::iterator it;
+        reco::CaloCluster::AlgoId this_algorithm = algoId_;
+        double this_energy = 0.f;
+        double fraction = 0.f;
         for (auto &it : clsOnLayer[i]) {
-          energy += it.data.isHalo ? 0. : it.data.weight;
+          // Clusters with only 1 node will anyway have the correct energy
+          // reported, even if the node has been reasonably marked as
+          // Halo/Isolated. Moreover, they will be assigned the algorithm
+          // hgcal_mip.
+          if (promote_single_nodes_ && clsOnLayer[i].size() == 1) {
+            this_energy = it.data.weight;
+            fraction = 1.f;
+            this_algorithm = reco::CaloCluster::hgcal_mip;
+          } else {
+            this_energy = it.data.isHalo ? 0.f : it.data.weight;
+            fraction = it.data.isHalo ? 0.f : 1.f;
+          }
+          energy += this_energy;
           // use fraction to store whether this is a Halo hit or not
-          thisCluster.emplace_back(it.data.detid, (it.data.isHalo ? 0.f : 1.f));
+          thisCluster.emplace_back(it.data.detid, fraction);
         }
-        if (verbosity_ < pINFO) {
-          std::cout << "******** NEW CLUSTER (HGCIA) ********" << std::endl;
-          std::cout << "Index          " << i << std::endl;
-          std::cout << "No. of cells = " << clsOnLayer[i].size() << std::endl;
-          std::cout << "     Energy     = " << energy << std::endl;
-          std::cout << "     Phi        = " << position.phi() << std::endl;
-          std::cout << "     Eta        = " << position.eta() << std::endl;
-          std::cout << "*****************************" << std::endl;
+        // Now we also want to divide the clusters that would have been made
+        // exclusively of Halo hits into single components and promote them to
+        // be MIP-like single-hit clusters.
+
+        if (splitFullHaloClusters_ && thisCluster.size() > 1 && energy == 0.f) {
+          for_each(std::begin(clsOnLayer[i]), std::end(clsOnLayer[i]),
+            [&](auto & node) {
+              // Put a higher threshold before promoting the node to be a
+              // single-hit MIP-like cluster
+              if (node.data.weight < node.data.sigmaNoise/ecut_*ecut_miplike_)
+                return;
+              Point thisPosition(node.data.x, node.data.y, node.data.z);
+              std::vector<std::pair<DetId, float>> thisSingleCluster = {std::make_pair(node.data.detid, 1.f)};
+              clusters_v_.emplace_back(node.data.weight,
+                                       thisPosition,
+                                       caloID, thisSingleCluster,
+                                       reco::CaloCluster::hgcal_mip);
+              if (verbosity_ < pINFO) {
+                std::cout << "******** NEW SPLITTED CLUSTER (HGCIA) ********" << std::endl;
+                std::cout << "Index          " << i << std::endl;
+                std::cout << "No. of cells = 1" << std::endl;
+                std::cout << "     Energy     = " << node.data.weight << std::endl;
+                std::cout << "     Noise      = " << node.data.sigmaNoise << std::endl;
+                std::cout << "     Phi        = " << thisPosition.phi() << std::endl;
+                std::cout << "     Eta        = " << thisPosition.eta() << std::endl;
+                std::cout << "*****************************" << std::endl;
+              }
+            }
+          );
+          thisCluster.clear();
+        } else {
+          if (verbosity_ < pINFO) {
+            std::cout << "******** NEW CLUSTER (HGCIA) ********" << std::endl;
+            std::cout << "Index          " << i << std::endl;
+            std::cout << "No. of cells = " << clsOnLayer[i].size() << std::endl;
+            std::cout << "     Energy     = " << energy << std::endl;
+            std::cout << "     Phi        = " << position.phi() << std::endl;
+            std::cout << "     Eta        = " << position.eta() << std::endl;
+            std::cout << "*****************************" << std::endl;
+          }
+          clusters_v_.emplace_back(energy, position, caloID, thisCluster, this_algorithm);
+          thisCluster.clear();
         }
-        clusters_v_.emplace_back(energy, position, caloID, thisCluster, algoId_);
-        thisCluster.clear();
       }
     }
   }
@@ -322,6 +371,9 @@ int HGCalImagingAlgo::findAndAssignClusters(
   // by the number  of clusters found. This is always equal to the number of
   // cluster centers...
 
+  if (verbosity_ < pINFO) {
+    std::cout << "Building clusters on layer: " << layer << std::endl;
+  }
   unsigned int nClustersOnLayer = 0;
   float delta_c; // critical distance
   if (layer <= lastLayerEE)
@@ -359,6 +411,19 @@ int HGCalImagingAlgo::findAndAssignClusters(
     nClustersOnLayer++;
   }
 
+  // If no "regular" cluster is found, try to promote even single nodes, above
+  // threshold and with an energy of at most N MIP particles, as MIP-like layer
+  // clusters. The requirement that the single node is above N sigma levels is
+  // already accounted for while creating the nodes in the first place. No need
+  // to replicate the cut here.
+  if (promote_single_nodes_ && nClustersOnLayer == 0 ) {
+    for (unsigned int i = 0; i < nd_size; ++i) {
+      if (nd[i].data.weight > 0.) {
+        nd[i].data.clusterIndex = nClustersOnLayer++;
+      }
+    }
+  }
+
   // at this point nClustersOnLayer is equal to the number of cluster centers -
   // if it is zero we are  done
   if (nClustersOnLayer == 0)
@@ -372,17 +437,72 @@ int HGCalImagingAlgo::findAndAssignClusters(
     int ci = nd[i].data.clusterIndex;
     if (ci ==
         -1) { // clusterIndex is initialised with -1 if not yet used in cluster
-      nd[i].data.clusterIndex = nd[nd[i].data.nearestHigher].data.clusterIndex;
+      if (apply_cutoff_distance_) {
+        if (nd[i].data.delta < cutoff_distance_) {
+          nd[i].data.clusterIndex = nd[nd[i].data.nearestHigher].data.clusterIndex;
+          if (verbosity_ < pINFO) {
+            std::cout << "Using Cutoff distance: " << cutoff_distance_
+              << " Setting clusterIdx: " << nd[i].data.clusterIndex
+              << " to node: " << i
+              << " distance between nodes: " << nd[i].data.delta
+              << std::endl;
+          }
+        }
+      } else {
+        nd[i].data.clusterIndex = nd[nd[i].data.nearestHigher].data.clusterIndex;
+        if (verbosity_ < pINFO) {
+          std::cout << "Setting clusterIdx: " << nd[i].data.clusterIndex
+            << " to node: " << i
+            << " distance between nodes: " << nd[i].data.delta
+            << std::endl;
+        }
+      }
+    } else {
+      if (verbosity_ < pINFO) {
+        std::cout << "Skipping node: " << i
+          << " with clusterIndex: " << ci
+          << std::endl;
+      }
     }
   }
 
-  // make room in the temporary cluster vector for the additional clusterIndex
-  // clusters
-  // from this layer
-  if (verbosity_ < pINFO) {
-    std::cout << "resizing cluster vector by " << nClustersOnLayer << std::endl;
+  // Now check again if there are valid nodes that are still not associated to
+  // any cluster. If that's the case, promote them to be single-node clusters,
+  // potentially MIP-like.
+
+  if (promote_single_nodes_) {
+    int counter = 0;
+    std::for_each(std::begin(nd), std::end(nd),
+      [&](auto & node) {
+        if (node.data.clusterIndex == -1) {
+          node.data.clusterIndex = nClustersOnLayer++;
+          if (verbosity_ <pINFO) {
+            std::cout << "Recovering node: " << counter
+              << " as Cluster: " << node.data.clusterIndex
+              << std::endl;
+          }
+        }
+        counter++;
+      }
+    );
   }
-  clustersOnLayer.resize(nClustersOnLayer);
+
+
+  if (verbosity_ < pINFO) {
+    int node_idx = 0;
+    for (auto const& node : nd) {
+      std::cout << "Node: " << node_idx++
+        << " has density: " << node.data.rho
+        << " has energy: " << node.data.weight
+        << " noise level (GeV) " << node.data.sigmaNoise
+        << " is part of cluster: " << node.data.clusterIndex
+        << " closest distance to higher: " << node.data.delta
+        << " nearest higher node is: " << node.data.nearestHigher
+        << std::endl;
+    }
+    std::cout << std::count_if(std::begin(nd), std::end(nd), [](auto node) {return node.data.clusterIndex == -1;})
+      << " nodes out of " << nd.size() << " have clusterIndex == -1" << std::endl;
+  }
 
   // assign points closer than dc to other clusters to border region
   // and find critical border density
@@ -433,6 +553,12 @@ int HGCalImagingAlgo::findAndAssignClusters(
       rho_b[ci] = nd[i].data.rho;
   } // end loop all hits
 
+  // make room in the temporary cluster vector for the additional clusterIndex
+  // clusters from this layer
+  if (verbosity_ < pINFO) {
+    std::cout << "resizing cluster vector by " << nClustersOnLayer << std::endl;
+  }
+  clustersOnLayer.resize(nClustersOnLayer);
   // flag points in cluster with density < rho_b as halo points, then fill the
   // cluster vector
   for (unsigned int i = 0; i < nd_size; ++i) {

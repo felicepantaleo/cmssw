@@ -1,8 +1,8 @@
 #ifndef DataFormats_CaloRecHit_CaloCluster_h
 #define DataFormats_CaloRecHit_CaloCluster_h
 
-/** \class reco::CaloCluster 
- *  
+/** \class reco::CaloCluster
+ *
  * Base class for all types calorimeter clusters
  *
  * \author Shahram Rahatlou, INFN
@@ -26,30 +26,30 @@
 namespace reco {
 
   class CaloCluster;
-  std::ostream& operator<<(std::ostream& out, 
+  std::ostream& operator<<(std::ostream& out,
                            const CaloCluster& cluster);
 
   class CaloCluster {
   public:
-    
-    enum AlgoId { island = 0, hybrid = 1, fixedMatrix = 2, dynamicHybrid = 3, multi5x5 = 4, particleFlow = 5,  hgcal_em = 6, hgcal_had = 7, hgcal_mixed = 8, undefined = 1000};
+
+    enum AlgoId { island = 0, hybrid = 1, fixedMatrix = 2, dynamicHybrid = 3, multi5x5 = 4, particleFlow = 5,  hgcal_em = 6, hgcal_had = 7, hgcal_mixed = 8, hgcal_mip = 9, undefined = 1000};
 
     // super-cluster flags
     enum SCFlags { cleanOnly = 0, common = 100, uncleanOnly = 200 };
     // hcal cluster flags (used for pf)
     enum HCalFlags { badHcalMarker = 1 };
 
-   //FIXME:  
+   //FIXME:
    //temporary fix... to be removed before 310 final
    typedef AlgoId AlgoID ;
- 
+
    /// default constructor. Sets energy and position to zero
-    CaloCluster() : 
-      energy_(0), correctedEnergy_(-1.0), correctedEnergyUncertainty_(-1.0), 
+    CaloCluster() :
+      energy_(0), correctedEnergy_(-1.0), correctedEnergyUncertainty_(-1.0),
       algoID_( undefined ), flags_(0) {}
 
     /// constructor with algoId, to be used in all child classes
-    CaloCluster(AlgoID algoID) : 
+    CaloCluster(AlgoID algoID) :
       energy_(0), correctedEnergy_(-1.0), correctedEnergyUncertainty_(-1.0),
       algoID_( algoID ), flags_(0) {}
 
@@ -61,11 +61,11 @@ namespace reco {
 
     /// resets the CaloCluster (position, energy, hitsAndFractions)
     void reset();
-    
-     /// constructor from values 
-     CaloCluster( double energy,  
- 		 const math::XYZPoint& position ) : 
-    energy_ (energy), correctedEnergy_(-1.0), correctedEnergyUncertainty_(-1.0), position_ (position),algoID_( undefined ), flags_(0) {} 
+
+     /// constructor from values
+     CaloCluster( double energy,
+ 		 const math::XYZPoint& position ) :
+    energy_ (energy), correctedEnergy_(-1.0), correctedEnergyUncertainty_(-1.0), position_ (position),algoID_( undefined ), flags_(0) {}
 
 
     CaloCluster( double energy,
@@ -73,7 +73,7 @@ namespace reco {
 		 const CaloID& caloID,
                  const AlgoID& algoID,
                  uint32_t flags = 0) :
-    energy_ (energy), correctedEnergy_(-1.0), correctedEnergyUncertainty_(-1.0), position_ (position), 
+    energy_ (energy), correctedEnergy_(-1.0), correctedEnergyUncertainty_(-1.0), position_ (position),
       caloID_(caloID), algoID_(algoID) {
       flags_=flags&flagsMask_;
     }
@@ -85,7 +85,7 @@ namespace reco {
                  const AlgoId algoId,
 		 const DetId seedId = DetId(0),
                  uint32_t flags = 0) :
-    energy_ (energy), correctedEnergy_(-1.0), correctedEnergyUncertainty_(-1.0), position_ (position), caloID_(caloID), 
+    energy_ (energy), correctedEnergy_(-1.0), correctedEnergyUncertainty_(-1.0), position_ (position), caloID_(caloID),
       hitsAndFractions_(usedHitsAndFractions), algoID_(algoId),seedId_(seedId){
       flags_=flags&flagsMask_;
     }
@@ -113,7 +113,7 @@ namespace reco {
     void setEnergy(double energy){energy_ = energy;}
     void setCorrectedEnergy(double cenergy){correctedEnergy_ = cenergy;}
     void setCorrectedEnergyUncertainty(float energyerr) { correctedEnergyUncertainty_ = energyerr; }
-    
+
     void setPosition(const math::XYZPoint& p){position_ = p;}
 
     void setCaloId(const CaloID& id) {caloID_= id;}
@@ -129,31 +129,31 @@ namespace reco {
 
     /// cluster centroid position
     const math::XYZPoint & position() const { return position_; }
-    
+
     /// comparison >= operator
-    bool operator >=(const CaloCluster& rhs) const { 
-      return (energy_>=rhs.energy_); 
+    bool operator >=(const CaloCluster& rhs) const {
+      return (energy_>=rhs.energy_);
     }
 
     /// comparison > operator
-    bool operator > (const CaloCluster& rhs) const { 
-      return (energy_> rhs.energy_); 
+    bool operator > (const CaloCluster& rhs) const {
+      return (energy_> rhs.energy_);
     }
 
     /// comparison <= operator
-    bool operator <=(const CaloCluster& rhs) const { 
-      return (energy_<=rhs.energy_); 
+    bool operator <=(const CaloCluster& rhs) const {
+      return (energy_<=rhs.energy_);
     }
 
     /// comparison < operator
-    bool operator < (const CaloCluster& rhs) const { 
-      return (energy_< rhs.energy_); 
+    bool operator < (const CaloCluster& rhs) const {
+      return (energy_< rhs.energy_);
     }
 
     /// comparison == operator
-     bool operator==(const CaloCluster& rhs) const { 
-             return (energy_ == rhs.energy_); 
-     }; 
+     bool operator==(const CaloCluster& rhs) const {
+             return (energy_ == rhs.energy_);
+     };
 
     /// x coordinate of cluster centroid
     double x() const { return position_.x(); }
@@ -178,29 +178,29 @@ namespace reco {
     AlgoID algoID() const { return algo(); }
 
     uint32_t flags() const { return flags_&flagsMask_; }
-    void setFlags( uint32_t flags) { 
+    void setFlags( uint32_t flags) {
       uint32_t reserved = (flags_ & ~flagsMask_);
-      flags_ = (reserved ) | (flags & flagsMask_); 
+      flags_ = (reserved ) | (flags & flagsMask_);
     }
     bool isInClean()   const { return flags() < uncleanOnly; }
     bool isInUnclean() const { return flags() >= common; }
 
     const CaloID& caloID() const {return caloID_;}
 
-    void addHitAndFraction( DetId id, float fraction ) { 
+    void addHitAndFraction( DetId id, float fraction ) {
             hitsAndFractions_.push_back( std::pair<DetId, float>(id, fraction) );
     }
 
-    /// replace getHitsByDetId() : return hits by DetId 
+    /// replace getHitsByDetId() : return hits by DetId
     /// and their corresponding fraction of energy considered
     /// to compute the total cluster energy
     const std::vector< std::pair<DetId, float> > & hitsAndFractions() const { return hitsAndFractions_; }
-    
+
     /// print hitAndFraction
     std::string printHitAndFraction(unsigned i) const;
 
     /// print me
-    friend std::ostream& operator<<(std::ostream& out, 
+    friend std::ostream& operator<<(std::ostream& out,
 				    const CaloCluster& cluster);
 
     /// return DetId of seed
@@ -218,7 +218,7 @@ namespace reco {
 
     /// bitmask for detector information
     CaloID              caloID_;
-    
+
     // used hits by detId
     std::vector< std::pair<DetId, float> > hitsAndFractions_;
 
