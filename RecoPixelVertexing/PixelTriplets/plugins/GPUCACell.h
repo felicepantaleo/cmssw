@@ -95,8 +95,8 @@ public:
 
     auto r1 = otherCell.get_inner_r(hh);
     auto z1 = otherCell.get_inner_z(hh);
-    auto br = otherCell.get_outer_detId(hh)<1184;
-    bool aligned = areAlignedRZ(r1, z1, ri, zi, ro, zo, ptmin, br ? 0.002f : 0.003f); // 2.f*thetaCut); // FIXME tune cuts
+    auto isBarrel = otherCell.get_outer_detId(hh)<1184;
+    bool aligned = areAlignedRZ(r1, z1, ri, zi, ro, zo, ptmin, isBarrel ? 0.002f : 0.003f); // 2.f*thetaCut); // FIXME tune cuts
     return (aligned &&  dcaCut(hh, otherCell, otherCell.get_inner_detId(hh)<96 ? 0.15f : 0.25f, hardCurvCut));  // FIXME tune cuts
                             // region_origin_radius_plus_tolerance,  hardCurvCut));
   }
