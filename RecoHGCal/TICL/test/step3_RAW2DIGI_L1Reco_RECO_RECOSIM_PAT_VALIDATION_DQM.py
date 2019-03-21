@@ -1,13 +1,13 @@
 # Auto generated configuration file
-# using:
-# Revision: 1.19
-# Source: /local/reps/CMSSW/CMSSW/Configuration/Applications/python/ConfigBuilder.py,v
-# with command line options: step3 --conditions auto:phase2_realistic -n 10 --era Phase2C4 --eventcontent FEVTDEBUGHLT,MINIAODSIM,DQM --runUnscheduled -s RAW2DIGI,L1Reco,RECO,RECOSIM,PAT,VALIDATION:@phase2Validation+@miniAODValidation,DQM:@phase2+@miniAODDQM --datatier GEN-SIM-RECO,MINIAODSIM,DQMIO --geometry Extended2023D28 --no_exec --filein file:step2.root --fileout file:step3.root --nThreads 4
+# using: 
+# Revision: 1.19 
+# Source: /local/reps/CMSSW/CMSSW/Configuration/Applications/python/ConfigBuilder.py,v 
+# with command line options: step3 --conditions auto:phase2_realistic -n 10 --era Phase2C4_timing_layer_bar --eventcontent FEVTDEBUGHLT,MINIAODSIM,DQM --runUnscheduled -s RAW2DIGI,L1Reco,RECO,RECOSIM,PAT,VALIDATION:@phase2Validation+@miniAODValidation,DQM:@phase2+@miniAODDQM --datatier GEN-SIM-RECO,MINIAODSIM,DQMIO --geometry Extended2023D35 --no_exec --filein file:step2.root --fileout file:step3.root --nThreads 10
 import FWCore.ParameterSet.Config as cms
 
 from Configuration.StandardSequences.Eras import eras
 
-process = cms.Process('RECO',eras.Phase2C4)
+process = cms.Process('RECO',eras.Phase2C4_timing_layer_bar)
 
 # import of standard configurations
 process.load('Configuration.StandardSequences.Services_cff')
@@ -15,7 +15,7 @@ process.load('SimGeneral.HepPDTESSource.pythiapdt_cfi')
 process.load('FWCore.MessageService.MessageLogger_cfi')
 process.load('Configuration.EventContent.EventContent_cff')
 process.load('SimGeneral.MixingModule.mixNoPU_cfi')
-process.load('Configuration.Geometry.GeometryExtended2023D28Reco_cff')
+process.load('Configuration.Geometry.GeometryExtended2023D35Reco_cff')
 process.load('Configuration.StandardSequences.MagneticField_cff')
 process.load('Configuration.StandardSequences.RawToDigi_cff')
 process.load('Configuration.StandardSequences.L1Reco_cff')
@@ -33,7 +33,7 @@ process.maxEvents = cms.untracked.PSet(
 
 # Input source
 process.source = cms.Source("PoolSource",
-    fileNames = cms.untracked.vstring('file:step2.root'),
+    fileNames = cms.untracked.vstring('file:/home/fpantale/inference/27490.0_SingleGammaPt25Eta1p7_2p7+SingleGammaPt25Eta1p7_2p7_2023D35_GenSimHLBeamSpotFull+DigiFullTrigger_2023D35+RecoFullGlobal_2023D35+HARVESTFullGlobal_2023D35/step2.root'),
     secondaryFileNames = cms.untracked.vstring()
 )
 
@@ -76,47 +76,47 @@ process.MINIAODSIMoutput = cms.OutputModule("PoolOutputModule",
         cms.untracked.PSet(
             branch = cms.untracked.string('patPackedCandidates_packedPFCandidates__*'),
             splitLevel = cms.untracked.int32(99)
-        ),
+        ), 
         cms.untracked.PSet(
             branch = cms.untracked.string('recoGenParticles_prunedGenParticles__*'),
             splitLevel = cms.untracked.int32(99)
-        ),
+        ), 
         cms.untracked.PSet(
             branch = cms.untracked.string('patTriggerObjectStandAlones_slimmedPatTrigger__*'),
             splitLevel = cms.untracked.int32(99)
-        ),
+        ), 
         cms.untracked.PSet(
             branch = cms.untracked.string('patPackedGenParticles_packedGenParticles__*'),
             splitLevel = cms.untracked.int32(99)
-        ),
+        ), 
         cms.untracked.PSet(
             branch = cms.untracked.string('patJets_slimmedJets__*'),
             splitLevel = cms.untracked.int32(99)
-        ),
+        ), 
         cms.untracked.PSet(
             branch = cms.untracked.string('recoVertexs_offlineSlimmedPrimaryVertices__*'),
             splitLevel = cms.untracked.int32(99)
-        ),
+        ), 
         cms.untracked.PSet(
             branch = cms.untracked.string('recoCaloClusters_reducedEgamma_reducedESClusters_*'),
             splitLevel = cms.untracked.int32(99)
-        ),
+        ), 
         cms.untracked.PSet(
             branch = cms.untracked.string('EcalRecHitsSorted_reducedEgamma_reducedEBRecHits_*'),
             splitLevel = cms.untracked.int32(99)
-        ),
+        ), 
         cms.untracked.PSet(
             branch = cms.untracked.string('EcalRecHitsSorted_reducedEgamma_reducedEERecHits_*'),
             splitLevel = cms.untracked.int32(99)
-        ),
+        ), 
         cms.untracked.PSet(
             branch = cms.untracked.string('recoGenJets_slimmedGenJets__*'),
             splitLevel = cms.untracked.int32(99)
-        ),
+        ), 
         cms.untracked.PSet(
             branch = cms.untracked.string('patJets_slimmedJetsPuppi__*'),
             splitLevel = cms.untracked.int32(99)
-        ),
+        ), 
         cms.untracked.PSet(
             branch = cms.untracked.string('EcalRecHitsSorted_reducedEgamma_reducedESRecHits_*'),
             splitLevel = cms.untracked.int32(99)
@@ -208,48 +208,40 @@ process.MINIAODSIMoutput_step = cms.EndPath(process.MINIAODSIMoutput)
 process.DQMoutput_step = cms.EndPath(process.DQMoutput)
 
 
-#from ticl_iterations import TICL_iterations
-from ticl_iterations import TICL_iterations_withReco
-#process = TICL_iterations_withReco(process)
-#process.schedule= cms.Schedule(process.raw2digi_step,process.L1Reco_step,process.TICL, process.FEVTDEBUGHLToutput_step)
+from ticl_iterations import TICL_iterations
+process = TICL_iterations(process)
+process.schedule= cms.Schedule(process.raw2digi_step,process.L1Reco_step,process.TICL)
 
-# Schedule definition
-process.schedule = cms.Schedule(process.raw2digi_step,
-process.L1Reco_step,
-process.reconstruction_step,
-process.TICL,
-process.recosim_step,
-process.FEVTDEBUGHLToutput_step,
-)
-#process.schedule.associate(process.patTask)
-#from PhysicsTools.PatAlgos.tools.helpers import associatePatAlgosToolsTask
-#associatePatAlgosToolsTask(process)
+# # Schedule definition
+# process.schedule = cms.Schedule(process.raw2digi_step,process.L1Reco_step,process.reconstruction_step,process.recosim_step,process.Flag_HBHENoiseFilter,process.Flag_HBHENoiseIsoFilter,process.Flag_CSCTightHaloFilter,process.Flag_CSCTightHaloTrkMuUnvetoFilter,process.Flag_CSCTightHalo2015Filter,process.Flag_globalTightHalo2016Filter,process.Flag_globalSuperTightHalo2016Filter,process.Flag_HcalStripHaloFilter,process.Flag_hcalLaserEventFilter,process.Flag_EcalDeadCellTriggerPrimitiveFilter,process.Flag_EcalDeadCellBoundaryEnergyFilter,process.Flag_ecalBadCalibFilter,process.Flag_goodVertices,process.Flag_eeBadScFilter,process.Flag_ecalLaserCorrFilter,process.Flag_trkPOGFilters,process.Flag_chargedHadronTrackResolutionFilter,process.Flag_muonBadTrackFilter,process.Flag_BadChargedCandidateFilter,process.Flag_BadPFMuonFilter,process.Flag_BadChargedCandidateSummer16Filter,process.Flag_BadPFMuonSummer16Filter,process.Flag_trkPOG_manystripclus53X,process.Flag_trkPOG_toomanystripclus53X,process.Flag_trkPOG_logErrorTooManyClusters,process.Flag_METFilters,process.prevalidation_step,process.prevalidation_step1,process.prevalidation_step2,process.prevalidation_step3,process.prevalidation_step4,process.prevalidation_step5,process.prevalidation_step6,process.validation_step,process.validation_step1,process.validation_step2,process.validation_step3,process.validation_step4,process.validation_step5,process.validation_step6,process.validation_step7,process.validation_step8,process.dqmoffline_step,process.dqmoffline_1_step,process.dqmoffline_2_step,process.dqmoffline_3_step,process.dqmoffline_4_step,process.dqmoffline_5_step,process.dqmoffline_6_step,process.dqmofflineOnPAT_step,process.dqmofflineOnPAT_1_step,process.FEVTDEBUGHLToutput_step,process.MINIAODSIMoutput_step,process.DQMoutput_step)
+# process.schedule.associate(process.patTask)
+from PhysicsTools.PatAlgos.tools.helpers import associatePatAlgosToolsTask
+associatePatAlgosToolsTask(process)
 
 #Setup FWK for multithreaded
-process.options.numberOfThreads=cms.untracked.uint32(4)
+process.options.numberOfThreads=cms.untracked.uint32(1)
 process.options.numberOfStreams=cms.untracked.uint32(0)
 
 # customisation of the process.
 
 # Automatic addition of the customisation function from SimGeneral.MixingModule.fullMixCustomize_cff
-from SimGeneral.MixingModule.fullMixCustomize_cff import setCrossingFrameOn
+from SimGeneral.MixingModule.fullMixCustomize_cff import setCrossingFrameOn 
 
 #call to customisation function setCrossingFrameOn imported from SimGeneral.MixingModule.fullMixCustomize_cff
-# process = setCrossingFrameOn(process)
+process = setCrossingFrameOn(process)
 
 # End of customisation functions
 #do not add changes to your config after this point (unless you know what you are doing)
 from FWCore.ParameterSet.Utilities import convertToUnscheduled
-process=convertToUnscheduled(process)
-
+# process=convertToUnscheduled(process)
 
 # customisation of the process.
 
 # Automatic addition of the customisation function from PhysicsTools.PatAlgos.slimming.miniAOD_tools
-from PhysicsTools.PatAlgos.slimming.miniAOD_tools import miniAOD_customizeAllMC
+from PhysicsTools.PatAlgos.slimming.miniAOD_tools import miniAOD_customizeAllMC 
 
 #call to customisation function miniAOD_customizeAllMC imported from PhysicsTools.PatAlgos.slimming.miniAOD_tools
-# process = miniAOD_customizeAllMC(process)
+process = miniAOD_customizeAllMC(process)
 
 # End of customisation functions
 
