@@ -8,6 +8,8 @@
 #include "RecoHGCal/TICL/interface/TICLConstants.h"
 #include "PatternRecognitionbyCA.h"
 
+#include "PhysicsTools/TensorFlow/interface/TensorFlow.h"
+
 void PatternRecognitionbyCA::fillHistogram(const std::vector<reco::CaloCluster> &layerClusters,
                                            const std::vector<std::pair<unsigned int, float>> &mask)
 {
@@ -78,14 +80,62 @@ void PatternRecognitionbyCA::makeTracksters(
                         << " " << tracksterId << std::endl;
             }
         }
+
+
         // Put back indices, in the form of a Trackster, into the results vector
         Trackster tmp;
         tmp.vertices.reserve(effective_cluster_idx.size());
         std::copy(std::begin(effective_cluster_idx),
                   std::end(effective_cluster_idx),
                   std::back_inserter(tmp.vertices));
+
+        
         result.push_back(tmp);
         tracksterId++;
     }
 //#endif
+
+    unsigned numberOfTracksters = result.size();
+    std::vector<std::array<float, 52> > tracksterEnergyOnLayer(numberOfTracksters);
+    std::string pbFile = "/home/fpantale/inference/CMSSW_10_4_0_mtd5/src/RecoHGCal/TICL/plugins/ticlnet_layerPool.pb";
+    tensorflow::GraphDef* graphDef = tensorflow::loadGraphDef(pbFile);
+    tensorflow::Session* session = tensorflow::createSession(graphDef);
+    tensorflow::Tensor input(tensorflow::DT_FLOAT, tensorflow::TensorShape({1, 1, 52}));
+    std::vector<tensorflow::Tensor> outputs;
+
+    for(unsigned i = 0; i < numberOfTracksters; ++i)
+    {
+        float tracksterTotalEnergy = 0.f;
+        for(unsigned j = 0; j < result[i].vertices.size(); j++)
+        {
+            const auto& lc = layerClusters[result[i].vertices[j]];
+
+            const auto firstHitDetId = lc.hitsAndFractions()[0].first;
+            int layer = rhtools_.getLayerWithOffset(firstHitDetId);
+            tracksterEnergyOnLayer[i][layer] +=lc.energy();
+            tracksterTotalEnergy +=lc.energy();
+        }
+
+        for(unsigned j = 0; j < 52; j++)
+        {
+            tracksterEnergyOnLayer[i][j] /= tracksterTotalEnergy;
+            input.flat<float>().data()[j] = tracksterEnergyOnLayer[i][j];
+            std::cout << i << " " << j << " " << tracksterEnergyOnLayer[i][j] << std::endl;
+
+        }
+
+        // tensorflow::Status status = session->Run({ { "layerEnergy", input } },{ "particleId" }, {}, &outputs);
+        tensorflow::run(session, { { "input", input  }}, { "output/Softmax" }, &outputs);
+        
+        std::cout << outputs.size() << std::endl;
+
+        std::cout << "P electron: " << outputs[0].matrix<float>()(0,0) << std::endl;
+        std::cout << "P photon: " << outputs[0].matrix<float>()(0,1) << std::endl;
+        std::cout << "P hadron: " << outputs[0].matrix<float>()(0,2) << std::endl;
+        std::cout << "P muon: " << outputs[0].matrix<float>()(0,3) << std::endl;
+        outputs.clear();
+
+    }
+
+
 }
