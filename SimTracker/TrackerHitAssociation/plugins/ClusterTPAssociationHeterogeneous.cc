@@ -55,6 +55,9 @@ public:
   using CPUProduct = trackerHitAssociationHeterogeneousProduct::CPUProduct;
   using Output = trackerHitAssociationHeterogeneousProduct::ClusterTPAHeterogeneousProduct;
 
+
+  using Clus2TP    = ClusterSLGPU::Clus2TP;
+
   using PixelRecHitsH = siPixelRecHitsHeterogeneousProduct::HeterogeneousPixelRecHit;
 
   explicit ClusterTPAssociationHeterogeneous(const edm::ParameterSet&);
@@ -98,7 +101,7 @@ private:
 
   std::map<std::pair<size_t, EncodedEventId>, TrackingParticleRef> mapping;
 
-  std::vector<std::array<uint32_t, 4>> digi2tp;
+   std::vector<Clus2TP> digi2tp;
 
   bool doDump;
 
@@ -160,7 +163,7 @@ void ClusterTPAssociationHeterogeneous::makeMap(const edm::HeterogeneousEvent &i
       for (auto itrk  = trackingParticle->g4Track_begin();
                 itrk != trackingParticle->g4Track_end(); ++itrk) {
         std::pair<uint32_t, EncodedEventId> trkid(itrk->trackId(), eid);
-        //std::cout << "creating map for id: " << trkid.first << " with tp: " << trackingParticle.key() << std::endl;
+        // std::cout << "creating map for id: " << trkid.first << " with tp: " << trackingParticle.key() << std::endl;
         mapping.insert(std::make_pair(trkid, trackingParticle));
       }
     }
@@ -210,7 +213,7 @@ void ClusterTPAssociationHeterogeneous::acquireGPUCuda(const edm::HeterogeneousE
     auto nhits = gHits.nHits;
 
     digi2tp.clear();
-    digi2tp.push_back({{0, 0, 0, 0}});  // put at 0 0
+    digi2tp.push_back({{0, 0, 0, 0,0,0}});  // put at 0 0
     for (auto const & links : *sipixelSimLinks) {
       DetId detId(links.detId());
       const GeomDetUnit * genericDet = geom->idToDetUnit(detId);
@@ -223,12 +226,16 @@ void ClusterTPAssociationHeterogeneous::acquireGPUCuda(const edm::HeterogeneousE
         auto ipos = mapping.find(tkid);
         if (ipos != mapping.end()) {
             uint32_t pt = 1000*(*ipos).second->pt();
-            digi2tp.push_back({{gind, uint32_t(link.channel()),(*ipos).second.key(), pt}});
+            uint32_t z0 = 10000*(*ipos).second->vz();  // in um
+            uint32_t r0 = 10000*std::sqrt((*ipos).second->vx()*(*ipos).second->vx()
+                                         +(*ipos).second->vy()*(*ipos).second->vy()
+                                         );  // in um
+            digi2tp.push_back({{gind, uint32_t(link.channel()),(*ipos).second.key(), pt,z0,r0}});
         }
       }
     }
     std::sort(digi2tp.begin(), digi2tp.end());
-    cudaCheck(cudaMemcpyAsync(gpuAlgo->slgpu.links_d, digi2tp.data(), sizeof(std::array<uint32_t, 4>)*digi2tp.size(), cudaMemcpyDefault, cudaStream.id()));
+    cudaCheck(cudaMemcpyAsync(gpuAlgo->slgpu.links_d, digi2tp.data(), sizeof(Clus2TP)*digi2tp.size(), cudaMemcpyDefault, cudaStream.id()));
     gpuAlgo->algo(gDigis, ndigis, gHits, nhits, digi2tp.size(), cudaStream);
 
   //  end gpu stuff ---------------------
@@ -312,7 +319,7 @@ ClusterTPAssociationHeterogeneous::produceLegacy(edm::HeterogeneousEvent &iEvent
 	     iset != simTkIds.end(); iset++) {
 	  auto ipos = mapping.find(*iset);
 	  if (ipos != mapping.end()) {
-	    //std::cout << "cluster in detid: " << detid << " from tp: " << ipos->second.key() << " " << iset->first << std::endl;
+	    // std::cout << "cluster in detid: " << detid << " from tp: " << ipos->second.key() << " " << iset->first << std::endl;
 	    clusterTPList.emplace_back(OmniClusterRef(c_ref), ipos->second);
 	  }
 	}
