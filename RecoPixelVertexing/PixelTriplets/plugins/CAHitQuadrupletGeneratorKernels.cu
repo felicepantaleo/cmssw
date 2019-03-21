@@ -274,7 +274,7 @@ void kernel_VerifyFit(TuplesOnGPU::Container const * __restrict__ tuples,
 
   // impose "region cuts" (NaN safe)
   // phi,Tip,pt,cotan(theta)),Zip
-  bool ok = std::abs(fit_results[idx].par(1)) < ( tuples->size(idx)>3 ? 0.1f : 0.05f) 
+  bool ok = std::abs(fit_results[idx].par(1)) < ( tuples->size(idx)>3 ? 0.5f : 0.3f) 
          && fit_results[idx].par(2) > ( tuples->size(idx)>3 ? 0.3f : 0.5f)
          && std::abs(fit_results[idx].par(4)) < 12.f;
   
