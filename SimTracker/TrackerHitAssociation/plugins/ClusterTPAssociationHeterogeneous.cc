@@ -4,6 +4,8 @@
 
 #include <cuda_runtime.h>
 
+#include "CUDADataFormats/Common/interface/CUDAProduct.h"
+#include "CUDADataFormats/SiPixelDigi/interface/SiPixelDigisCUDA.h"
 #include "DataFormats/Common/interface/DetSetVector.h"
 #include "DataFormats/Common/interface/DetSetVectorNew.h"
 #include "DataFormats/Common/interface/Handle.h"
@@ -22,15 +24,16 @@
 #include "FWCore/ParameterSet/interface/ConfigurationDescriptions.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/ParameterSet/interface/ParameterSetDescription.h"
+#include "FWCore/ServiceRegistry/interface/Service.h"
 #include "FWCore/Utilities/interface/EDGetToken.h"
 #include "FWCore/Utilities/interface/InputTag.h"
 #include "Geometry/Records/interface/TrackerDigiGeometryRecord.h"
 #include "Geometry/TrackerGeometryBuilder/interface/TrackerGeometry.h"
 #include "HeterogeneousCore/CUDACore/interface/GPUCuda.h"
+#include "HeterogeneousCore/CUDACore/interface/CUDAScopedContext.h"
 #include "HeterogeneousCore/CUDAServices/interface/CUDAService.h"
 #include "HeterogeneousCore/CUDAUtilities/interface/cudaCheck.h"
 #include "HeterogeneousCore/Producer/interface/HeterogeneousEDProducer.h"
-#include "RecoLocalTracker/SiPixelClusterizer/plugins/siPixelRawToClusterHeterogeneousProduct.h"
 #include "RecoLocalTracker/SiPixelRecHits/plugins/siPixelRecHitsHeterogeneousProduct.h"
 #include "SimDataFormats/Track/interface/SimTrackContainer.h"
 #include "SimDataFormats/TrackerDigiSimLink/interface/PixelDigiSimLink.h"
@@ -52,7 +55,9 @@ public:
   using CPUProduct = trackerHitAssociationHeterogeneousProduct::CPUProduct;
   using Output = trackerHitAssociationHeterogeneousProduct::ClusterTPAHeterogeneousProduct;
 
-  using PixelDigiClustersH = siPixelRawToClusterHeterogeneousProduct::HeterogeneousDigiCluster;
+
+  using Clus2TP    = ClusterSLGPU::Clus2TP;
+
   using PixelRecHitsH = siPixelRecHitsHeterogeneousProduct::HeterogeneousPixelRecHit;
 
   explicit ClusterTPAssociationHeterogeneous(const edm::ParameterSet&);
@@ -89,14 +94,14 @@ private:
   edm::EDGetTokenT<edmNew::DetSetVector<Phase2TrackerCluster1D>> phase2OTClustersToken_;
   edm::EDGetTokenT<TrackingParticleCollection> trackingParticleToken_;
 
-  edm::EDGetTokenT<HeterogeneousProduct> tGpuDigis;
+  edm::EDGetTokenT<CUDAProduct<SiPixelDigisCUDA>> tGpuDigis;
   edm::EDGetTokenT<HeterogeneousProduct> tGpuHits;
 
   std::unique_ptr<clusterSLOnGPU::Kernel> gpuAlgo;
 
   std::map<std::pair<size_t, EncodedEventId>, TrackingParticleRef> mapping;
 
-  std::vector<std::array<uint32_t, 4>> digi2tp;
+   std::vector<Clus2TP> digi2tp;
 
   bool doDump;
 
@@ -111,7 +116,7 @@ ClusterTPAssociationHeterogeneous::ClusterTPAssociationHeterogeneous(const edm::
     stripClustersToken_(consumes<edmNew::DetSetVector<SiStripCluster>>(cfg.getParameter<edm::InputTag>("stripClusterSrc"))),
     phase2OTClustersToken_(consumes<edmNew::DetSetVector<Phase2TrackerCluster1D>>(cfg.getParameter<edm::InputTag>("phase2OTClusterSrc"))),
     trackingParticleToken_(consumes<TrackingParticleCollection>(cfg.getParameter<edm::InputTag>("trackingParticleSrc"))),
-    tGpuDigis(consumesHeterogeneous(cfg.getParameter<edm::InputTag>("heterogeneousPixelDigiClusterSrc"))),
+    tGpuDigis(consumes<CUDAProduct<SiPixelDigisCUDA>>(cfg.getParameter<edm::InputTag>("heterogeneousPixelDigiClusterSrc"))),
     tGpuHits(consumesHeterogeneous(cfg.getParameter<edm::InputTag>("heterogeneousPixelRecHitSrc"))),
     doDump(cfg.getParameter<bool>("dumpCSV"))
 {
@@ -128,7 +133,7 @@ void ClusterTPAssociationHeterogeneous::fillDescriptions(edm::ConfigurationDescr
   desc.add<edm::InputTag>("stripClusterSrc", edm::InputTag("siStripClusters"));
   desc.add<edm::InputTag>("phase2OTClusterSrc", edm::InputTag("siPhase2Clusters"));
   desc.add<edm::InputTag>("trackingParticleSrc", edm::InputTag("mix", "MergedTrackTruth"));
-  desc.add<edm::InputTag>("heterogeneousPixelDigiClusterSrc", edm::InputTag("siPixelClustersPreSplitting"));
+  desc.add<edm::InputTag>("heterogeneousPixelDigiClusterSrc", edm::InputTag("siPixelClustersCUDAPreSplitting"));
   desc.add<edm::InputTag>("heterogeneousPixelRecHitSrc", edm::InputTag("siPixelRecHitsPreSplitting"));
 
   desc.add<bool>("dumpCSV", false);
@@ -158,7 +163,7 @@ void ClusterTPAssociationHeterogeneous::makeMap(const edm::HeterogeneousEvent &i
       for (auto itrk  = trackingParticle->g4Track_begin();
                 itrk != trackingParticle->g4Track_end(); ++itrk) {
         std::pair<uint32_t, EncodedEventId> trkid(itrk->trackId(), eid);
-        //std::cout << "creating map for id: " << trkid.first << " with tp: " << trackingParticle.key() << std::endl;
+        // std::cout << "creating map for id: " << trkid.first << " with tp: " << trackingParticle.key() << std::endl;
         mapping.insert(std::make_pair(trkid, trackingParticle));
       }
     }
@@ -184,17 +189,31 @@ void ClusterTPAssociationHeterogeneous::acquireGPUCuda(const edm::HeterogeneousE
 
     //  gpu stuff ------------------------
 
-    edm::Handle<siPixelRawToClusterHeterogeneousProduct::GPUProduct> gd;
+    edm::Handle<CUDAProduct<SiPixelDigisCUDA>> gd;
+    iEvent.getByToken(tGpuDigis, gd);
+    // temporary check (until the migration)
+    edm::Service<CUDAService> cs;
+    assert(gd->device() == cs->getCurrentDevice());
+
+    CUDAScopedContext ctx{*gd};
+    auto const &gDigis = ctx.get(*gd);
+
+    // We're processing in a stream given by base class, so need to
+    // synchronize explicitly (implementation is from
+    // CUDAScopedContext). In practice these should not be needed
+    // (because of synchronizations upstream), but let's play generic.
+    if(not gd->event().has_occurred()) {
+      cudaCheck(cudaStreamWaitEvent(cudaStream.id(), gd->event().id(), 0));
+    }
+
     edm::Handle<siPixelRecHitsHeterogeneousProduct::GPUProduct> gh;
-    iEvent.getByToken<siPixelRawToClusterHeterogeneousProduct::HeterogeneousDigiCluster>(tGpuDigis, gd);
     iEvent.getByToken<siPixelRecHitsHeterogeneousProduct::HeterogeneousPixelRecHit>(tGpuHits, gh);
-    auto const & gDigis = *gd;
     auto const & gHits = *gh;
-    auto ndigis = gDigis.nDigis;
+    auto ndigis = gDigis.nDigis();
     auto nhits = gHits.nHits;
 
     digi2tp.clear();
-    digi2tp.push_back({{0, 0, 0, 0}});  // put at 0 0
+    digi2tp.push_back({{0, 0, 0, 0,0,0}});  // put at 0 0
     for (auto const & links : *sipixelSimLinks) {
       DetId detId(links.detId());
       const GeomDetUnit * genericDet = geom->idToDetUnit(detId);
@@ -207,12 +226,16 @@ void ClusterTPAssociationHeterogeneous::acquireGPUCuda(const edm::HeterogeneousE
         auto ipos = mapping.find(tkid);
         if (ipos != mapping.end()) {
             uint32_t pt = 1000*(*ipos).second->pt();
-            digi2tp.push_back({{gind, uint32_t(link.channel()),(*ipos).second.key(), pt}});
+            uint32_t z0 = 10000*(*ipos).second->vz();  // in um
+            uint32_t r0 = 10000*std::sqrt((*ipos).second->vx()*(*ipos).second->vx()
+                                         +(*ipos).second->vy()*(*ipos).second->vy()
+                                         );  // in um
+            digi2tp.push_back({{gind, uint32_t(link.channel()),(*ipos).second.key(), pt,z0,r0}});
         }
       }
     }
     std::sort(digi2tp.begin(), digi2tp.end());
-    cudaCheck(cudaMemcpyAsync(gpuAlgo->slgpu.links_d, digi2tp.data(), sizeof(std::array<uint32_t, 4>)*digi2tp.size(), cudaMemcpyDefault, cudaStream.id()));
+    cudaCheck(cudaMemcpyAsync(gpuAlgo->slgpu.links_d, digi2tp.data(), sizeof(Clus2TP)*digi2tp.size(), cudaMemcpyDefault, cudaStream.id()));
     gpuAlgo->algo(gDigis, ndigis, gHits, nhits, digi2tp.size(), cudaStream);
 
   //  end gpu stuff ---------------------
@@ -296,7 +319,7 @@ ClusterTPAssociationHeterogeneous::produceLegacy(edm::HeterogeneousEvent &iEvent
 	     iset != simTkIds.end(); iset++) {
 	  auto ipos = mapping.find(*iset);
 	  if (ipos != mapping.end()) {
-	    //std::cout << "cluster in detid: " << detid << " from tp: " << ipos->second.key() << " " << iset->first << std::endl;
+	    // std::cout << "cluster in detid: " << detid << " from tp: " << ipos->second.key() << " " << iset->first << std::endl;
 	    clusterTPList.emplace_back(OmniClusterRef(c_ref), ipos->second);
 	  }
 	}

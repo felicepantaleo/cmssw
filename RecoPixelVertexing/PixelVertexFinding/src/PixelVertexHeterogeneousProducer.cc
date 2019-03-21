@@ -44,7 +44,7 @@ public:
   static void fillDescriptions(edm::ConfigurationDescriptions &descriptions);
   void beginStreamGPUCuda(edm::StreamID streamId,
                           cuda::stream_t<> &cudaStream) override {
-    m_gpuAlgo.allocateOnGPU();
+    m_gpuAlgo.allocate();
   }
   void acquireGPUCuda(const edm::HeterogeneousEvent &iEvent,
                       const edm::EventSetup &iSetup,
@@ -199,24 +199,28 @@ void PixelVertexHeterogeneousProducer::produceGPUCuda(
     }
     auto nt = itrk.size();
     if (nt==0) { std::cout << "vertex " << i << " with no tracks..." << std::endl; continue;}
+    if (nt<2) { itrk.clear(); continue;}  // remove outliers
     (*vertexes).emplace_back(reco::Vertex::Point(x,y,z), err, gpuProduct.chi2[i], nt-1, nt );
     auto & v = (*vertexes).back();
     for (auto it: itrk) {
       assert(it< (*tuples_).indToEdm.size());
       auto k = (*tuples_).indToEdm[it];
-      assert(k<tracks.size());
+      if (k>tracks.size()) {
+        edm::LogWarning("PixelVertexHeterogeneousProducer") << "oops track " << it << " does not exists on CPU " << k;
+        continue;
+      }
       auto tk = reco::TrackRef(trackCollection, k);
       v.add(reco::TrackBaseRef(tk));
     }
     itrk.clear();
   }
-  
+  /*
   assert(uind.size()==(*vertexes).size());
   if (!uind.empty()) {
     assert(0 == *uind.begin());
     assert(uind.size()-1 == *uind.rbegin());  
   }
-  
+  */
 
   if (verbose_) {
     edm::LogInfo("PixelVertexHeterogeneousProducer") << ": Found " << vertexes->size() << " vertexes\n";

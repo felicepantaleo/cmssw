@@ -41,7 +41,6 @@ TEST_CASE("Tests of CUDAService", "[CUDAService]") {
   SECTION("CUDAService enabled") {
     edm::ParameterSet ps;
     ps.addUntrackedParameter("enabled", true);
-    ps.addUntrackedParameter("numberOfStreamsPerDevice", 0U);
     SECTION("Enabled only if there are CUDA capable GPUs") {
       auto cs = makeCUDAService(ps, ar);
       if(deviceCount <= 0) {
@@ -129,45 +128,9 @@ TEST_CASE("Tests of CUDAService", "[CUDAService]") {
   SECTION("Force to be disabled") {
     edm::ParameterSet ps;
     ps.addUntrackedParameter("enabled", false);
-    ps.addUntrackedParameter("numberOfStreamsPerDevice", 0U);
     auto cs = makeCUDAService(ps, ar);
     REQUIRE(cs.enabled() == false);
     REQUIRE(cs.numberOfDevices() == 0);
-  }
-
-  SECTION("Limit number of edm::Streams per device") {
-    edm::ParameterSet ps;
-    ps.addUntrackedParameter("enabled", true);
-    SECTION("Unlimited") {
-      ps.addUntrackedParameter("numberOfStreamsPerDevice", 0U);
-      auto cs = makeCUDAService(ps, ar);
-      REQUIRE(cs.enabled() == true);
-      REQUIRE(cs.enabled(0) == true);
-      REQUIRE(cs.enabled(100) == true);
-      REQUIRE(cs.enabled(100*deviceCount) == true);
-      REQUIRE(cs.enabled(std::numeric_limits<unsigned int>::max()) == true);
-    }
-
-    SECTION("Limit to 1") {
-      ps.addUntrackedParameter("numberOfStreamsPerDevice", 1U);
-      auto cs = makeCUDAService(ps, ar);
-      REQUIRE(cs.enabled() == true);
-      REQUIRE(cs.enabled(0) == true);
-      REQUIRE(cs.enabled(1*deviceCount-1) == true);
-      REQUIRE(cs.enabled(1*deviceCount) == false);
-      REQUIRE(cs.enabled(1*deviceCount+1) == false);
-    }
-
-    SECTION("Limit to 2") {
-      ps.addUntrackedParameter("numberOfStreamsPerDevice", 2U);
-      auto cs = makeCUDAService(ps, ar);
-      REQUIRE(cs.enabled() == true);
-      REQUIRE(cs.enabled(0) == true);
-      REQUIRE(cs.enabled(1*deviceCount) == true);
-      REQUIRE(cs.enabled(2*deviceCount-1) == true);
-      REQUIRE(cs.enabled(2*deviceCount) == false);
-    }
-
   }
 
   SECTION("Device allocator") {
@@ -179,8 +142,8 @@ TEST_CASE("Tests of CUDAService", "[CUDAService]") {
     ps.addUntrackedParameter("allocator", alloc);
     auto cs = makeCUDAService(ps, ar);
     cs.setCurrentDevice(0);
-    auto current_device = cuda::device::current::get();
-    auto cudaStream = current_device.create_stream(cuda::stream::implicitly_synchronizes_with_default_stream);
+    auto cudaStreamPtr = cs.getCUDAStream();
+    auto& cudaStream = *cudaStreamPtr;
     
     SECTION("Destructor") {
       auto ptr = cs.make_device_unique<int>(cudaStream);
@@ -214,8 +177,8 @@ TEST_CASE("Tests of CUDAService", "[CUDAService]") {
     ps.addUntrackedParameter("allocator", alloc);
     auto cs = makeCUDAService(ps, ar);
     cs.setCurrentDevice(0);
-    auto current_device = cuda::device::current::get();
-    auto cudaStream = current_device.create_stream(cuda::stream::implicitly_synchronizes_with_default_stream);
+    auto cudaStreamPtr = cs.getCUDAStream();
+    auto& cudaStream = *cudaStreamPtr;
     
     SECTION("Destructor") {
       auto ptr = cs.make_host_unique<int>(cudaStream);

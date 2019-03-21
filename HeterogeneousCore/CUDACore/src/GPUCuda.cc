@@ -3,7 +3,7 @@
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
 #include "FWCore/ServiceRegistry/interface/Service.h"
 #include "HeterogeneousCore/CUDAServices/interface/CUDAService.h"
-
+#include "chooseCUDADevice.h"
 #include <cuda.h>
 
 #include <exception>
@@ -26,7 +26,7 @@ namespace heterogeneous {
 
   void GPUCuda::call_beginStreamGPUCuda(edm::StreamID id) {
     edm::Service<CUDAService> cudaService;
-    enabled_ = (enabled_ && cudaService->enabled(id));
+    enabled_ = (enabled_ && cudaService->enabled());
     if(!enabled_) {
       if(forced_) {
         throw cms::Exception("LogicError") << "This module was forced to run on GPUCuda, but the device is not available.";
