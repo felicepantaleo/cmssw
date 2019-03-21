@@ -11,7 +11,7 @@
 <use   name="FWCore/MessageService"/>
 <use   name="Geometry/HGCalGeometry"/>
 <use   name="RecoHGCal/TICL"/>
-
+<use   name="PhysicsTools/TensorFlow"/>
 <library   file="*.cc" name="RecoHGCalTICLPlugins">
   <flags   EDM_PLUGIN="1"/>
 </library>
