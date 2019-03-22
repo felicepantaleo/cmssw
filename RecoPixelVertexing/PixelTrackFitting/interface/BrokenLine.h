@@ -46,13 +46,16 @@ namespace BrokenLine {
     \return the variance of the planar angle ((theta_0)^2 /3).
   */
   __host__ __device__ inline double MultScatt(const double& length, const double B, const double R, int Layer, double slope) {
+    // limit R to 20GeV...
+    auto pt2 = std::min(20.,B*R);
+    pt2 *=pt2;
     constexpr double XXI_0 = 0.06/16.; //!< inverse of radiation length of the material in cm
     //if(Layer==1) XXI_0=0.06/16.;
     // else XXI_0=0.06/16.;
     //XX_0*=1;
     constexpr double geometry_factor=0.7; //!< number between 1/3 (uniform material) and 1 (thin scatterer) to be manually tuned
     constexpr double fact = geometry_factor*sqr(13.6/1000.);
-    return fact/sqr(1.*B*R*sqrt(1.+sqr(slope)))
+    return fact/(pt2*(1.+sqr(slope)))
       *(std::abs(length)*XXI_0)*sqr(1.+0.038*log(std::abs(length)*XXI_0));
   }
   
