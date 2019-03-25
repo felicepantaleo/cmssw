@@ -22,6 +22,7 @@ public:
       unsigned long long nTuples;
       unsigned long long nGoodTracks;
       unsigned long long nUsedHits;
+      unsigned long long nDupHits;
       unsigned long long nKilledCells;
     };
 
