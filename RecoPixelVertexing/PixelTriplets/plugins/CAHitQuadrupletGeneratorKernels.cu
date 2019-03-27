@@ -118,6 +118,11 @@ kernel_fastDuplicateRemover(GPUCACell const * cells, uint32_t const * __restrict
 
   float mc=1000.f; uint16_t im=60000; uint32_t maxNh=0;
    
+  auto score = [&](auto it) {
+    return std::abs(hfit[it].par(1));  // tip
+    // return hfit[it].chi2_line+hfit[it].chi2_circle;  //chi2 
+  };
+
   // find maxNh
   for (auto it : thisCell.theTracks) {
     if (quality[it] == bad) continue;
@@ -129,8 +134,8 @@ kernel_fastDuplicateRemover(GPUCACell const * cells, uint32_t const * __restrict
     auto nh = foundNtuplets->size(it);
     if (nh!=maxNh) continue; 
     if (quality[it]!= bad && 
-        hfit[it].chi2_line+hfit[it].chi2_circle < mc) {
-      mc=hfit[it].chi2_line+hfit[it].chi2_circle;
+        score(it) < mc) {
+      mc=score(it);
       im=it;
     }
   }
