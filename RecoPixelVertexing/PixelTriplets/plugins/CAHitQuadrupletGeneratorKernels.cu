@@ -393,30 +393,6 @@ void kernel_tripletCleaner(siPixelRecHitsHeterogeneousProduct::HitsOnGPU const *
 
 } 
 
-/*
-     if (maxNh>3) continue;
-     // for triplets choose best chi2
-      //for those sharing first and third hit  (fast cleaner took care of the rest)
-     // first hit is always on layer 1...
-     // approximation, no full combinatorics
-     if (idx>=l1end) continue;
-     for (auto ip=hitToTuple.begin(idx); ip!=hitToTuple.end(idx); ++ip) {
-       auto const it = *ip;
-       if (quality[it]!= bad &&
-         hfit[it].chi2_line+hfit[it].chi2_circle < mc) {
-         mc=hfit[it].chi2_line+hfit[it].chi2_circle;
-         im=it;
-       }
-     }
-     auto const hit3 = *(foundNtuplets.begin(im)+2);
-     // mark duplicates
-     for (auto ip=hitToTuple.begin(idx); ip!=hitToTuple.end(idx); ++ip) {
-       auto const it = *ip;
-       if (quality[it]!= bad && it!=im
-           && hit3 == *(foundNtuplets.begin(it)+2)
-          ) quality[it] = dup; //no race:  simple assignment of the same constant
-     }
-*/
 
 __global__
 void kernel_print_found_ntuplets(TuplesOnGPU::Container const * __restrict__ foundNtuplets, uint32_t maxPrint) {
