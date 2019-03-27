@@ -238,7 +238,7 @@ void kernel_fillMultiplicity(
 
 
 __global__
-void kernel_VerifyFit(TuplesOnGPU::Container const * __restrict__ tuples,
+void kernel_classifyTracks(TuplesOnGPU::Container const * __restrict__ tuples,
                  Rfit::helix_fit const *  __restrict__ fit_results,
                  Quality *  __restrict__ quality) {
 
@@ -282,7 +282,7 @@ void kernel_VerifyFit(TuplesOnGPU::Container const * __restrict__ tuples,
 }
 
 __global__
-void kernel_countTracks(TuplesOnGPU::Container const * __restrict__ tuples,
+void kernel_doStatsForTracks(TuplesOnGPU::Container const * __restrict__ tuples,
                         Quality const *  __restrict__ quality,
                         CAHitQuadrupletGeneratorKernels::Counters * counters) {
 
@@ -323,8 +323,8 @@ void kernel_fillHitInTracks(TuplesOnGPU::Container const * __restrict__ tuples,
 }
 
 __global__
-void kernel_verifyHitInTracks(CAHitQuadrupletGeneratorKernels::HitToTuple const * __restrict__ hitToTuple,
-                              CAHitQuadrupletGeneratorKernels::Counters * counters) {
+void kernel_doStatsForHitInTracks(CAHitQuadrupletGeneratorKernels::HitToTuple const * __restrict__ hitToTuple,
+                                  CAHitQuadrupletGeneratorKernels::Counters * counters) {
   auto    & c = *counters;
   int first = blockDim.x * blockIdx.x + threadIdx.x;
   for (int idx = first, ntot = hitToTuple->nbins(); idx < ntot; idx += gridDim.x*blockDim.x) {
@@ -393,30 +393,6 @@ void kernel_tripletCleaner(siPixelRecHitsHeterogeneousProduct::HitsOnGPU const *
 
 } 
 
-/*
-     if (maxNh>3) continue;
-     // for triplets choose best chi2
-      //for those sharing first and third hit  (fast cleaner took care of the rest)
-     // first hit is always on layer 1...
-     // approximation, no full combinatorics
-     if (idx>=l1end) continue;
-     for (auto ip=hitToTuple.begin(idx); ip!=hitToTuple.end(idx); ++ip) {
-       auto const it = *ip;
-       if (quality[it]!= bad &&
-         hfit[it].chi2_line+hfit[it].chi2_circle < mc) {
-         mc=hfit[it].chi2_line+hfit[it].chi2_circle;
-         im=it;
-       }
-     }
-     auto const hit3 = *(foundNtuplets.begin(im)+2);
-     // mark duplicates
-     for (auto ip=hitToTuple.begin(idx); ip!=hitToTuple.end(idx); ++ip) {
-       auto const it = *ip;
-       if (quality[it]!= bad && it!=im
-           && hit3 == *(foundNtuplets.begin(it)+2)
-          ) quality[it] = dup; //no race:  simple assignment of the same constant
-     }
-*/
 
 __global__
 void kernel_print_found_ntuplets(TuplesOnGPU::Container const * __restrict__ foundNtuplets, uint32_t maxPrint) {
@@ -516,16 +492,16 @@ void CAHitQuadrupletGeneratorKernels::launchKernels( // here goes algoparms....
     cudaCheck(cudaGetLastError());
   }
 
-#ifndef NO_CHECK_OVERFLOWS
-  numberOfBlocks = (std::max(nhits, maxNumberOfDoublets_) + blockSize - 1)/blockSize;
-  kernel_checkOverflows<<<numberOfBlocks, blockSize, 0, cudaStream>>>(
+  if (doStats_) {
+    numberOfBlocks = (std::max(nhits, maxNumberOfDoublets_) + blockSize - 1)/blockSize;
+    kernel_checkOverflows<<<numberOfBlocks, blockSize, 0, cudaStream>>>(
                         gpu_.tuples_d, gpu_.apc_d,
                         device_theCells_, device_nCells_,
                         device_isOuterHitOfCell_, nhits,
                         counters_
                        );
-  cudaCheck(cudaGetLastError());
-#endif
+    cudaCheck(cudaGetLastError());
+  }
 
 
   // kernel_print_found_ntuplets<<<1, 1, 0, cudaStream>>>(gpu_.tuples_d, 10);
@@ -550,7 +526,7 @@ void CAHitQuadrupletGeneratorKernels::classifyTuples(HitsOnCPU const & hh, Tuple
 
     // classify tracks based on kinematics
     auto numberOfBlocks = (CAConstants::maxNumberOfQuadruplets() + blockSize - 1)/blockSize;
-    kernel_VerifyFit<<<numberOfBlocks, blockSize, 0, cudaStream>>>(tuples.tuples_d, tuples.helix_fit_results_d, tuples.quality_d);
+    kernel_classifyTracks<<<numberOfBlocks, blockSize, 0, cudaStream>>>(tuples.tuples_d, tuples.helix_fit_results_d, tuples.quality_d);
 
     // apply fishbone cleaning to good tracks
     numberOfBlocks = (CAConstants::maxNumberOfDoublets() + blockSize - 1)/blockSize;
@@ -570,12 +546,13 @@ void CAHitQuadrupletGeneratorKernels::classifyTuples(HitsOnCPU const & hh, Tuple
     numberOfBlocks = (HitToTuple::capacity() + blockSize - 1)/blockSize;
     kernel_tripletCleaner<<<numberOfBlocks, blockSize, 0, cudaStream>>>(hh.gpu_d,tuples.tuples_d,tuples.helix_fit_results_d,tuples.quality_d,device_hitToTuple_);
 
-    // counters (add flag???)
-    numberOfBlocks = (HitToTuple::capacity() + blockSize - 1)/blockSize;
-    kernel_verifyHitInTracks<<<numberOfBlocks, blockSize, 0, cudaStream>>>(device_hitToTuple_, counters_);
-    numberOfBlocks = (CAConstants::maxNumberOfQuadruplets() + blockSize - 1)/blockSize;
-    kernel_countTracks<<<numberOfBlocks, blockSize, 0, cudaStream>>>(tuples.tuples_d,tuples.quality_d,counters_);
-
+    if (doStats_) {
+      // counters (add flag???)
+      numberOfBlocks = (HitToTuple::capacity() + blockSize - 1)/blockSize;
+      kernel_doStatsForHitInTracks<<<numberOfBlocks, blockSize, 0, cudaStream>>>(device_hitToTuple_, counters_);
+      numberOfBlocks = (CAConstants::maxNumberOfQuadruplets() + blockSize - 1)/blockSize;
+      kernel_doStatsForTracks<<<numberOfBlocks, blockSize, 0, cudaStream>>>(tuples.tuples_d,tuples.quality_d,counters_);
+    }
 }
 
 

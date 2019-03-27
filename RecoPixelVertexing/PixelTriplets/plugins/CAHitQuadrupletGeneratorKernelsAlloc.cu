@@ -5,9 +5,10 @@ void
 CAHitQuadrupletGeneratorKernels::deallocateOnGPU()
 {
 
-  // crash on multi-gpu processes
-  printCounters();
-
+  if (doStats_) {
+    // crash on multi-gpu processes
+    printCounters();
+  }
   cudaFree(counters_);
 
   cudaFree(device_theCells_);
