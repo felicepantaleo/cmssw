@@ -268,8 +268,9 @@ public:
 
   __device__ __host__
   __forceinline__
-  uint32_t bulkFill(AtomicPairCounter & apc, index_type const * v, uint32_t n) {
+  int32_t bulkFill(AtomicPairCounter & apc, index_type const * v, uint32_t n) {
     auto c = apc.add(n);
+    if (c.m >=nbins()) return -int32_t(c.m);
     off[c.m] = c.n;
     for(uint32_t j=0; j<n; ++j) bins[c.n+j]=v[j];
     return c.m;

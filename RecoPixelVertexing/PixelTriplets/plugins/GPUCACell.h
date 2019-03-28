@@ -194,9 +194,11 @@ public:
           hindex_type hits[6]; auto nh=0U;
           for (auto c : tmpNtuplet) hits[nh++] = cells[c].theInnerHitId;
           hits[nh] = theOuterHitId; 
-          uint16_t it = foundNtuplets.bulkFill(apc,hits,tmpNtuplet.size()+1);
-          for (auto c : tmpNtuplet) cells[c].theTracks.push_back(it);
-          tupleMultiplicity.countDirect(tmpNtuplet.size()+1);
+          auto it = foundNtuplets.bulkFill(apc,hits,tmpNtuplet.size()+1);
+          if (it>=0)  { // if negative is overflow....
+            for (auto c : tmpNtuplet) cells[c].theTracks.push_back(it);
+            tupleMultiplicity.countDirect(tmpNtuplet.size()+1);
+          }
         }
       }
     }

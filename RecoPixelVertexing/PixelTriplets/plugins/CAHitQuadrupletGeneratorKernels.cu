@@ -43,7 +43,7 @@ void kernel_checkOverflows(TuplesOnGPU::Container * foundNtuplets, AtomicPairCou
    atomicAdd(&c.nTuples,apc->get().m);
  }
   
- #ifdef GPU_DEBUG
+#ifdef GPU_DEBUG
  if (0==idx) {
    printf("number of found cells %d, found tuples %d with total hits %d out of %d\n",*nCells, apc->get().m, apc->get().n, nHits);
    assert(foundNtuplets->size(apc->get().m)==0);
@@ -55,9 +55,10 @@ void kernel_checkOverflows(TuplesOnGPU::Container * foundNtuplets, AtomicPairCou
    assert(foundNtuplets->size(idx)<6);
    for (auto ih = foundNtuplets->begin(idx); ih!=foundNtuplets->end(idx); ++ih) assert(*ih<nHits);
  }
- #endif
+#endif
 
  if (0==idx) {
+   if (apc->get().m >=CAConstants::maxNumberOfQuadruplets()) printf("Tuples overflow\n");
    if (*nCells>=CAConstants::maxNumberOfDoublets()) printf("Cells overflow\n");
  }
 
