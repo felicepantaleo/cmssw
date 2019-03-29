@@ -10,6 +10,10 @@
 #include "ClusterSLOnGPU.h"
 
 using ClusterSLGPU = trackerHitAssociationHeterogeneousProduct::ClusterSLGPU;
+using Clus2TP    = ClusterSLGPU::Clus2TP;
+
+
+// #define DUMP_TK2
 
 __global__
 void simLink(const SiPixelDigisCUDA::DeviceConstView *dd, uint32_t ndigis, clusterSLOnGPU::HitsOnGPU const * hhp, ClusterSLGPU const * slp, uint32_t n)
@@ -36,14 +40,14 @@ void simLink(const SiPixelDigisCUDA::DeviceConstView *dd, uint32_t ndigis, clust
   auto cl = first + dd->clus(i);
   assert(cl < 2000 * blockDim.x);
 
-  const std::array<uint32_t, 4> me{{id, ch, 0, 0}};
+  const Clus2TP me{{id, ch, 0, 0, 0,0}};
 
-  auto less = [] __host__ __device__ (std::array<uint32_t, 4> const & a, std::array<uint32_t, 4> const & b)->bool {
+  auto less = [] __host__ __device__ (Clus2TP const & a, Clus2TP const & b)->bool {
      // in this context we do not care of [2]
-     return a[0] < b[0] or (not b[0] < a[0] and a[1] < b[1]);
+     return a[0] < b[0] or ( (not (b[0]<a[0]) ) and (a[1]<b[1]) );
   };
 
-  auto equal = [] __host__ __device__ (std::array<uint32_t, 4> const & a, std::array<uint32_t, 4> const & b)->bool {
+  auto equal = [] __host__ __device__ (Clus2TP const & a, Clus2TP const & b)->bool {
      // in this context we do not care of [2]
      return a[0] == b[0] and a[1] == b[1];
   };
@@ -99,18 +103,27 @@ void dumpLink(int first, int ev, clusterSLOnGPU::HitsOnGPU const * hhp, uint32_t
   assert(hh.cpeParams);
   float ge[6];
   hh.cpeParams->detParams(hh.detInd_d[i]).frame.toGlobal(hh.xerr_d[i], 0, hh.yerr_d[i],ge);
-  printf("Error: %d: %f,%f,%f,%f,%f,%f\n",hh.detInd_d[i],ge[0],ge[1],ge[2],ge[3],ge[4],ge[5]);
+  printf("Error: %d: %.4f,%.4f,%.4f,%.4f,%.4f,%.4f\n",hh.detInd_d[i],ge[0],ge[1],ge[2],ge[3],ge[4],ge[5]);
   */
 
   auto const & tk1 = sl.links_d[sl.tkId_d[i]];
+
+#ifdef DUMP_TK2
   auto const & tk2 = sl.links_d[sl.tkId2_d[i]];
 
-  printf("HIT: %d %d %d %d %f %f %f %f %d %d %d %d %d %d %d\n", ev, i,
+  printf("HIT: %d %d %d %d %.4f %.4f %.4f %.4f %d %d %d %d %d %d %d %d %d %d %d %d %d\n",
+#else
+  printf("HIT: %d %d %d %d %.4f %.4f %.4f %.4f %d %d %d %d %d %d %d %d\n",
+#endif
+         ev, i,
          hh.detInd_d[i], hh.charge_d[i],
          hh.xg_d[i], hh.yg_d[i], hh.zg_d[i], hh.rg_d[i], hh.iphi_d[i],
-         tk1[2], tk1[3], sl.n1_d[i],
-         tk2[2], tk2[3], sl.n2_d[i]
-        );
+         hh.xsize_d[i],hh.ysize_d[i],
+         tk1[2], tk1[3], tk1[4], tk1[5], sl.n1_d[i]
+#ifdef DUMP_TK2
+        ,tk2[2], tk2[3], tk2[4], tk2[5], sl.n2_d[i]
+#endif
+           );
 
 }
 
@@ -119,10 +132,19 @@ namespace clusterSLOnGPU {
   constexpr uint32_t invTK = 0; // std::numeric_limits<int32_t>::max();
 
   void printCSVHeader() {
-    printf("HIT: %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s\n", "ev", "ind",
+#ifdef DUMP_TK2
+    printf("HIT: %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s\n", 
+#else
+    printf("HIT: %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s\n",
+#endif
+        "ev", "ind",
         "det", "charge",
         "xg","yg","zg","rg","iphi",
-        "tkId","pt","n1","tkId2","pt2","n2"
+        "xsize","ysize",
+        "tkId","pt","z0","r0","n1"
+#ifdef DUMP_TK2
+        ,"tkId2","pt2", "z02","r02","n2"
+#endif
         );
   }
 
@@ -135,7 +157,7 @@ namespace clusterSLOnGPU {
   }
 
   void Kernel::alloc(cuda::stream_t<>& stream) {
-    cudaCheck(cudaMalloc((void**) & slgpu.links_d, (ClusterSLGPU::MAX_DIGIS)*sizeof(std::array<uint32_t, 4>)));
+    cudaCheck(cudaMalloc((void**) & slgpu.links_d, (ClusterSLGPU::MAX_DIGIS)*sizeof(Clus2TP)));
     cudaCheck(cudaMalloc((void**) & slgpu.tkId_d, (ClusterSLGPU::MaxNumModules*256)*sizeof(uint32_t)));
     cudaCheck(cudaMalloc((void**) & slgpu.tkId2_d, (ClusterSLGPU::MaxNumModules*256)*sizeof(uint32_t)));
     cudaCheck(cudaMalloc((void**) & slgpu.n1_d, (ClusterSLGPU::MaxNumModules*256)*sizeof(uint32_t)));
