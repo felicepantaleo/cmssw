@@ -517,13 +517,18 @@ namespace pixelgpudetails {
       // clusterizer ...
       using namespace gpuClustering;
       int threadsPerBlock = 256;
-      int blocks = (wordCounter + threadsPerBlock - 1) / threadsPerBlock;
+      int blocks = (std::max(int(wordCounter),int(gpuClustering::MaxNumModules)) + threadsPerBlock - 1) / threadsPerBlock;
 
+      
       gpuCalibPixel::calibDigis<<<blocks, threadsPerBlock, 0, stream.id()>>>(
           digis_d.moduleInd(),
           digis_d.c_xx(), digis_d.c_yy(), digis_d.adc(),
           gains,
-          wordCounter);
+          wordCounter,
+          clusters_d.moduleStart(),
+          clusters_d.clusInModule(),
+          clusters_d.clusModuleStart()
+      );
       cudaCheck(cudaGetLastError());
 
 #ifdef GPU_DEBUG
@@ -531,8 +536,6 @@ namespace pixelgpudetails {
          << "CUDA countModules kernel launch with " << blocks
          << " blocks of " << threadsPerBlock << " threads\n";
 #endif
-
-      cudaCheck(cudaMemsetAsync(clusters_d.moduleStart(), 0x00, sizeof(uint32_t), stream.id()));
 
       countModules<<<blocks, threadsPerBlock, 0, stream.id()>>>(digis_d.c_moduleInd(), clusters_d.moduleStart(), digis_d.clus(), wordCounter);
       cudaCheck(cudaGetLastError());
@@ -546,7 +549,6 @@ namespace pixelgpudetails {
          std::cout << "CUDA findClus kernel launch with " << blocks
          << " blocks of " << threadsPerBlock << " threads\n";
 #endif
-      cudaCheck(cudaMemsetAsync(clusters_d.clusInModule(), 0, (MaxNumModules)*sizeof(uint32_t), stream.id()));
       findClus<<<blocks, threadsPerBlock, 0, stream.id()>>>(
           digis_d.c_moduleInd(),
           digis_d.c_xx(), digis_d.c_yy(),
@@ -573,14 +575,14 @@ namespace pixelgpudetails {
       // synchronization/ExternalWork
       //
       // Temporary storage
-      size_t tempScanStorageSize = 0;
+      if (0 == tempScanStorageSize) 
       {
         uint32_t *tmp = nullptr;
         cudaCheck(cub::DeviceScan::InclusiveSum(nullptr, tempScanStorageSize, tmp, tmp, MaxNumModules));
       }
+      assert(tempScanStorageSize>0);
       auto tempScanStorage_d = cs->make_device_unique<uint32_t[]>(tempScanStorageSize, stream);
-      // Set first the first element to 0
-      cudaCheck(cudaMemsetAsync(clusters_d.clusModuleStart(), 0, sizeof(uint32_t), stream.id()));
+      // first element was set to zero above 0
       // Then use inclusive_scan to get the partial sum to the rest
       cudaCheck(cub::DeviceScan::InclusiveSum(tempScanStorage_d.get(), tempScanStorageSize,
                                               clusters_d.c_clusInModule(), &clusters_d.clusModuleStart()[1], gpuClustering::MaxNumModules,
