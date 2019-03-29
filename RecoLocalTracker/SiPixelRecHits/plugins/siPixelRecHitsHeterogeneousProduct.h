@@ -17,7 +17,7 @@ namespace siPixelRecHitsHeterogeneousProduct {
 
   using CPUProduct = int; // dummy
 
-  static constexpr uint32_t maxHits() { return 65536;}
+  static constexpr uint32_t maxHits() { return 48*1024;}
   using hindex_type = uint16_t; // if above is <=2^16
 
   struct HitsOnGPU{
@@ -63,8 +63,6 @@ namespace siPixelRecHitsHeterogeneousProduct {
     float const * yl = nullptr;
     float const * xe = nullptr;
     float const * ye = nullptr;
-    uint16_t const * mr = nullptr;
-    uint16_t const * mc = nullptr;
 
     HitsOnGPU const * gpu_d = nullptr;
     uint32_t nHits;

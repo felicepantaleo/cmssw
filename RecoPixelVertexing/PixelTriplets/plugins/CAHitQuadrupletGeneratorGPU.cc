@@ -75,12 +75,25 @@ void CAHitQuadrupletGeneratorGPU::fillResults(
     const TrackingRegion &region, SiPixelRecHitCollectionNew const & rechits,
     std::vector<OrderedHitSeeds> &result, const edm::EventSetup &es)
 {
-  hitmap_.clear();
-  auto const & rcs = rechits.data();
-  for (auto const & h : rcs) hitmap_.add(h, &h);
 
   assert(hitsOnCPU);
   auto nhits = hitsOnCPU->nHits;
+
+  auto fc = hitsOnCPU->hitsModuleStart;
+
+  hitmap_.clear();
+  auto const & rcs = rechits.data();
+  hitmap_.resize(nhits);
+  for (auto const & h : rcs) {
+       auto const & thit = static_cast<BaseTrackerRecHit const&>(h);
+       auto detI = thit.det()->index();
+       auto const & clus = thit.firstClusterRef();
+       assert(clus.isPixel());  
+       auto i = fc[detI] + clus.pixelCluster().originalId();
+       assert(i<nhits);
+       hitmap_[i] = &h;
+  } 
+
   int index = 0;
 
   auto const & foundQuads = fetchKernelResult(index);
@@ -99,8 +112,9 @@ void CAHitQuadrupletGeneratorGPU::fillResults(
       auto k = foundQuads[quadId][i];
       if (k<0) { phits[i] = nullptr;continue; } // (actually break...)
       assert(k<int(nhits));
-      auto hp = hitmap_.get((*hitsOnCPU).detInd[k],(*hitsOnCPU).mr[k], (*hitsOnCPU).mc[k]);
+      auto hp = hitmap_[k];
       if (hp==nullptr) {
+        edm::LogWarning("CAHitQuadrupletGeneratorGPU") << "hit not found????  " << k << std::endl;
         bad=true;
         break;
       }

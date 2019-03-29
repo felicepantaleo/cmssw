@@ -263,8 +263,8 @@ void SiPixelRecHitHeterogeneous::run(const edm::Handle<SiPixelClusterCollectionN
                                        << gind <<' '<<fc<<' '
                                        << ic<<'/'<<clust.originalId()<<'/'<< (ij-fc) << ' ' << clust.size()
                                        << ' ' << clust.charge()<<"!="<<hoc.charge[ij]
-                                       << ' ' << clust.minPixelCol()<<"?"<< hoc.mc[ij]
-                                       << ' ' << clust.minPixelRow()<<'/'<< hoc.mr[ij] << std::endl;
+                                       << ' ' << clust.minPixelCol()
+                                       << ' ' << clust.minPixelRow() << std::endl;
 
       LocalPoint lp(hoc.xl[ij], hoc.yl[ij]);
       LocalError le(hoc.xe[ij], 0, hoc.ye[ij]);

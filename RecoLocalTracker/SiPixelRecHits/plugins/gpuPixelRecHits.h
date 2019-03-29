@@ -13,8 +13,6 @@
 namespace gpuPixelRecHits {
 
 
-
-
   __global__ void getHits(pixelCPEforGPU::ParamsOnGPU const * __restrict__  cpeParams,
                           BeamSpotCUDA::Data const * __restrict__  bs,
                           uint16_t const * __restrict__  id,
@@ -121,6 +119,7 @@ namespace gpuPixelRecHits {
     __syncthreads();
 
     // next one cluster per thread...
+
     if (ic >= nclus) return;
 
     first = hitsModuleStart[me];
@@ -144,8 +143,8 @@ namespace gpuPixelRecHits {
 
     xe[h]= clusParams.xerr[ic]*clusParams.xerr[ic];
     ye[h]= clusParams.yerr[ic]*clusParams.yerr[ic];
-    mr[h]= clusParams.minRow[ic];
-    mc[h]= clusParams.minCol[ic];
+    // mr[h]= clusParams.minRow[ic];  // keep it for reference
+    // mc[h]= clusParams.minCol[ic];
 
   
     // to global and compute phi... 

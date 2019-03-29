@@ -43,7 +43,7 @@ namespace pixelgpudetails {
     HitsOnCPU getOutput() const {
       return HitsOnCPU{
         h_hitsModuleStart_, h_detInd_, h_charge_,
-        h_xl_, h_yl_, h_xe_, h_ye_, h_mr_, h_mc_,
+        h_xl_, h_yl_, h_xe_, h_ye_,
         gpu_d, nhits_
       };
     }
@@ -61,8 +61,6 @@ namespace pixelgpudetails {
     float *h_yl_ = nullptr;
     float *h_xe_ = nullptr;
     float *h_ye_ = nullptr;
-    uint16_t *h_mr_ = nullptr;
-    uint16_t *h_mc_ = nullptr;
     void *h_owner_32bit_ = nullptr;
     size_t h_owner_32bit_pitch_ = 0;
     void *h_owner_16bit_ = nullptr;
