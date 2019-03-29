@@ -478,6 +478,7 @@ namespace pixelgpudetails {
     edm::Service<CUDAService> cs;
     nModules_Clusters_h = cs->make_host_unique<uint32_t[]>(2, stream);
 
+    if (wordCounter) // protect in case of empty event....
     {
       const int threadsPerBlock = 512;
       const int blocks = (wordCounter + threadsPerBlock-1) /threadsPerBlock; // fill it all

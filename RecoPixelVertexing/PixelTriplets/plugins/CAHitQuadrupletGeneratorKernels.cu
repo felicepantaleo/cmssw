@@ -425,7 +425,7 @@ void CAHitQuadrupletGeneratorKernels::launchKernels( // here goes algoparms....
   auto nhits = hh.nHits;
   assert(nhits <= PixelGPUConstants::maxNumberOfHits);
   
-  if (earlyFishbone_) {
+  if (nhits>1 && earlyFishbone_) {
     auto nthTot = 64;
     auto stride = 4;
     auto blockSize = nthTot/stride;
@@ -482,7 +482,7 @@ void CAHitQuadrupletGeneratorKernels::launchKernels( // here goes algoparms....
   kernel_fillMultiplicity<<<numberOfBlocks, blockSize, 0, cudaStream>>>(gpu_.tuples_d,device_tupleMultiplicity_);
   cudaCheck(cudaGetLastError());
 
-  if (lateFishbone_) {
+  if (nhits>1 && lateFishbone_) {
     auto nthTot = 128;
     auto stride = 16;
     auto blockSize = nthTot/stride;
@@ -516,7 +516,7 @@ void CAHitQuadrupletGeneratorKernels::launchKernels( // here goes algoparms....
 
 void CAHitQuadrupletGeneratorKernels::buildDoublets(HitsOnCPU const & hh, cudaStream_t stream) {
   auto nhits = hh.nHits;
-
+  if (0==nhits) return; // protect against empty events
   int stride=1;
   int threadsPerBlock = gpuPixelDoublets::getDoubletsFromHistoMaxBlockSize/stride;
   int blocks = (2 * nhits + threadsPerBlock - 1) / threadsPerBlock;
