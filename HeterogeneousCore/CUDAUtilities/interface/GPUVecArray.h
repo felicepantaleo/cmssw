@@ -5,11 +5,15 @@
 // Author: Felice Pantaleo, CERN
 //
 
-#include <cuda_runtime.h>
+#include "HeterogeneousCore/CUDAUtilities/interface/cudaCompat.h"
 
 namespace GPU {
 
-template <class T, int maxSize> struct VecArray {
+template <class T, int maxSize> 
+class VecArray {
+public:
+  using value_t = T;
+
   inline constexpr int push_back_unsafe(const T &element) {
     auto previousSize = m_size;
     m_size++;
@@ -22,7 +26,8 @@ template <class T, int maxSize> struct VecArray {
     }
   }
 
-  template <class... Ts> constexpr int emplace_back_unsafe(Ts &&... args) {
+  template <class... Ts> 
+  constexpr int emplace_back_unsafe(Ts &&... args) {
     auto previousSize = m_size;
     m_size++;
     if (previousSize < maxSize) {
@@ -41,7 +46,6 @@ template <class T, int maxSize> struct VecArray {
       return T(); //undefined behaviour
   }
 
-#ifdef __CUDACC__
 
   // thread-safe version of the vector, when used in a CUDA kernel
   __device__
@@ -69,10 +73,8 @@ template <class T, int maxSize> struct VecArray {
     }
   }
 
-#endif // __CUDACC__
-
-  __host__ __device__
-  inline T pop_back() {
+  
+  inline constexpr T pop_back() {
     if (m_size > 0) {
       auto previousSize = m_size--;
       return m_data[previousSize - 1];
@@ -94,9 +96,11 @@ template <class T, int maxSize> struct VecArray {
   inline constexpr bool empty() const { return 0 == m_size; }
   inline constexpr bool full() const { return maxSize == m_size; }
 
-  int m_size = 0;
+private:
 
   T m_data[maxSize];
+
+  int m_size = 0;
 };
 
 }
