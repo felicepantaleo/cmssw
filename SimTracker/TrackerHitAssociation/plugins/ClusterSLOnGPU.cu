@@ -185,6 +185,7 @@ namespace clusterSLOnGPU {
   void Kernel::algo(SiPixelDigisCUDA const & dd, uint32_t ndigis, HitsOnCPU const & hh, uint32_t nhits, uint32_t n, cuda::stream_t<>& stream) {
     zero(stream.id());
 
+    if (0==nhits) return;
     ClusterSLGPU const & sl = slgpu;
 
     int ev = ++evId;

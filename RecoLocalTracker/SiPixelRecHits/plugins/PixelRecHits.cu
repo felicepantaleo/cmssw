@@ -204,6 +204,7 @@ namespace pixelgpudetails {
       // radixSortMultiWrapper<int16_t><<<10, 256, 0, c.stream>>>(gpu_.iphi_d, gpu_.sortIndex_d, gpu_.hitsLayerStart_d);
     }
 
+    if (nhits_)
     cudautils::fillManyFromVector(gpu_.hist_d, gpu_.hws_d, 10, gpu_.iphi_d, gpu_.hitsLayerStart_d, nhits_, 256, stream.id());
   }
 }
