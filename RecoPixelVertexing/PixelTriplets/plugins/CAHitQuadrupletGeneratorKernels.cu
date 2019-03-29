@@ -516,7 +516,7 @@ void CAHitQuadrupletGeneratorKernels::launchKernels( // here goes algoparms....
 
 void CAHitQuadrupletGeneratorKernels::buildDoublets(HitsOnCPU const & hh, cudaStream_t stream) {
   auto nhits = hh.nHits;
-
+  if (0==nhits) return; // protect against empty events
   int stride=1;
   int threadsPerBlock = gpuPixelDoublets::getDoubletsFromHistoMaxBlockSize/stride;
   int blocks = (2 * nhits + threadsPerBlock - 1) / threadsPerBlock;
