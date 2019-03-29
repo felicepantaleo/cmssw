@@ -20,7 +20,6 @@
 #include "RecoTracker/TkSeedGenerator/interface/FastCircleFit.h"
 #include "RecoTracker/TkSeedingLayers/interface/SeedComparitor.h"
 #include "RecoTracker/TkSeedingLayers/interface/SeedComparitorFactory.h"
-#include "RecoPixelVertexing/PixelTriplets/plugins/RecHitsMap.h"
 
 #include "CAHitQuadrupletGeneratorKernels.h"
 #include "HelixFitOnGPU.h"
@@ -114,7 +113,7 @@ private:
     // input
     HitsOnCPU const * hitsOnCPU=nullptr;
 
-    RecHitsMap<TrackingRecHit const *> hitmap_ = RecHitsMap<TrackingRecHit const *>(nullptr);
+    std::vector<TrackingRecHit const *> hitmap_;
 
 };
 
