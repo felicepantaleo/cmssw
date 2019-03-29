@@ -581,7 +581,7 @@ namespace pixelgpudetails {
         cudaCheck(cub::DeviceScan::InclusiveSum(nullptr, tempScanStorageSize, tmp, tmp, MaxNumModules));
       }
       assert(tempScanStorageSize>0);
-      auto tempScanStorage_d = cs->make_device_unique<uint32_t[]>(tempScanStorageSize, stream);
+      auto tempScanStorage_d = cs->make_device_unique<uint8_t[]>(tempScanStorageSize, stream);
       // first element was set to zero above 0
       // Then use inclusive_scan to get the partial sum to the rest
       cudaCheck(cub::DeviceScan::InclusiveSum(tempScanStorage_d.get(), tempScanStorageSize,
