@@ -461,8 +461,8 @@ namespace pixelgpudetails {
   void fixHitsModuleStart(uint32_t* moduleStart) {
      constexpr auto MAX_HITS = gpuClustering::MaxNumClusters;
      int first = blockIdx.x * blockDim.x + threadIdx.x;
-     for (int i=first, iend=gpuClustering::MaxNumModules+1; i<iend; ++i) {
-       if (moduleStart[i]> MAX_HITS) moduleStart[i] = MAX_HITS;
+     for (int i=first, iend=gpuClustering::MaxNumModules+1; i<iend; i+=gridDim.x*blockDim.x) {
+        if (moduleStart[i] > MAX_HITS) moduleStart[i] = MAX_HITS;
      }
   }
 
@@ -600,7 +600,8 @@ namespace pixelgpudetails {
                                               clusters_d.c_clusInModule(), &clusters_d.clusModuleStart()[1], gpuClustering::MaxNumModules,
                                               stream.id()));
 
-
+     threadsPerBlock = 256;
+     blocks = (gpuClustering::MaxNumModules + threadsPerBlock ) / threadsPerBlock;  // no -1 !
      fixHitsModuleStart<<<blocks, threadsPerBlock, 0, stream.id()>>>(clusters_d.clusModuleStart());
 
       // last element holds the number of all clusters
