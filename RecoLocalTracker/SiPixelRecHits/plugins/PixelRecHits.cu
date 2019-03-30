@@ -14,14 +14,11 @@
 
 namespace {
   __global__
-  void setHitsLayerStart(const uint32_t* hitsModuleStart, const uint32_t* layerStart, uint32_t* hitsLayerStart) {
+  void setHitsLayerStart(uint32_t const * __restrict__ hitsModuleStart, uint32_t const * __restrict__ layerStart, uint32_t* hitsLayerStart) {
     auto i = blockIdx.x * blockDim.x + threadIdx.x;
 
-    if(i < 10) {
+    if(i < 11) {
       hitsLayerStart[i] = hitsModuleStart[layerStart[i]];
-    }
-    else if(i == 10) {
-      hitsLayerStart[i] = hitsModuleStart[gpuClustering::MaxNumModules];
     }
   }
 
