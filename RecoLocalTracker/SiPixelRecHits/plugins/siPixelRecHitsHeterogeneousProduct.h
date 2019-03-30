@@ -7,6 +7,7 @@
 #include "DataFormats/TrackerRecHit2D/interface/SiPixelRecHitCollection.h"
 #include "HeterogeneousCore/Product/interface/HeterogeneousProduct.h"
 #include "HeterogeneousCore/CUDAUtilities/interface/HistoContainer.h"
+#include "RecoLocalTracker/SiPixelClusterizer/plugins/gpuClusteringConstants.h"
 #include "HeterogeneousCore/CUDAUtilities/interface/CUDAHostAllocator.h"
 
 namespace pixelCPEforGPU {
@@ -17,7 +18,7 @@ namespace siPixelRecHitsHeterogeneousProduct {
 
   using CPUProduct = int; // dummy
 
-  static constexpr uint32_t maxHits() { return 48*1024;}
+  static constexpr uint32_t maxHits() { return gpuClustering::MaxNumClusters;}
   using hindex_type = uint16_t; // if above is <=2^16
 
   struct HitsOnGPU{
