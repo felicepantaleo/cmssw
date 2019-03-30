@@ -171,6 +171,10 @@ namespace pixelgpudetails {
 
     // needed only if hits on CPU are required...
     nhits_ = clusters_d.nClusters();
+    if (nhits_ >= siPixelRecHitsHeterogeneousProduct::maxHits()) {
+      edm::LogWarning("PixelRecHitGPUKernel" ) << "Hits Overflow " << nhits_  << " > " << siPixelRecHitsHeterogeneousProduct::maxHits();
+      assert(nhits_ <= siPixelRecHitsHeterogeneousProduct::maxHits());
+    } 
     if(transferToCPU) {
       cudaCheck(cudaMemcpyAsync(h_hitsModuleStart_, gpu_.hitsModuleStart_d, (gpuClustering::MaxNumModules+1) * sizeof(uint32_t), cudaMemcpyDefault, stream.id()));
 #ifdef GPU_DEBUG

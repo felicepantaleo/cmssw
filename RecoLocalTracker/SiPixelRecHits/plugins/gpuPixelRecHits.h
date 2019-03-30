@@ -9,7 +9,7 @@
 #include "DataFormats/Math/interface/approx_atan2.h"
 #include "HeterogeneousCore/CUDAUtilities/interface/cuda_assert.h"
 #include "RecoLocalTracker/SiPixelRecHits/interface/pixelCPEforGPU.h"
-
+#include "RecoLocalTracker/SiPixelRecHits/plugins/siPixelRecHitsHeterogeneousProduct.h"
 namespace gpuPixelRecHits {
 
 
@@ -125,7 +125,7 @@ namespace gpuPixelRecHits {
     first = hitsModuleStart[me];
     auto h = first+ic;  // output index in global memory
 
-    assert(h < 2000*256);
+    if (h >= siPixelRecHitsHeterogeneousProduct::maxHits()) return; // overflow...
 
     pixelCPEforGPU::position(cpeParams->commonParams(), cpeParams->detParams(me), clusParams, ic);
     pixelCPEforGPU::errorFromDB(cpeParams->commonParams(), cpeParams->detParams(me), clusParams, ic);
