@@ -210,9 +210,6 @@ namespace pixelgpudetails {
   private:
     uint32_t nDigis = 0;
 
-    // workspace
-    size_t tempScanStorageSize = 0;
-
     // Data to be put in the event
     cudautils::host::unique_ptr<uint32_t[]> nModules_Clusters_h;
     SiPixelDigisCUDA digis_d;
