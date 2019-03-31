@@ -11,16 +11,20 @@ void testPrefixScan(uint32_t size) {
 
   __shared__ T ws[32];
   __shared__ T c[1024];
+  __shared__ T co[1024];
+
   auto first = threadIdx.x;
   for (auto i=first; i<size; i+=blockDim.x) c[i]=1;
   __syncthreads();
 
+  blockPrefixScan(c, co, size, ws);
   blockPrefixScan(c, size, ws);
 
-  assert(1==c[0]);
+  assert(1==c[0]);   assert(1==co[0]);
   for (auto i=first+1; i<size; i+=blockDim.x) {
     if (c[i]!=c[i-1]+1) printf("failed %d %d %d: %d %d\n",size, i, blockDim.x, c[i],c[i-1]);
     assert(c[i]==c[i-1]+1); assert(c[i]==i+1);
+    assert(c[i]=co[i]);
   }
 }
 
@@ -29,17 +33,21 @@ __global__
 void testWarpPrefixScan(uint32_t size) {
   assert(size<=32);
   __shared__ T c[1024];
+  __shared__ T co[1024];
   auto i = threadIdx.x;
   c[i]=1;
   __syncthreads();
 
+  warpPrefixScan(c,co,i,0xffffffff);
   warpPrefixScan(c,i,0xffffffff);
  __syncthreads();
 
   assert(1==c[0]);
+  assert(1==co[0]);
   if(i!=0) {
     if (c[i]!=c[i-1]+1) printf("failed %d %d %d: %d %d\n",size, i, blockDim.x, c[i],c[i-1]);
     assert(c[i]==c[i-1]+1); assert(c[i]==i+1);
+    assert(c[i]=co[i]);
   }
 }
 
