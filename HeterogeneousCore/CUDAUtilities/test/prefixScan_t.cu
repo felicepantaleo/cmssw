@@ -81,37 +81,52 @@ int main() {
 
   std::cout << "block level" << std::endl;
   for(int bs=32; bs<=1024; bs+=32) {
-//  std::cout << "bs " << bs << std::endl;
+  // std::cout << "bs " << bs << std::endl;
   for (int j=1;j<=1024; ++j) {
-//   std::cout << j << std::endl;
+  // std::cout << j << std::endl;
    testPrefixScan<uint16_t><<<1,bs>>>(j);
    cudaDeviceSynchronize();
    testPrefixScan<float><<<1,bs>>>(j);
-  cudaDeviceSynchronize();
+   cudaDeviceSynchronize();
   }}
   cudaDeviceSynchronize();
 
-  // test cub
-  std::cout << "cub" << std::endl;
-// Declare, allocate, and initialize device-accessible pointers for input and output
-   int  num_items = 10000;
+  int  num_items = 200;
+  for (int ksize = 1; ksize<4; ++ksize) {
+  // test multiblock
+  std::cout << "multiblok" << std::endl;
+   // Declare, allocate, and initialize device-accessible pointers for input and output
+   num_items*=10;
    uint32_t  *d_in;         
-   uint32_t  *d_out;
+   uint32_t  *d_out1;
+   uint32_t  *d_out2;
 
    cudaMalloc(&d_in,num_items*sizeof(uint32_t));
-   // cudaMalloc(&d_out,num_items*sizeof(uint32_t));
+   cudaMalloc(&d_out1,num_items*sizeof(uint32_t));
+   cudaMalloc(&d_out2,num_items*sizeof(uint32_t));
 
-   d_out = d_in;
-  
    auto nthreads = 256;
    auto nblocks = (num_items + nthreads - 1) / nthreads;
 
    init<<<nblocks, nthreads, 0>>>(d_in, 1, num_items);
 
+   // the block counter
+   int32_t  *d_pc;
+   cudaMalloc(&d_pc,sizeof(int32_t));
+   cudaMemset(d_pc,0,4);
+
+   nthreads = 1024;
+   nblocks = (num_items + nthreads - 1) / nthreads;
+   multiBlockPrefixScan<<<nblocks, nthreads, 0>>>(d_in,d_out1, num_items,d_pc);
+   verify<<<nblocks, nthreads, 0>>>(d_out1, num_items);
+   cudaDeviceSynchronize();
+
+   // test cub
+   std::cout << "cub" << std::endl;
    // Determine temporary device storage requirements for inclusive prefix sum
    void     *d_temp_storage = nullptr;
    size_t   temp_storage_bytes = 0;
-   cub::DeviceScan::InclusiveSum(d_temp_storage, temp_storage_bytes, d_in, d_out, num_items);
+   cub::DeviceScan::InclusiveSum(d_temp_storage, temp_storage_bytes, d_in, d_out2, num_items);
 
    std::cout << "temp storage " << temp_storage_bytes << std::endl;
 
@@ -121,11 +136,11 @@ int main() {
    cudaMalloc(&d_temp_storage, temp_storage_bytes);
    std::cout << "temp storage " << temp_storage_bytes << std::endl;
    // Run inclusive prefix sum
-   CubDebugExit(cub::DeviceScan::InclusiveSum(d_temp_storage, temp_storage_bytes, d_in, d_out, num_items));
+   CubDebugExit(cub::DeviceScan::InclusiveSum(d_temp_storage, temp_storage_bytes, d_in, d_out2, num_items));
    std::cout << "temp storage " << temp_storage_bytes << std::endl;
 
-   verify<<<nblocks, nthreads, 0>>>(d_out, num_items);
+   verify<<<nblocks, nthreads, 0>>>(d_out2, num_items);
    cudaDeviceSynchronize();
-
+  }  // ksize
   return 0;
 }
