@@ -14,6 +14,11 @@
 #include "gpuFishbone.h"
 #include "CAConstants.h"
 
+#include "FWCore/ServiceRegistry/interface/Service.h"
+#include "HeterogeneousCore/CUDAServices/interface/CUDAService.h"
+
+
+
 using namespace gpuPixelDoublets;
 
 using HitsOnCPU = siPixelRecHitsHeterogeneousProduct::HitsOnCPU;
@@ -434,7 +439,7 @@ void CAHitQuadrupletGeneratorKernels::launchKernels( // here goes algoparms....
     dim3 thrs(stride,blockSize,1);
     fishbone<<<blks,thrs, 0, cudaStream>>>(
       hh.gpu_d,
-      device_theCells_, device_nCells_,
+      device_theCells_.get(), device_nCells_,
       device_isOuterHitOfCell_,
       nhits, false
     );
@@ -456,14 +461,14 @@ void CAHitQuadrupletGeneratorKernels::launchKernels( // here goes algoparms....
   kernel_connect<<<blks, thrs, 0, cudaStream>>>(
       gpu_.apc_d, device_hitToTuple_apc_,  // needed only to be reset, ready for next kernel
       hh.gpu_d,
-      device_theCells_, device_nCells_,
+      device_theCells_.get(), device_nCells_,
       device_isOuterHitOfCell_
   );
   cudaCheck(cudaGetLastError());
 
   kernel_find_ntuplets<<<numberOfBlocks, blockSize, 0, cudaStream>>>(
       hh.gpu_d,
-      device_theCells_, device_nCells_,
+      device_theCells_.get(), device_nCells_,
       gpu_.tuples_d,
       gpu_.apc_d,
       device_tupleMultiplicity_,
@@ -491,7 +496,7 @@ void CAHitQuadrupletGeneratorKernels::launchKernels( // here goes algoparms....
     dim3 thrs(stride,blockSize,1);
     fishbone<<<blks,thrs, 0, cudaStream>>>(
       hh.gpu_d,
-      device_theCells_, device_nCells_,
+      device_theCells_.get(), device_nCells_,
       device_isOuterHitOfCell_,
       nhits, true
     );
@@ -502,7 +507,7 @@ void CAHitQuadrupletGeneratorKernels::launchKernels( // here goes algoparms....
     numberOfBlocks = (std::max(nhits, maxNumberOfDoublets_) + blockSize - 1)/blockSize;
     kernel_checkOverflows<<<numberOfBlocks, blockSize, 0, cudaStream>>>(
                         gpu_.tuples_d, gpu_.apc_d,
-                        device_theCells_, device_nCells_,
+                        device_theCells_.get(), device_nCells_,
                         device_isOuterHitOfCell_, nhits,
                         counters_
                        );
@@ -514,16 +519,23 @@ void CAHitQuadrupletGeneratorKernels::launchKernels( // here goes algoparms....
   }
 
 
-void CAHitQuadrupletGeneratorKernels::buildDoublets(HitsOnCPU const & hh, cudaStream_t stream) {
+void CAHitQuadrupletGeneratorKernels::buildDoublets(HitsOnCPU const & hh, cuda::stream_t<>& stream) {
   auto nhits = hh.nHits;
   if (0==nhits) return; // protect against empty events
+
+   // in principle we can use "nhits" to heuristically dimension the workspace...
+   edm::Service<CUDAService> cs;
+   device_theCells_  = cs->make_device_unique<GPUCACell[]>(CAConstants::maxNumberOfDoublets(), stream);
+
+  if (0==nhits) return; // protect against empty events
+
   int stride=1;
   int threadsPerBlock = gpuPixelDoublets::getDoubletsFromHistoMaxBlockSize/stride;
   int blocks = (2 * nhits + threadsPerBlock - 1) / threadsPerBlock;
   dim3 blks(1,blocks,1);
   dim3 thrs(stride,threadsPerBlock,1);
-  gpuPixelDoublets::getDoubletsFromHisto<<<blks, thrs, 0, stream>>>(
-            device_theCells_, device_nCells_, hh.gpu_d, device_isOuterHitOfCell_, idealConditions_);
+  gpuPixelDoublets::getDoubletsFromHisto<<<blks, thrs, 0, stream.id()>>>(
+            device_theCells_.get(), device_nCells_, hh.gpu_d, device_isOuterHitOfCell_, idealConditions_);
   cudaCheck(cudaGetLastError());
 }
 
@@ -536,11 +548,11 @@ void CAHitQuadrupletGeneratorKernels::classifyTuples(HitsOnCPU const & hh, Tuple
 
     // apply fishbone cleaning to good tracks
     numberOfBlocks = (CAConstants::maxNumberOfDoublets() + blockSize - 1)/blockSize;
-    kernel_fishboneCleaner<<<numberOfBlocks, blockSize, 0, cudaStream>>>(device_theCells_, device_nCells_,tuples.quality_d);
+    kernel_fishboneCleaner<<<numberOfBlocks, blockSize, 0, cudaStream>>>(device_theCells_.get(), device_nCells_,tuples.quality_d);
 
     // remove duplicates (tracks that share a doublet) 
     numberOfBlocks = (CAConstants::maxNumberOfDoublets() + blockSize - 1)/blockSize;
-    kernel_fastDuplicateRemover<<<numberOfBlocks, blockSize, 0, cudaStream>>>(device_theCells_, device_nCells_,tuples.tuples_d,tuples.helix_fit_results_d, tuples.quality_d);
+    kernel_fastDuplicateRemover<<<numberOfBlocks, blockSize, 0, cudaStream>>>(device_theCells_.get(), device_nCells_,tuples.tuples_d,tuples.helix_fit_results_d, tuples.quality_d);
 
     // fill hit->track "map"
     numberOfBlocks = (CAConstants::maxNumberOfQuadruplets() + blockSize - 1)/blockSize;
