@@ -139,13 +139,18 @@ multiBlockPrefixScan(T const * __restrict__ ci, T * __restrict__ co, int32_t siz
    int off = 1024*blockIdx.x; 
    if (size-off >0) blockPrefixScan(ci+off,co+off,std::min(1024,size-off),ws);
 
-   if (0==threadIdx.x) atomicAdd(pc,1);  // block counter
-   if (blockIdx.x>0) return;
+   // count blocks that finished
+   __shared__ bool isLastBlockDone;
+   if (0==threadIdx.x) {
+      auto value =  atomicAdd(pc,1);  // block counter
+      isLastBlockDone = (value == (gridDim.x - 1));
+   }
+  
+   __syncthreads();
 
-   // does work for all blocks, they do not give yield....
-   while( __syncthreads_or((*pc)<gridDim.x)) {}
+   if (!isLastBlockDone) return;
  
-   // good each block has done its work and now we are left in block 0
+   // good each block has done its work and now we are left in last block
 
    // let's get the partial sums from each block
    __shared__ T psum[1024];
