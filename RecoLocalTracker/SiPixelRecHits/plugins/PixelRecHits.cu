@@ -14,14 +14,11 @@
 
 namespace {
   __global__
-  void setHitsLayerStart(const uint32_t* hitsModuleStart, const uint32_t* layerStart, uint32_t* hitsLayerStart) {
+  void setHitsLayerStart(uint32_t const * __restrict__ hitsModuleStart, uint32_t const * __restrict__ layerStart, uint32_t* hitsLayerStart) {
     auto i = blockIdx.x * blockDim.x + threadIdx.x;
 
-    if(i < 10) {
+    if(i < 11) {
       hitsLayerStart[i] = hitsModuleStart[layerStart[i]];
-    }
-    else if(i == 10) {
-      hitsLayerStart[i] = hitsModuleStart[gpuClustering::MaxNumModules];
     }
   }
 
@@ -61,14 +58,16 @@ namespace pixelgpudetails {
     gpu_.rg_d = slicePitch<float>(gpu_.owner_32bit_, gpu_.owner_32bit_pitch_, 8);
 
     // Order such that the first ones are the ones transferred to CPU
-    cudaCheck(cudaMallocPitch(&gpu_.owner_16bit_, &gpu_.owner_16bit_pitch_, MAX_HITS*sizeof(uint16_t), 5));
-    cudaCheck(cudaMemsetAsync(gpu_.owner_16bit_, 0x0, gpu_.owner_16bit_pitch_*5, cudaStream.id()));
+    cudaCheck(cudaMallocPitch(&gpu_.owner_16bit_, &gpu_.owner_16bit_pitch_, MAX_HITS*sizeof(uint16_t), 4));
+    cudaCheck(cudaMemsetAsync(gpu_.owner_16bit_, 0x0, gpu_.owner_16bit_pitch_*4, cudaStream.id()));
     //edm::LogPrint("Foo") << "Allocate 16bit with pitch " << gpu_.owner_16bit_pitch_;
     gpu_.detInd_d = slicePitch<uint16_t>(gpu_.owner_16bit_, gpu_.owner_16bit_pitch_, 0);
-    gpu_.mr_d = slicePitch<uint16_t>(gpu_.owner_16bit_, gpu_.owner_16bit_pitch_, 1);
-    gpu_.mc_d = slicePitch<uint16_t>(gpu_.owner_16bit_, gpu_.owner_16bit_pitch_, 2);
-    gpu_.iphi_d = slicePitch<int16_t>(gpu_.owner_16bit_, gpu_.owner_16bit_pitch_, 3);
-    gpu_.sortIndex_d = slicePitch<uint16_t>(gpu_.owner_16bit_, gpu_.owner_16bit_pitch_, 4);
+    gpu_.mr_d = nullptr;  // keep it for future reference
+    gpu_.mc_d = nullptr;
+    gpu_.iphi_d = slicePitch<int16_t>(gpu_.owner_16bit_, gpu_.owner_16bit_pitch_, 1);
+    gpu_.sortIndex_d = nullptr;  // keep it for future reference 
+    gpu_.xsize_d = slicePitch<int16_t>(gpu_.owner_16bit_, gpu_.owner_16bit_pitch_, 2);
+    gpu_.ysize_d = slicePitch<int16_t>(gpu_.owner_16bit_, gpu_.owner_16bit_pitch_, 3);
 
     cudaCheck(cudaMalloc((void **) & gpu_.hist_d, sizeof(HitsOnGPU::Hist)));
     cudaCheck(cudaMalloc((void **) & gpu_.hws_d, HitsOnGPU::Hist::wsSize()));
@@ -101,10 +100,8 @@ namespace pixelgpudetails {
     h_ye_ = slicePitch<float>(h_owner_32bit_, h_owner_32bit_pitch_, 4);
 
     h_owner_16bit_pitch_ = MAX_HITS*sizeof(uint16_t);
-    cudaCheck(cudaMallocHost(&h_owner_16bit_, h_owner_16bit_pitch_ * 3));
+    cudaCheck(cudaMallocHost(&h_owner_16bit_, h_owner_16bit_pitch_ * 1));
     h_detInd_ = slicePitch<uint16_t>(h_owner_16bit_, h_owner_16bit_pitch_, 0);
-    h_mr_ = slicePitch<uint16_t>(h_owner_16bit_, h_owner_16bit_pitch_, 1);
-    h_mc_ = slicePitch<uint16_t>(h_owner_16bit_, h_owner_16bit_pitch_, 2);
 
 #ifdef GPU_DEBUG
     cudaCheck(cudaMallocHost(&h_hitsLayerStart_, 11 * sizeof(uint32_t)));
@@ -146,6 +143,7 @@ namespace pixelgpudetails {
 #ifdef GPU_DEBUG
     std::cout << "launching getHits kernel for " << blocks << " blocks" << std::endl;
 #endif
+    if(blocks)  // protect from empty events
     gpuPixelRecHits::getHits<<<blocks, threadsPerBlock, 0, stream.id()>>>(
       cpeParams,
       gpu_.bs_d,
@@ -162,7 +160,8 @@ namespace pixelgpudetails {
       gpu_.iphi_d,
       gpu_.xl_d, gpu_.yl_d,
       gpu_.xerr_d, gpu_.yerr_d,
-      gpu_.mr_d, gpu_.mc_d
+      gpu_.mr_d, gpu_.mc_d,
+      gpu_.xsize_d, gpu_.ysize_d
     );
     cudaCheck(cudaGetLastError());
 
@@ -172,6 +171,10 @@ namespace pixelgpudetails {
 
     // needed only if hits on CPU are required...
     nhits_ = clusters_d.nClusters();
+    if (nhits_ >= siPixelRecHitsHeterogeneousProduct::maxHits()) {
+      edm::LogWarning("PixelRecHitGPUKernel" ) << "Hits Overflow " << nhits_  << " > " << siPixelRecHitsHeterogeneousProduct::maxHits();
+      assert(nhits_ <= siPixelRecHitsHeterogeneousProduct::maxHits());
+    } 
     if(transferToCPU) {
       cudaCheck(cudaMemcpyAsync(h_hitsModuleStart_, gpu_.hitsModuleStart_d, (gpuClustering::MaxNumModules+1) * sizeof(uint32_t), cudaMemcpyDefault, stream.id()));
 #ifdef GPU_DEBUG
@@ -180,7 +183,7 @@ namespace pixelgpudetails {
 
       cudaCheck(cudaMemcpy2DAsync(h_owner_16bit_, h_owner_16bit_pitch_,
                                   gpu_.owner_16bit_, gpu_.owner_16bit_pitch_,
-                                  nhits_*sizeof(uint16_t), 3,
+                                  nhits_*sizeof(uint16_t), 1,
                                   cudaMemcpyDefault, stream.id()));
 
       cudaCheck(cudaMemcpy2DAsync(h_owner_32bit_, h_owner_32bit_pitch_,
@@ -202,6 +205,7 @@ namespace pixelgpudetails {
       // radixSortMultiWrapper<int16_t><<<10, 256, 0, c.stream>>>(gpu_.iphi_d, gpu_.sortIndex_d, gpu_.hitsLayerStart_d);
     }
 
+    if (nhits_)
     cudautils::fillManyFromVector(gpu_.hist_d, gpu_.hws_d, 10, gpu_.iphi_d, gpu_.hitsLayerStart_d, nhits_, 256, stream.id());
   }
 }

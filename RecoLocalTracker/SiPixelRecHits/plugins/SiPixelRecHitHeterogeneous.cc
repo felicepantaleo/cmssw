@@ -246,6 +246,7 @@ void SiPixelRecHitHeterogeneous::run(const edm::Handle<SiPixelClusterCollectionN
     auto fc = hoc.hitsModuleStart[gind];
     auto lc = hoc.hitsModuleStart[gind+1];
     auto nhits = lc-fc;
+    if (0==nhits) continue;
     uint32_t ic=0;
     auto jnd = [&](int k) { return fc+k; };
     assert(nhits<=DSViter->size());
@@ -258,14 +259,15 @@ void SiPixelRecHitHeterogeneous::run(const edm::Handle<SiPixelClusterCollectionN
         break;
       }
       auto ij = jnd(clust.originalId());
+      if (ij>=siPixelRecHitsHeterogeneousProduct::maxHits()) break; // overflow...
       assert(clust.originalId()>=0); assert(clust.originalId()<nhits);
       if(clust.charge()!=hoc.charge[ij])
         edm::LogWarning("GPUHits2CPU") << "not a perfect Match "
                                        << gind <<' '<<fc<<' '
                                        << ic<<'/'<<clust.originalId()<<'/'<< (ij-fc) << ' ' << clust.size()
                                        << ' ' << clust.charge()<<"!="<<hoc.charge[ij]
-                                       << ' ' << clust.minPixelCol()<<"?"<< hoc.mc[ij]
-                                       << ' ' << clust.minPixelRow()<<'/'<< hoc.mr[ij] << std::endl;
+                                       << ' ' << clust.minPixelCol()
+                                       << ' ' << clust.minPixelRow() << std::endl;
 
       LocalPoint lp(hoc.xl[ij], hoc.yl[ij]);
       LocalError le(hoc.xe[ij], 0, hoc.ye[ij]);

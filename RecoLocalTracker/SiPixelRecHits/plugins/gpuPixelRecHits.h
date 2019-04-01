@@ -8,10 +8,8 @@
 #include "DataFormats/Math/interface/approx_atan2.h"
 #include "HeterogeneousCore/CUDAUtilities/interface/cuda_assert.h"
 #include "RecoLocalTracker/SiPixelRecHits/interface/pixelCPEforGPU.h"
-
+#include "RecoLocalTracker/SiPixelRecHits/plugins/siPixelRecHitsHeterogeneousProduct.h"
 namespace gpuPixelRecHits {
-
-
 
 
   __global__ void getHits(pixelCPEforGPU::ParamsOnGPU const * __restrict__  cpeParams,
@@ -31,7 +29,9 @@ namespace gpuPixelRecHits {
 			  float * xg, float * yg, float * zg, float * rg, int16_t * iph,
                           float * xl, float * yl,
                           float * xe, float * ye, 
-                          uint16_t * mr, uint16_t * mc)
+                          uint16_t * mr, uint16_t * mc,
+                          int16_t * xs, int16_t * ys
+                          )
   {
 
     // to be moved in common namespace...
@@ -118,12 +118,13 @@ namespace gpuPixelRecHits {
     __syncthreads();
 
     // next one cluster per thread...
+
     if (ic >= nclus) return;
 
     first = hitsModuleStart[me];
     auto h = first+ic;  // output index in global memory
 
-    assert(h < 2000*256);
+    if (h >= siPixelRecHitsHeterogeneousProduct::maxHits()) return; // overflow...
 
     pixelCPEforGPU::position(cpeParams->commonParams(), cpeParams->detParams(me), clusParams, ic);
     pixelCPEforGPU::errorFromDB(cpeParams->commonParams(), cpeParams->detParams(me), clusParams, ic);
@@ -135,10 +136,15 @@ namespace gpuPixelRecHits {
     xl[h]= clusParams.xpos[ic];   
     yl[h]= clusParams.ypos[ic]; 
 
+    xs[h]= clusParams.xsize[ic];
+    ys[h]= clusParams.ysize[ic];
+
+
     xe[h]= clusParams.xerr[ic]*clusParams.xerr[ic];
     ye[h]= clusParams.yerr[ic]*clusParams.yerr[ic];
-    mr[h]= clusParams.minRow[ic];
-    mc[h]= clusParams.minCol[ic];
+    // mr[h]= clusParams.minRow[ic];  // keep it for reference
+    // mc[h]= clusParams.minCol[ic];
+
   
     // to global and compute phi... 
     cpeParams->detParams(me).frame.toGlobal(xl[h],yl[h], xg[h],yg[h],zg[h]);

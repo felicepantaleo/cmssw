@@ -1,7 +1,7 @@
 #ifndef HeterogeneousCoreCUDAUtilitiesAtomicPairCounter_H
 #define HeterogeneousCoreCUDAUtilitiesAtomicPairCounter_H
 
-#include <cuda_runtime.h>
+#include "HeterogeneousCore/CUDAUtilities/interface/cudaCompat.h"
 #include <cstdint>
 
 class AtomicPairCounter {
@@ -25,24 +25,26 @@ public:
     c_type ac;
   };
 
-#ifdef __CUDACC__
-
   static constexpr c_type incr = 1UL<<32;
 
   __device__ __host__
   Counters get() const { return counter.counters;}
 
   // increment n by 1 and m by i.  return previous value
-  __device__
+  __host__ __device__
+  __forceinline__
   Counters add(uint32_t i) {
     c_type c = i; 
     c+=incr;
     Atomic2 ret;
+    #ifdef __CUDA_ARCH__
     ret.ac = atomicAdd(&counter.ac,c);
+    #else
+    ret.ac=counter.ac; counter.ac+=c;
+    #endif
     return ret.counters;
   }
 
-#endif
 
 private:
 
