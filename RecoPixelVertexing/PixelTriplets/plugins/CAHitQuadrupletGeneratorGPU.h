@@ -7,6 +7,7 @@
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/Utilities/interface/EDGetToken.h"
 #include "HeterogeneousCore/CUDAUtilities/interface/GPUSimpleVector.h"
+#include "HeterogeneousCore/CUDAServices/interface/CUDAService.h"
 #include "RecoLocalTracker/SiPixelClusterizer/interface/PixelTrackingGPUConstants.h"
 #include "RecoLocalTracker/SiPixelRecHits/plugins/siPixelRecHitsHeterogeneousProduct.h"
 #include "RecoPixelVertexing/PixelTrackFitting/interface/RZLine.h"
@@ -64,7 +65,7 @@ public:
 
     void initEvent(const edm::Event& ev, const edm::EventSetup& es);
 
-    void buildDoublets(HitsOnCPU const & hh, cudaStream_t stream);
+    void buildDoublets(HitsOnCPU const & hh, cuda::stream_t<>& stream);
 
     void hitNtuplets(HitsOnCPU const & hh,
                      const edm::EventSetup& es,

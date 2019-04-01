@@ -117,7 +117,7 @@ void CAHitNtupletHeterogeneousEDProducer::acquireGPUCuda(
   iEvent.getByToken<siPixelRecHitsHeterogeneousProduct::HeterogeneousPixelRecHit>(gpuHits_, gh);
   auto const & gHits = *gh;
 
-  GPUGenerator_.buildDoublets(gHits,cudaStream.id());
+  GPUGenerator_.buildDoublets(gHits,cudaStream);
 
   GPUGenerator_.initEvent(iEvent.event(), iSetup);
 

@@ -100,7 +100,7 @@ private:
 
   T m_data[maxSize];
 
-  int m_size = 0;
+  int m_size;
 };
 
 }

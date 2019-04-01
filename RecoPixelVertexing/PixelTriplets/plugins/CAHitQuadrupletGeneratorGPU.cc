@@ -247,6 +247,6 @@ CAHitQuadrupletGeneratorGPU::fetchKernelResult(int)
   return quadsInterface;
 }
 
-void CAHitQuadrupletGeneratorGPU::buildDoublets(HitsOnCPU const & hh, cudaStream_t stream) {
+void CAHitQuadrupletGeneratorGPU::buildDoublets(HitsOnCPU const & hh, cuda::stream_t<>& stream) {
    kernels.buildDoublets(hh,stream);
 }

@@ -8,6 +8,8 @@
 
 #include "GPUCACell.h"
 
+#include "HeterogeneousCore/CUDAUtilities/interface/device_unique_ptr.h"
+#include "HeterogeneousCore/CUDAServices/interface/CUDAService.h"
 
 
 
@@ -51,7 +53,7 @@ public:
 
    void classifyTuples(HitsOnCPU const & hh, TuplesOnGPU & tuples_d, cudaStream_t cudaStream);
 
-   void buildDoublets(HitsOnCPU const & hh, cudaStream_t stream);
+   void buildDoublets(HitsOnCPU const & hh, cuda::stream_t<>& stream);
    void allocateOnGPU();
    void deallocateOnGPU();
    void cleanup(cudaStream_t cudaStream);
@@ -62,7 +64,8 @@ private:
     Counters * counters_ = nullptr;
 
     // workspace
-    GPUCACell* device_theCells_ = nullptr;
+
+    cudautils::device::unique_ptr<GPUCACell[]> device_theCells_;
     GPUCACell::OuterHitOfCell* device_isOuterHitOfCell_ = nullptr;
     uint32_t* device_nCells_ = nullptr;
 
