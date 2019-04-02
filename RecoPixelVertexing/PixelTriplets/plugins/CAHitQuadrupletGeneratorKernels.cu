@@ -65,13 +65,13 @@ void kernel_checkOverflows(TuplesOnGPU::Container * foundNtuplets, AtomicPairCou
 
  if (idx < (*nCells) ) {
    auto &thisCell = cells[idx];
-   if (thisCell.theOuterNeighbors.full()) //++tooManyNeighbors[thisCell.theLayerPairId];
+   if (thisCell.outerNeighbors().full()) //++tooManyNeighbors[thisCell.theLayerPairId];
      printf("OuterNeighbors overflow %d in %d\n", idx, thisCell.theLayerPairId);
-   if (thisCell.theTracks.full()) //++tooManyTracks[thisCell.theLayerPairId];
+   if (thisCell.tracks().full()) //++tooManyTracks[thisCell.theLayerPairId];
      printf("Tracks overflow %d in %d\n", idx, thisCell.theLayerPairId);
    if (thisCell.theDoubletId<0) atomicAdd(&c.nKilledCells,1);
-   if (thisCell.theOuterNeighbors.empty()) atomicAdd(&c.nEmptyCells,1);
-   if (thisCell.theTracks.empty())  atomicAdd(&c.nZeroTrackCells,1);
+   if (thisCell.outerNeighbors().empty()) atomicAdd(&c.nEmptyCells,1);
+   if (thisCell.tracks().empty())  atomicAdd(&c.nZeroTrackCells,1);
  }
  if (idx < nHits) {
    if (isOuterHitOfCell[idx].full()) // ++tooManyOuterHitOfCell;
@@ -95,7 +95,7 @@ kernel_fishboneCleaner(GPUCACell const * cells, uint32_t const * __restrict__ nC
   auto const & thisCell = cells[cellIndex];
   if (thisCell.theDoubletId>=0) return;
 
-  for (auto it : thisCell.theTracks) quality[it] = bad;
+  for (auto it : thisCell.tracks()) quality[it] = bad;
 
 }
 
@@ -125,13 +125,13 @@ kernel_fastDuplicateRemover(GPUCACell const * cells, uint32_t const * __restrict
   };
 
   // find maxNh
-  for (auto it : thisCell.theTracks) {
+  for (auto it : thisCell.tracks()) {
     if (quality[it] == bad) continue;
     auto nh = foundNtuplets->size(it);
     maxNh = std::max(nh,maxNh);
   }
   // find min chi2
-  for (auto it : thisCell.theTracks) {
+  for (auto it : thisCell.tracks()) {
     auto nh = foundNtuplets->size(it);
     if (nh!=maxNh) continue; 
     if (quality[it]!= bad && 
@@ -141,7 +141,7 @@ kernel_fastDuplicateRemover(GPUCACell const * cells, uint32_t const * __restrict
     }
   }
   // mark duplicates
-  for (auto it : thisCell.theTracks) {
+  for (auto it : thisCell.tracks()) {
      if (quality[it]!= bad && it!=im) quality[it] = dup; //no race:  simple assignment of the same constant
   }
 }
@@ -179,7 +179,7 @@ kernel_connect(AtomicPairCounter * apc1, AtomicPairCounter * apc2,  // just to z
      if (thisCell.check_alignment(hh,
                  cells[otherCell], ptmin, hardCurvCut)
         ) {
-          cells[otherCell].theOuterNeighbors.push_back(cellIndex);
+          cells[otherCell].addOuterNeighbor(cellIndex);
      }
   }
 }

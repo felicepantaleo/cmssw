@@ -54,6 +54,23 @@ public:
     theTracks.reset();
   }
 
+
+ __device__ __forceinline__
+  auto addOuterNeighbor(CellNeighbors::value_t t) {
+     return theOuterNeighbors.push_back(t);
+  }
+
+  __device__ __forceinline__
+  auto addTrack(CellTracks::value_t t) {
+     return theTracks.push_back(t);
+  } 
+
+  __device__ __forceinline__ auto & tracks() { return theTracks;}
+  __device__ __forceinline__ auto const & tracks() const { return theTracks;}
+  __device__ __forceinline__ auto & outerNeighbors() { return theOuterNeighbors;}
+  __device__ __forceinline__ auto const & outerNeighbors() const { return theOuterNeighbors;}
+
+
   __device__ __forceinline__ float get_inner_x(Hits const & hh) const { return __ldg(hh.xg_d+theInnerHitId); }
   __device__ __forceinline__ float get_outer_x(Hits const & hh) const { return __ldg(hh.xg_d+theOuterHitId); }
   __device__ __forceinline__ float get_inner_y(Hits const & hh) const { return __ldg(hh.yg_d+theInnerHitId); }
@@ -180,9 +197,9 @@ public:
     tmpNtuplet.push_back_unsafe(theDoubletId);
     assert(tmpNtuplet.size()<=4);
 
-    if(theOuterNeighbors.size()>0) {
-      for (int j = 0; j < theOuterNeighbors.size(); ++j) {
-        auto otherCell = theOuterNeighbors[j];
+    if(outerNeighbors().size()>0) {
+      for (int j = 0; j < outerNeighbors().size(); ++j) {
+        auto otherCell = outerNeighbors()[j];
         cells[otherCell].find_ntuplets(hh, cells, foundNtuplets, apc, tupleMultiplicity, 
                                        tmpNtuplet, minHitsPerNtuplet);
       }
@@ -198,7 +215,7 @@ public:
           hits[nh] = theOuterHitId; 
           auto it = foundNtuplets.bulkFill(apc,hits,tmpNtuplet.size()+1);
           if (it>=0)  { // if negative is overflow....
-            for (auto c : tmpNtuplet) cells[c].theTracks.push_back(it);
+            for (auto c : tmpNtuplet) cells[c].addTrack(it);
             tupleMultiplicity.countDirect(tmpNtuplet.size()+1);
           }
         }
@@ -210,9 +227,11 @@ public:
 
 #endif // __CUDACC__
 
+private:
   CellNeighbors theOuterNeighbors;
   CellTracks theTracks;
 
+public:
   int32_t theDoubletId;
   int32_t theLayerPairId;
 
