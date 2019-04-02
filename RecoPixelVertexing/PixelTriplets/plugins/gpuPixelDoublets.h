@@ -25,13 +25,40 @@ namespace gpuPixelDoublets {
 
   constexpr uint32_t MaxNumOfDoublets = CAConstants::maxNumberOfDoublets();  // not really relevant
 
+  constexpr uint32_t MaxNumOfActiveDoublets = CAConstants::maxNumOfActiveDoublets();
+
+
   using CellNeighbors = CAConstants::CellNeighbors;
   using CellTracks = CAConstants::CellTracks;
-
+  using CellNeighborsVector = CAConstants::CellNeighborsVector;
+  using CellTracksVector = CAConstants::CellTracksVector;
 
  __global__
-  void initDoublets(GPUCACell::OuterHitOfCell * isOuterHitOfCell, int nHits) {
+  void initDoublets(GPUCACell::OuterHitOfCell * isOuterHitOfCell, int nHits,
+                    CellNeighborsVector * cellNeighbors, CellNeighbors * cellNeighborsContainer,
+                    CellTracksVector * cellTracks, CellTracks * cellTracksContainer
+                   )
+  {
      int first = blockIdx.x * blockDim.x + threadIdx.x;
+     if (first) {
+       assert(cellNeighbors);
+       assert(cellNeighborsContainer);
+       assert(cellTracks);
+       assert(cellTracksContainer);
+
+       cellNeighbors->construct(MaxNumOfActiveDoublets,cellNeighborsContainer);
+       cellTracks->construct(MaxNumOfActiveDoublets,cellTracksContainer);
+       // add default empty one
+       cellNeighbors->resize(1);
+       cellNeighbors->back().reset();
+       cellTracks->resize(1);
+       cellTracks->back().reset();
+       assert(1==cellNeighbors->size());
+       assert(1==cellTracks->size());
+       assert(cellNeighbors->back().empty());
+       assert(cellTracks->back().empty());
+     }
+
      for (int i=first; i<nHits; i+=gridDim.x*blockDim.x) isOuterHitOfCell[i].reset();
   }
 
@@ -42,6 +69,7 @@ namespace gpuPixelDoublets {
                          uint32_t nPairs,
                          GPUCACell * cells,
                          uint32_t * nCells,
+                         CellNeighborsVector * cellNeighbors, CellTracksVector * cellTracks,
                          int16_t const * __restrict__ iphi,
                          Hist const & __restrict__ hist,
                          uint32_t const * __restrict__ offsets,
@@ -200,7 +228,7 @@ namespace gpuPixelDoublets {
           auto ind = atomicAdd(nCells, 1); 
           if (ind>=MaxNumOfDoublets) {atomicSub(nCells, 1); break; } // move to SimpleVector??
           // int layerPairId, int doubletId, int innerHitId, int outerHitId)
-          cells[ind].init(hh, pairLayerId, ind, i, oi);
+          cells[ind].init(*cellNeighbors, *cellTracks, hh, pairLayerId, ind, i, oi);
           isOuterHitOfCell[oi].push_back(ind);
 #ifdef GPU_DEBUG
           if (isOuterHitOfCell[oi].full()) ++tooMany;
@@ -222,6 +250,7 @@ namespace gpuPixelDoublets {
   __launch_bounds__(getDoubletsFromHistoMaxBlockSize,getDoubletsFromHistoMinBlocksPerMP)
   void getDoubletsFromHisto(GPUCACell * cells,
                             uint32_t * nCells,
+                            CellNeighborsVector * cellNeighbors, CellTracksVector * cellTracks,
                             siPixelRecHitsHeterogeneousProduct::HitsOnGPU const *  __restrict__ hhp,
                             GPUCACell::OuterHitOfCell * isOuterHitOfCell,
                             bool ideal_cond)
@@ -266,6 +295,7 @@ namespace gpuPixelDoublets {
 
     auto const &  __restrict__ hh = *hhp;
     doubletsFromHisto(layerPairs, nPairs, cells, nCells,
+                      cellNeighbors, cellTracks,
                       hh.iphi_d, *hh.hist_d, hh.hitsLayerStart_d,
                       hh, isOuterHitOfCell,
                       phicuts, 

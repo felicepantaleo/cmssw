@@ -24,7 +24,8 @@ public:
   using OuterHitOfCell = CAConstants::OuterHitOfCell;
   using CellNeighbors = CAConstants::CellNeighbors;
   using CellTracks = CAConstants::CellTracks;
-
+  using CellNeighborsVector = CAConstants::CellNeighborsVector;
+  using CellTracksVector = CAConstants::CellTracksVector;
 
   using Hits = siPixelRecHitsHeterogeneousProduct::HitsOnGPU;
   using hindex_type = siPixelRecHitsHeterogeneousProduct::hindex_type;
@@ -39,7 +40,8 @@ public:
 #ifdef __CUDACC__
 
   __device__ __forceinline__
-  void init(Hits const & hh,
+  void init(CellNeighborsVector & cellNeighbors, CellTracksVector & cellTracks,
+      Hits const & hh,
       int layerPairId, int doubletId,  
       hindex_type innerHitId, hindex_type outerHitId)
   {
@@ -50,25 +52,42 @@ public:
 
     theInnerZ = __ldg(hh.zg_d+innerHitId);
     theInnerR = __ldg(hh.rg_d+innerHitId);
-    theOuterNeighbors.reset();
-    theTracks.reset();
+
+    // link to default empty
+    theOuterNeighbors = &cellNeighbors[0];
+    theTracks = &cellTracks[0];
   }
 
 
  __device__ __forceinline__
-  auto addOuterNeighbor(CellNeighbors::value_t t) {
-     return theOuterNeighbors.push_back(t);
+  int addOuterNeighbor(CellNeighbors::value_t t, CellNeighborsVector & cellNeighbors) {
+     if (outerNeighbors().empty()) {
+       auto i = cellNeighbors.extend();
+       if (i>0) {
+         theOuterNeighbors = &cellNeighbors[i];
+         outerNeighbors().reset();
+       } else return i;
+     } 
+     return outerNeighbors().push_back(t);  
   }
 
   __device__ __forceinline__
-  auto addTrack(CellTracks::value_t t) {
-     return theTracks.push_back(t);
+  auto addTrack(CellTracks::value_t t, CellTracksVector & cellTracks) {
+     if (tracks().empty()) {
+       auto i = cellTracks.extend();
+       if (i>0) {
+         theTracks = &cellTracks[i];
+         tracks().reset();
+       }
+       else return i;
+     }
+     return tracks().push_back(t);
   } 
 
-  __device__ __forceinline__ auto & tracks() { return theTracks;}
-  __device__ __forceinline__ auto const & tracks() const { return theTracks;}
-  __device__ __forceinline__ auto & outerNeighbors() { return theOuterNeighbors;}
-  __device__ __forceinline__ auto const & outerNeighbors() const { return theOuterNeighbors;}
+  __device__ __forceinline__ CellTracks & tracks() { return *theTracks;}
+  __device__ __forceinline__ CellTracks const & tracks() const { return *theTracks;}
+  __device__ __forceinline__ CellNeighbors & outerNeighbors() { return *theOuterNeighbors;}
+  __device__ __forceinline__ CellNeighbors const & outerNeighbors() const { return *theOuterNeighbors;}
 
 
   __device__ __forceinline__ float get_inner_x(Hits const & hh) const { return __ldg(hh.xg_d+theInnerHitId); }
@@ -182,6 +201,7 @@ public:
   inline void find_ntuplets(
       Hits const & hh,
       GPUCACell * __restrict__ cells,
+      CellTracksVector & cellTracks,
       TuplesOnGPU::Container & foundNtuplets, 
       AtomicPairCounter & apc,
       CM & tupleMultiplicity,
@@ -200,7 +220,7 @@ public:
     if(outerNeighbors().size()>0) {
       for (int j = 0; j < outerNeighbors().size(); ++j) {
         auto otherCell = outerNeighbors()[j];
-        cells[otherCell].find_ntuplets(hh, cells, foundNtuplets, apc, tupleMultiplicity, 
+        cells[otherCell].find_ntuplets(hh, cells, cellTracks, foundNtuplets, apc, tupleMultiplicity, 
                                        tmpNtuplet, minHitsPerNtuplet);
       }
     } else {  // if long enough save...
@@ -215,7 +235,7 @@ public:
           hits[nh] = theOuterHitId; 
           auto it = foundNtuplets.bulkFill(apc,hits,tmpNtuplet.size()+1);
           if (it>=0)  { // if negative is overflow....
-            for (auto c : tmpNtuplet) cells[c].addTrack(it);
+            for (auto c : tmpNtuplet) cells[c].addTrack(it,cellTracks);
             tupleMultiplicity.countDirect(tmpNtuplet.size()+1);
           }
         }
@@ -228,8 +248,8 @@ public:
 #endif // __CUDACC__
 
 private:
-  CellNeighbors theOuterNeighbors;
-  CellTracks theTracks;
+  CellNeighbors * theOuterNeighbors;
+  CellTracks * theTracks;
 
 public:
   int32_t theDoubletId;
