@@ -45,7 +45,7 @@ void kernelBLFastFit(TuplesOnGPU::Container const * __restrict__ foundNtuplets,
   // look in bin for this hit multiplicity
   auto local_start = (blockIdx.x * blockDim.x + threadIdx.x);
 
-#ifdef GPU_DEBUG
+#ifdef BROKENLINE_DEBUG
   if (0==local_start) printf("%d Ntuple of size %d for %d hits to fit\n",tupleMultiplicity->size(nHits), nHits, hitsInFit);
 #endif
 
@@ -156,7 +156,7 @@ void kernelBLFit(
   helix.chi2_circle = circle.chi2;
   helix.chi2_line = line.chi2;
 
-#ifdef GPU_DEBUG
+#ifdef BROKENLINE_DEBUG
   if ( !(circle.chi2>=0) || !(line.chi2>=0) ) printf("kernelBLFit failed! %f/%f\n", helix.chi2_circle,helix.chi2_line);
   printf("kernelBLFit size %d for %d hits circle.par(0,1,2): %d %f,%f,%f\n", N,nHits, helix_start,
          circle.par(0), circle.par(1), circle.par(2));
