@@ -44,7 +44,6 @@ template <class T> struct SimpleVector {
   }
 
   inline constexpr T & back() const {
-
     if (m_size > 0) {
       return m_data[m_size - 1];
     } else
@@ -73,6 +72,18 @@ template <class T> struct SimpleVector {
       return previousSize;
     } else {
       atomicSub(&m_size, 1);
+      return -1;
+    }
+  }
+
+  // thread safe version of resize
+  __device__
+  int extend(int size=1) {
+    auto previousSize = atomicAdd(&m_size, size);
+    if (previousSize < m_capacity) {
+      return previousSize;
+    } else {
+      atomicSub(&m_size, size);
       return -1;
     }
   }

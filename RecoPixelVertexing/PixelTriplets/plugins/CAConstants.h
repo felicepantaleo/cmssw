@@ -38,6 +38,10 @@ namespace CAConstants {
    // types
    using hindex_type = uint16_t; // FIXME from siPixelRecHitsHeterogeneousProduct
    using tindex_type = uint16_t; //  for tuples
+
+   using CellNeighbors = GPU::VecArray< uint32_t, 36>;
+   using CellTracks = GPU::VecArray< tindex_type, 42>;
+
    using OuterHitOfCell = GPU::VecArray< uint32_t, maxCellsPerHit()>;
    using TuplesContainer = OneToManyAssoc<hindex_type, maxTuples(), 5*maxTuples()>;
    using HitToTuple = OneToManyAssoc<tindex_type, PixelGPUConstants::maxNumberOfHits, 4*maxTuples()>; // 3.5 should be enough

@@ -68,7 +68,7 @@ private:
     // workspace
 
     cudautils::device::unique_ptr<GPUCACell[]> device_theCells_;
-    GPUCACell::OuterHitOfCell* device_isOuterHitOfCell_ = nullptr;
+    cudautils::device::unique_ptr<GPUCACell::OuterHitOfCell[]> device_isOuterHitOfCell_;
     uint32_t* device_nCells_ = nullptr;
 
     HitToTuple * device_hitToTuple_ = nullptr;
