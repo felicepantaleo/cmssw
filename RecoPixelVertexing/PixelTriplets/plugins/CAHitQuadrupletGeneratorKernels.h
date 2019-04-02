@@ -26,6 +26,8 @@ public:
       unsigned long long nUsedHits;
       unsigned long long nDupHits;
       unsigned long long nKilledCells;
+      unsigned long long nEmptyCells;
+      unsigned long long nZeroTrackCells;
     };
 
    using HitsOnGPU = siPixelRecHitsHeterogeneousProduct::HitsOnGPU;

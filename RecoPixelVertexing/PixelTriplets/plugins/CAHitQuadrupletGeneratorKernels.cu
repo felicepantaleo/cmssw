@@ -33,10 +33,6 @@ void kernel_checkOverflows(TuplesOnGPU::Container * foundNtuplets, AtomicPairCou
                GPUCACell::OuterHitOfCell const * __restrict__ isOuterHitOfCell,
                uint32_t nHits, CAHitQuadrupletGeneratorKernels::Counters * counters) {
 
- __shared__ uint32_t killedCell;
- killedCell=0;
- __syncthreads();
-
  auto idx = threadIdx.x + blockIdx.x * blockDim.x;
 
  auto    & c = *counters;
@@ -73,16 +69,15 @@ void kernel_checkOverflows(TuplesOnGPU::Container * foundNtuplets, AtomicPairCou
      printf("OuterNeighbors overflow %d in %d\n", idx, thisCell.theLayerPairId);
    if (thisCell.theTracks.full()) //++tooManyTracks[thisCell.theLayerPairId];
      printf("Tracks overflow %d in %d\n", idx, thisCell.theLayerPairId);
-   if (thisCell.theDoubletId<0) atomicAdd(&killedCell,1);
+   if (thisCell.theDoubletId<0) atomicAdd(&c.nKilledCells,1);
+   if (thisCell.theOuterNeighbors.empty()) atomicAdd(&c.nEmptyCells,1);
+   if (thisCell.theTracks.empty())  atomicAdd(&c.nZeroTrackCells,1);
  }
  if (idx < nHits) {
    if (isOuterHitOfCell[idx].full()) // ++tooManyOuterHitOfCell;
      printf("OuterHitOfCell overflow %d\n", idx);
  }
 
- __syncthreads();
- if (threadIdx.x==0) atomicAdd(&c.nKilledCells,killedCell);
- // if (threadIdx.x==0) printf("number of killed cells %d\n",killedCell);
 }
 
 
@@ -578,10 +573,16 @@ __global__
 void kernel_printCounters(CAHitQuadrupletGeneratorKernels::Counters const * counters) {
    
    auto const & c = *counters;
-   printf("Counters Raw %lld %lld %lld %lld %lld %lld %lld %lld\n",c.nEvents,c.nHits,c.nCells,c.nTuples,c.nGoodTracks,c.nUsedHits, c.nDupHits, c.nKilledCells);
-   printf("Counters Norm %lld ||  %.1f|  %.1f|  %.1f|  %.1f|  %.1f|  %.1f|  %.1f||\n",c.nEvents,c.nHits/double(c.nEvents),c.nCells/double(c.nEvents),
+   printf("||Counters | nEvents | nHits | nCells | nTuples | nGoodTracks | nUsedHits | nDupHits | nKilledCells | nEmptyCells | nZeroTrackCells ||\n");
+   printf("Counters Raw %lld %lld %lld %lld %lld %lld %lld %lld %lld %lld\n",c.nEvents,c.nHits,c.nCells,
+           c.nTuples,c.nGoodTracks,c.nUsedHits, c.nDupHits, c.nKilledCells, c.nEmptyCells,c.nZeroTrackCells
+         );
+   printf("Counters Norm %lld ||  %.1f|  %.1f|  %.1f|  %.1f|  %.1f|  %.1f|  %.1f|  %.3f|  %.3f||\n",
+                                                c.nEvents,c.nHits/double(c.nEvents),c.nCells/double(c.nEvents),
                                                 c.nTuples/double(c.nEvents),c.nGoodTracks/double(c.nEvents),
-                                                c.nUsedHits/double(c.nEvents),c.nDupHits/double(c.nEvents),c.nKilledCells/double(c.nEvents));
+                                                c.nUsedHits/double(c.nEvents),c.nDupHits/double(c.nEvents),c.nKilledCells/double(c.nEvents),
+                                                c.nEmptyCells/double(c.nCells),c.nZeroTrackCells/double(c.nCells)
+         );
 
 }
 
