@@ -25,6 +25,16 @@ namespace gpuPixelDoublets {
 
   constexpr uint32_t MaxNumOfDoublets = CAConstants::maxNumberOfDoublets();  // not really relevant
 
+  using CellNeighbors = CAConstants::CellNeighbors;
+  using CellTracks = CAConstants::CellTracks;
+
+
+ __global__
+  void initDoublets(GPUCACell::OuterHitOfCell * isOuterHitOfCell, int nHits) {
+     int first = blockIdx.x * blockDim.x + threadIdx.x;
+     for (int i=first; i<nHits; i+=gridDim.x*blockDim.x) isOuterHitOfCell[i].reset();
+  }
+
   template<typename Hist>
   __device__
   __forceinline__

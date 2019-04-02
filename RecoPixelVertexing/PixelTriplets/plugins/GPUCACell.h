@@ -22,6 +22,8 @@ public:
 
   static constexpr int maxCellsPerHit = CAConstants::maxCellsPerHit();
   using OuterHitOfCell = CAConstants::OuterHitOfCell;
+  using CellNeighbors = CAConstants::CellNeighbors;
+  using CellTracks = CAConstants::CellTracks;
 
 
   using Hits = siPixelRecHitsHeterogeneousProduct::HitsOnGPU;
@@ -208,8 +210,8 @@ public:
 
 #endif // __CUDACC__
 
-  GPU::VecArray< uint32_t, 36> theOuterNeighbors;
-  GPU::VecArray< uint16_t, 42> theTracks;
+  CellNeighbors theOuterNeighbors;
+  CellTracks theTracks;
 
   int32_t theDoubletId;
   int32_t theLayerPairId;

@@ -435,7 +435,7 @@ void CAHitQuadrupletGeneratorKernels::launchKernels( // here goes algoparms....
     fishbone<<<blks,thrs, 0, cudaStream>>>(
       hh.gpu_d,
       device_theCells_.get(), device_nCells_,
-      device_isOuterHitOfCell_,
+      device_isOuterHitOfCell_.get(),
       nhits, false
     );
     cudaCheck(cudaGetLastError());
@@ -457,7 +457,7 @@ void CAHitQuadrupletGeneratorKernels::launchKernels( // here goes algoparms....
       gpu_.apc_d, device_hitToTuple_apc_,  // needed only to be reset, ready for next kernel
       hh.gpu_d,
       device_theCells_.get(), device_nCells_,
-      device_isOuterHitOfCell_
+      device_isOuterHitOfCell_.get()
   );
   cudaCheck(cudaGetLastError());
 
@@ -492,7 +492,7 @@ void CAHitQuadrupletGeneratorKernels::launchKernels( // here goes algoparms....
     fishbone<<<blks,thrs, 0, cudaStream>>>(
       hh.gpu_d,
       device_theCells_.get(), device_nCells_,
-      device_isOuterHitOfCell_,
+      device_isOuterHitOfCell_.get(),
       nhits, true
     );
     cudaCheck(cudaGetLastError());
@@ -503,7 +503,7 @@ void CAHitQuadrupletGeneratorKernels::launchKernels( // here goes algoparms....
     kernel_checkOverflows<<<numberOfBlocks, blockSize, 0, cudaStream>>>(
                         gpu_.tuples_d, gpu_.apc_d,
                         device_theCells_.get(), device_nCells_,
-                        device_isOuterHitOfCell_, nhits,
+                        device_isOuterHitOfCell_.get(), nhits,
                         counters_
                        );
     cudaCheck(cudaGetLastError());
@@ -518,9 +518,16 @@ void CAHitQuadrupletGeneratorKernels::buildDoublets(HitsOnCPU const & hh, cuda::
   auto nhits = hh.nHits;
   if (0==nhits) return; // protect against empty events
 
-   // in principle we can use "nhits" to heuristically dimension the workspace...
-   edm::Service<CUDAService> cs;
-   device_theCells_  = cs->make_device_unique<GPUCACell[]>(CAConstants::maxNumberOfDoublets(), stream);
+  // in principle we can use "nhits" to heuristically dimension the workspace...
+  edm::Service<CUDAService> cs;
+  device_isOuterHitOfCell_ = cs->make_device_unique<GPUCACell::OuterHitOfCell[]>(nhits, stream);
+  {
+    int threadsPerBlock = 128;
+    int blocks = (nhits + threadsPerBlock - 1) / threadsPerBlock;
+    gpuPixelDoublets::initDoublets<<<blocks, threadsPerBlock, 0, stream.id()>>>(device_isOuterHitOfCell_.get(),nhits);
+  }
+   
+  device_theCells_  = cs->make_device_unique<GPUCACell[]>(CAConstants::maxNumberOfDoublets(), stream);
 
   if (0==nhits) return; // protect against empty events
 
@@ -530,7 +537,7 @@ void CAHitQuadrupletGeneratorKernels::buildDoublets(HitsOnCPU const & hh, cuda::
   dim3 blks(1,blocks,1);
   dim3 thrs(stride,threadsPerBlock,1);
   gpuPixelDoublets::getDoubletsFromHisto<<<blks, thrs, 0, stream.id()>>>(
-            device_theCells_.get(), device_nCells_, hh.gpu_d, device_isOuterHitOfCell_, idealConditions_);
+            device_theCells_.get(), device_nCells_, hh.gpu_d, device_isOuterHitOfCell_.get(), idealConditions_);
   cudaCheck(cudaGetLastError());
 }
 

@@ -11,7 +11,6 @@ CAHitQuadrupletGeneratorKernels::deallocateOnGPU()
   }
   cudaFree(counters_);
 
-  cudaFree(device_isOuterHitOfCell_);
   cudaFree(device_nCells_);
   cudaFree(device_hitToTuple_);
   cudaFree(device_hitToTuple_apc_);
@@ -31,11 +30,6 @@ void CAHitQuadrupletGeneratorKernels::allocateOnGPU()
   cudaCheck(cudaMalloc(&device_nCells_, sizeof(uint32_t)));
   cudaCheck(cudaMemset(device_nCells_, 0, sizeof(uint32_t)));
 
-  cudaCheck(cudaMalloc(&device_isOuterHitOfCell_,
-             PixelGPUConstants::maxNumberOfHits * sizeof(CAConstants::OuterHitOfCell)));
-  cudaCheck(cudaMemset(device_isOuterHitOfCell_, 0,
-             PixelGPUConstants::maxNumberOfHits * sizeof(CAConstants::OuterHitOfCell)));
-
    cudaCheck(cudaMalloc(&device_hitToTuple_, sizeof(HitToTuple)));
    cudaCheck(cudaMemset(device_hitToTuple_,0,sizeof(HitToTuple))); // overkill
    cudaCheck(cudaMalloc(&device_hitToTuple_apc_, sizeof(AtomicPairCounter)));
@@ -49,9 +43,8 @@ void CAHitQuadrupletGeneratorKernels::allocateOnGPU()
 void CAHitQuadrupletGeneratorKernels::cleanup(cudaStream_t cudaStream) {
   // this lazily resets temporary memory for the next event, and is not needed for reading the output
   device_theCells_ = nullptr;
-  cudaCheck(cudaMemsetAsync(device_isOuterHitOfCell_, 0,
-                            PixelGPUConstants::maxNumberOfHits * sizeof(CAConstants::OuterHitOfCell),
-                            cudaStream));
+  device_isOuterHitOfCell_ = nullptr;
+
   cudaCheck(cudaMemsetAsync(device_nCells_, 0, sizeof(uint32_t), cudaStream));
 
   cudautils::launchZero(device_tupleMultiplicity_,cudaStream);
