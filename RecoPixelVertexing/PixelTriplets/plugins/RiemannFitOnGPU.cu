@@ -42,7 +42,7 @@ void kernelFastFit(TuplesOnGPU::Container const * __restrict__ foundNtuplets,
   // look in bin for this hit multiplicity
   auto local_start = (blockIdx.x * blockDim.x + threadIdx.x);
 
-#ifdef GPU_DEBUG
+#ifdef RIEMANN_DEBUG
   if (0==local_start) printf("%d Ntuple of size %d for %d hits to fit\n",tupleMultiplicity->size(nHits), nHits, hitsInFit);
 #endif
 
@@ -123,7 +123,7 @@ void kernelCircleFit(
                        hits_cov,
                        fast_fit, rad, B, true);
 
-#ifdef GPU_DEBUG
+#ifdef RIEMANN_DEBUG
 //  printf("kernelCircleFit circle.par(0,1,2): %d %f,%f,%f\n", helix_start, 
 //         circle_fit[local_start].par(0), circle_fit[local_start].par(1), circle_fit[local_start].par(2));
 #endif
@@ -180,7 +180,7 @@ void kernelLineFit(
   helix.chi2_circle = circle_fit[local_start].chi2;
   helix.chi2_line = line_fit.chi2;
 
-#ifdef GPU_DEBUG
+#ifdef RIEMANN_DEBUG
   printf("kernelLineFit size %d for %d hits circle.par(0,1,2): %d %f,%f,%f\n", N,nHits, helix_start,
          circle_fit[local_start].par(0), circle_fit[local_start].par(1), circle_fit[local_start].par(2));
   printf("kernelLineFit line.par(0,1): %d %f,%f\n", helix_start, line_fit.par(0),line_fit.par(1));

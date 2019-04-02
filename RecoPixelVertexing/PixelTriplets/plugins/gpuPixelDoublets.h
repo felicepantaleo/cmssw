@@ -40,7 +40,7 @@ namespace gpuPixelDoublets {
                    )
   {
      int first = blockIdx.x * blockDim.x + threadIdx.x;
-     if (first) {
+     if (0==first) {
        assert(cellNeighbors);
        assert(cellNeighborsContainer);
        assert(cellTracks);
