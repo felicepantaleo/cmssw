@@ -30,6 +30,7 @@ using Quality = pixelTuplesHeterogeneousProduct::Quality;
 __global__
 void kernel_checkOverflows(TuplesOnGPU::Container * foundNtuplets, AtomicPairCounter * apc,
                GPUCACell const * __restrict__ cells, uint32_t const * __restrict__ nCells,
+               CellNeighborsVector const * cellNeighbors, CellTracksVector const * cellTracks,
                GPUCACell::OuterHitOfCell const * __restrict__ isOuterHitOfCell,
                uint32_t nHits, CAHitQuadrupletGeneratorKernels::Counters * counters) {
 
@@ -61,6 +62,11 @@ void kernel_checkOverflows(TuplesOnGPU::Container * foundNtuplets, AtomicPairCou
  if (0==idx) {
    if (apc->get().m >=CAConstants::maxNumberOfQuadruplets()) printf("Tuples overflow\n");
    if (*nCells>=CAConstants::maxNumberOfDoublets()) printf("Cells overflow\n");
+   if (cellNeighbors->full()) printf("CellNeighbors overflow\n");
+   if (cellTracks->full()) printf("CellTracks overflow\n");
+   if (!cellNeighbors->data()[0].empty()) printf("CellNeighbors mess\n");
+   if (!cellTracks->data()[0].empty()) printf("CellTracks mess\n");
+
  }
 
  if (idx < (*nCells) ) {
@@ -151,6 +157,7 @@ void
 kernel_connect(AtomicPairCounter * apc1, AtomicPairCounter * apc2,  // just to zero them,
                GPUCACell::Hits const *  __restrict__ hhp,
                GPUCACell * cells, uint32_t const * __restrict__ nCells,
+               CellNeighborsVector * cellNeighbors,
                GPUCACell::OuterHitOfCell const * __restrict__ isOuterHitOfCell) {
 
   auto const & hh = *hhp;
@@ -179,7 +186,7 @@ kernel_connect(AtomicPairCounter * apc1, AtomicPairCounter * apc2,  // just to z
      if (thisCell.check_alignment(hh,
                  cells[otherCell], ptmin, hardCurvCut)
         ) {
-          cells[otherCell].addOuterNeighbor(cellIndex);
+          cells[otherCell].addOuterNeighbor(cellIndex, *cellNeighbors);
      }
   }
 }
@@ -188,6 +195,7 @@ __global__
 void kernel_find_ntuplets(
     GPUCACell::Hits const *  __restrict__ hhp,
     GPUCACell * __restrict__ cells, uint32_t const * nCells,
+    CellTracksVector * cellTracks,
     TuplesOnGPU::Container * foundNtuplets, AtomicPairCounter * apc,
     GPUCACell::TupleMultiplicity * tupleMultiplicity,
     unsigned int minHitsPerNtuplet)
@@ -209,7 +217,7 @@ void kernel_find_ntuplets(
   if (thisCell.theLayerPairId==0 || thisCell.theLayerPairId==3 || thisCell.theLayerPairId==8) { // inner layer is 0 FIXME
     GPUCACell::TmpTuple stack;
     stack.reset();
-    thisCell.find_ntuplets(hh, cells, *foundNtuplets, *apc, 
+    thisCell.find_ntuplets(hh, cells, *cellTracks, *foundNtuplets, *apc, 
                            #ifdef CA_USE_LOCAL_COUNTERS
                            local,
                            #else
@@ -457,6 +465,7 @@ void CAHitQuadrupletGeneratorKernels::launchKernels( // here goes algoparms....
       gpu_.apc_d, device_hitToTuple_apc_,  // needed only to be reset, ready for next kernel
       hh.gpu_d,
       device_theCells_.get(), device_nCells_,
+      device_theCellNeighbors_,
       device_isOuterHitOfCell_.get()
   );
   cudaCheck(cudaGetLastError());
@@ -464,6 +473,7 @@ void CAHitQuadrupletGeneratorKernels::launchKernels( // here goes algoparms....
   kernel_find_ntuplets<<<numberOfBlocks, blockSize, 0, cudaStream>>>(
       hh.gpu_d,
       device_theCells_.get(), device_nCells_,
+      device_theCellTracks_,
       gpu_.tuples_d,
       gpu_.apc_d,
       device_tupleMultiplicity_,
@@ -503,10 +513,14 @@ void CAHitQuadrupletGeneratorKernels::launchKernels( // here goes algoparms....
     kernel_checkOverflows<<<numberOfBlocks, blockSize, 0, cudaStream>>>(
                         gpu_.tuples_d, gpu_.apc_d,
                         device_theCells_.get(), device_nCells_,
+                        device_theCellNeighbors_,device_theCellTracks_,
                         device_isOuterHitOfCell_.get(), nhits,
                         counters_
                        );
     cudaCheck(cudaGetLastError());
+#ifdef GPU_DEBUG
+    cudaDeviceSynchronize();
+#endif
   }
 
 
@@ -516,15 +530,23 @@ void CAHitQuadrupletGeneratorKernels::launchKernels( // here goes algoparms....
 
 void CAHitQuadrupletGeneratorKernels::buildDoublets(HitsOnCPU const & hh, cuda::stream_t<>& stream) {
   auto nhits = hh.nHits;
-  if (0==nhits) return; // protect against empty events
+
+#ifdef GPU_DEBUG
+  std::cout << "building Doublets out of " << nhits << " Hits" << std::endl;
+#endif
 
   // in principle we can use "nhits" to heuristically dimension the workspace...
   edm::Service<CUDAService> cs;
   device_isOuterHitOfCell_ = cs->make_device_unique<GPUCACell::OuterHitOfCell[]>(nhits, stream);
+  device_theCellNeighborsContainer_ = cs->make_device_unique<CAConstants::CellNeighbors[]>(CAConstants::maxNumOfActiveDoublets(), stream);
+  device_theCellTracksContainer_ = cs->make_device_unique<CAConstants::CellTracks[]>(CAConstants::maxNumOfActiveDoublets(), stream);
   {
     int threadsPerBlock = 128;
     int blocks = (nhits + threadsPerBlock - 1) / threadsPerBlock;
-    gpuPixelDoublets::initDoublets<<<blocks, threadsPerBlock, 0, stream.id()>>>(device_isOuterHitOfCell_.get(),nhits);
+    gpuPixelDoublets::initDoublets<<<blocks, threadsPerBlock, 0, stream.id()>>>(device_isOuterHitOfCell_.get(),nhits,
+                                     device_theCellNeighbors_, device_theCellNeighborsContainer_.get(),
+                                     device_theCellTracks_, device_theCellTracksContainer_.get()
+                                     );
   }
    
   device_theCells_  = cs->make_device_unique<GPUCACell[]>(CAConstants::maxNumberOfDoublets(), stream);
@@ -537,7 +559,9 @@ void CAHitQuadrupletGeneratorKernels::buildDoublets(HitsOnCPU const & hh, cuda::
   dim3 blks(1,blocks,1);
   dim3 thrs(stride,threadsPerBlock,1);
   gpuPixelDoublets::getDoubletsFromHisto<<<blks, thrs, 0, stream.id()>>>(
-            device_theCells_.get(), device_nCells_, hh.gpu_d, device_isOuterHitOfCell_.get(), idealConditions_);
+            device_theCells_.get(), device_nCells_,
+            device_theCellNeighbors_, device_theCellTracks_,
+            hh.gpu_d, device_isOuterHitOfCell_.get(), idealConditions_);
   cudaCheck(cudaGetLastError());
 }
 

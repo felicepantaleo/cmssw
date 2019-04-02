@@ -43,7 +43,13 @@ template <class T> struct SimpleVector {
     }
   }
 
-  inline constexpr T & back() const {
+  __device__
+  inline T & back()  {
+    return m_data[m_size - 1];
+  }
+
+  __device__
+  inline const T & back() const {
     if (m_size > 0) {
       return m_data[m_size - 1];
     } else

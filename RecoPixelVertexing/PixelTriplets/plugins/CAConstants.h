@@ -6,6 +6,7 @@
 
 #include "HeterogeneousCore/CUDAUtilities/interface/HistoContainer.h"
 #include "HeterogeneousCore/CUDAUtilities/interface/GPUVecArray.h"
+#include "HeterogeneousCore/CUDAUtilities/interface/GPUSimpleVector.h"
 #include "RecoLocalTracker/SiPixelClusterizer/interface/PixelTrackingGPUConstants.h"
 
 // #define ONLY_PHICUT
@@ -31,6 +32,9 @@ namespace CAConstants {
    constexpr uint32_t maxNumberOfDoublets() { return 6*262144; }
    constexpr uint32_t maxCellsPerHit() { return 4*128; }
 #endif
+  constexpr uint32_t maxNumOfActiveDoublets() { return maxNumberOfDoublets()/4;}
+
+
    constexpr uint32_t maxNumberOfLayerPairs() { return 13; }
    constexpr uint32_t maxNumberOfLayers() { return 10; }
    constexpr uint32_t maxTuples() { return maxNumberOfTuples();}
@@ -41,6 +45,9 @@ namespace CAConstants {
 
    using CellNeighbors = GPU::VecArray< uint32_t, 36>;
    using CellTracks = GPU::VecArray< tindex_type, 42>;
+
+   using CellNeighborsVector = GPU::SimpleVector<CellNeighbors>;
+   using CellTracksVector = GPU::SimpleVector<CellTracks>;
 
    using OuterHitOfCell = GPU::VecArray< uint32_t, maxCellsPerHit()>;
    using TuplesContainer = OneToManyAssoc<hindex_type, maxTuples(), 5*maxTuples()>;

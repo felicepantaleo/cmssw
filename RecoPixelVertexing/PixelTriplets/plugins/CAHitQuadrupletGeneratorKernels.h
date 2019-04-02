@@ -63,25 +63,31 @@ public:
 
 private:
 
-    Counters * counters_ = nullptr;
+   Counters * counters_ = nullptr;
 
-    // workspace
+   // workspace
+   CAConstants::CellNeighborsVector * device_theCellNeighbors_ = nullptr;
+   cudautils::device::unique_ptr<CAConstants::CellNeighbors[]> device_theCellNeighborsContainer_; 
+   CAConstants::CellTracksVector * device_theCellTracks_ = nullptr;
+   cudautils::device::unique_ptr<CAConstants::CellTracks[]> device_theCellTracksContainer_;
 
-    cudautils::device::unique_ptr<GPUCACell[]> device_theCells_;
-    cudautils::device::unique_ptr<GPUCACell::OuterHitOfCell[]> device_isOuterHitOfCell_;
-    uint32_t* device_nCells_ = nullptr;
 
-    HitToTuple * device_hitToTuple_ = nullptr;
-    AtomicPairCounter * device_hitToTuple_apc_ = nullptr;
+   cudautils::device::unique_ptr<GPUCACell[]> device_theCells_;
+   cudautils::device::unique_ptr<GPUCACell::OuterHitOfCell[]> device_isOuterHitOfCell_;
+   uint32_t* device_nCells_ = nullptr;
 
-    TupleMultiplicity * device_tupleMultiplicity_ = nullptr;
-    uint8_t * device_tmws_ = nullptr;    
+   HitToTuple * device_hitToTuple_ = nullptr;
+   AtomicPairCounter * device_hitToTuple_apc_ = nullptr;
 
-    const uint32_t minHitsPerNtuplet_;
-    const bool earlyFishbone_;
-    const bool lateFishbone_;
-    const bool idealConditions_;
-    const bool doStats_;
+   TupleMultiplicity * device_tupleMultiplicity_ = nullptr;
+   uint8_t * device_tmws_ = nullptr;    
+
+   // params
+   const uint32_t minHitsPerNtuplet_;
+   const bool earlyFishbone_;
+   const bool lateFishbone_;
+   const bool idealConditions_;
+   const bool doStats_;
 };
 
 #endif // RecoPixelVertexing_PixelTriplets_plugins_CAHitQuadrupletGeneratorKernels_h
