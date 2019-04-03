@@ -17,8 +17,6 @@
 
 // #define ALL_TRIPLETS
 
-// #define USE_SMART_CACHE
-
 class GPUCACell {
 public:
 
