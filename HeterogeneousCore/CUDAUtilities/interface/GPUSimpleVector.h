@@ -94,8 +94,19 @@ template <class T> struct SimpleVector {
     }
   }
 
-  inline constexpr bool empty() const { return m_size==0;}
-  inline constexpr bool full() const { return m_size==m_capacity;}
+  __device__
+  int shrink(int size=1) {
+    auto previousSize = atomicSub(&m_size, size);
+    if (previousSize >=size) {
+      return previousSize-size;
+    } else {
+      atomicAdd(&m_size, size);
+      return -1;
+    }
+  }
+
+  inline constexpr bool empty() const { return m_size<=0;}
+  inline constexpr bool full() const { return m_size>=m_capacity;}
   inline constexpr T& operator[](int i) { return m_data[i]; }
   inline constexpr const T& operator[](int i) const { return m_data[i]; }
   inline constexpr void reset() { m_size = 0; }
