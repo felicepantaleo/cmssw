@@ -62,11 +62,12 @@ void kernel_checkOverflows(TuplesOnGPU::Container * foundNtuplets, AtomicPairCou
  if (0==idx) {
    if (apc->get().m >=CAConstants::maxNumberOfQuadruplets()) printf("Tuples overflow\n");
    if (*nCells>=CAConstants::maxNumberOfDoublets()) printf("Cells overflow\n");
+#ifdef USE_SMART_CACHE
    if (cellNeighbors->full()) printf("CellNeighbors overflow\n");
    if (cellTracks->full()) printf("CellTracks overflow\n");
    if (!cellNeighbors->data()[0].empty()) printf("CellNeighbors mess\n");
    if (!cellTracks->data()[0].empty()) printf("CellTracks mess\n");
-
+#endif
  }
 
  if (idx < (*nCells) ) {
@@ -538,8 +539,10 @@ void CAHitQuadrupletGeneratorKernels::buildDoublets(HitsOnCPU const & hh, cuda::
   // in principle we can use "nhits" to heuristically dimension the workspace...
   edm::Service<CUDAService> cs;
   device_isOuterHitOfCell_ = cs->make_device_unique<GPUCACell::OuterHitOfCell[]>(nhits, stream);
+#ifdef USE_SMART_CACHE
   device_theCellNeighborsContainer_ = cs->make_device_unique<CAConstants::CellNeighbors[]>(CAConstants::maxNumOfActiveDoublets(), stream);
   device_theCellTracksContainer_ = cs->make_device_unique<CAConstants::CellTracks[]>(CAConstants::maxNumOfActiveDoublets(), stream);
+#endif
   {
     int threadsPerBlock = 128;
     int blocks = (nhits + threadsPerBlock - 1) / threadsPerBlock;

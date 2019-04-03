@@ -17,8 +17,6 @@
 
 // #define ALL_TRIPLETS
 
-// #define USE_SMART_CACHE
-
 class GPUCACell {
 public:
 
@@ -79,9 +77,9 @@ public:
      if (outerNeighbors().empty()) {
        auto i = cellNeighbors.extend(); // maybe waisted....
        if (i>0) {
+         cellNeighbors[i].reset();
          auto zero = (ptrAsInt)(&cellNeighbors[0]);
          atomicCAS((ptrAsInt*)(&theOuterNeighbors),zero,(ptrAsInt)(&cellNeighbors[i]));// if fails we cannot give "i" back...
-         cellNeighbors[i].reset();
        } else return -1;
      } 
 #endif
@@ -94,9 +92,9 @@ public:
      if (tracks().empty()) {
        auto i = cellTracks.extend(); // maybe waisted....
        if (i>0) {
+         cellTracks[i].reset();
          auto zero = (ptrAsInt)(&cellTracks[0]);
          atomicCAS((ptrAsInt*)(&theTracks),zero,(ptrAsInt)(&cellTracks[i]));
-         cellTracks[i].reset();
        }
        else return -1;
      }
