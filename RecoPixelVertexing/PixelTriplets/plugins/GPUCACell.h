@@ -17,8 +17,12 @@
 
 // #define ALL_TRIPLETS
 
+// #define USE_SMART_CACHE
+
 class GPUCACell {
 public:
+
+  using ptrAsInt = unsigned long long;
 
   static constexpr int maxCellsPerHit = CAConstants::maxCellsPerHit();
   using OuterHitOfCell = CAConstants::OuterHitOfCell;
@@ -53,42 +57,64 @@ public:
     theInnerZ = __ldg(hh.zg_d+innerHitId);
     theInnerR = __ldg(hh.rg_d+innerHitId);
 
+#ifdef USE_SMART_CACHE
     // link to default empty
     theOuterNeighbors = &cellNeighbors[0];
     theTracks = &cellTracks[0];
+    assert(outerNeighbors().empty());
+    assert(tracks().empty());
+#else
+    outerNeighbors().reset();
+    tracks().reset();
+#endif
+    assert(outerNeighbors().empty());
+    assert(tracks().empty());
+
   }
 
 
  __device__ __forceinline__
   int addOuterNeighbor(CellNeighbors::value_t t, CellNeighborsVector & cellNeighbors) {
+#ifdef USE_SMART_CACHE
      if (outerNeighbors().empty()) {
-       auto i = cellNeighbors.extend();
+       auto i = cellNeighbors.extend(); // maybe waisted....
        if (i>0) {
-         theOuterNeighbors = &cellNeighbors[i];
-         outerNeighbors().reset();
-       } else return i;
+         auto zero = (ptrAsInt)(&cellNeighbors[0]);
+         atomicCAS((ptrAsInt*)(&theOuterNeighbors),zero,(ptrAsInt)(&cellNeighbors[i]));// if fails we cannot give "i" back...
+         cellNeighbors[i].reset();
+       } else return -1;
      } 
+#endif
      return outerNeighbors().push_back(t);  
   }
 
   __device__ __forceinline__
-  auto addTrack(CellTracks::value_t t, CellTracksVector & cellTracks) {
+  int addTrack(CellTracks::value_t t, CellTracksVector & cellTracks) {
+#ifdef USE_SMART_CACHE
      if (tracks().empty()) {
-       auto i = cellTracks.extend();
+       auto i = cellTracks.extend(); // maybe waisted....
        if (i>0) {
-         theTracks = &cellTracks[i];
-         tracks().reset();
+         auto zero = (ptrAsInt)(&cellTracks[0]);
+         atomicCAS((ptrAsInt*)(&theTracks),zero,(ptrAsInt)(&cellTracks[i]));
+         cellTracks[i].reset();
        }
-       else return i;
+       else return -1;
      }
+#endif
      return tracks().push_back(t);
   } 
 
+#ifdef USE_SMART_CACHE
   __device__ __forceinline__ CellTracks & tracks() { return *theTracks;}
   __device__ __forceinline__ CellTracks const & tracks() const { return *theTracks;}
   __device__ __forceinline__ CellNeighbors & outerNeighbors() { return *theOuterNeighbors;}
   __device__ __forceinline__ CellNeighbors const & outerNeighbors() const { return *theOuterNeighbors;}
-
+#else
+  __device__ __forceinline__ CellTracks & tracks() { return theTracks;}
+  __device__ __forceinline__ CellTracks const & tracks() const { return theTracks;}
+  __device__ __forceinline__ CellNeighbors & outerNeighbors() { return theOuterNeighbors;}
+  __device__ __forceinline__ CellNeighbors const & outerNeighbors() const { return theOuterNeighbors;}
+#endif
 
   __device__ __forceinline__ float get_inner_x(Hits const & hh) const { return __ldg(hh.xg_d+theInnerHitId); }
   __device__ __forceinline__ float get_outer_x(Hits const & hh) const { return __ldg(hh.xg_d+theOuterHitId); }
@@ -248,8 +274,13 @@ public:
 #endif // __CUDACC__
 
 private:
+#ifdef USE_SMART_CACHE
   CellNeighbors * theOuterNeighbors;
   CellTracks * theTracks;
+#else
+  CellNeighbors theOuterNeighbors;
+  CellTracks theTracks;
+#endif
 
 public:
   int32_t theDoubletId;
