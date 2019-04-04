@@ -65,7 +65,7 @@ void CAHitQuadrupletGeneratorGPU::hitNtuplets(
     edm::EventSetup const& es,
     bool useRiemannFit,
     bool transferToCPU,
-    cudaStream_t cudaStream)
+    cuda::stream_t<> &cudaStream)
 {
   hitsOnCPU = &hh;
   launchKernels(hh, useRiemannFit, transferToCPU, cudaStream);
@@ -178,29 +178,29 @@ void CAHitQuadrupletGeneratorGPU::allocateOnGPU()
 void CAHitQuadrupletGeneratorGPU::launchKernels(HitsOnCPU const & hh,
                                                 bool useRiemannFit,
                                                 bool transferToCPU,
-                                                cudaStream_t cudaStream)
+                                                cuda::stream_t<> &cudaStream)
 {
 
-  kernels.launchKernels(hh, gpu_, cudaStream); 
+  kernels.launchKernels(hh, gpu_, cudaStream.id()); 
   if (useRiemannFit) {
     fitter.launchRiemannKernels(hh, hh.nHits, CAConstants::maxNumberOfQuadruplets(), cudaStream);
   } else {
     fitter.launchBrokenLineKernels(hh, hh.nHits, CAConstants::maxNumberOfQuadruplets(), cudaStream);
   }
-  kernels.classifyTuples(hh, gpu_, cudaStream);
+  kernels.classifyTuples(hh, gpu_, cudaStream.id());
 
   if (transferToCPU) {
     cudaCheck(cudaMemcpyAsync(tuples_,gpu_.tuples_d,
                               sizeof(TuplesOnGPU::Container),
-                              cudaMemcpyDeviceToHost, cudaStream));
+                              cudaMemcpyDeviceToHost, cudaStream.id()));
 
     cudaCheck(cudaMemcpyAsync(helix_fit_results_,gpu_.helix_fit_results_d, 
                               sizeof(Rfit::helix_fit)*CAConstants::maxNumberOfQuadruplets(),
-                              cudaMemcpyDeviceToHost, cudaStream));
+                              cudaMemcpyDeviceToHost, cudaStream.id()));
 
     cudaCheck(cudaMemcpyAsync(quality_,gpu_.quality_d,
                               sizeof(Quality)*CAConstants::maxNumberOfQuadruplets(),
-                              cudaMemcpyDeviceToHost, cudaStream));
+                              cudaMemcpyDeviceToHost, cudaStream.id()));
 
   }
 

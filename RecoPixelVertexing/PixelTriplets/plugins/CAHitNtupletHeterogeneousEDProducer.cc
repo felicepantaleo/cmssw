@@ -124,7 +124,7 @@ void CAHitNtupletHeterogeneousEDProducer::acquireGPUCuda(
   LogDebug("CAHitNtupletHeterogeneousEDProducer")
         << "Creating ntuplets on GPU";
 
-  GPUGenerator_.hitNtuplets(gHits, iSetup, useRiemannFit_, enableTransfer_, cudaStream.id());
+  GPUGenerator_.hitNtuplets(gHits, iSetup, useRiemannFit_, enableTransfer_, cudaStream);
 
   
 

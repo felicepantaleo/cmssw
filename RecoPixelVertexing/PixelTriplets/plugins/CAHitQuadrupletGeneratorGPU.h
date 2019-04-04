@@ -71,7 +71,7 @@ public:
                      const edm::EventSetup& es,
                      bool useRiemannFit,
                      bool transferToCPU,
-                     cudaStream_t stream);
+                     cuda::stream_t<> &cudaStream);
 
     TuplesOnCPU getOutput() const {
        return TuplesOnCPU { std::move(indToEdm), hitsOnCPU->gpu_d, tuples_,  helix_fit_results_, quality_, gpu_d, nTuples_};
@@ -87,7 +87,7 @@ public:
 
 private:
 
-    void launchKernels(HitsOnCPU const & hh, bool useRiemannFit, bool transferToCPU, cudaStream_t);
+    void launchKernels(HitsOnCPU const & hh, bool useRiemannFit, bool transferToCPU, cuda::stream_t<> &cudaStream);
 
 
     std::vector<std::array<int,4>> fetchKernelResult(int);
