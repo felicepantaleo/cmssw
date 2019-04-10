@@ -90,7 +90,13 @@ void PixelCPEFast::fillParamsForGpu() {
   //          << ' ' << m_commonParamsGPU.thePitchX << ' ' << m_commonParamsGPU.thePitchY << std::endl;
 
 
-  //uint32_t oldLayer = 0;
+  uint32_t oldLayer = 0;
+  uint32_t oldLadder=0;
+  float rl=0;
+  float zl = 0;
+  float miz = 90, mxz=0;
+  float pl = 0;
+  int nl=0;
   m_detParamsGPU.resize(m_DetParams.size());
   for (auto i=0U; i<m_DetParams.size(); ++i) {
     auto & p=m_DetParams[i];
@@ -111,11 +117,26 @@ void PixelCPEFast::fillParamsForGpu() {
 
     //if (m_commonParamsGPU.theThickness!=p.theThickness)   
     //  std::cout << i << (g.isBarrel ? "B " : "E ") << m_commonParamsGPU.theThickness<<"!="<<p.theThickness << std::endl;
+    auto ladder = ttopo_.pxbLadder(p.theDet->geographicalId());
 
-    //if (oldLayer != g.layer) {
-    //  oldLayer = g.layer;
-    //  std::cout << "new layer at " << i << (g.isBarrel ? " B  " :  (g.isPosZ ? " E+ " : " E- ")) << g.layer << " starting at " << g.rawId << std::endl;
-    //}
+    if (oldLayer != g.layer) {
+      oldLayer = g.layer;
+      // std::cout << "new layer at " << i << (g.isBarrel ? " B  " :  (g.isPosZ ? " E+ " : " E- ")) << g.layer << " starting at " << g.rawId << std::endl;
+      // std::cout << "old layer had " << nl << " ladders" << std::endl;
+      nl=0;
+    }
+    if (oldLadder != ladder) {
+      oldLadder = ladder;
+      // std::cout << "new ladder at " << i << (g.isBarrel ? " B  " :  (g.isPosZ ? " E+ " : " E- ")) << ladder << " starting at " << g.rawId << std::endl;
+      // std::cout << "old ladder ave z,r,p mz " << zl/8.f << " " << rl/8.f << " " << pl/8.f  << ' ' << miz << ' ' << mxz << std::endl;
+      rl=0;
+      zl = 0;
+      pl = 0;
+      miz=90; mxz=0;
+      nl++;
+    }
+   
+
 
     g.shiftX = 0.5f*p.lorentzShiftInCmX;
     g.shiftY = 0.5f*p.lorentzShiftInCmY;
@@ -130,6 +151,11 @@ void PixelCPEFast::fillParamsForGpu() {
     auto rr = pixelCPEforGPU::Rotation(p.theDet->surface().rotation());
     g.frame = pixelCPEforGPU::Frame(vv.x(),vv.y(),vv.z(),rr);
 
+    zl+=vv.z();
+    miz = std::min(miz,std::abs(vv.z()));
+    mxz = std::max(mxz,std::abs(vv.z()));
+    rl+=vv.perp();
+    pl+=vv.phi(); // (not obvious)
 
     // errors .....
    ClusterParamGeneric cp;
