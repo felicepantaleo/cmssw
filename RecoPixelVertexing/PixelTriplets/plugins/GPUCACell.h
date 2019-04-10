@@ -123,6 +123,9 @@ public:
   __device__ __forceinline__ float get_inner_r(Hits const & hh) const { return theInnerR; } // { return __ldg(hh.rg_d+theInnerHitId); } // { return theInnerR; }
   __device__ __forceinline__ float get_outer_r(Hits const & hh) const { return __ldg(hh.rg_d+theOuterHitId); }
 
+   __device__ __forceinline__ auto get_inner_iphi(Hits const & hh) const { return __ldg(hh.iphi_d+theInnerHitId); }
+   __device__ __forceinline__ auto get_outer_iphi(Hits const & hh) const { return __ldg(hh.iphi_d+theOuterHitId); }
+
   __device__ __forceinline__ float get_inner_detId(Hits const & hh) const { return __ldg(hh.detInd_d+theInnerHitId); }
   __device__ __forceinline__ float get_outer_detId(Hits const & hh) const { return __ldg(hh.detInd_d+theOuterHitId); }
 
@@ -207,13 +210,19 @@ public:
   __device__
   inline bool 
   hole(Hits const & hh, GPUCACell const & innerCell) const {
-    constexpr float r4 = 16.f;
+    int p = get_outer_iphi(hh);
+    if (p<0) p+=std::numeric_limits<unsigned short>::max();
+    p = (64*p)/std::numeric_limits<unsigned short>::max();
+    p %=2;
+    float r4 = p==0 ? 15.815 : 16.146;  // later on from geom
     auto ri = innerCell.get_inner_r(hh);
     auto zi = innerCell.get_inner_z(hh);
     auto ro = get_outer_r(hh);
     auto zo = get_outer_z(hh);
     auto z4 = std::abs(zi + (r4-ri)*(zo-zi)/(ro-ri));
-    return z4>25.f && z4<33.f;
+    auto zm = z4-6.7*int(z4/6.7);
+    auto h = zm<0.2 || zm>6.5;
+    return h || ( z4>26 && z4<32.f);
   }
 
 
