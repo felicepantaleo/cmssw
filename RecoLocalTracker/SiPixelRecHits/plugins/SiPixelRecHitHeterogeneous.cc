@@ -197,8 +197,8 @@ void SiPixelRecHitHeterogeneous::acquireGPUCuda(const edm::HeterogeneousEvent& i
   if(not hdigis->isAvailable() && hdigis->event()->has_occurred()) {
     cudaCheck(cudaStreamWaitEvent(cudaStream.id(), hclusters->event()->id(), 0));
   }
-  if(not hbs->event().has_occurred()) {
-    cudaCheck(cudaStreamWaitEvent(cudaStream.id(), hbs->event().id(), 0));
+  if(not hbs->isAvailable() && hbs->event()->has_occurred()) {
+    cudaCheck(cudaStreamWaitEvent(cudaStream.id(), hbs->event()->id(), 0));
   }
 
   gpuAlgo_->makeHitsAsync(digis, clusters, bs, fcpe->getGPUProductAsync(cudaStream), enableTransfer_, cudaStream);

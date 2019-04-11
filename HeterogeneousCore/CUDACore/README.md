@@ -31,7 +31,7 @@
     * [`ExternalWork` extension](#externalwork-extension)
     * [Transferring GPU data to CPU](#transferring-gpu-data-to-cpu)
     * [Synchronizing between CUDA streams](#synchronizing-between-cuda-streams)
-
+  * [CUDA ESProduct](#cuda-esproduct)
 
 ## Introduction
 
@@ -202,15 +202,9 @@ void ProducerInputCUDA::acquire(edm::Event const& iEvent, edm::EventSetup& iSetu
   CUDAProduct<InputData> const& inputDataWrapped = iEvent.get(inputToken_);
 
   // Set the current device to the same that was used to produce
-  // InputData, and also use the same CUDA stream
+  // InputData, and possibly use the same CUDA stream
   CUDAScopedContext ctx{inputDataWrapped, std::move(waitingTaskHolder)};
 
-  // Alternatively a new CUDA stream can be created here. This is for
-  // a case where there are two (or more) consumers of
-  // CUDAProduct<InputData> whose work is independent and thus can be run
-  // in parallel.
-  CUDAScopedContext ctx{iEvent.streamID(), std::move(waitingTaskHolder);
-  
   // Grab the real input data. Checks that the input data is on the
   // current device. If the input data was produced in a different CUDA
   // stream than the CUDAScopedContext holds, create an inter-stream
@@ -239,6 +233,12 @@ void ProducerInputCUDA::produce(edm::Event& iEvent, edm::EventSetup& iSetup) {
   iEvent.emplace(outputToken_, gpuAlgo_.getResult());
 }
 ```
+
+See [further below](#setting-the-current-device) for the conditions
+when the `CUDAScopedContext` constructor reuses the CUDA stream. Note
+that the `CUDAScopedContext` constructor taking `edm::StreamID` is
+allowed, it will just always create a new CUDA stream.
+
 
 ### Producer with CUDA input and output (with ExternalWork)
 
@@ -319,8 +319,8 @@ void ProducerInputOutputCUDA::produce(edm::StreamID streamID, edm::Event& iEvent
   CUDAProduct<InputData> const& inputDataWrapped = iEvent.get(inputToken_);
 
   // Set the current device to the same that was used to produce
-  // InputData, and also use the same CUDA stream
-  CUDAScopedContext ctx{streamID};
+  // InputData, and possibly use the same CUDA stream
+  CUDAScopedContext ctx{inputDataWrapped};
 
   // Grab the real input data. Checks that the input data is on the
   // current device. If the input data was produced in a different CUDA
@@ -368,7 +368,7 @@ void AnalyzerInputCUDA::analyze(edm::Event const& iEvent, edm::EventSetup& iSetu
   CUDAProduct<InputData> const& inputDataWrapped = iEvent.get(inputToken_);
 
   // Set the current device to the same that was used to produce
-  // InputData, and also use the same CUDA stream
+  // InputData, and possibly use the same CUDA stream
   CUDAScopedContext ctx{inputDataWrapped};
 
   // Alternatively a new CUDA stream can be created here. This is for
@@ -540,7 +540,13 @@ CUDAScopedContext ctx{cclus};
 `CUDAScopedContext` works in the RAII way and does the following
 * Sets the current device for the current scope
   - If constructed from the `edm::StreamID`, chooses the device and creates a new CUDA stream
-  - If constructed from the `CUDAProduct<T>`, uses the same device and CUDA stream as was used to produce the `CUDAProduct<T>`
+  - If constructed from the `CUDAProduct<T>`, uses the same device and possibly the same CUDA stream as was used to produce the `CUDAProduct<T>`
+    * The CUDA stream is reused if this producer is the first consumer
+      of the `CUDAProduct<T>`, otherwise a new CUDA stream is created.
+      This approach is simple compromise to automatically express the work of
+      parallel producers in different CUDA streams, and at the same
+      time allow a chain of producers to queue their work to the same
+      CUDA stream.
 * Gives access to the CUDA stream the algorithm should use to queue asynchronous work
 * Calls `edm::WaitingTaskWithArenaHolder::doneWaiting()` when necessary
 * [Synchronizes between CUDA streams if necessary](#synchronizing-between-cuda-streams)
@@ -689,3 +695,113 @@ subsequent work queued to the CUDA stream will wait for the CUDA event
 to become occurred. Therefore this subsequent work can assume that the
 to-be-getted CUDA product exists.
 
+
+### CUDA ESProduct
+
+Conditions data can be transferred to the device with the following
+pattern.
+
+1. Define a `class`/`struct` for the data to be transferred in the format accessed in the device (hereafter referred to as "payload")
+2. Define a wrapper ESProduct that holds the aforementioned data in the pinned host memory
+3. The wrapper should have a function returning the payload on the
+   device memory. The function should transfer the data to the device
+   asynchronously with the help of `CUDAESProduct<T>`.
+
+#### Example
+
+```cpp
+#include "HeterogeneousCore/CUDACore/interface/CUDAESProduct.h"
+
+// Declare the struct for the payload to be transferred. Here the
+// example is an array with (potentially) dynamic size. Note that all of
+// below becomes simpler if the array has compile-time size.
+struct ESProductExampleCUDA {
+  float *someData;
+  unsigned int size;
+};
+
+// Declare the wrapper ESProduct. The corresponding ESProducer should
+// produce objects of this type.
+class ESProductExampleCUDAWrapper {
+public:
+  // Constructor takes the standard CPU ESProduct, and transforms the
+  // necessary data to array(s) in pinned host memory
+  ESProductExampleCUDAWrapper(ESProductExample const&);
+
+  // Deallocates all pinned host memory
+  ~ESProductExampleCUDAWrapper();
+
+  // Function to return the actual payload on the memory of the current device
+  ESProductExampleCUDA const *getGPUProductAsync(cuda::stream_t<>& stream) const;
+
+private:
+  // Holds the data in pinned CPU memory
+  float *someData_;
+  unsigned int size_;
+
+  // Helper struct to hold all information that has to be allocated and
+  // deallocated per device
+  struct GPUData {
+    // Destructor should free all member pointers
+    ~GPUData();
+    // internal pointers are on device, struct itself is on CPU
+    ESProductExampleCUDA *esproductHost = nullptr;
+    // internal pounters and struct are on device
+    ESProductExampleCUDA *esproductDevice = nullptr;
+  };
+
+  // Helper that takes care of complexity of transferring the data to
+  // multiple devices
+  CUDAESProduct<GPUData> gpuData_;
+};
+
+ESProductExampleCUDAWrapper::ESProductExampleCUDAWrapper(ESProductExample const& cpuProduct) {
+  cudaCheck(cudaMallocHost(&someData_, sizeof(float)*NUM_ELEMENTS));
+  // fill someData_ and size_ from cpuProduct
+}
+
+ESProductExampleCUDA const *ESProductExampleCUDAWrapper::getGPUProductAsync(cuda::stream_t<>& stream) const {
+  // CUDAESProduct<T> essentially holds an array of GPUData objects,
+  // one per device. If the data have already been transferred to the
+  // current device (or the transfer has been queued), the helper just
+  // returns a reference to that GPUData object. Otherwise, i.e. data are
+  // not yet on the current device, the helper calls the lambda to do the
+  // necessary memory allocations and to queue the transfers.
+  auto const& data = gpuData_.dataForCurrentDeviceAsync(stream, [this](GPUData& data, cuda::stream_t<>& stream) {
+    // Allocate memory. Currently this can be with the CUDA API,
+    // sometime we'll migrate to the caching allocator. Assumption is
+    // that IOV changes are rare enough that adding global synchronization
+    // points is not that bad (for now).
+
+    // Allocate the payload object on pinned host memory.
+    cudaCheck(cudaMallocHost(&data.esproductHost, sizeof(ESProductExampleCUDA)));
+    // Allocate the payload array(s) on device memory.
+    cudaCheck(cudaMalloc(&data.esproductHost->someData, sizeof(float)*NUM_ELEMENTS));
+
+    // Allocate the payload object on the device memory.
+    cudaCheck(cudaMalloc(&data.esproductDevice, sizeof(ESProductDevice)));
+
+    // Complete the host-side information on the payload
+    data.cablingMapHost->size = this->size_;
+
+
+    // Transfer the payload, first the array(s) ...
+    cudaCheck(cudaMemcpyAsync(data.esproductHost->someData, this->someData, sizeof(float)*NUM_ELEMENTS, cudaMemcpyDefault, stream.id()));
+    // ... and then the payload object
+    cudaCheck(cudaMemcpyAsync(data.esproductDevice, data.esproduceHost, sizeof(ESProductExampleCUDA), cudaMemcpyDefault, stream.id()));
+});
+
+  // Returns the payload object on the memory of the current device
+  return data.esproductDevice;
+}
+
+// Destructor frees all member pointers
+ESProductExampleCUDA::GPUData::~GPUData() {
+  if(esproductHost != nullptr) {
+    cudaCheck(cudaFree(esproductHost->someData));
+    cudaCheck(cudaFreeHost(esproductHost));
+  }
+  cudaCheck(cudaFree(esProductDevice));
+}
+
+```
