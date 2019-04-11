@@ -1,6 +1,7 @@
 #ifndef RecoLocalTracker_SiPixelRecHits_plugins_PixelRecHits_h
 #define RecoLocalTracker_SiPixelRecHits_plugins_PixelRecHits_h
 
+#include "CUDADataFormats/BeamSpot/interface/BeamSpotCUDA.h"
 #include "CUDADataFormats/SiPixelCluster/interface/SiPixelClustersCUDA.h"
 #include "CUDADataFormats/SiPixelDigi/interface/SiPixelDigisCUDA.h"
 #include "RecoLocalTracker/SiPixelClusterizer/plugins/gpuClusteringConstants.h"
@@ -34,7 +35,7 @@ namespace pixelgpudetails {
 
     void makeHitsAsync(SiPixelDigisCUDA const& digis_d,
                        SiPixelClustersCUDA const& clusters_d,
-                       float const * bs,
+                       BeamSpotCUDA const& bs_d,
                        pixelCPEforGPU::ParamsOnGPU const * cpeParams,
                        bool transferToCPU,
                        cuda::stream_t<>& stream);
@@ -42,7 +43,7 @@ namespace pixelgpudetails {
     HitsOnCPU getOutput() const {
       return HitsOnCPU{
         h_hitsModuleStart_, h_detInd_, h_charge_,
-        h_xl_, h_yl_, h_xe_, h_ye_, h_mr_, h_mc_,
+        h_xl_, h_yl_, h_xe_, h_ye_,
         gpu_d, nhits_
       };
     }
@@ -60,8 +61,6 @@ namespace pixelgpudetails {
     float *h_yl_ = nullptr;
     float *h_xe_ = nullptr;
     float *h_ye_ = nullptr;
-    uint16_t *h_mr_ = nullptr;
-    uint16_t *h_mc_ = nullptr;
     void *h_owner_32bit_ = nullptr;
     size_t h_owner_32bit_pitch_ = 0;
     void *h_owner_16bit_ = nullptr;

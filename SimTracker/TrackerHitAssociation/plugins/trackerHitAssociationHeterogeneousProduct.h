@@ -21,8 +21,10 @@ namespace trackerHitAssociationHeterogeneousProduct {
 
   struct ClusterSLGPU {
 
+   using Clus2TP = std::array<uint32_t,6>;
+
    ClusterSLGPU * me_d=nullptr;
-   std::array<uint32_t,4> * links_d;
+   Clus2TP * links_d;
    uint32_t * tkId_d;
    uint32_t * tkId2_d;
    uint32_t * n1_d;

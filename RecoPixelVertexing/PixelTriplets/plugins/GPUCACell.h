@@ -15,12 +15,19 @@
 
 #include "RecoPixelVertexing/PixelTriplets/plugins/pixelTuplesHeterogeneousProduct.h"
 
+// #define ALL_TRIPLETS
+
 class GPUCACell {
 public:
 
-  static constexpr int maxCellsPerHit = 128; // was 256
-  using OuterHitOfCell = GPU::VecArray< unsigned int, maxCellsPerHit>;
+  using ptrAsInt = unsigned long long;
 
+  static constexpr int maxCellsPerHit = CAConstants::maxCellsPerHit();
+  using OuterHitOfCell = CAConstants::OuterHitOfCell;
+  using CellNeighbors = CAConstants::CellNeighbors;
+  using CellTracks = CAConstants::CellTracks;
+  using CellNeighborsVector = CAConstants::CellNeighborsVector;
+  using CellTracksVector = CAConstants::CellTracksVector;
 
   using Hits = siPixelRecHitsHeterogeneousProduct::HitsOnGPU;
   using hindex_type = siPixelRecHitsHeterogeneousProduct::hindex_type;
@@ -29,11 +36,14 @@ public:
 
   using TuplesOnGPU = pixelTuplesHeterogeneousProduct::TuplesOnGPU;
 
+  using TupleMultiplicity = CAConstants::TupleMultiplicity;
+
   GPUCACell() = default;
 #ifdef __CUDACC__
 
   __device__ __forceinline__
-  void init(Hits const & hh,
+  void init(CellNeighborsVector & cellNeighbors, CellTracksVector & cellTracks,
+      Hits const & hh,
       int layerPairId, int doubletId,  
       hindex_type innerHitId, hindex_type outerHitId)
   {
@@ -44,9 +54,65 @@ public:
 
     theInnerZ = __ldg(hh.zg_d+innerHitId);
     theInnerR = __ldg(hh.rg_d+innerHitId);
-    theOuterNeighbors.reset();
-    theTracks.reset();
+
+#ifdef USE_SMART_CACHE
+    // link to default empty
+    theOuterNeighbors = &cellNeighbors[0];
+    theTracks = &cellTracks[0];
+    assert(outerNeighbors().empty());
+    assert(tracks().empty());
+#else
+    outerNeighbors().reset();
+    tracks().reset();
+#endif
+    assert(outerNeighbors().empty());
+    assert(tracks().empty());
+
   }
+
+
+ __device__ __forceinline__
+  int addOuterNeighbor(CellNeighbors::value_t t, CellNeighborsVector & cellNeighbors) {
+#ifdef USE_SMART_CACHE
+     if (outerNeighbors().empty()) {
+       auto i = cellNeighbors.extend(); // maybe waisted....
+       if (i>0) {
+         cellNeighbors[i].reset();
+         auto zero = (ptrAsInt)(&cellNeighbors[0]);
+         atomicCAS((ptrAsInt*)(&theOuterNeighbors),zero,(ptrAsInt)(&cellNeighbors[i]));// if fails we cannot give "i" back...
+       } else return -1;
+     } 
+#endif
+     return outerNeighbors().push_back(t);  
+  }
+
+  __device__ __forceinline__
+  int addTrack(CellTracks::value_t t, CellTracksVector & cellTracks) {
+#ifdef USE_SMART_CACHE
+     if (tracks().empty()) {
+       auto i = cellTracks.extend(); // maybe waisted....
+       if (i>0) {
+         cellTracks[i].reset();
+         auto zero = (ptrAsInt)(&cellTracks[0]);
+         atomicCAS((ptrAsInt*)(&theTracks),zero,(ptrAsInt)(&cellTracks[i]));
+       }
+       else return -1;
+     }
+#endif
+     return tracks().push_back(t);
+  } 
+
+#ifdef USE_SMART_CACHE
+  __device__ __forceinline__ CellTracks & tracks() { return *theTracks;}
+  __device__ __forceinline__ CellTracks const & tracks() const { return *theTracks;}
+  __device__ __forceinline__ CellNeighbors & outerNeighbors() { return *theOuterNeighbors;}
+  __device__ __forceinline__ CellNeighbors const & outerNeighbors() const { return *theOuterNeighbors;}
+#else
+  __device__ __forceinline__ CellTracks & tracks() { return theTracks;}
+  __device__ __forceinline__ CellTracks const & tracks() const { return theTracks;}
+  __device__ __forceinline__ CellNeighbors & outerNeighbors() { return theOuterNeighbors;}
+  __device__ __forceinline__ CellNeighbors const & outerNeighbors() const { return theOuterNeighbors;}
+#endif
 
   __device__ __forceinline__ float get_inner_x(Hits const & hh) const { return __ldg(hh.xg_d+theInnerHitId); }
   __device__ __forceinline__ float get_outer_x(Hits const & hh) const { return __ldg(hh.xg_d+theOuterHitId); }
@@ -56,6 +122,9 @@ public:
   __device__ __forceinline__ float get_outer_z(Hits const & hh) const { return __ldg(hh.zg_d+theOuterHitId); }
   __device__ __forceinline__ float get_inner_r(Hits const & hh) const { return theInnerR; } // { return __ldg(hh.rg_d+theInnerHitId); } // { return theInnerR; }
   __device__ __forceinline__ float get_outer_r(Hits const & hh) const { return __ldg(hh.rg_d+theOuterHitId); }
+
+   __device__ __forceinline__ auto get_inner_iphi(Hits const & hh) const { return __ldg(hh.iphi_d+theInnerHitId); }
+   __device__ __forceinline__ auto get_outer_iphi(Hits const & hh) const { return __ldg(hh.iphi_d+theOuterHitId); }
 
   __device__ __forceinline__ float get_inner_detId(Hits const & hh) const { return __ldg(hh.detInd_d+theInnerHitId); }
   __device__ __forceinline__ float get_outer_detId(Hits const & hh) const { return __ldg(hh.detInd_d+theOuterHitId); }
@@ -91,7 +160,8 @@ public:
 
     auto r1 = otherCell.get_inner_r(hh);
     auto z1 = otherCell.get_inner_z(hh);
-    bool aligned = areAlignedRZ(r1, z1, ri, zi, ro, zo, ptmin, 0.003f); // 2.f*thetaCut); // FIXME tune cuts
+    auto isBarrel = otherCell.get_outer_detId(hh)<1184;
+    bool aligned = areAlignedRZ(r1, z1, ri, zi, ro, zo, ptmin, isBarrel ? 0.002f : 0.003f); // 2.f*thetaCut); // FIXME tune cuts
     return (aligned &&  dcaCut(hh, otherCell, otherCell.get_inner_detId(hh)<96 ? 0.15f : 0.25f, hardCurvCut));  // FIXME tune cuts
                             // region_origin_radius_plus_tolerance,  hardCurvCut));
   }
@@ -115,7 +185,7 @@ public:
 
   
   __device__
-  bool
+  inline bool
   dcaCut(Hits const & hh, GPUCACell const & otherCell,
                        const float region_origin_radius_plus_tolerance,
                        const float maxCurv) const {
@@ -137,16 +207,37 @@ public:
 
   }
 
+  __device__
+  inline bool 
+  hole(Hits const & hh, GPUCACell const & innerCell) const {
+    int p = get_outer_iphi(hh);
+    if (p<0) p+=std::numeric_limits<unsigned short>::max();
+    p = (64*p)/std::numeric_limits<unsigned short>::max();
+    p %=2;
+    float r4 = p==0 ? 15.815 : 16.146;  // later on from geom
+    auto ri = innerCell.get_inner_r(hh);
+    auto zi = innerCell.get_inner_z(hh);
+    auto ro = get_outer_r(hh);
+    auto zo = get_outer_z(hh);
+    auto z4 = std::abs(zi + (r4-ri)*(zo-zi)/(ro-ri));
+    auto zm = z4-6.7*int(z4/6.7);
+    auto h = zm<0.2 || zm>6.5;
+    return h || ( z4>26 && z4<32.f);
+  }
+
+
   // trying to free the track building process from hardcoded layers, leaving
   // the visit of the graph based on the neighborhood connections between cells.
 
-// #ifdef __CUDACC__
-
+  template<typename CM>
   __device__
   inline void find_ntuplets(
+      Hits const & hh,
       GPUCACell * __restrict__ cells,
+      CellTracksVector & cellTracks,
       TuplesOnGPU::Container & foundNtuplets, 
       AtomicPairCounter & apc,
+      CM & tupleMultiplicity,
       TmpTuple & tmpNtuplet,
       const unsigned int minHitsPerNtuplet) const
   {
@@ -159,19 +250,28 @@ public:
     tmpNtuplet.push_back_unsafe(theDoubletId);
     assert(tmpNtuplet.size()<=4);
 
-    if(theOuterNeighbors.size()>0) { // continue
-      for (int j = 0; j < theOuterNeighbors.size(); ++j) {
-        auto otherCell = theOuterNeighbors[j];
-        cells[otherCell].find_ntuplets(cells, foundNtuplets, apc, tmpNtuplet,
-                                       minHitsPerNtuplet);
+    if(outerNeighbors().size()>0) {
+      for (int j = 0; j < outerNeighbors().size(); ++j) {
+        auto otherCell = outerNeighbors()[j];
+        cells[otherCell].find_ntuplets(hh, cells, cellTracks, foundNtuplets, apc, tupleMultiplicity, 
+                                       tmpNtuplet, minHitsPerNtuplet);
       }
     } else {  // if long enough save...
       if ((unsigned int)(tmpNtuplet.size()) >= minHitsPerNtuplet-1) {
-        hindex_type hits[6]; auto nh=0U;
-        for (auto c : tmpNtuplet) hits[nh++] = cells[c].theInnerHitId;
-        hits[nh] = theOuterHitId; 
-        uint16_t it = foundNtuplets.bulkFill(apc,hits,tmpNtuplet.size()+1);
-        for (auto c : tmpNtuplet) cells[c].theTracks.push_back(it);
+#ifndef ALL_TRIPLETS
+        // triplets accepted only pointing to the hole
+        if (tmpNtuplet.size()>=3 || hole(hh, cells[tmpNtuplet[0]]))
+#endif
+       {
+          hindex_type hits[6]; auto nh=0U;
+          for (auto c : tmpNtuplet) hits[nh++] = cells[c].theInnerHitId;
+          hits[nh] = theOuterHitId; 
+          auto it = foundNtuplets.bulkFill(apc,hits,tmpNtuplet.size()+1);
+          if (it>=0)  { // if negative is overflow....
+            for (auto c : tmpNtuplet) cells[c].addTrack(it,cellTracks);
+            tupleMultiplicity.countDirect(tmpNtuplet.size()+1);
+          }
+        }
       }
     }
     tmpNtuplet.pop_back();
@@ -180,9 +280,16 @@ public:
 
 #endif // __CUDACC__
 
-  GPU::VecArray< uint32_t, 36> theOuterNeighbors;
-  GPU::VecArray< uint16_t, 42> theTracks;
+private:
+#ifdef USE_SMART_CACHE
+  CellNeighbors * theOuterNeighbors;
+  CellTracks * theTracks;
+#else
+  CellNeighbors theOuterNeighbors;
+  CellTracks theTracks;
+#endif
 
+public:
   int32_t theDoubletId;
   int32_t theLayerPairId;
 

@@ -6,7 +6,7 @@
 #include <type_traits>
 #include <utility>
 
-#include <cuda.h>
+#include "HeterogeneousCore/CUDAUtilities/interface/cudaCompat.h"
 
 namespace GPU {
 template <class T> struct SimpleVector {
@@ -43,15 +43,18 @@ template <class T> struct SimpleVector {
     }
   }
 
-  inline constexpr T & back() const {
+  __device__
+  inline T & back()  {
+    return m_data[m_size - 1];
+  }
 
+  __device__
+  inline const T & back() const {
     if (m_size > 0) {
       return m_data[m_size - 1];
     } else
       return T(); //undefined behaviour
   }
-
-#ifdef __CUDACC__
 
   // thread-safe version of the vector, when used in a CUDA kernel
   __device__
@@ -79,9 +82,31 @@ template <class T> struct SimpleVector {
     }
   }
 
-#endif // __CUDACC__
-  inline constexpr bool empty() const { return m_size==0;}
-  inline constexpr bool full() const { return m_size==m_capacity;}
+  // thread safe version of resize
+  __device__
+  int extend(int size=1) {
+    auto previousSize = atomicAdd(&m_size, size);
+    if (previousSize < m_capacity) {
+      return previousSize;
+    } else {
+      atomicSub(&m_size, size);
+      return -1;
+    }
+  }
+
+  __device__
+  int shrink(int size=1) {
+    auto previousSize = atomicSub(&m_size, size);
+    if (previousSize >=size) {
+      return previousSize-size;
+    } else {
+      atomicAdd(&m_size, size);
+      return -1;
+    }
+  }
+
+  inline constexpr bool empty() const { return m_size<=0;}
+  inline constexpr bool full() const { return m_size>=m_capacity;}
   inline constexpr T& operator[](int i) { return m_data[i]; }
   inline constexpr const T& operator[](int i) const { return m_data[i]; }
   inline constexpr void reset() { m_size = 0; }

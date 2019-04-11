@@ -7,6 +7,7 @@
 #include "DataFormats/TrackerRecHit2D/interface/SiPixelRecHitCollection.h"
 #include "HeterogeneousCore/Product/interface/HeterogeneousProduct.h"
 #include "HeterogeneousCore/CUDAUtilities/interface/HistoContainer.h"
+#include "RecoLocalTracker/SiPixelClusterizer/plugins/gpuClusteringConstants.h"
 #include "HeterogeneousCore/CUDAUtilities/interface/CUDAHostAllocator.h"
 
 namespace pixelCPEforGPU {
@@ -17,12 +18,11 @@ namespace siPixelRecHitsHeterogeneousProduct {
 
   using CPUProduct = int; // dummy
 
-  static constexpr uint32_t maxHits() { return 65536;}
+  static constexpr uint32_t maxHits() { return gpuClustering::MaxNumClusters;}
   using hindex_type = uint16_t; // if above is <=2^16
 
   struct HitsOnGPU{
      pixelCPEforGPU::ParamsOnGPU const * cpeParams = nullptr;    // forwarded from setup, NOT owned
-     float * bs_d;
      const uint32_t * hitsModuleStart_d; // forwarded from clusters
      uint32_t * hitsLayerStart_d;
      int32_t  * charge_d;
@@ -34,6 +34,9 @@ namespace siPixelRecHitsHeterogeneousProduct {
      uint16_t * sortIndex_d;
      uint16_t * mr_d;
      uint16_t * mc_d;
+     int16_t * xsize_d;
+     int16_t * ysize_d;
+
 
      using Hist = HistoContainer<int16_t,128,maxHits(),8*sizeof(int16_t),uint16_t,10>;
      Hist * hist_d;
@@ -61,8 +64,6 @@ namespace siPixelRecHitsHeterogeneousProduct {
     float const * yl = nullptr;
     float const * xe = nullptr;
     float const * ye = nullptr;
-    uint16_t const * mr = nullptr;
-    uint16_t const * mc = nullptr;
 
     HitsOnGPU const * gpu_d = nullptr;
     uint32_t nHits;
