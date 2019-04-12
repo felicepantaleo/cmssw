@@ -6,10 +6,10 @@
 #include <limits>
 
 #include "CUDADataFormats/BeamSpot/interface/BeamSpotCUDA.h"
+#include "CUDADataFormats/TrackingRecHit/interface/TrackingRecHit2DCUDA.h"
 #include "DataFormats/Math/interface/approx_atan2.h"
 #include "HeterogeneousCore/CUDAUtilities/interface/cuda_assert.h"
 #include "RecoLocalTracker/SiPixelRecHits/interface/pixelCPEforGPU.h"
-#include "RecoLocalTracker/SiPixelRecHits/plugins/siPixelRecHitsHeterogeneousProduct.h"
 namespace gpuPixelRecHits {
 
 
@@ -25,15 +25,11 @@ namespace gpuPixelRecHits {
 			  int32_t  const * __restrict__  clus,
 			  int numElements,
 			  uint32_t const * __restrict__  hitsModuleStart,
-                          int32_t * chargeh,
-                          uint16_t * detInd,
-			  float * xg, float * yg, float * zg, float * rg, int16_t * iph,
-                          float * xl, float * yl,
-                          float * xe, float * ye, 
-                          uint16_t * mr, uint16_t * mc,
-                          int16_t * xs, int16_t * ys
-                          )
-  {
+                          TrackingRecHit2DSOAView * phits
+                         )
+{
+
+    auto & hits = *phits;
 
     // to be moved in common namespace...
     constexpr uint16_t InvId=9999; // must be > MaxNumModules
@@ -69,7 +65,7 @@ namespace gpuPixelRecHits {
     if (threadIdx.x==0 && nclus > MaxClusInModule) { 
       printf("WARNING: too many clusters %d in Module %d. Only first %d processed\n", nclus,me,MaxClusInModule);
       // zero charge: do not bother to do it in parallel
-      for (auto d=MaxClusInModule; d<nclus; ++d) { chargeh[d]=0; detInd[d]=InvId;}
+      for (auto d=MaxClusInModule; d<nclus; ++d) { hits.charge(d)=0; hits.detectorIndex(d)=InvId;}
     }
     nclus = std::min(nclus, MaxClusInModule);
 
@@ -125,10 +121,22 @@ namespace gpuPixelRecHits {
     first = hitsModuleStart[me];
     auto h = first+ic;  // output index in global memory
 
-    if (h >= siPixelRecHitsHeterogeneousProduct::maxHits()) return; // overflow...
+    if (h >= TrackingRecHit2DSOAView::maxHits()) return; // overflow...
 
     pixelCPEforGPU::position(cpeParams->commonParams(), cpeParams->detParams(me), clusParams, ic);
     pixelCPEforGPU::errorFromDB(cpeParams->commonParams(), cpeParams->detParams(me), clusParams, ic);
+
+
+
+                          int32_t * chargeh = &hits.charge(0);
+                          uint16_t * detInd = &hits.detectorIndex(0);
+                          float * xg = &hits.xGlobal(0); float * yg = &hits.yGlobal(0); float * zg = &hits.zGlobal(0); float * rg = &hits.rGlobal(0);
+                          int16_t * iph = &hits.iphi(0);
+                          float * xl = &hits.xLocal(0); float * yl = &hits.yLocal(0);
+                          float * xe = &hits.xerrLocal(0); float * ye = &hits.yerrLocal(0);
+                          int16_t * xs = &hits.clusterSizeX(0); int16_t * ys = &hits.clusterSizeY(0);
+
+
 
     chargeh[h] = clusParams.charge[ic];
 

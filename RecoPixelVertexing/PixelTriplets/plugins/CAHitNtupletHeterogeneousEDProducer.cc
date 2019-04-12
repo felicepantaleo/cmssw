@@ -12,7 +12,12 @@
 #include "HeterogeneousCore/CUDACore/interface/GPUCuda.h"
 #include "HeterogeneousCore/CUDAServices/interface/CUDAService.h"
 #include "HeterogeneousCore/Producer/interface/HeterogeneousEDProducer.h"
-#include "RecoLocalTracker/SiPixelRecHits/plugins/siPixelRecHitsHeterogeneousProduct.h"
+#include "FWCore/ServiceRegistry/interface/Service.h"
+
+#include "CUDADataFormats/Common/interface/CUDAProduct.h"
+#include "HeterogeneousCore/CUDACore/interface/CUDAScopedContext.h"
+#include "CUDADataFormats/TrackingRecHit/interface/TrackingRecHit2DCUDA.h"
+
 #include "RecoPixelVertexing/PixelTriplets/interface/OrderedHitSeeds.h"
 #include "RecoTracker/TkHitPairs/interface/IntermediateHitDoublets.h"
 #include "RecoTracker/TkHitPairs/interface/RegionsSeedingHitSets.h"
@@ -33,7 +38,7 @@ class CAHitNtupletHeterogeneousEDProducer
           heterogeneous::GPUCuda, heterogeneous::CPU>> {
 public:
 
-    using PixelRecHitsH = siPixelRecHitsHeterogeneousProduct::HeterogeneousPixelRecHit;
+    using PixelRecHitsH = TrackingRecHit2DCUDA;
     using GPUProduct = pixelTuplesHeterogeneousProduct::GPUProduct;
     using CPUProduct = pixelTuplesHeterogeneousProduct::CPUProduct;
     using Output = pixelTuplesHeterogeneousProduct::HeterogeneousPixelTuples;
@@ -57,7 +62,7 @@ public:
 private:
   edm::EDGetTokenT<edm::OwnVector<TrackingRegion>> regionToken_;
 
-  edm::EDGetTokenT<HeterogeneousProduct> gpuHits_;
+  edm::EDGetTokenT<CUDAProduct<TrackingRecHit2DCUDA>>  gpuHits_;
   edm::EDGetTokenT<SiPixelRecHitCollectionNew> cpuHits_;
 
   edm::RunningAverage localRA_;
@@ -74,7 +79,7 @@ private:
 CAHitNtupletHeterogeneousEDProducer::CAHitNtupletHeterogeneousEDProducer(
     const edm::ParameterSet &iConfig)
     : HeterogeneousEDProducer(iConfig),
-      gpuHits_(consumesHeterogeneous(iConfig.getParameter<edm::InputTag>("heterogeneousPixelRecHitSrc"))),
+      gpuHits_(consumes<CUDAProduct<TrackingRecHit2DCUDA>>(iConfig.getParameter<edm::InputTag>("heterogeneousPixelRecHitSrc"))),
       cpuHits_(consumes<SiPixelRecHitCollectionNew>(iConfig.getParameter<edm::InputTag>("heterogeneousPixelRecHitSrc"))),
       GPUGenerator_(iConfig, consumesCollector()),
       useRiemannFit_(iConfig.getParameter<bool>("useRiemannFit")),
@@ -113,9 +118,19 @@ void CAHitNtupletHeterogeneousEDProducer::acquireGPUCuda(
     const edm::HeterogeneousEvent &iEvent, const edm::EventSetup &iSetup,
     cuda::stream_t<> &cudaStream) {
 
-  edm::Handle<siPixelRecHitsHeterogeneousProduct::GPUProduct> gh;
-  iEvent.getByToken<siPixelRecHitsHeterogeneousProduct::HeterogeneousPixelRecHit>(gpuHits_, gh);
-  auto const & gHits = *gh;
+  edm::Handle<CUDAProduct<TrackingRecHit2DCUDA>> hHits;
+  iEvent.getByToken(gpuHits_, hHits);
+
+  // temporary check (until the migration)
+  edm::Service<CUDAService> cs;
+  assert(hHits->device() == cs->getCurrentDevice());
+
+  if(not  hHits->isAvailable() and not hHits->event()->has_occurred()) {
+    cudaCheck(cudaStreamWaitEvent(cudaStream.id(), hHits->event()->id(), 0));
+  }
+
+  CUDAScopedContext ctx{*hHits};
+  auto const& gHits = ctx.get(*hHits);
 
   GPUGenerator_.buildDoublets(gHits,cudaStream);
 
@@ -125,8 +140,6 @@ void CAHitNtupletHeterogeneousEDProducer::acquireGPUCuda(
         << "Creating ntuplets on GPU";
 
   GPUGenerator_.hitNtuplets(gHits, iSetup, useRiemannFit_, enableTransfer_, cudaStream);
-
-  
 
 }
 

@@ -21,7 +21,7 @@
 
 using namespace gpuPixelDoublets;
 
-using HitsOnCPU = siPixelRecHitsHeterogeneousProduct::HitsOnCPU;
+using HitsOnGPU = CAHitQuadrupletGeneratorKernels::HitsOnGPU;
 using TuplesOnGPU = pixelTuplesHeterogeneousProduct::TuplesOnGPU;
 using Quality = pixelTuplesHeterogeneousProduct::Quality;
 
@@ -194,7 +194,7 @@ kernel_connect(AtomicPairCounter * apc1, AtomicPairCounter * apc2,  // just to z
 
 __global__ 
 void kernel_find_ntuplets(
-    GPUCACell::Hits const *  __restrict__ hhp,
+    GPUCACell::Hits const * __restrict__ hhp,
     GPUCACell * __restrict__ cells, uint32_t const * nCells,
     CellTracksVector * cellTracks,
     TuplesOnGPU::Container * foundNtuplets, AtomicPairCounter * apc,
@@ -350,7 +350,7 @@ void kernel_doStatsForHitInTracks(CAHitQuadrupletGeneratorKernels::HitToTuple co
 }
 
 __global__
-void kernel_tripletCleaner(siPixelRecHitsHeterogeneousProduct::HitsOnGPU const *  __restrict__ hhp,
+void kernel_tripletCleaner(TrackingRecHit2DSOAView const *  __restrict__ hhp,
                            TuplesOnGPU::Container const * __restrict__ ptuples,
                            Rfit::helix_fit const * __restrict__ hfit,
                            Quality *  __restrict__ quality,
@@ -431,7 +431,7 @@ void CAHitQuadrupletGeneratorKernels::launchKernels( // here goes algoparms....
   auto maxNumberOfDoublets_ = CAConstants::maxNumberOfDoublets();
 
 
-  auto nhits = hh.nHits;
+  auto nhits = hh.nHits();
   assert(nhits <= PixelGPUConstants::maxNumberOfHits);
   
   if (nhits>1 && earlyFishbone_) {
@@ -442,7 +442,7 @@ void CAHitQuadrupletGeneratorKernels::launchKernels( // here goes algoparms....
     dim3 blks(1,numberOfBlocks,1);
     dim3 thrs(stride,blockSize,1);
     fishbone<<<blks,thrs, 0, cudaStream>>>(
-      hh.gpu_d,
+      hh.view(),
       device_theCells_.get(), device_nCells_,
       device_isOuterHitOfCell_.get(),
       nhits, false
@@ -464,7 +464,7 @@ void CAHitQuadrupletGeneratorKernels::launchKernels( // here goes algoparms....
 
   kernel_connect<<<blks, thrs, 0, cudaStream>>>(
       gpu_.apc_d, device_hitToTuple_apc_,  // needed only to be reset, ready for next kernel
-      hh.gpu_d,
+      hh.view(),
       device_theCells_.get(), device_nCells_,
       device_theCellNeighbors_,
       device_isOuterHitOfCell_.get()
@@ -472,7 +472,7 @@ void CAHitQuadrupletGeneratorKernels::launchKernels( // here goes algoparms....
   cudaCheck(cudaGetLastError());
 
   kernel_find_ntuplets<<<numberOfBlocks, blockSize, 0, cudaStream>>>(
-      hh.gpu_d,
+      hh.view(),
       device_theCells_.get(), device_nCells_,
       device_theCellTracks_,
       gpu_.tuples_d,
@@ -501,7 +501,7 @@ void CAHitQuadrupletGeneratorKernels::launchKernels( // here goes algoparms....
     dim3 blks(1,numberOfBlocks,1);
     dim3 thrs(stride,blockSize,1);
     fishbone<<<blks,thrs, 0, cudaStream>>>(
-      hh.gpu_d,
+      hh.view(),
       device_theCells_.get(), device_nCells_,
       device_isOuterHitOfCell_.get(),
       nhits, true
@@ -530,7 +530,7 @@ void CAHitQuadrupletGeneratorKernels::launchKernels( // here goes algoparms....
 
 
 void CAHitQuadrupletGeneratorKernels::buildDoublets(HitsOnCPU const & hh, cuda::stream_t<>& stream) {
-  auto nhits = hh.nHits;
+  auto nhits = hh.nHits();
 
 #ifdef GPU_DEBUG
   std::cout << "building Doublets out of " << nhits << " Hits" << std::endl;
@@ -564,7 +564,7 @@ void CAHitQuadrupletGeneratorKernels::buildDoublets(HitsOnCPU const & hh, cuda::
   gpuPixelDoublets::getDoubletsFromHisto<<<blks, thrs, 0, stream.id()>>>(
             device_theCells_.get(), device_nCells_,
             device_theCellNeighbors_, device_theCellTracks_,
-            hh.gpu_d, device_isOuterHitOfCell_.get(), idealConditions_);
+            hh.view(), device_isOuterHitOfCell_.get(), idealConditions_);
   cudaCheck(cudaGetLastError());
 }
 
@@ -591,7 +591,7 @@ void CAHitQuadrupletGeneratorKernels::classifyTuples(HitsOnCPU const & hh, Tuple
 
     // remove duplicates (tracks that share a hit)
     numberOfBlocks = (HitToTuple::capacity() + blockSize - 1)/blockSize;
-    kernel_tripletCleaner<<<numberOfBlocks, blockSize, 0, cudaStream>>>(hh.gpu_d,tuples.tuples_d,tuples.helix_fit_results_d,tuples.quality_d,device_hitToTuple_);
+    kernel_tripletCleaner<<<numberOfBlocks, blockSize, 0, cudaStream>>>(hh.view(),tuples.tuples_d,tuples.helix_fit_results_d,tuples.quality_d,device_hitToTuple_);
 
     if (doStats_) {
       // counters (add flag???)

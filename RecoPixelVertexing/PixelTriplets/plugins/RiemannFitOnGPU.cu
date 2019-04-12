@@ -11,15 +11,14 @@
 #include "HeterogeneousCore/CUDAUtilities/interface/cudaCheck.h"
 #include "HeterogeneousCore/CUDAUtilities/interface/cuda_assert.h"
 #include "RecoLocalTracker/SiPixelRecHits/interface/pixelCPEforGPU.h"
-#include "RecoLocalTracker/SiPixelRecHits/plugins/siPixelRecHitsHeterogeneousProduct.h"
+#include "CUDADataFormats/TrackingRecHit/interface/TrackingRecHit2DCUDA.h"
 
 #include "FWCore/ServiceRegistry/interface/Service.h"
 #include "HeterogeneousCore/CUDAServices/interface/CUDAService.h"
 
 
-using HitsOnCPU = siPixelRecHitsHeterogeneousProduct::HitsOnCPU;
 
-using HitsOnGPU = siPixelRecHitsHeterogeneousProduct::HitsOnGPU;
+using HitsOnGPU = TrackingRecHit2DSOAView;
 using TuplesOnGPU = pixelTuplesHeterogeneousProduct::TuplesOnGPU;
 
 using namespace Eigen;
@@ -69,10 +68,10 @@ void kernelFastFit(TuplesOnGPU::Container const * __restrict__ foundNtuplets,
     auto hit = hitId[i];
     // printf("Hit global: %f,%f,%f\n", hhp->xg_d[hit],hhp->yg_d[hit],hhp->zg_d[hit]);
     float ge[6];
-    hhp->cpeParams->detParams(hhp->detInd_d[hit]).frame.toGlobal(hhp->xerr_d[hit], 0, hhp->yerr_d[hit], ge);
+    hhp->cpeParams().detParams(hhp->detectorIndex(hit)).frame.toGlobal(hhp->xerrLocal(hit), 0, hhp->yerrLocal(hit), ge);
     // printf("Error: %d: %f,%f,%f,%f,%f,%f\n",hhp->detInd_d[hit],ge[0],ge[1],ge[2],ge[3],ge[4],ge[5]);
 
-    hits.col(i) << hhp->xg_d[hit], hhp->yg_d[hit], hhp->zg_d[hit];
+    hits.col(i) << hhp->xGlobal(hit), hhp->yGlobal(hit), hhp->zGlobal(hit);
     hits_ge.col(i) << ge[0],ge[1],ge[2],ge[3],ge[4],ge[5];
   }
   Rfit::Fast_fit(hits,fast_fit);
@@ -213,7 +212,7 @@ void HelixFitOnGPU::launchRiemannKernels(HitsOnCPU const & hh, uint32_t nhits, u
       // triplets
       kernelFastFit<3><<<numberOfBlocks, blockSize, 0, stream.id()>>>(
           tuples_d, tupleMultiplicity_d, 3, 
-          hh.gpu_d,
+          hh.view(),
           hitsGPU_.get(), hits_geGPU_.get(), fast_fit_resultsGPU_.get(),offset);
       cudaCheck(cudaGetLastError());
 
@@ -231,7 +230,7 @@ void HelixFitOnGPU::launchRiemannKernels(HitsOnCPU const & hh, uint32_t nhits, u
       // quads
       kernelFastFit<4><<<numberOfBlocks, blockSize, 0, stream.id()>>>(
           tuples_d, tupleMultiplicity_d, 4,
-          hh.gpu_d,
+          hh.view(),
           hitsGPU_.get(), hits_geGPU_.get(), fast_fit_resultsGPU_.get(),offset);
       cudaCheck(cudaGetLastError());
 
@@ -250,7 +249,7 @@ void HelixFitOnGPU::launchRiemannKernels(HitsOnCPU const & hh, uint32_t nhits, u
         // penta
         kernelFastFit<4><<<numberOfBlocks, blockSize, 0, stream.id()>>>(
           tuples_d, tupleMultiplicity_d, 5,
-          hh.gpu_d,
+          hh.view(),
           hitsGPU_.get(), hits_geGPU_.get(), fast_fit_resultsGPU_.get(),offset);
         cudaCheck(cudaGetLastError());
 
@@ -268,7 +267,7 @@ void HelixFitOnGPU::launchRiemannKernels(HitsOnCPU const & hh, uint32_t nhits, u
         // penta all 5
         kernelFastFit<5><<<numberOfBlocks, blockSize, 0, stream.id()>>>(
           tuples_d, tupleMultiplicity_d, 5,
-          hh.gpu_d,
+          hh.view(),
           hitsGPU_.get(), hits_geGPU_.get(), fast_fit_resultsGPU_.get(),offset);
         cudaCheck(cudaGetLastError());
 

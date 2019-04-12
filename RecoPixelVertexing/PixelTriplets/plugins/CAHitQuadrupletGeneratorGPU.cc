@@ -77,9 +77,13 @@ void CAHitQuadrupletGeneratorGPU::fillResults(
 {
 
   assert(hitsOnCPU);
-  auto nhits = hitsOnCPU->nHits;
+  auto nhits = hitsOnCPU->nHits();
 
-  auto fc = hitsOnCPU->hitsModuleStart;
+   uint32_t hitsModuleStart[gpuClustering::MaxNumModules+1];
+  // to be understood where to locate
+  cudaCheck(cudaMemcpy(hitsModuleStart, hitsOnCPU->hitsModuleStart(), (gpuClustering::MaxNumModules+1) * sizeof(uint32_t), cudaMemcpyDefault));
+
+  auto fc = hitsModuleStart;
 
   hitmap_.clear();
   auto const & rcs = rechits.data();
@@ -183,9 +187,9 @@ void CAHitQuadrupletGeneratorGPU::launchKernels(HitsOnCPU const & hh,
 
   kernels.launchKernels(hh, gpu_, cudaStream.id()); 
   if (useRiemannFit) {
-    fitter.launchRiemannKernels(hh, hh.nHits, CAConstants::maxNumberOfQuadruplets(), cudaStream);
+    fitter.launchRiemannKernels(hh, hh.nHits(), CAConstants::maxNumberOfQuadruplets(), cudaStream);
   } else {
-    fitter.launchBrokenLineKernels(hh, hh.nHits, CAConstants::maxNumberOfQuadruplets(), cudaStream);
+    fitter.launchBrokenLineKernels(hh, hh.nHits(), CAConstants::maxNumberOfQuadruplets(), cudaStream);
   }
   kernels.classifyTuples(hh, gpu_, cudaStream.id());
 

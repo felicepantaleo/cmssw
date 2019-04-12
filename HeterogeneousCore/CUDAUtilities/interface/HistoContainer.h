@@ -103,7 +103,7 @@ namespace cudautils {
     cudaCheck(cudaGetLastError());
 #else
     countFromVector(h, nh, v, offsets);
-    h.finalize();
+    h->finalize();
     fillFromVector(h, nh, v, offsets);
 #endif
   }

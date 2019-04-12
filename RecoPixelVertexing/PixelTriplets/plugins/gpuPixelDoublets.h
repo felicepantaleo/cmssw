@@ -10,7 +10,7 @@
 #include "DataFormats/Math/interface/approx_atan2.h"
 #include "HeterogeneousCore/CUDAUtilities/interface/GPUVecArray.h"
 #include "HeterogeneousCore/CUDAUtilities/interface/cuda_assert.h"
-#include "RecoLocalTracker/SiPixelRecHits/plugins/siPixelRecHitsHeterogeneousProduct.h"
+#include "CUDADataFormats/TrackingRecHit/interface/TrackingRecHit2DCUDA.h"
 
 #include "GPUCACell.h"
 #include "CAConstants.h"
@@ -63,7 +63,6 @@ namespace gpuPixelDoublets {
      for (int i=first; i<nHits; i+=gridDim.x*blockDim.x) isOuterHitOfCell[i].reset();
   }
 
-  template<typename Hist>
   __device__
   __forceinline__
   void doubletsFromHisto(uint8_t const * __restrict__ layerPairs,
@@ -71,10 +70,7 @@ namespace gpuPixelDoublets {
                          GPUCACell * cells,
                          uint32_t * nCells,
                          CellNeighborsVector * cellNeighbors, CellTracksVector * cellTracks,
-                         int16_t const * __restrict__ iphi,
-                         Hist const & __restrict__ hist,
-                         uint32_t const * __restrict__ offsets,
-                         siPixelRecHitsHeterogeneousProduct::HitsOnGPU const &  __restrict__ hh,
+                         TrackingRecHit2DSOAView const &  __restrict__ hh,
                          GPUCACell::OuterHitOfCell * isOuterHitOfCell,
                          int16_t const * __restrict__ phicuts,
 #ifdef USE_ZCUT
@@ -91,6 +87,12 @@ namespace gpuPixelDoublets {
     constexpr int maxDYsize12=28;
     constexpr int maxDYsize=20;
 #endif
+
+    using Hist = TrackingRecHit2DSOAView::Hist;
+
+    auto const & __restrict__ hist = hh.phiBinner();
+    uint32_t const * __restrict__ offsets = hh.hitsLayerStart();
+    assert(offsets);
 
     auto layerSize = [=](uint8_t li) { return offsets[li+1]-offsets[li]; };
 
@@ -135,7 +137,7 @@ namespace gpuPixelDoublets {
       assert(i < offsets[inner+1]);
 
       // found hit corresponding to our cuda thread, now do the job
-      auto mez = __ldg(hh.zg_d+i);
+      auto mez = hh.zGlobal(i);
 
 #ifdef USE_ZCUT
      // this statement is responsible for a 10% slow down of the kernel once all following cuts are optimized...
@@ -143,15 +145,13 @@ namespace gpuPixelDoublets {
 #endif
 
 #ifndef NO_CLSCUT
-      auto mes = __ldg(hh.ysize_d+i);
+      auto mes = hh.clusterSizeY(i);
 
       // if ideal treat inner ladder as outer
-      auto mi = __ldg(hh.detInd_d+i);
+      auto mi = hh.detectorIndex(i);
       if (inner==0) assert(mi<96);    
       const bool isOuterLadder = ideal_cond ? true : 0 == (mi/8)%2; // only for B1/B2/B3 B4 is opposite, FPIX:noclue...
 
-      // auto mesx = __ldg(hh.xsize_d+i);
-      // if (mesx<0) continue; // remove edges in x as overlap will take care
 
       if (inner==0 && outer>3 && isOuterLadder)  // B1 and F1
          if (mes>0 && mes<minYsizeB1) continue; // only long cluster  (5*8)
@@ -159,8 +159,8 @@ namespace gpuPixelDoublets {
          if (mes>0 && mes<minYsizeB2) continue;
 #endif // NO_CLSCUT
 
-      auto mep = iphi[i];
-      auto mer = __ldg(hh.rg_d+i);
+      auto mep = hh.iphi(i);
+      auto mer = hh.rGlobal(i);
  
       constexpr float z0cut = 12.f;                     // cm
       constexpr float hardPtCut = 0.5f;                 // GeV
@@ -169,13 +169,13 @@ namespace gpuPixelDoublets {
       auto ptcut = [&](int j) {
         auto r2t4 = minRadius2T4;
         auto ri = mer;
-        auto ro = __ldg(hh.rg_d+j);
-        auto dphi = short2phi( min( abs(int16_t(mep-iphi[j])), abs(int16_t(iphi[j]-mep)) ) );
+        auto ro = hh.rGlobal(j);
+        auto dphi = short2phi( min( abs(int16_t(mep-hh.iphi(j))), abs(int16_t(hh.iphi(j)-mep)) ) );
         return dphi*dphi * (r2t4 - ri*ro) > (ro-ri)*(ro-ri);
       };
       auto z0cutoff = [&](int j) {
-        auto zo = __ldg(hh.zg_d+j);
-        auto ro = __ldg(hh.rg_d+j);
+        auto zo = hh.zGlobal(j);;
+        auto ro = hh.rGlobal(j);
         auto dr = ro-mer;
         return dr > maxr[pairLayerId] ||
           dr<0 || std::abs((mez*ro - mer*zo)) > z0cut*dr;
@@ -184,8 +184,7 @@ namespace gpuPixelDoublets {
 #ifndef NO_CLSCUT
       auto zsizeCut = [&](int j) {
         auto onlyBarrel = outer<4;
-        auto so = __ldg(hh.ysize_d+j);
-        //auto sox = __ldg(hh.xsize_d+j);
+        auto so = hh.clusterSizeY(j);
         auto dy = inner==0 ? ( isOuterLadder ? maxDYsize12: 100 ) : maxDYsize;
         return onlyBarrel && mes>0 && so>0 && std::abs(so-mes)>dy;
       };
@@ -218,7 +217,7 @@ namespace gpuPixelDoublets {
           assert(oi>=offsets[outer]);
           assert(oi<offsets[outer+1]);
 
-          if (std::min(std::abs(int16_t(iphi[oi]-mep)), std::abs(int16_t(mep-iphi[oi]))) > iphicut)
+          if (std::min(std::abs(int16_t(hh.iphi(oi)-mep)), std::abs(int16_t(mep-hh.iphi(oi)))) > iphicut)
             continue;
 #ifndef ONLY_PHICUT
 #ifndef NO_CLSCUT
@@ -252,7 +251,7 @@ namespace gpuPixelDoublets {
   void getDoubletsFromHisto(GPUCACell * cells,
                             uint32_t * nCells,
                             CellNeighborsVector * cellNeighbors, CellTracksVector * cellTracks,
-                            siPixelRecHitsHeterogeneousProduct::HitsOnGPU const *  __restrict__ hhp,
+                            TrackingRecHit2DSOAView const *  __restrict__ hhp,
                             GPUCACell::OuterHitOfCell * isOuterHitOfCell,
                             bool ideal_cond)
   {
@@ -297,7 +296,6 @@ namespace gpuPixelDoublets {
     auto const &  __restrict__ hh = *hhp;
     doubletsFromHisto(layerPairs, nPairs, cells, nCells,
                       cellNeighbors, cellTracks,
-                      hh.iphi_d, *hh.hist_d, hh.hitsLayerStart_d,
                       hh, isOuterHitOfCell,
                       phicuts, 
 #ifdef USE_ZCUT

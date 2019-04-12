@@ -6,12 +6,11 @@
 
 #include <cuda_runtime.h>
 
+#include "CUDADataFormats/TrackingRecHit/interface/TrackingRecHit2DCUDA.h"
 #include "HeterogeneousCore/CUDAUtilities/interface/GPUSimpleVector.h"
 #include "HeterogeneousCore/CUDAUtilities/interface/GPUVecArray.h"
 #include "HeterogeneousCore/CUDAUtilities/interface/cuda_assert.h"
-#include "RecoLocalTracker/SiPixelRecHits/plugins/siPixelRecHitsHeterogeneousProduct.h"
 #include "RecoPixelVertexing/PixelTriplets/interface/CircleEq.h"
-
 
 #include "RecoPixelVertexing/PixelTriplets/plugins/pixelTuplesHeterogeneousProduct.h"
 
@@ -29,8 +28,8 @@ public:
   using CellNeighborsVector = CAConstants::CellNeighborsVector;
   using CellTracksVector = CAConstants::CellTracksVector;
 
-  using Hits = siPixelRecHitsHeterogeneousProduct::HitsOnGPU;
-  using hindex_type = siPixelRecHitsHeterogeneousProduct::hindex_type;
+  using Hits = TrackingRecHit2DSOAView;
+  using hindex_type = Hits::hindex_type;
 
   using TmpTuple = GPU::VecArray<uint32_t,6>;
 
@@ -52,8 +51,8 @@ public:
     theDoubletId = doubletId;
     theLayerPairId = layerPairId;
 
-    theInnerZ = __ldg(hh.zg_d+innerHitId);
-    theInnerR = __ldg(hh.rg_d+innerHitId);
+    theInnerZ = hh.zGlobal(innerHitId);
+    theInnerR = hh.rGlobal(innerHitId);
 
 #ifdef USE_SMART_CACHE
     // link to default empty
@@ -114,20 +113,20 @@ public:
   __device__ __forceinline__ CellNeighbors const & outerNeighbors() const { return theOuterNeighbors;}
 #endif
 
-  __device__ __forceinline__ float get_inner_x(Hits const & hh) const { return __ldg(hh.xg_d+theInnerHitId); }
-  __device__ __forceinline__ float get_outer_x(Hits const & hh) const { return __ldg(hh.xg_d+theOuterHitId); }
-  __device__ __forceinline__ float get_inner_y(Hits const & hh) const { return __ldg(hh.yg_d+theInnerHitId); }
-  __device__ __forceinline__ float get_outer_y(Hits const & hh) const { return __ldg(hh.yg_d+theOuterHitId); }
-  __device__ __forceinline__ float get_inner_z(Hits const & hh) const { return theInnerZ; } // { return __ldg(hh.zg_d+theInnerHitId); } // { return theInnerZ; }
-  __device__ __forceinline__ float get_outer_z(Hits const & hh) const { return __ldg(hh.zg_d+theOuterHitId); }
-  __device__ __forceinline__ float get_inner_r(Hits const & hh) const { return theInnerR; } // { return __ldg(hh.rg_d+theInnerHitId); } // { return theInnerR; }
-  __device__ __forceinline__ float get_outer_r(Hits const & hh) const { return __ldg(hh.rg_d+theOuterHitId); }
+  __device__ __forceinline__ float get_inner_x(Hits const & hh) const { return hh.xGlobal(theInnerHitId); }
+  __device__ __forceinline__ float get_outer_x(Hits const & hh) const { return hh.xGlobal(theOuterHitId); }
+  __device__ __forceinline__ float get_inner_y(Hits const & hh) const { return hh.yGlobal(theInnerHitId); }
+  __device__ __forceinline__ float get_outer_y(Hits const & hh) const { return hh.yGlobal(theOuterHitId); }
+  __device__ __forceinline__ float get_inner_z(Hits const & hh) const { return theInnerZ; } // { return hh.zGlobal(theInnerHitId); } // { return theInnerZ; }
+  __device__ __forceinline__ float get_outer_z(Hits const & hh) const { return hh.zGlobal(theOuterHitId); }
+  __device__ __forceinline__ float get_inner_r(Hits const & hh) const { return theInnerR; } // { return hh.rGlobal(theInnerHitId); } // { return theInnerR; }
+  __device__ __forceinline__ float get_outer_r(Hits const & hh) const { return hh.rGlobal(theOuterHitId); }
 
-   __device__ __forceinline__ auto get_inner_iphi(Hits const & hh) const { return __ldg(hh.iphi_d+theInnerHitId); }
-   __device__ __forceinline__ auto get_outer_iphi(Hits const & hh) const { return __ldg(hh.iphi_d+theOuterHitId); }
+   __device__ __forceinline__ auto get_inner_iphi(Hits const & hh) const { return hh.iphi(theInnerHitId); }
+   __device__ __forceinline__ auto get_outer_iphi(Hits const & hh) const { return hh.iphi(theOuterHitId); }
 
-  __device__ __forceinline__ float get_inner_detId(Hits const & hh) const { return __ldg(hh.detInd_d+theInnerHitId); }
-  __device__ __forceinline__ float get_outer_detId(Hits const & hh) const { return __ldg(hh.detInd_d+theOuterHitId); }
+  __device__ __forceinline__ float get_inner_detId(Hits const & hh) const { return hh.detectorIndex(theInnerHitId); }
+  __device__ __forceinline__ float get_outer_detId(Hits const & hh) const { return hh.detectorIndex(theOuterHitId); }
 
   constexpr unsigned int get_inner_hit_id() const {
     return theInnerHitId;

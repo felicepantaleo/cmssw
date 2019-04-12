@@ -49,6 +49,8 @@ namespace cudaCompat {
   inline void __threadfence(){}
   inline bool __syncthreads_or(bool x) { return x;}
   inline bool __syncthreads_and(bool x) { return x;}
+  template<typename T>
+  inline T __ldg(T const * x) { return *x;}
   
 
   inline void resetGrid() {
@@ -64,6 +66,7 @@ namespace cudaCompat {
 #define __global__
 #define __shared__
 #define __forceinline__
+// #define __constant__
 #endif
 
 

@@ -9,6 +9,7 @@
 #include "DataFormats/GeometrySurface/interface/SOARotation.h"
 #include "Geometry/TrackerGeometryBuilder/interface/phase1PixelTopology.h"
 #include "HeterogeneousCore/CUDAUtilities/interface/cuda_cxx17.h"
+#include "HeterogeneousCore/CUDAUtilities/interface/cudaCompat.h"
 
 namespace pixelCPEforGPU {
 
@@ -43,9 +44,16 @@ namespace pixelCPEforGPU {
   };
 
 
-  struct ParamsOnGPU {
+  struct LayerGeometry {
+    uint32_t layerStart[phase1PixelTopology::numberOfLayers + 1];
+    uint8_t  layer[phase1PixelTopology::layerIndexSize];
+  };
+
+  struct ParamsOnGPU {    
+
     CommonParams * m_commonParams;
     DetParams * m_detParams;
+    LayerGeometry * m_layerGeometry;
 
     constexpr
     CommonParams const & __restrict__ commonParams() const {
@@ -57,6 +65,13 @@ namespace pixelCPEforGPU {
       DetParams const * __restrict__ l = m_detParams;
        return l[i];
     }
+    constexpr
+    LayerGeometry const & __restrict__ layerGeometry() const {
+      return *m_layerGeometry;
+    }
+
+    __device__ uint8_t layer(uint16_t id) const { return __ldg(m_layerGeometry->layer+id/phase1PixelTopology::maxModuleStride);};
+
   };
 
   // SOA (on device)

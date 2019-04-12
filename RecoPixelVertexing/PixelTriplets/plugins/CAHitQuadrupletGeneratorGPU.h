@@ -9,7 +9,6 @@
 #include "HeterogeneousCore/CUDAUtilities/interface/GPUSimpleVector.h"
 #include "HeterogeneousCore/CUDAServices/interface/CUDAService.h"
 #include "RecoLocalTracker/SiPixelClusterizer/interface/PixelTrackingGPUConstants.h"
-#include "RecoLocalTracker/SiPixelRecHits/plugins/siPixelRecHitsHeterogeneousProduct.h"
 #include "RecoPixelVertexing/PixelTrackFitting/interface/RZLine.h"
 #include "RecoPixelVertexing/PixelTriplets/interface/OrderedHitSeeds.h"
 #include "RecoPixelVertexing/PixelTriplets/plugins/RecHitsMap.h"
@@ -41,9 +40,9 @@ namespace edm {
 class CAHitQuadrupletGeneratorGPU {
 public:
 
-    using HitsOnGPU = siPixelRecHitsHeterogeneousProduct::HitsOnGPU;
-    using HitsOnCPU = siPixelRecHitsHeterogeneousProduct::HitsOnCPU;
-    using hindex_type = siPixelRecHitsHeterogeneousProduct::hindex_type;
+    using HitsOnGPU = TrackingRecHit2DSOAView;
+    using HitsOnCPU = TrackingRecHit2DCUDA;
+    using hindex_type = TrackingRecHit2DSOAView::hindex_type;
 
     using TuplesOnGPU = pixelTuplesHeterogeneousProduct::TuplesOnGPU;
     using TuplesOnCPU = pixelTuplesHeterogeneousProduct::TuplesOnCPU;
@@ -74,7 +73,7 @@ public:
                      cuda::stream_t<> &cudaStream);
 
     TuplesOnCPU getOutput() const {
-       return TuplesOnCPU { std::move(indToEdm), hitsOnCPU->gpu_d, tuples_,  helix_fit_results_, quality_, gpu_d, nTuples_};
+       return TuplesOnCPU { std::move(indToEdm), hitsOnCPU->view(), tuples_,  helix_fit_results_, quality_, gpu_d, nTuples_};
     }
 
     void cleanup(cudaStream_t stream);
