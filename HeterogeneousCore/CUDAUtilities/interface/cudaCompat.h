@@ -66,6 +66,7 @@ namespace cudaCompat {
 #define __global__
 #define __shared__
 #define __forceinline__
+// #define __constant__
 #endif
 
 

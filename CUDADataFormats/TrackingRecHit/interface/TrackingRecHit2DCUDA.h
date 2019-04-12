@@ -101,6 +101,9 @@ private:
 
 class TrackingRecHit2DCUDA {
 public:
+
+  using Hist = TrackingRecHit2DSOAView::Hist;
+
   TrackingRecHit2DCUDA() = default;
 
   explicit TrackingRecHit2DCUDA(uint32_t nHits, cuda::stream_t<>& stream);
@@ -115,6 +118,11 @@ public:
   TrackingRecHit2DSOAView  * view() { return m_view.get(); }
   TrackingRecHit2DSOAView const * view() const { return m_view.get(); }
 
+
+  auto hitsLayerStart() { return m_hitsLayerStart; }
+  auto phiBinner()  { return m_hist; }
+  auto phiBinnerWS() { return m_hws;}
+  auto iphi() { return m_iphi;}
 
  
   // only the local coord and detector index
@@ -135,6 +143,12 @@ private:
   cudautils::device::unique_ptr<TrackingRecHit2DSOAView> m_view;
 
   uint32_t m_nHits;
+
+  // needed as kernel params...
+  Hist * m_hist;
+  uint8_t * m_hws;
+  uint32_t * m_hitsLayerStart;
+  int16_t * m_iphi;
 
 };
 

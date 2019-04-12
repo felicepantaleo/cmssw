@@ -42,8 +42,12 @@ namespace pixelCPEforGPU {
     Frame frame;
   };
 
+  extern __constant__ uint32_t * layerStart; // [phase1PixelTopology::numberOfLayers + 1];
+  extern __constant__ uint8_t * layer; //[phase1PixelTopology::layerIndexSize];
 
   struct ParamsOnGPU {
+    
+
     CommonParams * m_commonParams;
     DetParams * m_detParams;
 
