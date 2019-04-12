@@ -8,6 +8,12 @@
 #include "HeterogeneousCore/CUDAUtilities/interface/exitSansCUDADevices.h"
 
 
+namespace testTrackingRecHit2D {
+
+  void runKernels(TrackingRecHit2DSOAView * hits);
+
+}
+
 
 
 
@@ -37,6 +43,7 @@ int main() {
   auto nHits = 200;
   TrackingRecHit2DCUDA tkhit(nHits,stream);
 
+  testTrackingRecHit2D::runKernels(tkhit.view());
 
   //Fake the end-of-job signal.
   ar.postEndJobSignal_();
