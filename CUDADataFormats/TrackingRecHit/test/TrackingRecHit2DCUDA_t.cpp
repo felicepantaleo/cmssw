@@ -57,7 +57,7 @@ process.CUDAService = cms.Service('CUDAService')
   auto stream = current_device.create_stream(cuda::stream::implicitly_synchronizes_with_default_stream);
 
   auto nHits = 200;
-  TrackingRecHit2DCUDA tkhit(nHits,stream);
+  TrackingRecHit2DCUDA tkhit(nHits,nullptr, nullptr, stream);
 
   testTrackingRecHit2D::runKernels(tkhit.view());
 

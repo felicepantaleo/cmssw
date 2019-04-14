@@ -30,8 +30,8 @@ public:
       unsigned long long nZeroTrackCells;
     };
 
-   using HitsOnGPU = siPixelRecHitsHeterogeneousProduct::HitsOnGPU;
-   using HitsOnCPU = siPixelRecHitsHeterogeneousProduct::HitsOnCPU;
+   using HitsOnGPU = TrackingRecHit2DSOAView;
+   using HitsOnCPU = TrackingRecHit2DCUDA;
 
    using TuplesOnGPU = pixelTuplesHeterogeneousProduct::TuplesOnGPU;
 

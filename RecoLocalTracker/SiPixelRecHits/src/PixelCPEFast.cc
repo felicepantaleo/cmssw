@@ -22,10 +22,6 @@ namespace {
    constexpr float micronsToCm = 1.0e-4;
 }
 
-namespace pixelCPEforGPU {
-  __constant__ uint32_t * layerStart; // [phase1PixelTopology::numberOfLayers + 1];
-  __constant__ uint8_t * layer; // [phase1PixelTopology::layerIndexSize];
-}
 
 
 //-----------------------------------------------------------------------------
@@ -77,17 +73,16 @@ const pixelCPEforGPU::ParamsOnGPU *PixelCPEFast::getGPUProductAsync(cuda::stream
 
       std::cout << "coping pixelCPEforGPU" << std::endl;
       //here or above???
-      cudaCheck(cudaMemcpyToSymbol(pixelCPEforGPU::layerStart, phase1PixelTopology::layerStart, sizeof(phase1PixelTopology::layerStart)));
-      cudaCheck(cudaMemcpyToSymbol(pixelCPEforGPU::layer, phase1PixelTopology::layer.data(), phase1PixelTopology::layer.size() ));
-
 
       // and now copy to device...
       cudaCheck(cudaMalloc((void**) & data.h_paramsOnGPU.m_commonParams, sizeof(pixelCPEforGPU::CommonParams)));
       cudaCheck(cudaMalloc((void**) & data.h_paramsOnGPU.m_detParams, this->m_detParamsGPU.size()*sizeof(pixelCPEforGPU::DetParams)));
+      cudaCheck(cudaMalloc((void**) & data.h_paramsOnGPU.m_layerGeometry, sizeof(pixelCPEforGPU::LayerGeometry)));
       cudaCheck(cudaMalloc((void**) & data.d_paramsOnGPU, sizeof(pixelCPEforGPU::ParamsOnGPU)));
 
       cudaCheck(cudaMemcpyAsync(data.d_paramsOnGPU, &data.h_paramsOnGPU, sizeof(pixelCPEforGPU::ParamsOnGPU), cudaMemcpyDefault, stream.id()));
       cudaCheck(cudaMemcpyAsync(data.h_paramsOnGPU.m_commonParams, &this->m_commonParamsGPU, sizeof(pixelCPEforGPU::CommonParams), cudaMemcpyDefault, stream.id()));
+      cudaCheck(cudaMemcpyAsync(data.h_paramsOnGPU.m_layerGeometry, &this->m_layerGeometry, sizeof(pixelCPEforGPU::LayerGeometry), cudaMemcpyDefault, stream.id())); 
       cudaCheck(cudaMemcpyAsync(data.h_paramsOnGPU.m_detParams, this->m_detParamsGPU.data(), this->m_detParamsGPU.size()*sizeof(pixelCPEforGPU::DetParams), cudaMemcpyDefault, stream.id()));
     });
   return data.d_paramsOnGPU;
@@ -239,13 +234,19 @@ void PixelCPEFast::fillParamsForGpu() {
    }
    */
    
-
    for (int i=0; i<3; ++i) {
      g.sx[i] = std::sqrt(g.sx[i]*g.sx[i]+lape.xx());
      g.sy[i] = std::sqrt(g.sy[i]*g.sy[i]+lape.yy());
    }
 
  }
+
+ // fill Layer and ladders geometry
+ memcpy(m_layerGeometry.layerStart, phase1PixelTopology::layerStart, sizeof(phase1PixelTopology::layerStart));
+ memcpy(m_layerGeometry.layer, phase1PixelTopology::layer.data(), phase1PixelTopology::layer.size());
+
+
+
 }
 
 PixelCPEFast::~PixelCPEFast() {}

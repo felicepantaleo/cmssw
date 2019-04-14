@@ -6,6 +6,7 @@
 #include <cuda_runtime.h>
 
 // CMSSW headers
+#include "FWCore/MessageLogger/interface/MessageLogger.h"
 #include "RecoLocalTracker/SiPixelClusterizer/plugins/SiPixelRawToClusterGPUKernel.h"
 #include "HeterogeneousCore/CUDAUtilities/interface/cudaCheck.h"
 #include "RecoLocalTracker/SiPixelClusterizer/plugins/gpuClusteringConstants.h"
@@ -14,11 +15,11 @@
 
 namespace {
   __global__
-  void setHitsLayerStart(uint32_t const * __restrict__ hitsModuleStart, uint32_t* hitsLayerStart) {
+  void setHitsLayerStart(uint32_t const * __restrict__ hitsModuleStart, pixelCPEforGPU::ParamsOnGPU const * cpeParams, uint32_t* hitsLayerStart) {
     auto i = blockIdx.x * blockDim.x + threadIdx.x;
 
     if(i < 11) {
-      hitsLayerStart[i] = hitsModuleStart[pixelCPEforGPU::layerStart[i]];
+      hitsLayerStart[i] = hitsModuleStart[cpeParams->layerGeometry().layerStart[i]];
     }
   }
 }
@@ -57,7 +58,7 @@ namespace pixelgpudetails {
     cudaCheck(cudaGetLastError());
 
     // assuming full warp of threads is better than a smaller number...
-    setHitsLayerStart<<<1, 32, 0, stream.id()>>>(clusters_d.moduleStart(), hits_d.hitsLayerStart());
+    setHitsLayerStart<<<1, 32, 0, stream.id()>>>(clusters_d.moduleStart(), cpeParams, hits_d.hitsLayerStart());
     cudaCheck(cudaGetLastError());
 
     auto nhits_ = clusters_d.nClusters();

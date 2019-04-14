@@ -116,7 +116,9 @@ void SiPixelRecHitHeterogeneous::produce(edm::StreamID streamID, edm::Event& iEv
 
   auto nHits = clusters.nClusters();
 
-  TrackingRecHit2DCUDA hits(nHits,ctx.stream());
+  auto cpe = fcpe->getGPUProductAsync(ctx.stream());
+
+  TrackingRecHit2DCUDA hits(nHits, cpe, clusters.moduleStart(), ctx.stream());
 
   gpuAlgo_.makeHitsAsync(hits,digis, clusters, bs, fcpe->getGPUProductAsync(ctx.stream()), ctx.stream());
 

@@ -6,9 +6,9 @@
 
 #include <cuda/api_wrappers.h>
 
-namespace siPixelRecHitsHeterogeneousProduct {
-   struct HitsOnCPU;
-}
+class TrackingRecHit2DSOAView;
+class TrackingRecHit2DCUDA;
+
 
 namespace Rfit {
   constexpr uint32_t maxNumberOfConcurrentFits() { return 6*1024;}
@@ -37,8 +37,8 @@ namespace Rfit {
 class HelixFitOnGPU {
 public:
 
-   using HitsOnGPU = siPixelRecHitsHeterogeneousProduct::HitsOnGPU;
-   using HitsOnCPU = siPixelRecHitsHeterogeneousProduct::HitsOnCPU;
+   using HitsOnGPU = TrackingRecHit2DSOAView;
+   using HitsOnCPU = TrackingRecHit2DCUDA;
 
    using TuplesOnGPU = pixelTuplesHeterogeneousProduct::TuplesOnGPU;
    using TupleMultiplicity = CAConstants::TupleMultiplicity;

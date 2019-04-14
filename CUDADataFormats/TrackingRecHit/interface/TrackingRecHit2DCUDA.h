@@ -63,6 +63,9 @@ public:
   __device__  uint32_t hitsModuleStart(int i) const { return __ldg(m_hitsModuleStart+i);}
 
   __device__  uint32_t * hitsLayerStart() { return  m_hitsLayerStart; }
+  __device__  uint32_t const * hitsLayerStart() const { return  m_hitsLayerStart; }
+
+
 
   __device__ Hist & phiBinner() { return *m_hist; }
   __device__ Hist const & phiBinner() const { return  *m_hist; }
@@ -88,7 +91,7 @@ private:
 
   // supporting objects
   pixelCPEforGPU::ParamsOnGPU const * m_cpeParams;    // forwarded from setup, NOT owned
-  const uint32_t * m_hitsModuleStart; // forwarded from clusters
+  uint32_t const * m_hitsModuleStart; // forwarded from clusters
 
   uint32_t * m_hitsLayerStart;
 
@@ -106,7 +109,11 @@ public:
 
   TrackingRecHit2DCUDA() = default;
 
-  explicit TrackingRecHit2DCUDA(uint32_t nHits, cuda::stream_t<>& stream);
+  explicit 
+  TrackingRecHit2DCUDA(uint32_t nHits, 
+                       pixelCPEforGPU::ParamsOnGPU const * cpeParams,
+                       uint32_t const * hitsModuleStart,
+                      cuda::stream_t<>& stream);
   ~TrackingRecHit2DCUDA() = default;
 
   TrackingRecHit2DCUDA(const TrackingRecHit2DCUDA&) = delete;
@@ -118,7 +125,9 @@ public:
   TrackingRecHit2DSOAView  * view() { return m_view.get(); }
   TrackingRecHit2DSOAView const * view() const { return m_view.get(); }
 
+  auto  nHits() const { return m_nHits; }
 
+  auto hitsModuleStart() const { return m_hitsModuleStart;}
   auto hitsLayerStart() { return m_hitsLayerStart; }
   auto phiBinner()  { return m_hist; }
   auto phiBinnerWS() { return m_hws;}
@@ -143,6 +152,8 @@ private:
   cudautils::device::unique_ptr<TrackingRecHit2DSOAView> m_view;
 
   uint32_t m_nHits;
+
+  uint32_t const * m_hitsModuleStart; // needed for legacy  this is on GPU!
 
   // needed as kernel params...
   Hist * m_hist;

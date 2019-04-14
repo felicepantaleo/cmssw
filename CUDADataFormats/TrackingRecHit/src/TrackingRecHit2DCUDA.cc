@@ -5,7 +5,11 @@
 #include "HeterogeneousCore/CUDAUtilities/interface/copyAsync.h"
 
 
-TrackingRecHit2DCUDA::TrackingRecHit2DCUDA(uint32_t nHits, cuda::stream_t<>& stream) : m_nHits(nHits) {
+TrackingRecHit2DCUDA::TrackingRecHit2DCUDA(
+                      uint32_t nHits,
+                      pixelCPEforGPU::ParamsOnGPU const * cpeParams,
+                      uint32_t const * hitsModuleStart,
+                      cuda::stream_t<>& stream) : m_nHits(nHits), m_hitsModuleStart(hitsModuleStart){
 
   edm::Service<CUDAService> cs;
 
@@ -31,6 +35,9 @@ TrackingRecHit2DCUDA::TrackingRecHit2DCUDA(uint32_t nHits, cuda::stream_t<>& str
  // copy all the pointers
   m_hist = view->m_hist = m_HistStore.get();
   m_hws = view->m_hws = (uint8_t *)(get32(n32)+11);
+
+  view->m_cpeParams = cpeParams;
+  view->m_hitsModuleStart = hitsModuleStart;
 
   view->m_xl = get32(0);
   view->m_yl = get32(1);
