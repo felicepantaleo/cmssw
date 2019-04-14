@@ -12,6 +12,7 @@
 #include "HeterogeneousCore/CUDACore/interface/GPUCuda.h"
 #include "HeterogeneousCore/CUDAServices/interface/CUDAService.h"
 #include "HeterogeneousCore/Producer/interface/HeterogeneousEDProducer.h"
+#include "FWCore/ServiceRegistry/interface/Service.h"
 
 #include "CUDADataFormats/Common/interface/CUDAProduct.h"
 #include "HeterogeneousCore/CUDACore/interface/CUDAScopedContext.h"
@@ -119,9 +120,17 @@ void CAHitNtupletHeterogeneousEDProducer::acquireGPUCuda(
 
   edm::Handle<CUDAProduct<TrackingRecHit2DCUDA>> hHits;
   iEvent.getByToken(gpuHits_, hHits);
+
+  // temporary check (until the migration)
+  edm::Service<CUDAService> cs;
+  assert(hHits->device() == cs->getCurrentDevice());
+
+  if(not  hHits->isAvailable() and not hHits->event()->has_occurred()) {
+    cudaCheck(cudaStreamWaitEvent(cudaStream.id(), hHits->event()->id(), 0));
+  }
+
   CUDAScopedContext ctx{*hHits};
   auto const& gHits = ctx.get(*hHits);
-  
 
   GPUGenerator_.buildDoublets(gHits,cudaStream);
 

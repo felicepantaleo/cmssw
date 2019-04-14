@@ -58,7 +58,7 @@ TrackingRecHit2DCUDA::TrackingRecHit2DCUDA(
 
   m_hitsLayerStart = view->m_hitsLayerStart = (uint32_t *)get32(n32);
 
-  // transfer veiw
+  // transfer view
   cudautils::copyAsync(m_view, view, stream);
 
 }

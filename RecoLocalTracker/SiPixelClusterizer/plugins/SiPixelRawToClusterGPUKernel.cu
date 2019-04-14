@@ -475,11 +475,18 @@ namespace pixelgpudetails {
      }
      __syncthreads();
 
+#ifdef GPU_DEBUG
      assert(0==moduleStart[0]);
      assert(cluStart[0]==moduleStart[1]);
      assert(moduleStart[1024]>=moduleStart[1023]);
      assert(moduleStart[1025]>=moduleStart[1024]);
      assert(moduleStart[gpuClustering::MaxNumModules]>=moduleStart[1025]);
+
+    for (int i=first, iend=gpuClustering::MaxNumModules+1; i<iend; i+=blockDim.x) {
+       if(0!=i) assert(moduleStart[i]>=moduleStart[i-i]);
+       if (i==96 || i==1184 || i==1744 || i==gpuClustering::MaxNumModules) printf("moduleStart %d %d\n",i,moduleStart[i]);
+    }    
+#endif
 
      // avoid overflow
      constexpr auto MAX_HITS = gpuClustering::MaxNumClusters;
