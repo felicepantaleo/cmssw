@@ -137,6 +137,7 @@ public:
   // only the local coord and detector index
   cudautils::host::unique_ptr<float[]> localCoordToHostAsync(cuda::stream_t<>& stream) const;
   cudautils::host::unique_ptr<uint16_t[]> detIndexToHostAsync(cuda::stream_t<>& stream) const;
+  cudautils::host::unique_ptr<uint32_t[]> hitsModuleStartToHostAsync(cuda::stream_t<>& stream) const;
 
 private:
 
