@@ -77,6 +77,9 @@ void SiPixelRecHitFromSOA::acquire(edm::Event const& iEvent, edm::EventSetup con
   auto const& inputData = ctx.get(inputDataWrapped);
 
   m_nHits = inputData.nHits();
+
+  // std::cout<< "converting " << m_nHits << " Hits"<< std::endl;
+
   if (0==m_nHits) return;
   m_store32 = inputData.localCoordToHostAsync(ctx.stream());
   //  m_store16 = inputData.detIndexToHostAsync(ctx.stream();
@@ -119,6 +122,10 @@ void SiPixelRecHitFromSOA::produce(edm::Event& iEvent, edm::EventSetup const& es
     auto fc = m_hitsModuleStart[gind];
     auto lc = m_hitsModuleStart[gind+1];
     auto nhits = lc-fc;
+
+    //std::cout << "in det " << gind << "conv " << nhits << " hits from " << DSViter->size() << " legacy clusters" 
+    //          <<' '<< lc <<','<<fc<<std::endl;
+
     if (0==nhits) continue;
     uint32_t ic=0;
     auto jnd = [&](int k) { return fc+k; };
