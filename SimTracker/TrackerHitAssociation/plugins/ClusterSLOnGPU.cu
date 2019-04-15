@@ -36,7 +36,7 @@ void simLink(const SiPixelDigisCUDA::DeviceConstView *dd, uint32_t ndigis, clust
   assert(id < 2000);
 
   auto ch = pixelgpudetails::pixelToChannel(dd->xx(i), dd->yy(i));
-  auto first = hh.hitsModuleStart_d[id];
+  auto first = hh.hitsModuleStart(id);
   auto cl = first + dd->clus(i);
   assert(cl < 2000 * blockDim.x);
 
@@ -99,13 +99,6 @@ void dumpLink(int first, int ev, clusterSLOnGPU::HitsOnGPU const * hhp, uint32_t
   auto const & hh = *hhp;
   auto const & sl = *slp;
 
-  /* just an example of use of global error....
-  assert(hh.cpeParams);
-  float ge[6];
-  hh.cpeParams->detParams(hh.detInd_d[i]).frame.toGlobal(hh.xerr_d[i], 0, hh.yerr_d[i],ge);
-  printf("Error: %d: %.4f,%.4f,%.4f,%.4f,%.4f,%.4f\n",hh.detInd_d[i],ge[0],ge[1],ge[2],ge[3],ge[4],ge[5]);
-  */
-
   auto const & tk1 = sl.links_d[sl.tkId_d[i]];
 
 #ifdef DUMP_TK2
@@ -116,9 +109,9 @@ void dumpLink(int first, int ev, clusterSLOnGPU::HitsOnGPU const * hhp, uint32_t
   printf("HIT: %d %d %d %d %.4f %.4f %.4f %.4f %d %d %d %d %d %d %d %d\n",
 #endif
          ev, i,
-         hh.detInd_d[i], hh.charge_d[i],
-         hh.xg_d[i], hh.yg_d[i], hh.zg_d[i], hh.rg_d[i], hh.iphi_d[i],
-         hh.xsize_d[i],hh.ysize_d[i],
+         hh.detectorIndex(i), hh.charge(i),
+         hh.xGlobal(i), hh.yGlobal(i), hh.zGlobal(i), hh.rGlobal(i), hh.iphi(i),
+         hh.clusterSizeX(i),hh.clusterSizeY(i),
          tk1[2], tk1[3], tk1[4], tk1[5], sl.n1_d[i]
 #ifdef DUMP_TK2
         ,tk2[2], tk2[3], tk2[4], tk2[5], sl.n2_d[i]
@@ -198,7 +191,7 @@ namespace clusterSLOnGPU {
     blocks = (ndigis + threadsPerBlock - 1) / threadsPerBlock;
 
     assert(sl.me_d);
-    simLink<<<blocks, threadsPerBlock, 0, stream.id()>>>(dd.view(), ndigis, hh.gpu_d, sl.me_d, n);
+    simLink<<<blocks, threadsPerBlock, 0, stream.id()>>>(dd.view(), ndigis, hh.view(), sl.me_d, n);
     cudaCheck(cudaGetLastError());
 
     if (doDump) {
@@ -206,7 +199,7 @@ namespace clusterSLOnGPU {
       // one line == 200B so each kernel can print only 5K lines....
       blocks = 16; // (nhits + threadsPerBlock - 1) / threadsPerBlock;
       for (int first=0; first<int(nhits); first+=blocks*threadsPerBlock) {
-        dumpLink<<<blocks, threadsPerBlock, 0, stream.id()>>>(first, ev, hh.gpu_d, nhits, sl.me_d);
+        dumpLink<<<blocks, threadsPerBlock, 0, stream.id()>>>(first, ev, hh.view(), nhits, sl.me_d);
         cudaCheck(cudaGetLastError());
         cudaStreamSynchronize(stream.id());
       }
