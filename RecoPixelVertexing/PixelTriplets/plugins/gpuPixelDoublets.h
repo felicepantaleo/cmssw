@@ -21,7 +21,48 @@
 // #define USE_ZCUT
 // #define NO_CLSCUT
 
+#define CONSTANT_VAR __constant__
+
 namespace gpuPixelDoublets {
+
+    constexpr int nPairs = 13;
+    CONSTANT_VAR const uint8_t layerPairs[2*nPairs] = {
+      0, 1,  1, 2,  2, 3,
+      // 0, 4,  1, 4,  2, 4,  4, 5,  5, 6,
+      0, 7,  1, 7,  2, 7,  7, 8,  8, 9, // neg
+      0, 4,  1, 4,  2, 4,  4, 5,  5, 6,  // pos
+    };
+
+    constexpr int16_t phi0p05 = 522;    // round(521.52189...) = phi2short(0.05);
+    constexpr int16_t phi0p06 = 626;    // round(625.82270...) = phi2short(0.06);
+    constexpr int16_t phi0p07 = 730;    // round(730.12648...) = phi2short(0.07);
+
+    CONSTANT_VAR const int16_t phicuts[nPairs] {
+      phi0p05, phi0p05, phi0p06,
+      phi0p07, phi0p06, phi0p06, phi0p05, phi0p05,
+      phi0p07, phi0p06, phi0p06, phi0p05, phi0p05
+    };
+
+#ifdef USE_ZCUT
+    CONSTANT_VAR float const minz[nPairs] = {
+      -20., -22., -22.,
+      -30., -30.,-30., -70., -70.,
+        0., 10., 15., -70., -70.
+    };
+
+    CONSTANT_VAR float const maxz[nPairs] = {
+      20., 22., 22.,
+       0., -10., -15., 70., 70.,
+      30., 30., 30., 70., 70.
+    };
+#endif
+
+    CONSTANT_VAR float const maxr[nPairs] = {
+      20., 20., 20.,
+       9.,  7.,  6.,  5.,  5.,
+       9.,  7.,  6.,  5.,  5.
+    };
+
 
   constexpr uint32_t MaxNumOfDoublets = CAConstants::maxNumberOfDoublets();  // not really relevant
 
@@ -65,19 +106,12 @@ namespace gpuPixelDoublets {
 
   __device__
   __forceinline__
-  void doubletsFromHisto(uint8_t const * __restrict__ layerPairs,
-                         uint32_t nPairs,
-                         GPUCACell * cells,
+  void doubletsFromHisto(GPUCACell * cells,
                          uint32_t * nCells,
                          CellNeighborsVector * cellNeighbors, CellTracksVector * cellTracks,
                          TrackingRecHit2DSOAView const &  __restrict__ hh,
                          GPUCACell::OuterHitOfCell * isOuterHitOfCell,
-                         int16_t const * __restrict__ phicuts,
-#ifdef USE_ZCUT
-                         float const * __restrict__ minz,
-                         float const * __restrict__ maxz,
-#endif
-                         float const * __restrict__ maxr, bool ideal_cond)
+                         bool ideal_cond)
   {
 
 #ifndef NO_CLSCUT 
@@ -255,53 +289,12 @@ namespace gpuPixelDoublets {
                             GPUCACell::OuterHitOfCell * isOuterHitOfCell,
                             bool ideal_cond)
   {
-    constexpr int nPairs = 13;
-    constexpr const uint8_t layerPairs[2*nPairs] = {
-      0, 1,  1, 2,  2, 3,
-      // 0, 4,  1, 4,  2, 4,  4, 5,  5, 6,
-      0, 7,  1, 7,  2, 7,  7, 8,  8, 9, // neg
-      0, 4,  1, 4,  2, 4,  4, 5,  5, 6,  // pos
-    };
-
-    constexpr int16_t phi0p05 = 522;    // round(521.52189...) = phi2short(0.05);
-    constexpr int16_t phi0p06 = 626;    // round(625.82270...) = phi2short(0.06);
-    constexpr int16_t phi0p07 = 730;    // round(730.12648...) = phi2short(0.07);
-
-    constexpr const int16_t phicuts[nPairs] {
-      phi0p05, phi0p05, phi0p06,
-      phi0p07, phi0p06, phi0p06, phi0p05, phi0p05,
-      phi0p07, phi0p06, phi0p06, phi0p05, phi0p05
-    };
-
-#ifdef USE_ZCUT
-    float const minz[nPairs] = {
-      -20., -22., -22.,
-      -30., -30.,-30., -70., -70.,
-        0., 10., 15., -70., -70.
-    };
-
-    float const maxz[nPairs] = {
-      20., 22., 22.,
-       0., -10., -15., 70., 70.,
-      30., 30., 30., 70., 70.
-    };
-#endif
-
-    float const maxr[nPairs] = {
-      20., 20., 20.,
-       9.,  7.,  6.,  5.,  5.,
-       9.,  7.,  6.,  5.,  5.
-    };
 
     auto const &  __restrict__ hh = *hhp;
-    doubletsFromHisto(layerPairs, nPairs, cells, nCells,
+    doubletsFromHisto(cells, nCells,
                       cellNeighbors, cellTracks,
                       hh, isOuterHitOfCell,
-                      phicuts, 
-#ifdef USE_ZCUT
-                      minz, maxz, 
-#endif
-                      maxr , ideal_cond);
+                      ideal_cond);
   }
 
 
