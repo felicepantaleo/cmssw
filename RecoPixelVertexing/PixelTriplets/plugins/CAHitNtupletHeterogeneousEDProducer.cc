@@ -79,8 +79,8 @@ private:
 CAHitNtupletHeterogeneousEDProducer::CAHitNtupletHeterogeneousEDProducer(
     const edm::ParameterSet &iConfig)
     : HeterogeneousEDProducer(iConfig),
-      gpuHits_(consumes<CUDAProduct<TrackingRecHit2DCUDA>>(iConfig.getParameter<edm::InputTag>("heterogeneousPixelRecHitSrc"))),
-      cpuHits_(consumes<SiPixelRecHitCollectionNew>(iConfig.getParameter<edm::InputTag>("heterogeneousPixelRecHitSrc"))),
+      gpuHits_(consumes<CUDAProduct<TrackingRecHit2DCUDA>>(iConfig.getParameter<edm::InputTag>("siPixelRecHitCUDA"))),
+      cpuHits_(consumes<SiPixelRecHitCollectionNew>(iConfig.getParameter<edm::InputTag>("siPixelRecHitFromCUDA"))),
       GPUGenerator_(iConfig, consumesCollector()),
       useRiemannFit_(iConfig.getParameter<bool>("useRiemannFit")),
       enableConversion_(iConfig.getParameter<bool>("gpuEnableConversion")),
