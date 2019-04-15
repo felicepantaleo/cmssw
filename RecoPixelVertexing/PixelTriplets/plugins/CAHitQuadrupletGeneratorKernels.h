@@ -73,6 +73,10 @@ private:
     const bool earlyFishbone_;
     const bool lateFishbone_;
     const bool idealConditions_;
+    bool graphFlag_ = true;
+    cudaGraph_t cudaGraph_;
+    cudaGraphExec_t graphExec_;
+
 };
 
 #endif // RecoPixelVertexing_PixelTriplets_plugins_CAHitQuadrupletGeneratorKernels_h
