@@ -13,7 +13,7 @@ from RecoLocalTracker.SiPixelClusterizer.siPixelClustersPreSplitting_cff import 
 from RecoLocalTracker.SiPixelRecHits.SiPixelRecHits_cfi import *
 from RecoLocalTracker.SubCollectionProducers.clustersummaryproducer_cfi import *
 
-pixeltrackerlocalrecoTask = cms.Task(siPixelClustersPreSplittingTask,siPixelRecHitsPreSplitting)
+pixeltrackerlocalrecoTask = cms.Task(siPixelClustersPreSplittingTask,siPixelRecHitsPreSplittingTask)
 striptrackerlocalrecoTask = cms.Task(siStripZeroSuppression,siStripClusters,siStripMatchedRecHits)
 trackerlocalrecoTask = cms.Task(pixeltrackerlocalrecoTask,striptrackerlocalrecoTask,clusterSummaryProducer)
 

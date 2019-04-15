@@ -32,10 +32,10 @@ from RecoLocalTracker.SiPixelRecHits.siPixelRecHitFromSOA_cfi import siPixelRecH
 siPixelRecHitsPreSplittingTask = cms.Task(siPixelRecHitsPreSplitting)
 
 siPixelRecHitsCUDAPreSplitting = _siPixelRecHitCUDA.clone()
-siPixelRecHitsLegacyPreSplitting = _siPixelRecHitFromSoA.clone()
+siPixelRecHitsLegacyPreSplitting = _siPixelRecHitFromSOA.clone()
 siPixelRecHitsPreSplittingTaskCUDA = cms.Task(
     siPixelRecHitsCUDAPreSplitting,
-    siPixelDigisRecHitsLegacyPreSplitting,
+    siPixelRecHitsLegacyPreSplitting,
 )
 
 from Configuration.ProcessModifiers.gpu_cff import gpu
