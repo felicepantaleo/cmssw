@@ -3,6 +3,7 @@
 #include "FWCore/ServiceRegistry/interface/Service.h"
 #include "HeterogeneousCore/CUDAServices/interface/CUDAService.h"
 #include "HeterogeneousCore/CUDAUtilities/interface/copyAsync.h"
+// #include "HeterogeneousCore/CUDAUtilities/interface/cudaCheck.h"
 
 
 TrackingRecHit2DCUDA::TrackingRecHit2DCUDA(
@@ -74,7 +75,8 @@ cudautils::host::unique_ptr<float[]> TrackingRecHit2DCUDA::localCoordToHostAsync
 cudautils::host::unique_ptr<uint32_t[]> TrackingRecHit2DCUDA::hitsModuleStartToHostAsync(cuda::stream_t<>& stream) const{
   edm::Service<CUDAService> cs;
   auto ret = cs->make_host_unique<uint32_t[]>(2001, stream);
-  cudautils::copyAsync(ret, m_hitsModuleStart, 2001, stream);
+  cudaMemcpyAsync(ret.get(), m_hitsModuleStart, 2001, cudaMemcpyDefault,stream.id());
+  //cudautils::copyAsync(ret, m_hitsModuleStart, 2001, stream);
   return ret;
 
 }

@@ -59,8 +59,8 @@ private:
 
 SiPixelRecHitHeterogeneous::SiPixelRecHitHeterogeneous(const edm::ParameterSet& iConfig):
   tBeamSpot(consumes<CUDAProduct<BeamSpotCUDA>>(iConfig.getParameter<edm::InputTag>("beamSpot"))),
-  token_(consumes<CUDAProduct<SiPixelClustersCUDA>>(iConfig.getParameter<edm::InputTag>("heterogeneousSrc"))),
-  tokenDigi_(consumes<CUDAProduct<SiPixelDigisCUDA>>(iConfig.getParameter<edm::InputTag>("heterogeneousSrc"))),
+  token_(consumes<CUDAProduct<SiPixelClustersCUDA>>(iConfig.getParameter<edm::InputTag>("src"))),
+  tokenDigi_(consumes<CUDAProduct<SiPixelDigisCUDA>>(iConfig.getParameter<edm::InputTag>("src"))),
   tokenHit_(produces<CUDAProduct<TrackingRecHit2DCUDA>>()),
   cpeName_(iConfig.getParameter<std::string>("CPE"))
 {}
@@ -69,14 +69,9 @@ void SiPixelRecHitHeterogeneous::fillDescriptions(edm::ConfigurationDescriptions
   edm::ParameterSetDescription desc;
 
   desc.add<edm::InputTag>("beamSpot", edm::InputTag("offlineBeamSpotCUDA"));
-  desc.add<edm::InputTag>("heterogeneousSrc", edm::InputTag("siPixelClustersCUDAPreSplitting"));
-  desc.add<edm::InputTag>("src", edm::InputTag("siPixelClustersPreSplitting"));
+  desc.add<edm::InputTag>("src", edm::InputTag("siPixelClustersCUDAPreSplitting"));
   desc.add<std::string>("CPE", "PixelCPEFast");
-
-  desc.add<bool>("gpuEnableTransfer", true);
-  desc.add<bool>("gpuEnableConversion", true);
-
-  descriptions.add("siPixelRecHitHeterogeneous",desc);
+  descriptions.add("siPixelRecHitCUDA",desc);
 }
 
 
