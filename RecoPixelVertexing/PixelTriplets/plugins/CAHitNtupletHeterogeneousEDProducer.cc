@@ -79,8 +79,7 @@ private:
 CAHitNtupletHeterogeneousEDProducer::CAHitNtupletHeterogeneousEDProducer(
     const edm::ParameterSet &iConfig)
     : HeterogeneousEDProducer(iConfig),
-      gpuHits_(consumes<CUDAProduct<TrackingRecHit2DCUDA>>(iConfig.getParameter<edm::InputTag>("heterogeneousPixelRecHitSrc"))),
-      cpuHits_(consumes<SiPixelRecHitCollectionNew>(iConfig.getParameter<edm::InputTag>("heterogeneousPixelRecHitSrc"))),
+      gpuHits_(consumes<CUDAProduct<TrackingRecHit2DCUDA>>(iConfig.getParameter<edm::InputTag>("pixelRecHitSrc"))),
       GPUGenerator_(iConfig, consumesCollector()),
       useRiemannFit_(iConfig.getParameter<bool>("useRiemannFit")),
       enableConversion_(iConfig.getParameter<bool>("gpuEnableConversion")),
@@ -88,6 +87,7 @@ CAHitNtupletHeterogeneousEDProducer::CAHitNtupletHeterogeneousEDProducer(
 {
    produces<HeterogeneousProduct>();
    if(enableConversion_) {
+      cpuHits_ = consumes<SiPixelRecHitCollectionNew>(iConfig.getParameter<edm::InputTag>("pixelRecHitLegacySrc"));
      regionToken_ = consumes<edm::OwnVector<TrackingRegion>>(iConfig.getParameter<edm::InputTag>("trackingRegions"));
      produces<RegionsSeedingHitSets>();
    }
@@ -98,7 +98,8 @@ void CAHitNtupletHeterogeneousEDProducer::fillDescriptions(
   edm::ParameterSetDescription desc;
 
   desc.add<edm::InputTag>("trackingRegions", edm::InputTag("globalTrackingRegionFromBeamSpot"));
-  desc.add<edm::InputTag>("heterogeneousPixelRecHitSrc", edm::InputTag("siPixelRecHitsPreSplitting"));
+  desc.add<edm::InputTag>("pixelRecHitSrc", edm::InputTag("siPixelRecHitsCUDAPreSplitting"));
+  desc.add<edm::InputTag>("pixelRecHitLegacySrc", edm::InputTag("siPixelRecHitsLegacyPreSplitting"));
   desc.add<bool>("useRiemannFit", false)->setComment("true for Riemann, false for BrokenLine");
   desc.add<bool>("gpuEnableTransfer", true);
   desc.add<bool>("gpuEnableConversion", true);

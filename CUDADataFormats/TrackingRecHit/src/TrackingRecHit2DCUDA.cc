@@ -75,7 +75,7 @@ cudautils::host::unique_ptr<float[]> TrackingRecHit2DCUDA::localCoordToHostAsync
 cudautils::host::unique_ptr<uint32_t[]> TrackingRecHit2DCUDA::hitsModuleStartToHostAsync(cuda::stream_t<>& stream) const{
   edm::Service<CUDAService> cs;
   auto ret = cs->make_host_unique<uint32_t[]>(2001, stream);
-  cudaMemcpyAsync(ret.get(), m_hitsModuleStart, 2001, cudaMemcpyDefault,stream.id());
+  cudaMemcpyAsync(ret.get(), m_hitsModuleStart, 4*2001, cudaMemcpyDefault,stream.id());
   //cudautils::copyAsync(ret, m_hitsModuleStart, 2001, stream);
   return ret;
 
