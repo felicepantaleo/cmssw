@@ -30,13 +30,13 @@
 
 #include <cuda_runtime.h>
 
-class SiPixelRecHitHeterogeneous : public edm::global::EDProducer<> {
+class SiPixelRecHitCUDA : public edm::global::EDProducer<> {
 
 public:
 
 
-  explicit SiPixelRecHitHeterogeneous(const edm::ParameterSet& iConfig);
-  ~SiPixelRecHitHeterogeneous() override = default;
+  explicit SiPixelRecHitCUDA(const edm::ParameterSet& iConfig);
+  ~SiPixelRecHitCUDA() override = default;
 
   static void fillDescriptions(edm::ConfigurationDescriptions& descriptions);
 
@@ -57,7 +57,7 @@ private:
 
 };
 
-SiPixelRecHitHeterogeneous::SiPixelRecHitHeterogeneous(const edm::ParameterSet& iConfig):
+SiPixelRecHitCUDA::SiPixelRecHitCUDA(const edm::ParameterSet& iConfig):
   tBeamSpot(consumes<CUDAProduct<BeamSpotCUDA>>(iConfig.getParameter<edm::InputTag>("beamSpot"))),
   token_(consumes<CUDAProduct<SiPixelClustersCUDA>>(iConfig.getParameter<edm::InputTag>("src"))),
   tokenDigi_(consumes<CUDAProduct<SiPixelDigisCUDA>>(iConfig.getParameter<edm::InputTag>("src"))),
@@ -65,7 +65,7 @@ SiPixelRecHitHeterogeneous::SiPixelRecHitHeterogeneous(const edm::ParameterSet& 
   cpeName_(iConfig.getParameter<std::string>("CPE"))
 {}
 
-void SiPixelRecHitHeterogeneous::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
+void SiPixelRecHitCUDA::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
   edm::ParameterSetDescription desc;
 
   desc.add<edm::InputTag>("beamSpot", edm::InputTag("offlineBeamSpotCUDA"));
@@ -75,7 +75,7 @@ void SiPixelRecHitHeterogeneous::fillDescriptions(edm::ConfigurationDescriptions
 }
 
 
-void SiPixelRecHitHeterogeneous::produce(edm::StreamID streamID, edm::Event& iEvent, const edm::EventSetup& es) const {
+void SiPixelRecHitCUDA::produce(edm::StreamID streamID, edm::Event& iEvent, const edm::EventSetup& es) const {
 
   // const TrackerGeometry *geom_ = nullptr;
   const PixelClusterParameterEstimator *cpe_ = nullptr;
@@ -109,18 +109,10 @@ void SiPixelRecHitHeterogeneous::produce(edm::StreamID streamID, edm::Event& iEv
   iEvent.getByToken(tBeamSpot, hbs);
   auto const& bs = ctx.get(*hbs);
 
-  auto nHits = clusters.nClusters();
-
-  auto cpe = fcpe->getGPUProductAsync(ctx.stream());
-
-  assert(cpe);
-  assert(clusters.clusModuleStart());
-  TrackingRecHit2DCUDA hits(nHits, cpe, clusters.clusModuleStart(), ctx.stream());
-
-  gpuAlgo_.makeHitsAsync(hits,digis, clusters, bs, fcpe->getGPUProductAsync(ctx.stream()), ctx.stream());
-
-  ctx.emplace(iEvent,tokenHit_,std::move(hits));
-
+  ctx.emplace(iEvent,tokenHit_,
+              std::move(
+              gpuAlgo_.makeHitsAsync(digis, clusters, bs, fcpe->getGPUProductAsync(ctx.stream()), ctx.stream())
+              ));
 }
 
-DEFINE_FWK_MODULE(SiPixelRecHitHeterogeneous);
+DEFINE_FWK_MODULE(SiPixelRecHitCUDA);

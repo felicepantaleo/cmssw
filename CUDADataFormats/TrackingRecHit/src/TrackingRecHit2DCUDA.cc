@@ -25,6 +25,11 @@ TrackingRecHit2DCUDA::TrackingRecHit2DCUDA(
   }
 
 
+  // the single arrays are not 128 bit alligned...
+  // the hits are actually accessed in order only in building
+  // if ordering is relevant they may have to be stored phi-ordered by layer or so
+  // this will break 1to1 correspondence with cluster and module locality
+  // so unless proven VERY inefficient we keep it ordered as generated
   m_store16 = cs->make_device_unique<uint16_t[]>(nHits*n16,stream);
   m_store32 = cs->make_device_unique<float[]>(nHits*n32+11+(1+TrackingRecHit2DSOAView::Hist::wsSize())/sizeof(float),stream);
   m_HistStore = cs->make_device_unique<TrackingRecHit2DSOAView::Hist>(stream);
@@ -35,7 +40,7 @@ TrackingRecHit2DCUDA::TrackingRecHit2DCUDA(
 
  // copy all the pointers
   m_hist = view->m_hist = m_HistStore.get();
-  m_hws = view->m_hws = (uint8_t *)(get32(n32)+11);
+  m_hws = view->m_hws = reinterpret_cast<uint8_t *>(get32(n32)+11);
 
   view->m_cpeParams = cpeParams;
   view->m_hitsModuleStart = hitsModuleStart;
@@ -50,14 +55,14 @@ TrackingRecHit2DCUDA::TrackingRecHit2DCUDA(
   view->m_zg = get32(6);
   view->m_rg = get32(7);
 
-  m_iphi = view->m_iphi = (int16_t *)get16(0);
+  m_iphi = view->m_iphi = reinterpret_cast<int16_t *>(get16(0));
 
-  view->m_charge = (int32_t *)get32(8);
-  view->m_xsize = (int16_t *)get16(2);
-  view->m_ysize = (int16_t *)get16(3);
+  view->m_charge = reinterpret_cast<int32_t *>(get32(8));
+  view->m_xsize = reinterpret_cast<int16_t *>(get16(2));
+  view->m_ysize = reinterpret_cast<int16_t *>(get16(3));
   view->m_detInd = get16(1);
 
-  m_hitsLayerStart = view->m_hitsLayerStart = (uint32_t *)get32(n32);
+  m_hitsLayerStart = view->m_hitsLayerStart = reinterpret_cast<uint32_t *>(get32(n32));
 
   // transfer view
   cudautils::copyAsync(m_view, view, stream);

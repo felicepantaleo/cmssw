@@ -127,43 +127,33 @@ namespace gpuPixelRecHits {
     pixelCPEforGPU::errorFromDB(cpeParams->commonParams(), cpeParams->detParams(me), clusParams, ic);
 
 
+    // store it
 
-                          int32_t * chargeh = &hits.charge(0);
-                          uint16_t * detInd = &hits.detectorIndex(0);
-                          float * xg = &hits.xGlobal(0); float * yg = &hits.yGlobal(0); float * zg = &hits.zGlobal(0); float * rg = &hits.rGlobal(0);
-                          int16_t * iph = &hits.iphi(0);
-                          float * xl = &hits.xLocal(0); float * yl = &hits.yLocal(0);
-                          float * xe = &hits.xerrLocal(0); float * ye = &hits.yerrLocal(0);
-                          int16_t * xs = &hits.clusterSizeX(0); int16_t * ys = &hits.clusterSizeY(0);
+    hits.charge(h) = clusParams.charge[ic];
 
+    hits.detectorIndex(h) = me;
 
+    hits.xLocal(h)= clusParams.xpos[ic];   
+    hits.yLocal(h)= clusParams.ypos[ic]; 
 
-    chargeh[h] = clusParams.charge[ic];
-
-    detInd[h] = me;
-
-    xl[h]= clusParams.xpos[ic];   
-    yl[h]= clusParams.ypos[ic]; 
-
-    xs[h]= clusParams.xsize[ic];
-    ys[h]= clusParams.ysize[ic];
+    hits.clusterSizeX(h)= clusParams.xsize[ic];
+    hits.clusterSizeY(h)= clusParams.ysize[ic];
 
 
-    xe[h]= clusParams.xerr[ic]*clusParams.xerr[ic];
-    ye[h]= clusParams.yerr[ic]*clusParams.yerr[ic];
-    // mr[h]= clusParams.minRow[ic];  // keep it for reference
-    // mc[h]= clusParams.minCol[ic];
+    hits.xerrLocal(h)= clusParams.xerr[ic]*clusParams.xerr[ic];
+    hits.yerrLocal(h) = clusParams.yerr[ic]*clusParams.yerr[ic];
 
   
     // to global and compute phi... 
-    cpeParams->detParams(me).frame.toGlobal(xl[h],yl[h], xg[h],yg[h],zg[h]);
+    cpeParams->detParams(me).frame.toGlobal(hits.xLocal(h),hits.yLocal(h), 
+                                            hits.xGlobal(h),hits.yGlobal(h),hits.zGlobal(h));
     // here correct for the beamspot...
-    xg[h]-=bs->x;
-    yg[h]-=bs->y;
-    zg[h]-=bs->z;
+    hits.xGlobal(h)-=bs->x;
+    hits.yGlobal(h)-=bs->y;
+    hits.zGlobal(h)-=bs->z;
 
-    rg[h] = std::sqrt(xg[h]*xg[h]+yg[h]*yg[h]);
-    iph[h] = unsafe_atan2s<7>(yg[h],xg[h]);
+    hits.rGlobal(h) = std::sqrt(hits.xGlobal(h)*hits.xGlobal(h)+hits.yGlobal(h)*hits.yGlobal(h));
+    hits.iphi(h) = unsafe_atan2s<7>(hits.yGlobal(h),hits.xGlobal(h));
     
   }
 

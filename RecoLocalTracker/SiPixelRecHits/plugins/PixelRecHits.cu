@@ -31,8 +31,7 @@ namespace {
 
 namespace pixelgpudetails {
 
-  void PixelRecHitGPUKernel::makeHitsAsync(
-                                           TrackingRecHit2DCUDA & hits_d,
+  TrackingRecHit2DCUDA PixelRecHitGPUKernel::makeHitsAsync(
                                            SiPixelDigisCUDA const& digis_d,
                                            SiPixelClustersCUDA const& clusters_d,
                                            BeamSpotCUDA const& bs_d,
@@ -40,6 +39,8 @@ namespace pixelgpudetails {
                                            cuda::stream_t<>& stream
                                           ) const {
 
+    auto nHits = clusters_d.nClusters();
+    TrackingRecHit2DCUDA hits_d(nHits, cpeParams, clusters_d.clusModuleStart(), stream);
 
     int threadsPerBlock = 256;
     int blocks = digis_d.nModules(); // active modules (with digis)
@@ -67,13 +68,15 @@ namespace pixelgpudetails {
     setHitsLayerStart<<<1, 32, 0, stream.id()>>>(clusters_d.clusModuleStart(), cpeParams, hits_d.hitsLayerStart());
     cudaCheck(cudaGetLastError());
 
-    auto nhits_ = clusters_d.nClusters();
-    if (nhits_ >= TrackingRecHit2DSOAView::maxHits()) {
-      edm::LogWarning("PixelRecHitGPUKernel" ) << "Hits Overflow " << nhits_  << " > " << TrackingRecHit2DSOAView::maxHits();
+    if (nHits >= TrackingRecHit2DSOAView::maxHits()) {
+      edm::LogWarning("PixelRecHitGPUKernel" ) << "Hits Overflow " << nHits  << " > " << TrackingRecHit2DSOAView::maxHits();
     } 
 
-    if (nhits_)
-    cudautils::fillManyFromVector(hits_d.phiBinner(), hits_d.phiBinnerWS(), 10, hits_d.iphi(), hits_d.hitsLayerStart(), nhits_, 256, stream.id());
+    if (nHits)
+    cudautils::fillManyFromVector(hits_d.phiBinner(), hits_d.phiBinnerWS(), 10, hits_d.iphi(), hits_d.hitsLayerStart(), nHits, 256, stream.id());
     cudaCheck(cudaGetLastError());
+
+    return hits_d;
   }
-}
+
+}  // end namespace
