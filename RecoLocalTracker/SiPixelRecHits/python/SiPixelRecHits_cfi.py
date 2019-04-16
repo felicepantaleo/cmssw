@@ -15,19 +15,16 @@ siPixelRecHitsPreSplitting = SwitchProducerCUDA(
     cpu = _siPixelRecHitsPreSplitting.clone()
 )
 
-from Configuration.ProcessModifiers.gpu_cff import gpu
-gpu.toModify(siPixelRecHitsPreSplitting,
-    cuda = cms.EDAlias(
-        siPixelRecHitsLegacyPreSplitting = cms.VPSet(
-            cms.PSet(type = cms.string("SiPixelRecHitedmNewDetSetVector"))
-        )
-    )
-)
 
 
 from Configuration.ProcessModifiers.gpu_cff import gpu
 from RecoLocalTracker.SiPixelRecHits.siPixelRecHitCUDA_cfi import siPixelRecHitCUDA as _siPixelRecHitCUDA
 from RecoLocalTracker.SiPixelRecHits.siPixelRecHitFromSOA_cfi import siPixelRecHitFromSOA as _siPixelRecHitFromSOA
+
+gpu.toModify(siPixelRecHitsPreSplitting, 
+    cuda = _siPixelRecHitFromSOA.clone()
+)
+
 
 siPixelRecHitsPreSplittingTask = cms.Task(siPixelRecHitsPreSplitting)
 
