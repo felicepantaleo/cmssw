@@ -73,10 +73,13 @@ private:
     const bool earlyFishbone_;
     const bool lateFishbone_;
     const bool idealConditions_;
-    std::once_flag graphFlag_;
-    cudaGraph_t cudaGraph_;
-    cudaGraphExec_t graphExec_;
+    std::once_flag graphFlagClassifyTuples_;
+    cudaGraph_t cudaGraphClassifyTuples_;
+    cudaGraphExec_t graphExecClassifyTuples_;
 
+    std::once_flag graphFlagLaunchKernels_;
+    cudaGraph_t cudaGraphLaunchKernels_;
+    cudaGraphExec_t graphExecLaunchKernels_;
 };
 
 #endif // RecoPixelVertexing_PixelTriplets_plugins_CAHitQuadrupletGeneratorKernels_h

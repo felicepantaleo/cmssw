@@ -322,6 +322,10 @@ void CAHitQuadrupletGeneratorKernels::launchKernels( // here goes algoparms....
 
   auto nhits = hh.nHits;
   assert(nhits <= PixelGPUConstants::maxNumberOfHits);
+  auto nthTot = 64;
+  auto stride = 4;
+  auto blockSize = nthTot/stride;
+  auto numberOfBlocks = (maxNumberOfDoublets_ + blockSize - 1)/blockSize;
   
   if (earlyFishbone_) {
     auto nthTot = 64;
@@ -338,7 +342,8 @@ void CAHitQuadrupletGeneratorKernels::launchKernels( // here goes algoparms....
     );
     cudaCheck(cudaGetLastError());
   }
-
+  std::call_once(graphFlagLaunchKernels_, [&](){
+  cudaStreamBeginCapture(cudaStream);
   auto nthTot = 64;
   auto stride = 4;
   auto blockSize = nthTot/stride;
@@ -379,6 +384,11 @@ void CAHitQuadrupletGeneratorKernels::launchKernels( // here goes algoparms....
   numberOfBlocks = (CAConstants::maxTuples() + blockSize - 1) / blockSize;
   kernel_fillMultiplicity<<<numberOfBlocks, blockSize, 0, cudaStream>>>(gpu_.tuples_d,device_tupleMultiplicity_);
   cudaCheck(cudaGetLastError());
+  cudaStreamEndCapture(cudaStream, &cudaGraphLaunchKernels_);
+  cudaGraphInstantiate(&graphExecLaunchKernels_, cudaGraphLaunchKernels_, nullptr, nullptr, 0 );
+  } );
+
+  cudaGraphLaunch(graphExecLaunchKernels_, cudaStream);
 
   if (lateFishbone_) {
     auto nthTot = 128;
@@ -428,7 +438,7 @@ void CAHitQuadrupletGeneratorKernels::buildDoublets(HitsOnCPU const & hh, cudaSt
 
 void CAHitQuadrupletGeneratorKernels::classifyTuples(HitsOnCPU const & hh, TuplesOnGPU & tuples, cudaStream_t cudaStream) {
 
-  std::call_once(graphFlag_, [&](){
+  std::call_once(graphFlagClassifyTuples_, [&](){
     cudaStreamBeginCapture(cudaStream);
   
     auto blockSize = 64;
@@ -438,11 +448,11 @@ void CAHitQuadrupletGeneratorKernels::classifyTuples(HitsOnCPU const & hh, Tuple
     kernel_fastDuplicateRemover<<<numberOfBlocks, blockSize, 0, cudaStream>>>(device_theCells_, device_nCells_,tuples.tuples_d,tuples.helix_fit_results_d, tuples.quality_d);
     kernel_countTracks<<<numberOfBlocks, blockSize, 0, cudaStream>>>(tuples.tuples_d,tuples.quality_d,counters_);
   
-    cudaStreamEndCapture(cudaStream, &cudaGraph_);
-    cudaGraphInstantiate(&graphExec_, cudaGraph_, NULL, NULL, 0 );
+    cudaStreamEndCapture(cudaStream, &cudaGraphClassifyTuples_);
+    cudaGraphInstantiate(&graphExecClassifyTuples_, cudaGraphClassifyTuples_, nullptr, nullptr, 0 );
   } );
-  
-  cudaGraphLaunch(graphExec_, cudaStream);
+
+  cudaGraphLaunch(graphExecClassifyTuples_, cudaStream);
 }
 
 
