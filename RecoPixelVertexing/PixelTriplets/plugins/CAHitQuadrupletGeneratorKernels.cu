@@ -432,7 +432,7 @@ void CAHitQuadrupletGeneratorKernels::launchKernels( // here goes algoparms....
 
 
   auto nhits = hh.nHits();
-  assert(nhits <= PixelGPUConstants::maxNumberOfHits);
+  assert(nhits <= pixelGPUConstants::maxNumberOfHits);
   
   if (nhits>1 && earlyFishbone_) {
     auto nthTot = 64;

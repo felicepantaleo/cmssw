@@ -2,8 +2,6 @@
 #define RecoPixelVertexing_PixelTriplets_plugins_CAHitQuadrupletGeneratorKernels_h
 
 
-#include "RecoLocalTracker/SiPixelRecHits/plugins/siPixelRecHitsHeterogeneousProduct.h"
-
 #include "RecoPixelVertexing/PixelTriplets/plugins/pixelTuplesHeterogeneousProduct.h"
 
 #include "GPUCACell.h"
