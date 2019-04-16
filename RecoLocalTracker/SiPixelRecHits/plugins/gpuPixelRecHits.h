@@ -133,27 +133,32 @@ namespace gpuPixelRecHits {
 
     hits.detectorIndex(h) = me;
 
-    hits.xLocal(h)= clusParams.xpos[ic];   
-    hits.yLocal(h)= clusParams.ypos[ic]; 
+    float xl,yl;
+    hits.xLocal(h) = xl = clusParams.xpos[ic];   
+    hits.yLocal(h) = yl = clusParams.ypos[ic]; 
 
-    hits.clusterSizeX(h)= clusParams.xsize[ic];
-    hits.clusterSizeY(h)= clusParams.ysize[ic];
+    hits.clusterSizeX(h) = clusParams.xsize[ic];
+    hits.clusterSizeY(h) = clusParams.ysize[ic];
 
 
-    hits.xerrLocal(h)= clusParams.xerr[ic]*clusParams.xerr[ic];
+    hits.xerrLocal(h) = clusParams.xerr[ic]*clusParams.xerr[ic];
     hits.yerrLocal(h) = clusParams.yerr[ic]*clusParams.yerr[ic];
 
-  
+    // keep it local for computations
+    float xg,yg,zg;  
     // to global and compute phi... 
-    cpeParams->detParams(me).frame.toGlobal(hits.xLocal(h),hits.yLocal(h), 
-                                            hits.xGlobal(h),hits.yGlobal(h),hits.zGlobal(h));
+    cpeParams->detParams(me).frame.toGlobal(xl,yl, xg,yg,zg);
     // here correct for the beamspot...
-    hits.xGlobal(h)-=bs->x;
-    hits.yGlobal(h)-=bs->y;
-    hits.zGlobal(h)-=bs->z;
+    xg-=bs->x;
+    yg-=bs->y;
+    zg-=bs->z;
 
-    hits.rGlobal(h) = std::sqrt(hits.xGlobal(h)*hits.xGlobal(h)+hits.yGlobal(h)*hits.yGlobal(h));
-    hits.iphi(h) = unsafe_atan2s<7>(hits.yGlobal(h),hits.xGlobal(h));
+    hits.xGlobal(h) = xg;
+    hits.yGlobal(h) = yg;
+    hits.zGlobal(h) = zg;
+
+    hits.rGlobal(h) = std::sqrt(xg*xg+yg*yg);
+    hits.iphi(h) = unsafe_atan2s<7>(yg,xg);
     
   }
 

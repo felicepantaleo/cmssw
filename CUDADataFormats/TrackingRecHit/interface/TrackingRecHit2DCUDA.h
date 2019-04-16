@@ -24,53 +24,53 @@ public:
 
   friend class TrackingRecHit2DCUDA;
 
-  __device__ uint32_t nHits() const { return m_nHits; }
+  __device__ __forceinline__ uint32_t nHits() const { return m_nHits; }
 
-  __device__ float & xLocal(int i) { return m_xl[i];}
-  __device__ float xLocal(int i)  const  { return __ldg(m_xl+i);}
-  __device__ float & yLocal(int i) { return m_yl[i];}
-  __device__ float yLocal(int i)  const  { return __ldg(m_yl+i);}
+  __device__ __forceinline__ float & xLocal(int i) { return m_xl[i];}
+  __device__ __forceinline__ float xLocal(int i)  const  { return __ldg(m_xl+i);}
+  __device__ __forceinline__ float & yLocal(int i) { return m_yl[i];}
+  __device__ __forceinline__ float yLocal(int i)  const  { return __ldg(m_yl+i);}
 
-  __device__ float & xerrLocal(int i) { return m_xerr[i];}
-  __device__ float xerrLocal(int i)  const  { return __ldg(m_xerr+i);}
-  __device__ float & yerrLocal(int i) { return m_yerr[i];}
-  __device__ float yerrLocal(int i)  const  { return __ldg(m_yerr+i);}
+  __device__ __forceinline__ float & xerrLocal(int i) { return m_xerr[i];}
+  __device__ __forceinline__ float xerrLocal(int i)  const  { return __ldg(m_xerr+i);}
+  __device__ __forceinline__ float & yerrLocal(int i) { return m_yerr[i];}
+  __device__ __forceinline__ float yerrLocal(int i)  const  { return __ldg(m_yerr+i);}
 
-  __device__ float & xGlobal(int i) { return m_xg[i];}
-  __device__ float xGlobal(int i)  const  { return __ldg(m_xg+i);}
-  __device__ float & yGlobal(int i) { return m_yg[i];}
-  __device__ float yGlobal(int i)  const  { return __ldg(m_yg+i);}
-  __device__ float & zGlobal(int i) { return m_zg[i];}
-  __device__ float zGlobal(int i)  const  { return __ldg(m_zg+i);}
-  __device__ float & rGlobal(int i) { return m_rg[i];}
-  __device__ float rGlobal(int i)  const  { return __ldg(m_rg+i);}
+  __device__ __forceinline__ float & xGlobal(int i) { return m_xg[i];}
+  __device__ __forceinline__ float xGlobal(int i)  const  { return __ldg(m_xg+i);}
+  __device__ __forceinline__ float & yGlobal(int i) { return m_yg[i];}
+  __device__ __forceinline__ float yGlobal(int i)  const  { return __ldg(m_yg+i);}
+  __device__ __forceinline__ float & zGlobal(int i) { return m_zg[i];}
+  __device__ __forceinline__ float zGlobal(int i)  const  { return __ldg(m_zg+i);}
+  __device__ __forceinline__ float & rGlobal(int i) { return m_rg[i];}
+  __device__ __forceinline__ float rGlobal(int i)  const  { return __ldg(m_rg+i);}
 
-  __device__ int16_t & iphi(int i) { return m_iphi[i];}
-  __device__ int16_t  iphi(int i) const { return __ldg(m_iphi+i);}
+  __device__ __forceinline__ int16_t & iphi(int i) { return m_iphi[i];}
+  __device__ __forceinline__ int16_t  iphi(int i) const { return __ldg(m_iphi+i);}
 
-  __device__ int32_t & charge(int i) { return m_charge[i];}
-  __device__ int32_t  charge(int i) const { return __ldg(m_charge+i);}
-  __device__ int16_t & clusterSizeX(int i) { return m_xsize[i];}
-  __device__ int16_t  clusterSizeX(int i) const { return __ldg(m_xsize+i);}
-  __device__ int16_t & clusterSizeY(int i) { return m_ysize[i];}
-  __device__ int16_t  clusterSizeY(int i) const { return __ldg(m_ysize+i);}
-  __device__ uint16_t & detectorIndex(int i)  { return m_detInd[i];}
-  __device__ uint16_t  detectorIndex(int i) const { return __ldg(m_detInd+i);}
-
-
-  __device__  pixelCPEforGPU::ParamsOnGPU const & cpeParams() const { return  *m_cpeParams; }
-
-  __device__  uint32_t hitsModuleStart(int i) const { return __ldg(m_hitsModuleStart+i);}
-
-  __device__  uint32_t * hitsLayerStart() { return  m_hitsLayerStart; }
-  __device__  uint32_t const * hitsLayerStart() const { return  m_hitsLayerStart; }
+  __device__ __forceinline__ int32_t & charge(int i) { return m_charge[i];}
+  __device__ __forceinline__ int32_t  charge(int i) const { return __ldg(m_charge+i);}
+  __device__ __forceinline__ int16_t & clusterSizeX(int i) { return m_xsize[i];}
+  __device__ __forceinline__ int16_t  clusterSizeX(int i) const { return __ldg(m_xsize+i);}
+  __device__ __forceinline__ int16_t & clusterSizeY(int i) { return m_ysize[i];}
+  __device__ __forceinline__ int16_t  clusterSizeY(int i) const { return __ldg(m_ysize+i);}
+  __device__ __forceinline__ uint16_t & detectorIndex(int i)  { return m_detInd[i];}
+  __device__ __forceinline__ uint16_t  detectorIndex(int i) const { return __ldg(m_detInd+i);}
 
 
+  __device__ __forceinline__  pixelCPEforGPU::ParamsOnGPU const & cpeParams() const { return  *m_cpeParams; }
 
-  __device__ Hist & phiBinner() { return *m_hist; }
-  __device__ Hist const & phiBinner() const { return  *m_hist; }
+  __device__ __forceinline__  uint32_t hitsModuleStart(int i) const { return __ldg(m_hitsModuleStart+i);}
 
-  __device__ uint8_t * phiBinnerWS() { return m_hws;}
+  __device__ __forceinline__  uint32_t * hitsLayerStart() { return  m_hitsLayerStart; }
+  __device__ __forceinline__  uint32_t const * hitsLayerStart() const { return  m_hitsLayerStart; }
+
+
+
+  __device__ __forceinline__ Hist & phiBinner() { return *m_hist; }
+  __device__ __forceinline__ Hist const & phiBinner() const { return  *m_hist; }
+
+  __device__ __forceinline__ uint8_t * phiBinnerWS() { return m_hws;}
 
 private:
 
