@@ -4,11 +4,11 @@
 #include <cuda_runtime.h>
 
 #include "DataFormats/SiPixelDetId/interface/PixelSubdetector.h"
+#include "DataFormats/TrackerRecHit2D/interface/SiPixelRecHitCollection.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/Utilities/interface/EDGetToken.h"
 #include "HeterogeneousCore/CUDAUtilities/interface/GPUSimpleVector.h"
 #include "HeterogeneousCore/CUDAServices/interface/CUDAService.h"
-#include "RecoLocalTracker/SiPixelClusterizer/interface/PixelTrackingGPUConstants.h"
 #include "RecoPixelVertexing/PixelTrackFitting/interface/RZLine.h"
 #include "RecoPixelVertexing/PixelTriplets/interface/OrderedHitSeeds.h"
 #include "RecoPixelVertexing/PixelTriplets/plugins/RecHitsMap.h"

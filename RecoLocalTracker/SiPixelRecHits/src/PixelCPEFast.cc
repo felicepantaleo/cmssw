@@ -71,9 +71,6 @@ PixelCPEFast::PixelCPEFast(edm::ParameterSet const & conf,
 const pixelCPEforGPU::ParamsOnGPU *PixelCPEFast::getGPUProductAsync(cuda::stream_t<>& cudaStream) const {
   const auto& data = gpuData_.dataForCurrentDeviceAsync(cudaStream, [this](GPUData& data, cuda::stream_t<>& stream) {
 
-      std::cout << "coping pixelCPEforGPU" << std::endl;
-      //here or above???
-
       // and now copy to device...
       cudaCheck(cudaMalloc((void**) & data.h_paramsOnGPU.m_commonParams, sizeof(pixelCPEforGPU::CommonParams)));
       cudaCheck(cudaMalloc((void**) & data.h_paramsOnGPU.m_detParams, this->m_detParamsGPU.size()*sizeof(pixelCPEforGPU::DetParams)));
