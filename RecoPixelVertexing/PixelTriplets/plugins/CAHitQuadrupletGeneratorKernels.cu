@@ -428,25 +428,21 @@ void CAHitQuadrupletGeneratorKernels::buildDoublets(HitsOnCPU const & hh, cudaSt
 
 void CAHitQuadrupletGeneratorKernels::classifyTuples(HitsOnCPU const & hh, TuplesOnGPU & tuples, cudaStream_t cudaStream) {
 
-    if(graphFlag_){
-      cudaStreamBeginCapture(cudaStream);
-      auto blockSize = 64;
-      auto numberOfBlocks = (CAConstants::maxNumberOfQuadruplets() + blockSize - 1)/blockSize;
-
-      kernel_VerifyFit<<<numberOfBlocks, blockSize, 0, cudaStream>>>(tuples.tuples_d, tuples.helix_fit_results_d, tuples.quality_d);
-
-      numberOfBlocks = (CAConstants::maxNumberOfDoublets() + blockSize - 1)/blockSize;
-      kernel_fishboneCleaner<<<numberOfBlocks, blockSize, 0, cudaStream>>>(device_theCells_, device_nCells_,tuples.quality_d);
-
-      numberOfBlocks = (CAConstants::maxNumberOfDoublets() + blockSize - 1)/blockSize;
-      kernel_fastDuplicateRemover<<<numberOfBlocks, blockSize, 0, cudaStream>>>(device_theCells_, device_nCells_,tuples.tuples_d,tuples.helix_fit_results_d, tuples.quality_d);
-
-      kernel_countTracks<<<numberOfBlocks, blockSize, 0, cudaStream>>>(tuples.tuples_d,tuples.quality_d,counters_);
-      cudaStreamEndCapture(cudaStream, &cudaGraph_);
-      cudaGraphInstantiate(&graphExec_, cudaGraph_, NULL, NULL, 0 );
-      graphFlag_=false;
+  if(graphFlag_){
+    graphFlag_=false;
+    cudaStreamBeginCapture(cudaStream);
+  
+    auto blockSize = 64;
+    auto numberOfBlocks = (CAConstants::maxNumberOfQuadruplets() + blockSize - 1)/blockSize;
+    kernel_VerifyFit<<<numberOfBlocks, blockSize, 0, cudaStream>>>(tuples.tuples_d, tuples.helix_fit_results_d, tuples.quality_d);
+    kernel_fishboneCleaner<<<numberOfBlocks, blockSize, 0, cudaStream>>>(device_theCells_, device_nCells_,tuples.quality_d);
+    kernel_fastDuplicateRemover<<<numberOfBlocks, blockSize, 0, cudaStream>>>(device_theCells_, device_nCells_,tuples.tuples_d,tuples.helix_fit_results_d, tuples.quality_d);
+    kernel_countTracks<<<numberOfBlocks, blockSize, 0, cudaStream>>>(tuples.tuples_d,tuples.quality_d,counters_);
+  
+    cudaStreamEndCapture(cudaStream, &cudaGraph_);
+    cudaGraphInstantiate(&graphExec_, cudaGraph_, NULL, NULL, 0 );
   }
-    cudaGraphLaunch(graphExec_, cudaStream);
+  cudaGraphLaunch(graphExec_, cudaStream);
 }
 
 
