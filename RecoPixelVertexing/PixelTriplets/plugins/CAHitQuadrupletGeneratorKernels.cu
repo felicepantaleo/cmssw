@@ -428,8 +428,7 @@ void CAHitQuadrupletGeneratorKernels::buildDoublets(HitsOnCPU const & hh, cudaSt
 
 void CAHitQuadrupletGeneratorKernels::classifyTuples(HitsOnCPU const & hh, TuplesOnGPU & tuples, cudaStream_t cudaStream) {
 
-  if(graphFlag_){
-    graphFlag_=false;
+  std::call_once(graphFlag_, [&](){
     cudaStreamBeginCapture(cudaStream);
   
     auto blockSize = 64;
@@ -441,7 +440,8 @@ void CAHitQuadrupletGeneratorKernels::classifyTuples(HitsOnCPU const & hh, Tuple
   
     cudaStreamEndCapture(cudaStream, &cudaGraph_);
     cudaGraphInstantiate(&graphExec_, cudaGraph_, NULL, NULL, 0 );
-  }
+  } );
+  
   cudaGraphLaunch(graphExec_, cudaStream);
 }
 

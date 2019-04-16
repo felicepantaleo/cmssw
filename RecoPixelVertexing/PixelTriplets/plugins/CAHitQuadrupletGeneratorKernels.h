@@ -73,7 +73,7 @@ private:
     const bool earlyFishbone_;
     const bool lateFishbone_;
     const bool idealConditions_;
-    bool graphFlag_ = true;
+    std::once_flag graphFlag_;
     cudaGraph_t cudaGraph_;
     cudaGraphExec_t graphExec_;
 
