@@ -4,10 +4,13 @@
 #include <Eigen/Eigenvalues>
 
 #include "test_common.h"
+#include "HeterogeneousCore/CUDAUtilities/interface/cudaCheck.h"
 
 #include "HeterogeneousCore/CUDAUtilities/interface/exitSansCUDADevices.h"
 
 using namespace Eigen;
+
+using Matrix5d = Matrix<double, 5, 5>;
 
 __host__ __device__ void eigenValues(Matrix3d * m, Eigen::SelfAdjointEigenSolver<Matrix3d>::RealVectorType * ret) {
 #if TEST_DEBUG
@@ -31,6 +34,10 @@ __global__ void kernelInverse3x3(Matrix3d * in, Matrix3d * out) {
 
 __global__ void kernelInverse4x4(Matrix4d * in, Matrix4d * out) {
   (*out) = in->inverse();
+}
+
+__global__ void kernelInverse5x5(Matrix5d * in, Matrix5d * out) {
+	(*out) = in->inverse();
 }
 
 
@@ -149,6 +156,34 @@ void testInverse4x4() {
   assert(isEqualFuzzy(m_inv, *mCPUret));
 }
 
+void testInverse5x5() {
+	std::cout << "TEST INVERSE 5x5" << std::endl;
+        Matrix5d m;
+        fillMatrix(m);
+        m += m.transpose().eval();
+	Matrix5d m_inv = m.inverse();
+	Matrix5d *mGPU = nullptr;
+	Matrix5d *mGPUret = nullptr;
+	Matrix5d *mCPUret = new Matrix5d();
+	
+#if TEST_DEBUG
+	std::cout << "Here is the matrix m:" << std::endl << m << std::endl;
+	std::cout << "Its inverse is:" << std::endl << m.inverse() << std::endl;
+#endif
+	cudaMalloc((void **)&mGPU, sizeof(Matrix5d));
+	cudaMalloc((void **)&mGPUret, sizeof(Matrix5d));
+	cudaMemcpy(mGPU, &m, sizeof(Matrix5d), cudaMemcpyHostToDevice);
+	
+	kernelInverse5x5<<<1,1>>>(mGPU, mGPUret);
+	cudaDeviceSynchronize();
+	
+	cudaMemcpy(mCPUret, mGPUret, sizeof(Matrix5d), cudaMemcpyDeviceToHost);
+#if TEST_DEBUG
+	std::cout << "Its GPU inverse is:" << std::endl << (*mCPUret) << std::endl;
+#endif
+	assert(isEqualFuzzy(m_inv, *mCPUret));
+}
+
 void testEigenvalues() {
   std::cout << "TEST EIGENVALUES" << std::endl;
   Matrix3d m;
@@ -190,6 +225,8 @@ int main (int argc, char * argv[]) {
   testEigenvalues();
   testInverse3x3();
   testInverse4x4();
+  testInverse5x5();
+
   testMultiply<1, 2, 2, 1>();
   testMultiply<1, 2, 2, 2>();
   testMultiply<1, 2, 2, 3>();

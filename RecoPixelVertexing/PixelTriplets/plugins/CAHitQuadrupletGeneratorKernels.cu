@@ -26,16 +26,27 @@ __global__
 void kernel_checkOverflows(TuplesOnGPU::Container * foundNtuplets, AtomicPairCounter * apc,
                GPUCACell const * __restrict__ cells, uint32_t const * __restrict__ nCells,
                GPUCACell::OuterHitOfCell const * __restrict__ isOuterHitOfCell,
-               uint32_t nHits) {
+               uint32_t nHits, CAHitQuadrupletGeneratorKernels::Counters * counters) {
 
  __shared__ uint32_t killedCell;
  killedCell=0;
  __syncthreads();
-  
+
  auto idx = threadIdx.x + blockIdx.x * blockDim.x;
+
+ auto    & c = *counters;
+ // counters once per event
+ if(0==idx) {
+   atomicAdd(&c.nEvents,1);
+   atomicAdd(&c.nHits,nHits);
+   atomicAdd(&c.nCells,*nCells);   
+   atomicAdd(&c.nTuples,apc->get().m);
+   atomicAdd(&c.nUsedHits,apc->get().n);
+ }
+  
  #ifdef GPU_DEBUG
  if (0==idx) {
-   printf("number of found cells %d, found tuples %d with total hits %d,%d\n",*nCells, apc->get().m, foundNtuplets->size(), apc->get().n);
+   printf("number of found cells %d, found tuples %d with total hits %d out of %d\n",*nCells, apc->get().m, apc->get().n, nHits);
    assert(foundNtuplets->size(apc->get().m)==0);
    assert(foundNtuplets->size()==apc->get().n);
  }
@@ -65,7 +76,8 @@ void kernel_checkOverflows(TuplesOnGPU::Container * foundNtuplets, AtomicPairCou
  }
 
  __syncthreads();
-// if (threadIdx.x==0) printf("number of killed cells %d\n",killedCell);
+ if (threadIdx.x==0) atomicAdd(&c.nKilledCells,killedCell);
+ // if (threadIdx.x==0) printf("number of killed cells %d\n",killedCell);
 }
 
 
@@ -75,7 +87,7 @@ kernel_fishboneCleaner(GPUCACell const * cells, uint32_t const * __restrict__ nC
                             pixelTuplesHeterogeneousProduct::Quality * quality
                            ) {
 
-   constexpr auto bad = pixelTuplesHeterogeneousProduct::bad;
+  constexpr auto bad = pixelTuplesHeterogeneousProduct::bad;
 
   auto cellIndex = threadIdx.x + blockIdx.x * blockDim.x;
 
@@ -95,9 +107,9 @@ kernel_fastDuplicateRemover(GPUCACell const * cells, uint32_t const * __restrict
                             pixelTuplesHeterogeneousProduct::Quality * quality
                            ) {
 
-   constexpr auto bad = pixelTuplesHeterogeneousProduct::bad;
-   constexpr auto dup = pixelTuplesHeterogeneousProduct::dup;
-   // constexpr auto loose = pixelTuplesHeterogeneousProduct::loose;
+  constexpr auto bad = pixelTuplesHeterogeneousProduct::bad;
+  constexpr auto dup = pixelTuplesHeterogeneousProduct::dup;
+  // constexpr auto loose = pixelTuplesHeterogeneousProduct::loose;
 
   auto cellIndex = threadIdx.x + blockIdx.x * blockDim.x;
 
@@ -169,22 +181,60 @@ kernel_connect(AtomicPairCounter * apc1, AtomicPairCounter * apc2,  // just to z
 
 __global__ 
 void kernel_find_ntuplets(
+    GPUCACell::Hits const *  __restrict__ hhp,
     GPUCACell * __restrict__ cells, uint32_t const * nCells,
     TuplesOnGPU::Container * foundNtuplets, AtomicPairCounter * apc,
+    GPUCACell::TupleMultiplicity * tupleMultiplicity,
     unsigned int minHitsPerNtuplet)
 {
 
   // recursive: not obvious to widen
+  auto const & hh = *hhp;
 
   auto cellIndex = threadIdx.x + blockIdx.x * blockDim.x;
   if (cellIndex >= (*nCells) ) return;
   auto &thisCell = cells[cellIndex];
-  if (thisCell.theLayerPairId!=0 && thisCell.theLayerPairId!=3 && thisCell.theLayerPairId!=8) return; // inner layer is 0 FIXME
-  GPUCACell::TmpTuple stack;
-  stack.reset();
-  thisCell.find_ntuplets(cells, *foundNtuplets, *apc, stack, minHitsPerNtuplet);
-  assert(stack.size()==0);
-  // printf("in %d found quadruplets: %d\n", cellIndex, apc->get());
+
+#ifdef CA_USE_LOCAL_COUNTERS
+  __shared__ GPUCACell::TupleMultiplicity::CountersOnly local;
+  if (0==threadIdx.x) local.zero();
+  __syncthreads();
+#endif
+
+  if (thisCell.theLayerPairId==0 || thisCell.theLayerPairId==3 || thisCell.theLayerPairId==8) { // inner layer is 0 FIXME
+    GPUCACell::TmpTuple stack;
+    stack.reset();
+    thisCell.find_ntuplets(hh, cells, *foundNtuplets, *apc, 
+                           #ifdef CA_USE_LOCAL_COUNTERS
+                           local,
+                           #else
+                           *tupleMultiplicity,
+                           #endif 
+                           stack, minHitsPerNtuplet);
+    assert(stack.size()==0);
+    // printf("in %d found quadruplets: %d\n", cellIndex, apc->get());
+  }
+
+#ifdef CA_USE_LOCAL_COUNTERS
+  __syncthreads(); 
+  if (0==threadIdx.x) tupleMultiplicity->add(local);
+#endif
+}
+
+
+__global__
+void kernel_fillMultiplicity(
+      TuplesOnGPU::Container const * __restrict__ foundNtuplets, 
+      GPUCACell::TupleMultiplicity * tupleMultiplicity
+     )
+{
+  auto it = blockIdx.x * blockDim.x + threadIdx.x;
+
+  if (it>=foundNtuplets->nbins()) return;
+
+  auto nhits = foundNtuplets->size(it);
+  if (nhits<3) return;
+  tupleMultiplicity->fillDirect(nhits,it);
 }
 
 
@@ -201,28 +251,52 @@ void kernel_VerifyFit(TuplesOnGPU::Container const * __restrict__ tuples,
 
   quality[idx] = pixelTuplesHeterogeneousProduct::bad;
 
-  // only quadruplets
-  if (tuples->size(idx)<4) { 
+  if (tuples->size(idx)<3) { 
     return;
   }
+
+  const float par[4] = {0.68177776,  0.74609577, -0.08035491,  0.00315399};
+  constexpr float chi2CutFact = 30;  // *0.7 if Riemann....
+  auto chi2Cut = [&](float pt) {
+     pt = std::min(pt,10.f);
+     return chi2CutFact*(par[0]+pt*(par[1]+pt*(par[2]+pt*par[3]))); 
+  };
 
   bool isNaN = false;
   for (int i=0; i<5; ++i) {
     isNaN |=  fit_results[idx].par(i)!=fit_results[idx].par(i);
   }
-  isNaN |=  !(fit_results[idx].chi2_line+fit_results[idx].chi2_circle < 100.f);  // catch NaN as well
+  isNaN |=  !(fit_results[idx].chi2_line+fit_results[idx].chi2_circle < chi2Cut(fit_results[idx].par(2)));  // catch NaN as well
 
 #ifdef GPU_DEBUG
- if (isNaN) printf("NaN or Bad Fit %d %f/%f\n",idx,fit_results[idx].chi2_line,fit_results[idx].chi2_circle);
+ if (isNaN) printf("NaN or Bad Fit %d size %d chi2 %f/%f\n",idx,tuples->size(idx), fit_results[idx].chi2_line,fit_results[idx].chi2_circle);
 #endif
 
   // impose "region cuts" (NaN safe)
   // phi,Tip,pt,cotan(theta)),Zip
-  bool ok = std::abs(fit_results[idx].par(1)) < 0.1f 
-         && fit_results[idx].par(2) > 0.3f
+  bool ok = std::abs(fit_results[idx].par(1)) < ( tuples->size(idx)>3 ? 0.5f : 0.3f) 
+         && fit_results[idx].par(2) > ( tuples->size(idx)>3 ? 0.3f : 0.5f)
          && std::abs(fit_results[idx].par(4)) < 12.f;
+  
   ok &= (!isNaN);
   quality[idx] = ok ? pixelTuplesHeterogeneousProduct::loose : pixelTuplesHeterogeneousProduct::bad; 
+}
+
+__global__
+void kernel_countTracks(TuplesOnGPU::Container const * __restrict__ tuples,
+                        Quality *  __restrict__ quality,
+                        CAHitQuadrupletGeneratorKernels::Counters * counters) {
+
+  auto idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx>= tuples->nbins()) return;
+  if (tuples->size(idx)==0) {
+    return;
+  }
+
+  if(quality[idx] != pixelTuplesHeterogeneousProduct::loose ) return;
+
+  atomicAdd(&(counters->nGoodTracks),1);
+
 }
 
 __global__
@@ -269,6 +343,11 @@ void CAHitQuadrupletGeneratorKernels::launchKernels( // here goes algoparms....
   auto stride = 4;
   auto blockSize = nthTot/stride;
   auto numberOfBlocks = (maxNumberOfDoublets_ + blockSize - 1)/blockSize;
+  auto rescale = numberOfBlocks/65536;
+  blockSize*=(rescale+1);
+  numberOfBlocks = (maxNumberOfDoublets_ + blockSize - 1)/blockSize;
+  assert(numberOfBlocks<65536);
+  assert(blockSize>0 && 0==blockSize%16);
   dim3 blks(1,numberOfBlocks,1);
   dim3 thrs(stride,blockSize,1);
 
@@ -281,15 +360,25 @@ void CAHitQuadrupletGeneratorKernels::launchKernels( // here goes algoparms....
   cudaCheck(cudaGetLastError());
 
   kernel_find_ntuplets<<<numberOfBlocks, blockSize, 0, cudaStream>>>(
+      hh.gpu_d,
       device_theCells_, device_nCells_,
       gpu_.tuples_d,
       gpu_.apc_d,
-      4
+      device_tupleMultiplicity_,
+      minHitsPerNtuplet_      
   );
   cudaCheck(cudaGetLastError());
 
   numberOfBlocks = (TuplesOnGPU::Container::totbins() + blockSize - 1)/blockSize;
   cudautils::finalizeBulk<<<numberOfBlocks, blockSize, 0, cudaStream>>>(gpu_.apc_d,gpu_.tuples_d);
+
+  cudautils::launchFinalize(device_tupleMultiplicity_,device_tmws_,cudaStream);
+
+
+  blockSize = 128;
+  numberOfBlocks = (CAConstants::maxTuples() + blockSize - 1) / blockSize;
+  kernel_fillMultiplicity<<<numberOfBlocks, blockSize, 0, cudaStream>>>(gpu_.tuples_d,device_tupleMultiplicity_);
+  cudaCheck(cudaGetLastError());
 
   if (lateFishbone_) {
     auto nthTot = 128;
@@ -312,7 +401,8 @@ void CAHitQuadrupletGeneratorKernels::launchKernels( // here goes algoparms....
   kernel_checkOverflows<<<numberOfBlocks, blockSize, 0, cudaStream>>>(
                         gpu_.tuples_d, gpu_.apc_d,
                         device_theCells_, device_nCells_,
-                        device_isOuterHitOfCell_, nhits
+                        device_isOuterHitOfCell_, nhits,
+                        counters_
                        );
   cudaCheck(cudaGetLastError());
 #endif
@@ -327,11 +417,11 @@ void CAHitQuadrupletGeneratorKernels::buildDoublets(HitsOnCPU const & hh, cudaSt
 
   int stride=1;
   int threadsPerBlock = gpuPixelDoublets::getDoubletsFromHistoMaxBlockSize/stride;
-  int blocks = (3 * nhits + threadsPerBlock - 1) / threadsPerBlock;
+  int blocks = (2 * nhits + threadsPerBlock - 1) / threadsPerBlock;
   dim3 blks(1,blocks,1);
   dim3 thrs(stride,threadsPerBlock,1);
   gpuPixelDoublets::getDoubletsFromHisto<<<blks, thrs, 0, stream>>>(
-            device_theCells_, device_nCells_, hh.gpu_d, device_isOuterHitOfCell_);
+            device_theCells_, device_nCells_, hh.gpu_d, device_isOuterHitOfCell_, idealConditions_);
   cudaCheck(cudaGetLastError());
 }
 
@@ -346,4 +436,22 @@ void CAHitQuadrupletGeneratorKernels::classifyTuples(HitsOnCPU const & hh, Tuple
     numberOfBlocks = (CAConstants::maxNumberOfDoublets() + blockSize - 1)/blockSize;
     kernel_fastDuplicateRemover<<<numberOfBlocks, blockSize, 0, cudaStream>>>(device_theCells_, device_nCells_,tuples.tuples_d,tuples.helix_fit_results_d, tuples.quality_d);
 
+    kernel_countTracks<<<numberOfBlocks, blockSize, 0, cudaStream>>>(tuples.tuples_d,tuples.quality_d,counters_);
+
+}
+
+
+__global__
+void kernel_printCounters(CAHitQuadrupletGeneratorKernels::Counters const * counters) {
+   
+   auto const & c = *counters;
+   printf("Counters Raw %lld %lld %lld %lld %lld %lld %lld\n",c.nEvents,c.nHits,c.nCells,c.nTuples,c.nGoodTracks,c.nUsedHits,c.nKilledCells);
+   printf("Counters Norm %lld ||  %.1f|  %.1f|  %.1f|  %.1f|  %.1f|  %.1f||\n",c.nEvents,c.nHits/double(c.nEvents),c.nCells/double(c.nEvents),
+                                                c.nTuples/double(c.nEvents),c.nGoodTracks/double(c.nEvents),
+                                                c.nUsedHits/double(c.nEvents),c.nKilledCells/double(c.nEvents));
+
+}
+
+void CAHitQuadrupletGeneratorKernels::printCounters() const {
+  kernel_printCounters<<<1,1>>>(counters_);
 }
