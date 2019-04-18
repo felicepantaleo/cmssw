@@ -51,13 +51,11 @@ namespace gpuVertexFinder {
     }
 #ifdef __CUDA_ARCH__
     __shared__ uint16_t sws[1024];
-    radixSort(ptv2,sortInd,sws,nvFinal);
+    radixSort<float,2>(ptv2,sortInd,sws,nvFinal);
 #else
     for(uint16_t i=0; i<nvFinal; ++i) sortInd[i]=i;
     std::sort(sortInd,sortInd+nvFinal,[&](auto i, auto j){return ptv2[i]<ptv2[j];});
 #endif
-    assert(ptv2[sortInd[nvFinal-1]]>=ptv2[sortInd[nvFinal-2]]);
-    assert(ptv2[sortInd[1]]>=ptv2[sortInd[0]]);
   }
 
 }

@@ -1,2 +1,2 @@
-#include "RecoPixelVertexing/PixelVertexFinding/src/gpuClusterTracksIterative.h"
-#define CLUSTERIZE clusterTracksIterative
+#include "RecoPixelVertexing/PixelVertexFinding/src/gpuClusterTracksByDensity.h"
+#define CLUSTERIZE clusterTracksByDensity
