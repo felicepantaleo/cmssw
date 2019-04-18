@@ -66,6 +66,10 @@
 <bin file="MulSymMatrix_t.cpp" name="DataFormatsMulSymMatrix_t">
 </bin>
 
+<bin file="CholeskyInvert_t.cpp" name="CholeskyInvert_t"/>
+
+
+
 <bin file="testGraph.cpp">
 </bin>
 
@@ -100,4 +104,13 @@
   <flags CUDA_FLAGS="--expt-relaxed-constexpr -fmad=false -ftz=false -prec-div=true -prec-sqrt=true"/>
   <flags CXXFLAGS="-ffp-contract=off"/>
 </bin>
+
+<bin file="CholeskyInvert_t.cu" name="CholeskyInvertOnGPU_t">
+  <use name="cuda"/>
+  <use name="cuda-api-wrappers"/>
+  <use name="HeterogeneousCore/CUDAUtilities"/>
+</bin>
+
 </iftool>
+
+

@@ -1,5 +1,6 @@
 <use   name="DataFormats/Common"/>
 <use   name="rootmath"/>
+<use   name="eigen"/>
 
 <export>
   <lib   name="1"/>
