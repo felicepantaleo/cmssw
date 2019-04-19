@@ -69,9 +69,6 @@ public:
 
   __device__ __forceinline__ Hist & phiBinner() { return *m_hist; }
   __device__ __forceinline__ Hist const & phiBinner() const { return  *m_hist; }
-
-  __device__ __forceinline__ uint8_t * phiBinnerWS() { return m_hws;}
-
 private:
 
   // local coord
@@ -96,7 +93,6 @@ private:
   uint32_t * m_hitsLayerStart;
 
   Hist * m_hist;
-  uint8_t * m_hws;
 
   uint32_t m_nHits;
 };
@@ -130,7 +126,6 @@ public:
   auto hitsModuleStart() const { return m_hitsModuleStart;}
   auto hitsLayerStart() { return m_hitsLayerStart; }
   auto phiBinner()  { return m_hist; }
-  auto phiBinnerWS() { return m_hws;}
   auto iphi() { return m_iphi;}
 
  
@@ -158,7 +153,6 @@ private:
 
   // needed as kernel params...
   Hist * m_hist;
-  uint8_t * m_hws;
   uint32_t * m_hitsLayerStart;
   int16_t * m_iphi;
 

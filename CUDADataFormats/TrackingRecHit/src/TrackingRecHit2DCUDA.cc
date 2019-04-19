@@ -31,7 +31,7 @@ TrackingRecHit2DCUDA::TrackingRecHit2DCUDA(
   // this will break 1to1 correspondence with cluster and module locality
   // so unless proven VERY inefficient we keep it ordered as generated
   m_store16 = cs->make_device_unique<uint16_t[]>(nHits*n16,stream);
-  m_store32 = cs->make_device_unique<float[]>(nHits*n32+11+(1+TrackingRecHit2DSOAView::Hist::wsSize())/sizeof(float),stream);
+  m_store32 = cs->make_device_unique<float[]>(nHits*n32+11,stream);
   m_HistStore = cs->make_device_unique<TrackingRecHit2DSOAView::Hist>(stream);
    
   auto get16 = [&](int i) { return m_store16.get()+i*nHits;};
@@ -40,7 +40,6 @@ TrackingRecHit2DCUDA::TrackingRecHit2DCUDA(
 
  // copy all the pointers
   m_hist = view->m_hist = m_HistStore.get();
-  m_hws = view->m_hws = reinterpret_cast<uint8_t *>(get32(n32)+11);
 
   view->m_cpeParams = cpeParams;
   view->m_hitsModuleStart = hitsModuleStart;

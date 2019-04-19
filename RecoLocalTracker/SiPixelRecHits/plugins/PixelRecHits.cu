@@ -6,6 +6,8 @@
 #include <cuda_runtime.h>
 
 // CMSSW headers
+#include "FWCore/ServiceRegistry/interface/Service.h"
+#include "HeterogeneousCore/CUDAServices/interface/CUDAService.h"
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
 #include "RecoLocalTracker/SiPixelClusterizer/plugins/SiPixelRawToClusterGPUKernel.h"
 #include "HeterogeneousCore/CUDAUtilities/interface/cudaCheck.h"
@@ -72,10 +74,12 @@ namespace pixelgpudetails {
       edm::LogWarning("PixelRecHitGPUKernel" ) << "Hits Overflow " << nHits  << " > " << TrackingRecHit2DSOAView::maxHits();
     } 
 
-    if (nHits)
-    cudautils::fillManyFromVector(hits_d.phiBinner(), hits_d.phiBinnerWS(), 10, hits_d.iphi(), hits_d.hitsLayerStart(), nHits, 256, stream.id());
-    cudaCheck(cudaGetLastError());
-
+    if (nHits) {
+      edm::Service<CUDAService> cs;
+      auto hws = cs->make_device_unique<uint8_t[]>(TrackingRecHit2DSOAView::Hist::wsSize(),stream);
+      cudautils::fillManyFromVector(hits_d.phiBinner(), hws.get(), 10, hits_d.iphi(), hits_d.hitsLayerStart(), nHits, 256, stream.id());
+      cudaCheck(cudaGetLastError());
+    }
     return hits_d;
   }
 
