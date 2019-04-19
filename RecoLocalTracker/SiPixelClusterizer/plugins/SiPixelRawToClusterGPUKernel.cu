@@ -36,6 +36,7 @@
 #include "RecoLocalTracker/SiPixelClusterizer/plugins/gpuClustering.h"
 #include "RecoLocalTracker/SiPixelClusterizer/plugins/gpuClusterChargeCut.h"
 #include "RecoLocalTracker/SiPixelClusterizer/interface/SiPixelFedCablingMapGPU.h"
+#include "CUDADataFormats/SiPixelCluster/interface/gpuClusteringConstants.h"
 
 // local includes
 #include "SiPixelRawToClusterGPUKernel.h"
@@ -460,15 +461,20 @@ namespace pixelgpudetails {
   __global__
   void fillHitsModuleStart(uint32_t const * __restrict__ cluStart, uint32_t * __restrict__ moduleStart) {
      
-     assert(gpuClustering::MaxNumModules<2050);  // easy to extend at least till 32*1024
+     assert(gpuClustering::MaxNumModules<2048);  // easy to extend at least till 32*1024
      assert(1==gridDim.x);
      assert(0==blockIdx.x);
 
      int first = threadIdx.x;
 
+     // limit to MaxHitsInModule;
+     for (int i=first, iend=gpuClustering::MaxNumModules; i<iend; i+=blockDim.x) {
+        moduleStart[i+1] = std::min(gpuClustering::maxHitsInModule(),cluStart[i]);
+     } 
+
      __shared__ uint32_t ws[32];
-     blockPrefixScan(cluStart,moduleStart+1,1024,ws);
-     blockPrefixScan(cluStart+1024,moduleStart+1025,gpuClustering::MaxNumModules-1024,ws); 
+     blockPrefixScan(moduleStart+1,moduleStart+1,1024,ws);
+     blockPrefixScan(moduleStart+1025,moduleStart+1025,gpuClustering::MaxNumModules-1024,ws); 
 
      for (int i=first+1025, iend=gpuClustering::MaxNumModules+1; i<iend; i+=blockDim.x) {
        moduleStart[i]+=moduleStart[1024];
@@ -477,7 +483,8 @@ namespace pixelgpudetails {
 
 #ifdef GPU_DEBUG
      assert(0==moduleStart[0]);
-     assert(cluStart[0]==moduleStart[1]);
+     auto c0 = std::min(gpuClustering::maxHitsInModule(),cluStart[0]);
+     assert(c0==moduleStart[1]);
      assert(moduleStart[1024]>=moduleStart[1023]);
      assert(moduleStart[1025]>=moduleStart[1024]);
      assert(moduleStart[gpuClustering::MaxNumModules]>=moduleStart[1025]);

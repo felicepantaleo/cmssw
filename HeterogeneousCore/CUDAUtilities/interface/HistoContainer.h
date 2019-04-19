@@ -78,6 +78,7 @@ namespace cudautils {
     assert(ws);
     uint32_t * off = (uint32_t *)( (char*)(h) +offsetof(Histo,off));
     size_t wss = Histo::wsSize();
+    assert(wss>0);
     CubDebugExit(cub::DeviceScan::InclusiveSum(ws, wss, off, off, Histo::totbins(), stream));
 #else
     h->finalize();
