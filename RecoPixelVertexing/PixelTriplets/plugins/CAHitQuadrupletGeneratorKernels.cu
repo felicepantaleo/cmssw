@@ -550,6 +550,7 @@ void CAHitQuadrupletGeneratorKernels::buildDoublets(HitsOnCPU const & hh, cuda::
                                      device_theCellNeighbors_, device_theCellNeighborsContainer_.get(),
                                      device_theCellTracks_, device_theCellTracksContainer_.get()
                                      );
+    cudaCheck(cudaGetLastError());
   }
    
   device_theCells_  = cs->make_device_unique<GPUCACell[]>(CAConstants::maxNumberOfDoublets(), stream);
@@ -574,31 +575,40 @@ void CAHitQuadrupletGeneratorKernels::classifyTuples(HitsOnCPU const & hh, Tuple
     // classify tracks based on kinematics
     auto numberOfBlocks = (CAConstants::maxNumberOfQuadruplets() + blockSize - 1)/blockSize;
     kernel_classifyTracks<<<numberOfBlocks, blockSize, 0, cudaStream>>>(tuples.tuples_d, tuples.helix_fit_results_d, tuples.quality_d);
+    cudaCheck(cudaGetLastError());
 
     // apply fishbone cleaning to good tracks
     numberOfBlocks = (CAConstants::maxNumberOfDoublets() + blockSize - 1)/blockSize;
     kernel_fishboneCleaner<<<numberOfBlocks, blockSize, 0, cudaStream>>>(device_theCells_.get(), device_nCells_,tuples.quality_d);
+    cudaCheck(cudaGetLastError());
 
     // remove duplicates (tracks that share a doublet) 
     numberOfBlocks = (CAConstants::maxNumberOfDoublets() + blockSize - 1)/blockSize;
     kernel_fastDuplicateRemover<<<numberOfBlocks, blockSize, 0, cudaStream>>>(device_theCells_.get(), device_nCells_,tuples.tuples_d,tuples.helix_fit_results_d, tuples.quality_d);
+    cudaCheck(cudaGetLastError());
 
     // fill hit->track "map"
     numberOfBlocks = (CAConstants::maxNumberOfQuadruplets() + blockSize - 1)/blockSize;
     kernel_countHitInTracks<<<numberOfBlocks, blockSize, 0, cudaStream>>>(tuples.tuples_d,tuples.quality_d,device_hitToTuple_);
+    cudaCheck(cudaGetLastError());
     cudautils::launchFinalize(device_hitToTuple_,device_tmws_,cudaStream);
+    cudaCheck(cudaGetLastError());
     kernel_fillHitInTracks<<<numberOfBlocks, blockSize, 0, cudaStream>>>(tuples.tuples_d,tuples.quality_d,device_hitToTuple_);
+    cudaCheck(cudaGetLastError());
 
     // remove duplicates (tracks that share a hit)
     numberOfBlocks = (HitToTuple::capacity() + blockSize - 1)/blockSize;
     kernel_tripletCleaner<<<numberOfBlocks, blockSize, 0, cudaStream>>>(hh.view(),tuples.tuples_d,tuples.helix_fit_results_d,tuples.quality_d,device_hitToTuple_);
+    cudaCheck(cudaGetLastError());
 
     if (doStats_) {
       // counters (add flag???)
       numberOfBlocks = (HitToTuple::capacity() + blockSize - 1)/blockSize;
       kernel_doStatsForHitInTracks<<<numberOfBlocks, blockSize, 0, cudaStream>>>(device_hitToTuple_, counters_);
+      cudaCheck(cudaGetLastError());
       numberOfBlocks = (CAConstants::maxNumberOfQuadruplets() + blockSize - 1)/blockSize;
       kernel_doStatsForTracks<<<numberOfBlocks, blockSize, 0, cudaStream>>>(tuples.tuples_d,tuples.quality_d,counters_);
+      cudaCheck(cudaGetLastError());
     }
 }
 

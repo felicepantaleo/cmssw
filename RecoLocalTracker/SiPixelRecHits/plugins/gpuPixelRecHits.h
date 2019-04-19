@@ -33,7 +33,7 @@ namespace gpuPixelRecHits {
 
     // to be moved in common namespace...
     constexpr uint16_t InvId=9999; // must be > MaxNumModules
-    constexpr uint32_t MaxClusInModule = pixelCPEforGPU::MaxClusInModule;
+    constexpr uint32_t MaxHitsInModule = pixelCPEforGPU::MaxHitsInModule;
 
     using ClusParams = pixelCPEforGPU::ClusParams;
 
@@ -60,14 +60,14 @@ namespace gpuPixelRecHits {
       if (threadIdx.x==0) printf("hitbuilder: %d clusters in module %d. will write at %d\n", nclus, me, hitsModuleStart[me]);
 #endif
 
-    assert(blockDim.x >= MaxClusInModule);
+    assert(blockDim.x >= MaxHitsInModule);
 
-    if (threadIdx.x==0 && nclus > MaxClusInModule) { 
-      printf("WARNING: too many clusters %d in Module %d. Only first %d processed\n", nclus,me,MaxClusInModule);
+    if (threadIdx.x==0 && nclus > MaxHitsInModule) { 
+      printf("WARNING: too many clusters %d in Module %d. Only first %d processed\n", nclus,me,MaxHitsInModule);
       // zero charge: do not bother to do it in parallel
-      for (auto d=MaxClusInModule; d<nclus; ++d) { hits.charge(d)=0; hits.detectorIndex(d)=InvId;}
+      for (auto d=MaxHitsInModule; d<nclus; ++d) { hits.charge(d)=0; hits.detectorIndex(d)=InvId;}
     }
-    nclus = std::min(nclus, MaxClusInModule);
+    nclus = std::min(nclus, MaxHitsInModule);
 
     auto ic = threadIdx.x;
 

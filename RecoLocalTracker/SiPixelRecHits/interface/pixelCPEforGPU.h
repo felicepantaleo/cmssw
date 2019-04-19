@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <iterator>
 
+#include "CUDADataFormats/SiPixelCluster/interface/gpuClusteringConstants.h"
 #include "DataFormats/GeometrySurface/interface/SOARotation.h"
 #include "Geometry/TrackerGeometryBuilder/interface/phase1PixelTopology.h"
 #include "HeterogeneousCore/CUDAUtilities/interface/cuda_cxx17.h"
@@ -101,8 +102,8 @@ namespace pixelCPEforGPU {
   };
 
 
-  constexpr uint32_t MaxClusInModule=256;
-  using ClusParams = ClusParamsT<256>;
+  constexpr uint32_t MaxHitsInModule = gpuClustering::MaxHitsInModule;
+  using ClusParams = ClusParamsT<MaxHitsInModule>;
 
   constexpr inline
   void computeAnglesFromDet(DetParams const & __restrict__ detParams, float const x, float const y, float & cotalpha, float & cotbeta) {
