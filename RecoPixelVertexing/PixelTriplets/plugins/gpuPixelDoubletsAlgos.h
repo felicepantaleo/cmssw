@@ -70,12 +70,16 @@ namespace gpuPixelDoubletsAlgos {
     // e.g. see  https://nvlabs.github.io/cub/classcub_1_1_warp_scan.html
     const int nPairsMax = 16;
     assert(nPairs <= nPairsMax);
-    uint32_t innerLayerCumulativeSize[nPairsMax];
-    innerLayerCumulativeSize[0] = layerSize(layerPairs[0]);
-    for (uint32_t i = 1; i < nPairs; ++i) {
-      innerLayerCumulativeSize[i] = innerLayerCumulativeSize[i-1] + layerSize(layerPairs[2*i]);
+    __shared__ uint32_t innerLayerCumulativeSize[nPairsMax];
+    __shared__ uint32_t ntot;
+    if (threadIdx.y==0 && threadIdx.x==0) {
+      innerLayerCumulativeSize[0] = layerSize(layerPairs[0]);
+      for (uint32_t i = 1; i < nPairs; ++i) {
+        innerLayerCumulativeSize[i] = innerLayerCumulativeSize[i-1] + layerSize(layerPairs[2*i]);
+      }
+      ntot = innerLayerCumulativeSize[nPairs-1];
     }
-    auto ntot = innerLayerCumulativeSize[nPairs-1];
+    __syncthreads();
 
     // x runs faster
     auto idy = blockIdx.y * blockDim.y + threadIdx.y;
