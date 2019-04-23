@@ -127,12 +127,12 @@ void CAHitNtupletHeterogeneousEDProducer::acquireGPUCuda(
   edm::Service<CUDAService> cs;
   assert(hHits->device() == cs->getCurrentDevice());
 
-  if(not  hHits->isAvailable() and not hHits->event()->has_occurred()) {
-    cudaCheck(cudaStreamWaitEvent(cudaStream.id(), hHits->event()->id(), 0));
-  }
-
   CUDAScopedContext ctx{*hHits};
   auto const& gHits = ctx.get(*hHits);
+
+  if(not hHits->isAvailable()) {
+    cudaCheck(cudaStreamWaitEvent(cudaStream.id(), hHits->event()->id(), 0));
+  }
 
   GPUGenerator_.buildDoublets(gHits,cudaStream);
 
