@@ -9,6 +9,7 @@
 #include "DataFormats/GeometrySurface/interface/SOARotation.h"
 #include "Geometry/TrackerGeometryBuilder/interface/phase1PixelTopology.h"
 #include "HeterogeneousCore/CUDAUtilities/interface/cuda_cxx17.h"
+#include "HeterogeneousCore/CUDAUtilities/interface/cudaCompat.h"
 
 namespace pixelCPEforGPU {
 
@@ -43,9 +44,16 @@ namespace pixelCPEforGPU {
   };
 
 
-  struct ParamsOnGPU {
+  struct LayerGeometry {
+    uint32_t layerStart[phase1PixelTopology::numberOfLayers + 1];
+    uint8_t  layer[phase1PixelTopology::layerIndexSize];
+  };
+
+  struct ParamsOnGPU {    
+
     CommonParams * m_commonParams;
     DetParams * m_detParams;
+    LayerGeometry * m_layerGeometry;
 
     constexpr
     CommonParams const & __restrict__ commonParams() const {
@@ -57,6 +65,13 @@ namespace pixelCPEforGPU {
       DetParams const * __restrict__ l = m_detParams;
        return l[i];
     }
+    constexpr
+    LayerGeometry const & __restrict__ layerGeometry() const {
+      return *m_layerGeometry;
+    }
+
+    __device__ uint8_t layer(uint16_t id) const { return __ldg(m_layerGeometry->layer+id/phase1PixelTopology::maxModuleStride);};
+
   };
 
   // SOA (on device)
@@ -79,6 +94,10 @@ namespace pixelCPEforGPU {
 
     float xerr[N];
     float yerr[N];
+
+    int16_t xsize[N]; // clipped at 127 if negative is edge....
+    int16_t ysize[N];
+
   };
 
 
@@ -172,6 +191,28 @@ namespace pixelCPEforGPU {
 
     auto mx = llxl+urxl;
     auto my = llyl+uryl;
+
+    auto xsize = int(urxl)+2-int(llxl);
+    auto ysize = int(uryl)+2-int(llyl);
+    assert(xsize>=0);  // 0 if bixpix...
+    assert(ysize>=0);
+
+    if(phase1PixelTopology::isBigPixX(cp.minRow[ic])) ++xsize;
+    if(phase1PixelTopology::isBigPixX(cp.maxRow[ic])) ++xsize;
+    if(phase1PixelTopology::isBigPixY(cp.minCol[ic])) ++ysize;
+    if(phase1PixelTopology::isBigPixY(cp.maxCol[ic])) ++ysize;
+
+     int unbalanceX = 8.*std::abs(float(cp.Q_f_X[ic]-cp.Q_l_X[ic]))/float(cp.Q_f_X[ic]+cp.Q_l_X[ic]);
+     int unbalanceY = 8.*std::abs(float(cp.Q_f_Y[ic]-cp.Q_l_Y[ic]))/float(cp.Q_f_Y[ic]+cp.Q_l_Y[ic]);
+     xsize = 8*xsize - unbalanceX;
+     ysize = 8*ysize - unbalanceY;
+
+    cp.xsize[ic] = std::min(xsize,1023);
+    cp.ysize[ic] = std::min(ysize,1023);
+
+    if(cp.minRow[ic]==0 || cp.maxRow[ic]==phase1PixelTopology::lastRowInModule) cp.xsize[ic] = -cp.xsize[ic];
+    if(cp.minCol[ic]==0 || cp.maxCol[ic]==phase1PixelTopology::lastColInModule) cp.ysize[ic] = -cp.ysize[ic];
+
 
     // apply the lorentz offset correction
     auto xPos = detParams.shiftX + comParams.thePitchX*(0.5f*float(mx)+float(phase1PixelTopology::xOffset));
