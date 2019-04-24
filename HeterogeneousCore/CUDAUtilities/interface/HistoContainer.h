@@ -78,6 +78,7 @@ namespace cudautils {
     assert(ws);
     uint32_t * off = (uint32_t *)( (char*)(h) +offsetof(Histo,off));
     size_t wss = Histo::wsSize();
+    assert(wss>0);
     CubDebugExit(cub::DeviceScan::InclusiveSum(ws, wss, off, off, Histo::totbins(), stream));
 #else
     h->finalize();
@@ -103,7 +104,7 @@ namespace cudautils {
     cudaCheck(cudaGetLastError());
 #else
     countFromVector(h, nh, v, offsets);
-    h.finalize();
+    h->finalize();
     fillFromVector(h, nh, v, offsets);
 #endif
   }
@@ -268,8 +269,9 @@ public:
 
   __device__ __host__
   __forceinline__
-  uint32_t bulkFill(AtomicPairCounter & apc, index_type const * v, uint32_t n) {
+  int32_t bulkFill(AtomicPairCounter & apc, index_type const * v, uint32_t n) {
     auto c = apc.add(n);
+    if (c.m >=nbins()) return -int32_t(c.m);
     off[c.m] = c.n;
     for(uint32_t j=0; j<n; ++j) bins[c.n+j]=v[j];
     return c.m;

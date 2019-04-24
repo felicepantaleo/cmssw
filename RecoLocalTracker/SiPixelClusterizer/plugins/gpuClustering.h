@@ -130,7 +130,7 @@ namespace gpuClustering {
       assert((hist.size()/ blockDim.x) <= maxiter);
     }
     // nearest neighbour
-    uint16_t nn[maxiter][5];
+    uint16_t nn[maxiter][10];  // make space for duplicate pixels (sic!)
     uint8_t nnn[maxiter]; // number of nn
     for (uint32_t k = 0; k < maxiter; ++k)
       nnn[k] = 0;
@@ -168,7 +168,7 @@ namespace gpuClustering {
           assert(m!=i);
           if (std::abs(int(x[m]) - int(x[i])) > 1) continue;
           auto l = nnn[k]++;
-          assert(l<5);
+          assert(l<10);
           nn[k][l]=*p;
         }
     }

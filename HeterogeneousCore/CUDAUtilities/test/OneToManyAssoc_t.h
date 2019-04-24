@@ -18,6 +18,10 @@ constexpr uint32_t MaxTk=8000;
 constexpr uint32_t MaxAssocs = 4*MaxTk;
 using Assoc = OneToManyAssoc<uint16_t,MaxElem,MaxAssocs>;
 
+using SmallAssoc = OneToManyAssoc<uint16_t,128,MaxAssocs>;
+
+
+
 using Multiplicity = OneToManyAssoc<uint16_t,8,MaxTk>;
 
 using TK = std::array<uint16_t,4>;
@@ -82,6 +86,8 @@ void verify(Assoc * __restrict__ assoc) {
    assert(assoc->size()<Assoc::capacity());
 }
 
+
+template<typename Assoc>
 __global__
 void fillBulk(AtomicPairCounter * apc, TK const * __restrict__ tk, Assoc * __restrict__ assoc, int32_t n) {
    int first = blockDim.x * blockIdx.x + threadIdx.x;
@@ -90,6 +96,15 @@ void fillBulk(AtomicPairCounter * apc, TK const * __restrict__ tk, Assoc * __res
      assoc->bulkFill(*apc,&tk[k][0],m);
    }
 }
+
+template<typename Assoc>
+__global__
+void verifyBulk(Assoc const * __restrict__ assoc, AtomicPairCounter const * apc) {
+   if (apc->get().m>=Assoc::nbins()) printf("Overflow %d %d\n",apc->get().m, Assoc::nbins());
+   assert(assoc->size()<Assoc::capacity());
+}
+
+
 
 int main() {
 #ifdef __CUDACC__
@@ -116,6 +131,7 @@ int main() {
 
 
   std::cout << "OneToManyAssoc " << Assoc::nbins() << ' ' << Assoc::capacity() << ' '<< Assoc::wsSize() << std::endl;
+  std::cout << "OneToManyAssoc (small) " << SmallAssoc::nbins() << ' ' << SmallAssoc::capacity() << ' '<< SmallAssoc::wsSize() << std::endl;
 
 
   std::mt19937 eng;
@@ -157,11 +173,13 @@ int main() {
   auto v_d = cuda::memory::device::make_unique<std::array<uint16_t,4>[]>(current_device, N);
   assert(v_d.get());
   auto a_d = cuda::memory::device::make_unique<Assoc[]>(current_device,1);
+  auto sa_d = cuda::memory::device::make_unique<SmallAssoc[]>(current_device,1);
   auto ws_d = cuda::memory::device::make_unique<uint8_t[]>(current_device, Assoc::wsSize());
 
   cuda::memory::copy(v_d.get(), tr.data(), N*sizeof(std::array<uint16_t,4>));
 #else
   auto a_d = std::make_unique<Assoc>();
+  auto sa_d = std::make_unique<SmallAssoc>();
   auto v_d = tr.data();
 #endif
 
@@ -215,14 +233,29 @@ int main() {
   nBlocks = (N + nThreads - 1) / nThreads;
   fillBulk<<<nBlocks,nThreads>>>(dc_d,v_d.get(),a_d.get(),N);
   cudautils::finalizeBulk<<<nBlocks,nThreads>>>(dc_d,a_d.get());
+  verifyBulk<<<1,1>>>(a_d.get(),dc_d);
 
   cuda::memory::copy(&la,a_d.get(),sizeof(Assoc));
   cudaMemcpy(&dc, dc_d, sizeof(AtomicPairCounter), cudaMemcpyDeviceToHost);
+
+  cudaMemset(dc_d, 0, sizeof(AtomicPairCounter));
+  fillBulk<<<nBlocks,nThreads>>>(dc_d,v_d.get(),sa_d.get(),N);
+  cudautils::finalizeBulk<<<nBlocks,nThreads>>>(dc_d,sa_d.get());
+  verifyBulk<<<1,1>>>(sa_d.get(),dc_d);
+
 #else
   dc_d = &dc;
   fillBulk(dc_d,v_d,a_d.get(),N);
   cudautils::finalizeBulk(dc_d,a_d.get());
+  verifyBulk(a_d.get(),dc_d);
   memcpy(&la,a_d.get(),sizeof(Assoc));
+
+  AtomicPairCounter sdc;
+  fillBulk(&sdc,v_d,sa_d.get(),N);
+  cudautils::finalizeBulk(&sdc,sa_d.get());
+  verifyBulk(sa_d.get(),&sdc);
+
+
 #endif
 
   std::cout << "final counter value " << dc.get().n << ' ' << dc.get().m << std::endl;
