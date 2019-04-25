@@ -21,7 +21,6 @@ namespace {
     auto i = blockIdx.x * blockDim.x + threadIdx.x;
 
     assert(0==hitsModuleStart[0]);
-
     if(i < 11) {
       hitsLayerStart[i] = hitsModuleStart[cpeParams->layerGeometry().layerStart[i]];
 #ifdef GPU_DEBUG
