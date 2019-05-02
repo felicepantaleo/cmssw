@@ -9,6 +9,7 @@
 #include <vector>
 #include <array>
 #include "HGCalTilesConstants.h"
+#include <cmath>
 
 
 template<hgcalTilesConstants::subdet subdet>
@@ -16,23 +17,36 @@ class HGCalLayerTiles {
     public:
 
         int getXBin(float x) const {
-        constexpr float xRange = hgcalTilesConstants::maxX[subdet] - hgcalTilesConstants::minX[subdet];
-        static_assert(xRange>=0.);
-        constexpr float r = hgcalTilesConstants::nColumns[subdet]/xRange;
-        int xBin = (x - hgcalTilesConstants::minX[subdet])*r;
-        xBin = std::min(xBin,hgcalTilesConstants::nColumns[subdet]);
-        xBin = std::max(xBin,0);
-        return xBin;
-    }
+            constexpr float xRange = hgcalTilesConstants::maxX[subdet] - hgcalTilesConstants::minX[subdet];
+            static_assert(xRange>=0.);
+            constexpr float r = hgcalTilesConstants::nColumns[subdet]/xRange;
+            int xBin = (x - hgcalTilesConstants::minX[subdet])*r;
+            xBin = std::min(xBin,hgcalTilesConstants::nColumns[subdet]);
+            xBin = std::max(xBin,0);
+            return xBin;
+        }
         int getYBin(float y) const {
-        constexpr float yRange = hgcalTilesConstants::maxY[subdet] - hgcalTilesConstants::minY[subdet];
-        static_assert(yRange>=0.);
-        constexpr float r = hgcalTilesConstants::nRows[subdet]/yRange;
-        int yBin = (y - hgcalTilesConstants::minY[subdet])*r;
-        yBin = std::min(yBin,hgcalTilesConstants::nRows[subdet]);
-        yBin = std::max(yBin,0);
-        return yBin;
-    }
+            constexpr float yRange = hgcalTilesConstants::maxY[subdet] - hgcalTilesConstants::minY[subdet];
+            static_assert(yRange>=0.);
+            constexpr float r = hgcalTilesConstants::nRows[subdet]/yRange;
+            int yBin = (y - hgcalTilesConstants::minY[subdet])*r;
+            yBin = std::min(yBin,hgcalTilesConstants::nRows[subdet]);
+            yBin = std::max(yBin,0);
+            return yBin;
+        }
+
+
+        int computeXBinIndex(float x) const 
+        {
+            return std::floor((x - hgcalTilesConstants::minX[subdet]) / hgcalTilesConstants::tileSize);
+        }
+        
+        
+        int computeYBinIndex(float y) const 
+        {
+            return std::floor((y - hgcalTilesConstants::minY[subdet]) / hgcalTilesConstants::tileSize);
+        }
+
     //        
     // int globalBin(int etaBin, int phiBin) const {
     //     return phiBin + etaBin*nPhiBins_;
