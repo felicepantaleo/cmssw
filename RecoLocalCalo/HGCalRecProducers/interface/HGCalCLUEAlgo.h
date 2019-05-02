@@ -18,6 +18,9 @@
 #include "DataFormats/EgammaReco/interface/BasicCluster.h"
 #include "DataFormats/Math/interface/Point3D.h"
 
+#include "RecoLocalCalo/HGCalRecAlgos/interface/HGCalLayerTiles.h"
+
+
 #include "RecoLocalCalo/HGCalRecAlgos/interface/RecHitTools.h"
 #include "RecoLocalCalo/HGCalRecAlgos/interface/KDTreeLinkerAlgoT.h"
 
@@ -48,6 +51,8 @@ class HGCalCLUEAlgo : public HGCalClusteringAlgoBase {
      nonAgedNoises_(ps.getParameter<edm::ParameterSet>("noises").getParameter<std::vector<double> >("values")),
      noiseMip_(ps.getParameter<edm::ParameterSet>("noiseMip").getParameter<double>("value")),
      initialized_(false),
+     cellsCEE_(2*(maxlayer+1)),
+     cellsCEH_(2*(maxlayer+1)),
      points_(2*(maxlayer+1)),
      minpos_(2*(maxlayer+1),{ {0.0f,0.0f} }),
      maxpos_(2*(maxlayer+1),{ {0.0f,0.0f} }) {}
@@ -55,6 +60,8 @@ class HGCalCLUEAlgo : public HGCalClusteringAlgoBase {
   ~HGCalCLUEAlgo() override {}
 
   void populate(const HGCRecHitCollection &hits) override;
+  void populateLayerTiles(const HGCRecHitCollection &hits);
+
   // this is the method that will start the clusterisation (it is possible to invoke this method
   // more than once - but make sure it is with different hit collections (or else use reset)
 
@@ -201,6 +208,37 @@ class HGCalCLUEAlgo : public HGCalClusteringAlgoBase {
           tools(nullptr) {}
     bool operator>(const Hexel &rhs) const { return (rho > rhs.rho); }
   };
+
+
+  template<class T>
+  struct CellsOnLayer {
+    std::vector<T> x; 
+    std::vector<T> y;
+    T z; 
+    std::vector<bool> isHalfCell;
+
+    std::vector<T> weight; 
+    std::vector<DetId> detid;
+    std::vector<T> rho;
+
+    std::vector<T> delta;
+    std::vector<int> nearestHigher;
+    std::vector<int> clusterIndex;
+    std::vector<float> sigmaNoise;
+    std::vector<float> thickness;
+
+  };
+
+  //this are the tiles for the electromagnetic part
+  std::vector<HGCalLayerTiles<hgcalTilesConstants::CEE>> layerTilesCEE_;
+  //this are the tiles for the hadronic part
+  std::vector<HGCalLayerTiles<hgcalTilesConstants::CEH>> layerTilesCEH_;
+
+  std::vector<CellsOnLayer<double> > cellsCEE_;
+  std::vector<CellsOnLayer<double> > cellsCEH_;
+
+
+
 
   typedef KDTreeLinkerAlgo<Hexel, 2> KDTree;
   typedef KDTreeNodeInfoT<Hexel, 2> KDNode;
