@@ -1,10 +1,4 @@
-<<<<<<< HEAD:RecoLocalCalo/HGCalRecProducers/plugins/HGCalImagingAlgo.cc
 #include "RecoLocalCalo/HGCalRecProducers/interface/HGCalImagingAlgo.h"
-=======
-#include "RecoLocalCalo/HGCalRecAlgos/interface/HGCalImagingAlgo.h"
-#include "RecoLocalCalo/HGCalRecAlgos/interface/HGCalLayerTiles.h"
->>>>>>> felicepantaleo/HGCalTiling10_6_0_pre2:RecoLocalCalo/HGCalRecAlgos/src/HGCalImagingAlgo.cc
-
 // Geometry
 #include "DataFormats/HcalDetId/interface/HcalSubdetector.h"
 #include "Geometry/CaloGeometry/interface/CaloCellGeometry.h"
@@ -16,6 +10,7 @@
 #include "DataFormats/CaloRecHit/interface/CaloID.h"
 #include "tbb/task_arena.h"
 #include "tbb/tbb.h"
+
 
 using namespace hgcal_clustering;
 
