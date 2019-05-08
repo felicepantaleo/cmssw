@@ -41,10 +41,10 @@ void kernel_checkOverflows(TuplesOnGPU::Container * foundNtuplets, AtomicPairCou
  if(0==idx) {
    atomicAdd(&c.nEvents,1);
    atomicAdd(&c.nHits,nHits);
-   atomicAdd(&c.nCells,*nCells);   
+   atomicAdd(&c.nCells,*nCells);
    atomicAdd(&c.nTuples,apc->get().m);
  }
-  
+
 #ifdef GPU_DEBUG
  if (0==idx) {
    printf("number of found cells %d, found tuples %d with total hits %d out of %d\n",*nCells, apc->get().m, apc->get().n, nHits);
@@ -125,10 +125,10 @@ kernel_fastDuplicateRemover(GPUCACell const * cells, uint32_t const * __restrict
   if (thisCell.theDoubletId<0) return;
 
   float mc=1000.f; uint16_t im=60000; uint32_t maxNh=0;
-   
+
   auto score = [&](auto it) {
     return std::abs(hfit[it].par(1));  // tip
-    // return hfit[it].chi2_line+hfit[it].chi2_circle;  //chi2 
+    // return hfit[it].chi2_line+hfit[it].chi2_circle;  //chi2
   };
 
   // find maxNh
@@ -140,8 +140,8 @@ kernel_fastDuplicateRemover(GPUCACell const * cells, uint32_t const * __restrict
   // find min chi2
   for (auto it : thisCell.tracks()) {
     auto nh = foundNtuplets->size(it);
-    if (nh!=maxNh) continue; 
-    if (quality[it]!= bad && 
+    if (nh!=maxNh) continue;
+    if (quality[it]!= bad &&
         score(it) < mc) {
       mc=score(it);
       im=it;
@@ -153,21 +153,18 @@ kernel_fastDuplicateRemover(GPUCACell const * cells, uint32_t const * __restrict
   }
 }
 
-__global__ 
+__global__
 void
 kernel_connect(AtomicPairCounter * apc1, AtomicPairCounter * apc2,  // just to zero them,
                GPUCACell::Hits const *  __restrict__ hhp,
                GPUCACell * cells, uint32_t const * __restrict__ nCells,
                CellNeighborsVector * cellNeighbors,
-               GPUCACell::OuterHitOfCell const * __restrict__ isOuterHitOfCell) {
+               GPUCACell::OuterHitOfCell const * __restrict__ isOuterHitOfCell,
+               float hardCurvCut, float ptmin,
+               float CAThetaCutBarrel, float CAThetaCutForward,
+               float dcaCutInnerTriplet, float dcaCutOuterTriplet) {
 
   auto const & hh = *hhp;
-
-  // 87 cm/GeV = 1/(3.8T * 0.3)
-  // take less than radius given by the hardPtCut and reject everything below
-  // auto hardCurvCut = 1.f/(hardPtCut * 87.f);
-  constexpr auto hardCurvCut = 1.f/(0.35f * 87.f); // FIXME VI tune
-  constexpr auto ptmin = 0.9f; // FIXME original "tune"
 
   auto cellIndex = threadIdx.y + blockIdx.y * blockDim.y;
   auto first = threadIdx.x;
@@ -185,14 +182,16 @@ kernel_connect(AtomicPairCounter * apc1, AtomicPairCounter * apc2,  // just to z
      auto otherCell = __ldg(vi+j);
      if (cells[otherCell].theDoubletId<0) continue;
      if (thisCell.check_alignment(hh,
-                 cells[otherCell], ptmin, hardCurvCut)
+                 cells[otherCell], ptmin, hardCurvCut,
+                 CAThetaCutBarrel, CAThetaCutForward,
+                 dcaCutInnerTriplet, dcaCutOuterTriplet)
         ) {
           cells[otherCell].addOuterNeighbor(cellIndex, *cellNeighbors);
      }
   }
 }
 
-__global__ 
+__global__
 void kernel_find_ntuplets(
     GPUCACell::Hits const * __restrict__ hhp,
     GPUCACell * __restrict__ cells, uint32_t const * nCells,
@@ -218,19 +217,19 @@ void kernel_find_ntuplets(
   if (thisCell.theLayerPairId==0 || thisCell.theLayerPairId==3 || thisCell.theLayerPairId==8) { // inner layer is 0 FIXME
     GPUCACell::TmpTuple stack;
     stack.reset();
-    thisCell.find_ntuplets(hh, cells, *cellTracks, *foundNtuplets, *apc, 
+    thisCell.find_ntuplets(hh, cells, *cellTracks, *foundNtuplets, *apc,
                            #ifdef CA_USE_LOCAL_COUNTERS
                            local,
                            #else
                            *tupleMultiplicity,
-                           #endif 
+                           #endif
                            stack, minHitsPerNtuplet);
     assert(stack.size()==0);
     // printf("in %d found quadruplets: %d\n", cellIndex, apc->get());
   }
 
 #ifdef CA_USE_LOCAL_COUNTERS
-  __syncthreads(); 
+  __syncthreads();
   if (0==threadIdx.x) tupleMultiplicity->add(local);
 #endif
 }
@@ -238,7 +237,7 @@ void kernel_find_ntuplets(
 
 __global__
 void kernel_fillMultiplicity(
-      TuplesOnGPU::Container const * __restrict__ foundNtuplets, 
+      TuplesOnGPU::Container const * __restrict__ foundNtuplets,
       GPUCACell::TupleMultiplicity * tupleMultiplicity
      )
 {
@@ -265,7 +264,7 @@ void kernel_classifyTracks(TuplesOnGPU::Container const * __restrict__ tuples,
 
   quality[idx] = pixelTuplesHeterogeneousProduct::bad;
 
-  if (tuples->size(idx)<3) { 
+  if (tuples->size(idx)<3) {
     return;
   }
 
@@ -273,7 +272,7 @@ void kernel_classifyTracks(TuplesOnGPU::Container const * __restrict__ tuples,
   constexpr float chi2CutFact = 30;  // *0.7 if Riemann....
   auto chi2Cut = [&](float pt) {
      pt = std::min(pt,10.f);
-     return chi2CutFact*(par[0]+pt*(par[1]+pt*(par[2]+pt*par[3]))); 
+     return chi2CutFact*(par[0]+pt*(par[1]+pt*(par[2]+pt*par[3])));
   };
 
   bool isNaN = false;
@@ -288,12 +287,12 @@ void kernel_classifyTracks(TuplesOnGPU::Container const * __restrict__ tuples,
 
   // impose "region cuts" (NaN safe)
   // phi,Tip,pt,cotan(theta)),Zip
-  bool ok = std::abs(fit_results[idx].par(1)) < ( tuples->size(idx)>3 ? 0.5f : 0.3f) 
+  bool ok = std::abs(fit_results[idx].par(1)) < ( tuples->size(idx)>3 ? 0.5f : 0.3f)
          && fit_results[idx].par(2) > ( tuples->size(idx)>3 ? 0.3f : 0.5f)
          && std::abs(fit_results[idx].par(4)) < 12.f;
-  
+
   ok &= (!isNaN);
-  quality[idx] = ok ? pixelTuplesHeterogeneousProduct::loose : pixelTuplesHeterogeneousProduct::bad; 
+  quality[idx] = ok ? pixelTuplesHeterogeneousProduct::loose : pixelTuplesHeterogeneousProduct::bad;
 }
 
 __global__
@@ -365,14 +364,14 @@ void kernel_tripletCleaner(TrackingRecHit2DSOAView const *  __restrict__ hhp,
   auto const & foundNtuplets = *ptuples;
 
   //  auto const & hh = *hhp;
-  // auto l1end = hh.hitsLayerStart_d[1]; 
+  // auto l1end = hh.hitsLayerStart_d[1];
 
   int first = blockDim.x * blockIdx.x + threadIdx.x;
 
   for (int idx = first, ntot = hitToTuple.nbins(); idx < ntot; idx += gridDim.x*blockDim.x) {
      if (hitToTuple.size(idx)<2) continue;
 
-     float mc=10000.f; uint16_t im=60000; 
+     float mc=10000.f; uint16_t im=60000;
      uint32_t maxNh=0;
 
      // find maxNh
@@ -385,7 +384,7 @@ void kernel_tripletCleaner(TrackingRecHit2DSOAView const *  __restrict__ hhp,
        uint32_t nh = foundNtuplets.size(*it);
        if (maxNh!=nh) quality[*it] = dup;
      }
-  
+
      if (maxNh>3) continue;
      // if (idx>=l1end) continue;  // only for layer 1
      // for triplets choose best tip!
@@ -400,13 +399,13 @@ void kernel_tripletCleaner(TrackingRecHit2DSOAView const *  __restrict__ hhp,
      // mark duplicates
      for (auto ip=hitToTuple.begin(idx); ip!=hitToTuple.end(idx); ++ip) {
        auto const it = *ip;
-       if (quality[it]!= bad && it!=im  
+       if (quality[it]!= bad && it!=im
           ) quality[it] = dup; //no race:  simple assignment of the same constant
      }
   }  // loop over hits
 
 
-} 
+}
 
 
 __global__
@@ -433,7 +432,7 @@ void CAHitQuadrupletGeneratorKernels::launchKernels( // here goes algoparms....
 
   auto nhits = hh.nHits();
   assert(nhits <= pixelGPUConstants::maxNumberOfHits);
-  
+
   if (nhits>1 && earlyFishbone_) {
     auto nthTot = 64;
     auto stride = 4;
@@ -467,7 +466,10 @@ void CAHitQuadrupletGeneratorKernels::launchKernels( // here goes algoparms....
       hh.view(),
       device_theCells_.get(), device_nCells_,
       device_theCellNeighbors_,
-      device_isOuterHitOfCell_.get()
+      device_isOuterHitOfCell_.get(),
+      hardCurvCut_, ptmin_,
+      CAThetaCutBarrel_, CAThetaCutForward_,
+      dcaCutInnerTriplet_, dcaCutOuterTriplet_
   );
   cudaCheck(cudaGetLastError());
 
@@ -478,7 +480,7 @@ void CAHitQuadrupletGeneratorKernels::launchKernels( // here goes algoparms....
       gpu_.tuples_d,
       gpu_.apc_d,
       device_tupleMultiplicity_,
-      minHitsPerNtuplet_      
+      minHitsPerNtuplet_
   );
   cudaCheck(cudaGetLastError());
 
@@ -552,7 +554,7 @@ void CAHitQuadrupletGeneratorKernels::buildDoublets(HitsOnCPU const & hh, cuda::
                                      );
     cudaCheck(cudaGetLastError());
   }
-   
+
   device_theCells_  = cs->make_device_unique<GPUCACell[]>(CAConstants::maxNumberOfDoublets(), stream);
 
   if (0==nhits) return; // protect against empty events
@@ -582,7 +584,7 @@ void CAHitQuadrupletGeneratorKernels::classifyTuples(HitsOnCPU const & hh, Tuple
     kernel_fishboneCleaner<<<numberOfBlocks, blockSize, 0, cudaStream>>>(device_theCells_.get(), device_nCells_,tuples.quality_d);
     cudaCheck(cudaGetLastError());
 
-    // remove duplicates (tracks that share a doublet) 
+    // remove duplicates (tracks that share a doublet)
     numberOfBlocks = (CAConstants::maxNumberOfDoublets() + blockSize - 1)/blockSize;
     kernel_fastDuplicateRemover<<<numberOfBlocks, blockSize, 0, cudaStream>>>(device_theCells_.get(), device_nCells_,tuples.tuples_d,tuples.helix_fit_results_d, tuples.quality_d);
     cudaCheck(cudaGetLastError());
@@ -615,7 +617,7 @@ void CAHitQuadrupletGeneratorKernels::classifyTuples(HitsOnCPU const & hh, Tuple
 
 __global__
 void kernel_printCounters(CAHitQuadrupletGeneratorKernels::Counters const * counters) {
-   
+
    auto const & c = *counters;
    printf("||Counters | nEvents | nHits | nCells | nTuples | nGoodTracks | nUsedHits | nDupHits | nKilledCells | nEmptyCells | nZeroTrackCells ||\n");
    printf("Counters Raw %lld %lld %lld %lld %lld %lld %lld %lld %lld %lld\n",c.nEvents,c.nHits,c.nCells,

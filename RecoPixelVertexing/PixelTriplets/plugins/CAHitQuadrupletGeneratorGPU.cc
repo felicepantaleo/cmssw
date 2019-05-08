@@ -28,10 +28,16 @@ constexpr unsigned int CAHitQuadrupletGeneratorGPU::minLayers;
 
 CAHitQuadrupletGeneratorGPU::CAHitQuadrupletGeneratorGPU(
     const edm::ParameterSet &cfg,
-    edm::ConsumesCollector &iC) : 
-    kernels(cfg.getParameter<unsigned int>("minHitsPerNtuplet"), 
+    edm::ConsumesCollector &iC) :
+    kernels(cfg.getParameter<unsigned int>("minHitsPerNtuplet"),
             cfg.getParameter<bool>("earlyFishbone"),cfg.getParameter<bool>("lateFishbone"),
-            cfg.getParameter<bool>("idealConditions"), cfg.getParameter<bool>("fillStatistics")),
+            cfg.getParameter<bool>("idealConditions"), cfg.getParameter<bool>("fillStatistics"),
+            cfg.getParameter<double>("ptmin"),
+            cfg.getParameter<double>("CAThetaCutBarrel"),
+            cfg.getParameter<double>("CAThetaCutForward"),
+            cfg.getParameter<double>("hardCurvCut"),
+            cfg.getParameter<double>("dcaCutInnerTriplet"),
+            cfg.getParameter<double>("dcaCutOuterTriplet")),
     fitter(cfg.getParameter<bool>("fit5as4")),
     caThetaCut(cfg.getParameter<double>("CAThetaCut")),
     caPhiCut(cfg.getParameter<double>("CAPhiCut")),
@@ -43,6 +49,15 @@ void CAHitQuadrupletGeneratorGPU::fillDescriptions(edm::ParameterSetDescription 
   desc.add<double>("CAThetaCut", 0.00125);
   desc.add<double>("CAPhiCut", 10);
   desc.add<double>("CAHardPtCut", 0);
+  // 87 cm/GeV = 1/(3.8T * 0.3)
+  // take less than radius given by the hardPtCut and reject everything below
+  // auto hardCurvCut = 1.f/(0.35 * 87.f);
+  desc.add<double>("ptmin", 0.9f)->setComment("Cut on minimum pt");
+  desc.add<double>("CAThetaCutBarrel", 0.002f)->setComment("Cut on RZ alignement for Barrel");
+  desc.add<double>("CAThetaCutForward", 0.003f)->setComment("Cut on RZ alignment for Forward");
+  desc.add<double>("hardCurvCut", 1.f/(0.35 * 87.f))->setComment("Cut on minimum curvature");
+  desc.add<double>("dcaCutInnerTriplet", 0.15f)->setComment("Cut on origin radius when the inner hit is on BPix1");
+  desc.add<double>("dcaCutOuterTriplet", 0.25f)->setComment("Cut on origin radius when the outer hit is on BPix1");
   desc.add<bool>("earlyFishbone",false);
   desc.add<bool>("lateFishbone",true);
   desc.add<bool>("idealConditions",true),
@@ -92,11 +107,11 @@ void CAHitQuadrupletGeneratorGPU::fillResults(
        auto const & thit = static_cast<BaseTrackerRecHit const&>(h);
        auto detI = thit.det()->index();
        auto const & clus = thit.firstClusterRef();
-       assert(clus.isPixel());  
+       assert(clus.isPixel());
        auto i = fc[detI] + clus.pixelCluster().originalId();
        assert(i<nhits);
        hitmap_[i] = &h;
-  } 
+  }
 
   int index = 0;
 
@@ -126,13 +141,13 @@ void CAHitQuadrupletGeneratorGPU::fillResults(
     }
     if (bad) { nbad++; quality_[quadId] = pixelTuplesHeterogeneousProduct::bad; continue;}
     if (quality_[quadId] != pixelTuplesHeterogeneousProduct::loose) continue; // FIXME remove dup
-    
+
     result[index].emplace_back(phits[0],  phits[1],  phits[2],  phits[3]);
     indToEdm[quadId] = result[index].size()-1;
   } // end loop over quads
 
 #ifdef GPU_DEBUG
-  std::cout << "Q Final quads " << result[index].size() << ' ' << nbad << std::endl; 
+  std::cout << "Q Final quads " << result[index].size() << ' ' << nbad << std::endl;
 #endif
 
 }
@@ -159,7 +174,7 @@ void CAHitQuadrupletGeneratorGPU::allocateOnGPU()
   cudaCheck(cudaMalloc(&gpu_.tuples_d, sizeof(TuplesOnGPU::Container)));
   cudaCheck(cudaMemset(gpu_.tuples_d, 0x00, sizeof(TuplesOnGPU::Container)));
   cudaCheck(cudaMalloc(&gpu_.apc_d, sizeof(AtomicPairCounter)));
-  cudaCheck(cudaMemset(gpu_.apc_d, 0x00, sizeof(AtomicPairCounter)));  
+  cudaCheck(cudaMemset(gpu_.apc_d, 0x00, sizeof(AtomicPairCounter)));
   cudaCheck(cudaMalloc(&gpu_.helix_fit_results_d, sizeof(Rfit::helix_fit)*maxNumberOfQuadruplets_));
   cudaCheck(cudaMemset(gpu_.helix_fit_results_d, 0x00, sizeof(Rfit::helix_fit)*maxNumberOfQuadruplets_));
   cudaCheck(cudaMalloc(&gpu_.quality_d, sizeof(Quality)*maxNumberOfQuadruplets_));
@@ -185,7 +200,7 @@ void CAHitQuadrupletGeneratorGPU::launchKernels(HitsOnCPU const & hh,
                                                 cuda::stream_t<> &cudaStream)
 {
 
-  kernels.launchKernels(hh, gpu_, cudaStream.id()); 
+  kernels.launchKernels(hh, gpu_, cudaStream.id());
   if (useRiemannFit) {
     fitter.launchRiemannKernels(hh, hh.nHits(), CAConstants::maxNumberOfQuadruplets(), cudaStream);
   } else {
@@ -198,7 +213,7 @@ void CAHitQuadrupletGeneratorGPU::launchKernels(HitsOnCPU const & hh,
                               sizeof(TuplesOnGPU::Container),
                               cudaMemcpyDeviceToHost, cudaStream.id()));
 
-    cudaCheck(cudaMemcpyAsync(helix_fit_results_,gpu_.helix_fit_results_d, 
+    cudaCheck(cudaMemcpyAsync(helix_fit_results_,gpu_.helix_fit_results_d,
                               sizeof(Rfit::helix_fit)*CAConstants::maxNumberOfQuadruplets(),
                               cudaMemcpyDeviceToHost, cudaStream.id()));
 

@@ -54,7 +54,7 @@ namespace gpuPixelDoublets {
       auto & ci = cells[vc[ic]];
       if (checkTrack && ci.tracks().empty()) continue;
       cc[sg] = vc[ic];
-      d[sg] = ci.get_inner_detId(hh);
+      d[sg] = ci.get_inner_detIndex(hh);
 //      l[sg] = layer(d[sg]);
       x[sg] = ci.get_inner_x(hh) -xo;
       y[sg] = ci.get_inner_y(hh) -yo;
@@ -62,8 +62,8 @@ namespace gpuPixelDoublets {
       n[sg] = x[sg]*x[sg]+y[sg]*y[sg]+z[sg]*z[sg];
       ++sg;
     }
-    if (sg<2) return;   
-    // here we parallelize 
+    if (sg<2) return;
+    // here we parallelize
     for (uint32_t ic=first; ic<sg-1;  ic+=blockDim.x) {
       auto & ci = cells[cc[ic]];
       for    (auto jc=ic+1; jc<sg; ++jc) {
@@ -75,13 +75,13 @@ namespace gpuPixelDoublets {
         if (d[ic]!=d[jc] && cos12*cos12 >= 0.99999f*n[ic]*n[jc]) {
          // alligned:  kill farthest  (prefer consecutive layers)
          if (n[ic]>n[jc]) {
-           ci.theDoubletId=-1; 
+           ci.theDoubletId=-1;
            break;
          } else {
            cj.theDoubletId=-1;
          }
         }
-      } //cj   
+      } //cj
     } // ci
   }
 

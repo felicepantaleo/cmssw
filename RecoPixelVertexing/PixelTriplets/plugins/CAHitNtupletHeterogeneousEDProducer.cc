@@ -72,6 +72,7 @@ private:
   bool emptyRegions = false;
   std::unique_ptr<RegionsSeedingHitSets> seedingHitSets_;
 
+
   const bool useRiemannFit_;
   const bool enableConversion_;
   const bool enableTransfer_;
