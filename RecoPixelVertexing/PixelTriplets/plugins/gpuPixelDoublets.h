@@ -63,26 +63,6 @@ namespace gpuPixelDoublets {
                    )
   {
      int first = blockIdx.x * blockDim.x + threadIdx.x;
-#ifdef USE_SMART_CACHE
-     if (0==first) {
-       assert(cellNeighbors);
-       assert(cellNeighborsContainer);
-       assert(cellTracks);
-       assert(cellTracksContainer);
-
-       cellNeighbors->construct(MaxNumOfActiveDoublets,cellNeighborsContainer);
-       cellTracks->construct(MaxNumOfActiveDoublets,cellTracksContainer);
-       // add default empty one
-       cellNeighbors->resize(1);
-       cellNeighbors->back().reset();
-       cellTracks->resize(1);
-       cellTracks->back().reset();
-       assert(1==cellNeighbors->size());
-       assert(1==cellTracks->size());
-       assert(cellNeighbors->back().empty());
-       assert(cellTracks->back().empty());
-     }
-#endif
      for (int i=first; i<nHits; i+=gridDim.x*blockDim.x) isOuterHitOfCell[i].reset();
   }
 

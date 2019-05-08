@@ -54,16 +54,8 @@ public:
     theInnerZ = hh.zGlobal(innerHitId);
     theInnerR = hh.rGlobal(innerHitId);
 
-#ifdef USE_SMART_CACHE
-    // link to default empty
-    theOuterNeighbors = &cellNeighbors[0];
-    theTracks = &cellTracks[0];
-    assert(outerNeighbors().empty());
-    assert(tracks().empty());
-#else
     outerNeighbors().reset();
     tracks().reset();
-#endif
     assert(outerNeighbors().empty());
     assert(tracks().empty());
 
@@ -72,47 +64,18 @@ public:
 
  __device__ __forceinline__
   int addOuterNeighbor(CellNeighbors::value_t t, CellNeighborsVector & cellNeighbors) {
-#ifdef USE_SMART_CACHE
-     if (outerNeighbors().empty()) {
-       auto i = cellNeighbors.extend(); // maybe waisted....
-       if (i>0) {
-         cellNeighbors[i].reset();
-         auto zero = (ptrAsInt)(&cellNeighbors[0]);
-         atomicCAS((ptrAsInt*)(&theOuterNeighbors),zero,(ptrAsInt)(&cellNeighbors[i]));// if fails we cannot give "i" back...
-       } else return -1;
-     }
-#endif
      return outerNeighbors().push_back(t);
   }
 
   __device__ __forceinline__
   int addTrack(CellTracks::value_t t, CellTracksVector & cellTracks) {
-#ifdef USE_SMART_CACHE
-     if (tracks().empty()) {
-       auto i = cellTracks.extend(); // maybe waisted....
-       if (i>0) {
-         cellTracks[i].reset();
-         auto zero = (ptrAsInt)(&cellTracks[0]);
-         atomicCAS((ptrAsInt*)(&theTracks),zero,(ptrAsInt)(&cellTracks[i]));
-       }
-       else return -1;
-     }
-#endif
      return tracks().push_back(t);
   }
 
-#ifdef USE_SMART_CACHE
-  __device__ __forceinline__ CellTracks & tracks() { return *theTracks;}
-  __device__ __forceinline__ CellTracks const & tracks() const { return *theTracks;}
-  __device__ __forceinline__ CellNeighbors & outerNeighbors() { return *theOuterNeighbors;}
-  __device__ __forceinline__ CellNeighbors const & outerNeighbors() const { return *theOuterNeighbors;}
-#else
   __device__ __forceinline__ CellTracks & tracks() { return theTracks;}
   __device__ __forceinline__ CellTracks const & tracks() const { return theTracks;}
   __device__ __forceinline__ CellNeighbors & outerNeighbors() { return theOuterNeighbors;}
   __device__ __forceinline__ CellNeighbors const & outerNeighbors() const { return theOuterNeighbors;}
-#endif
-
   __device__ __forceinline__ float get_inner_x(Hits const & hh) const { return hh.xGlobal(theInnerHitId); }
   __device__ __forceinline__ float get_outer_x(Hits const & hh) const { return hh.xGlobal(theOuterHitId); }
   __device__ __forceinline__ float get_inner_y(Hits const & hh) const { return hh.yGlobal(theInnerHitId); }
@@ -297,13 +260,8 @@ public:
 #endif // __CUDACC__
 
 private:
-#ifdef USE_SMART_CACHE
-  CellNeighbors * theOuterNeighbors;
-  CellTracks * theTracks;
-#else
   CellNeighbors theOuterNeighbors;
   CellTracks theTracks;
-#endif
 
 public:
   int32_t theDoubletId;
