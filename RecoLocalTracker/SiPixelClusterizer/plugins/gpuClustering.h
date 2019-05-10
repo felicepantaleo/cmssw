@@ -130,7 +130,7 @@ namespace gpuClustering {
       assert((hist.size()/ blockDim.x) <= maxiter);
     }
     // nearest neighbour
-    uint16_t nn[maxiter][10];  // make space for duplicate pixels (sic!)
+    uint16_t nn[maxiter][10];  // make space for duplicate pixels. A pixel can appear more than once with different charges in the same event.
     uint8_t nnn[maxiter]; // number of nn
     for (uint32_t k = 0; k < maxiter; ++k)
       nnn[k] = 0;
