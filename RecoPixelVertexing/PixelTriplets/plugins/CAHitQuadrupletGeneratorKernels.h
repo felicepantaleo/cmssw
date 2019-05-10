@@ -38,7 +38,8 @@ public:
 
    CAHitQuadrupletGeneratorKernels(uint32_t minHitsPerNtuplet,
     bool earlyFishbone, bool lateFishbone,
-    bool idealConditions, bool doStats,
+    bool idealConditions, bool doStats, 
+    bool doClusterCut, bool doZCut, bool doPhiCut,
     float ptmin,
     float CAThetaCutBarrel,
     float CAThetaCutForward,
@@ -50,6 +51,9 @@ public:
     lateFishbone_(lateFishbone),
     idealConditions_(idealConditions),
     doStats_(doStats),
+    doClusterCut_(doClusterCut), 
+    doZCut_(doZCut), 
+    doPhiCut_(doPhiCut),
     ptmin_(ptmin),
     CAThetaCutBarrel_(CAThetaCutBarrel),
     CAThetaCutForward_(CAThetaCutForward),
@@ -98,6 +102,9 @@ private:
    const bool lateFishbone_;
    const bool idealConditions_;
    const bool doStats_;
+   const bool doClusterCut_; 
+   const bool doZCut_; 
+   const bool doPhiCut_;
    const float ptmin_;
    const float CAThetaCutBarrel_;
    const float CAThetaCutForward_;

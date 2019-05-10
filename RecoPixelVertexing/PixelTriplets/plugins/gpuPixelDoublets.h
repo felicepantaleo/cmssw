@@ -76,7 +76,7 @@ namespace gpuPixelDoublets {
                             CellNeighborsVector * cellNeighbors, CellTracksVector * cellTracks,
                             TrackingRecHit2DSOAView const *  __restrict__ hhp,
                             GPUCACell::OuterHitOfCell * isOuterHitOfCell,
-                            bool ideal_cond)
+                            bool ideal_cond, bool doClusterCut, bool doZCut, bool doPhiCut)
   {
 
     auto const &  __restrict__ hh = *hhp;
@@ -85,7 +85,7 @@ namespace gpuPixelDoublets {
                       cellNeighbors, cellTracks,
                       hh, isOuterHitOfCell,
                       phicuts, minz, maxz, maxr,
-                      ideal_cond);
+                      ideal_cond, doClusterCut, doZCut, doPhiCut);
   }
 
 

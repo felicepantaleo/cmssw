@@ -557,7 +557,8 @@ void CAHitQuadrupletGeneratorKernels::buildDoublets(HitsOnCPU const & hh, cuda::
   gpuPixelDoublets::getDoubletsFromHisto<<<blks, thrs, 0, stream.id()>>>(
             device_theCells_.get(), device_nCells_,
             device_theCellNeighbors_, device_theCellTracks_,
-            hh.view(), device_isOuterHitOfCell_.get(), idealConditions_);
+            hh.view(), device_isOuterHitOfCell_.get(), idealConditions_,
+            doClusterCut_, doZCut_, doPhiCut_);
   cudaCheck(cudaGetLastError());
 }
 
