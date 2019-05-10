@@ -10,7 +10,6 @@
 #include "HeterogeneousCore/CUDAUtilities/interface/cuda_assert.h"
 
 #include "DataFormats/Math/interface/approx_atan2.h"
-#include "RecoLocalTracker/SiPixelRecHits/plugins/siPixelRecHitsHeterogeneousProduct.h"
 #include "Geometry/TrackerGeometryBuilder/interface/phase1PixelTopology.h"
 
 #include "GPUCACell.h"
@@ -32,8 +31,7 @@ namespace gpuPixelDoublets {
 
 
     auto const & hh = *hhp;
-    uint8_t const * __restrict__ layerp =  hh.phase1TopologyLayer_d;
-    auto layer = [&](uint16_t id) { return __ldg(layerp+id/phase1PixelTopology::maxModuleStride);};
+    auto layer = [&](uint16_t id) { return hh.cpeParams().layer(id);};
 
     // x run faster...
     auto idy = threadIdx.y + blockIdx.y * blockDim.y;
@@ -54,9 +52,9 @@ namespace gpuPixelDoublets {
     auto sg=0;
     for (uint32_t ic=0; ic<s; ++ic) {
       auto & ci = cells[vc[ic]];
-      if (checkTrack && 0==ci.theTracks.size()) continue;
+      if (checkTrack && ci.tracks().empty()) continue;
       cc[sg] = vc[ic];
-      d[sg] = ci.get_inner_detId(hh);
+      d[sg] = ci.get_inner_detIndex(hh);
 //      l[sg] = layer(d[sg]);
       x[sg] = ci.get_inner_x(hh) -xo;
       y[sg] = ci.get_inner_y(hh) -yo;
@@ -64,8 +62,8 @@ namespace gpuPixelDoublets {
       n[sg] = x[sg]*x[sg]+y[sg]*y[sg]+z[sg]*z[sg];
       ++sg;
     }
-    if (sg<2) return;   
-    // here we parallelize 
+    if (sg<2) return;
+    // here we parallelize
     for (uint32_t ic=first; ic<sg-1;  ic+=blockDim.x) {
       auto & ci = cells[cc[ic]];
       for    (auto jc=ic+1; jc<sg; ++jc) {
@@ -77,13 +75,13 @@ namespace gpuPixelDoublets {
         if (d[ic]!=d[jc] && cos12*cos12 >= 0.99999f*n[ic]*n[jc]) {
          // alligned:  kill farthest  (prefer consecutive layers)
          if (n[ic]>n[jc]) {
-           ci.theDoubletId=-1; 
+           ci.theDoubletId=-1;
            break;
          } else {
            cj.theDoubletId=-1;
          }
         }
-      } //cj   
+      } //cj
     } // ci
   }
 

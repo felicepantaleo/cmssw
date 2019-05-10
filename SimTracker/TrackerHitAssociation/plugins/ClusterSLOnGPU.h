@@ -6,7 +6,7 @@
 
 #include "CUDADataFormats/SiPixelDigi/interface/SiPixelDigisCUDA.h"
 #include "HeterogeneousCore/CUDAUtilities/interface/cudaCheck.h"
-#include "RecoLocalTracker/SiPixelRecHits/plugins/siPixelRecHitsHeterogeneousProduct.h"
+#include "CUDADataFormats/TrackingRecHit/interface/TrackingRecHit2DCUDA.h"
 
 #include "trackerHitAssociationHeterogeneousProduct.h"
 
@@ -15,8 +15,10 @@ namespace clusterSLOnGPU {
   using ClusterSLGPU = trackerHitAssociationHeterogeneousProduct::ClusterSLGPU;
   using GPUProduct   = trackerHitAssociationHeterogeneousProduct::GPUProduct;
 
-  using HitsOnGPU    = siPixelRecHitsHeterogeneousProduct::HitsOnGPU;
-  using HitsOnCPU    = siPixelRecHitsHeterogeneousProduct::HitsOnCPU;
+  using HitsOnGPU    = TrackingRecHit2DSOAView;
+  using HitsOnCPU    = TrackingRecHit2DCUDA;
+
+  using Clus2TP = ClusterSLGPU::Clus2TP;
 
   class Kernel {
   public:
