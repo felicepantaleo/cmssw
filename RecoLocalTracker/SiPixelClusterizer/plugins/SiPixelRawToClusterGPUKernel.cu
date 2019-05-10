@@ -491,6 +491,8 @@ namespace pixelgpudetails {
 
     for (int i=first, iend=gpuClustering::MaxNumModules+1; i<iend; i+=blockDim.x) {
        if(0!=i) assert(moduleStart[i]>=moduleStart[i-i]);
+    // [BPX1, BPX2, BPX3, BPX4,  FP1,  FP2,  FP3,  FN1,  FN2,  FN3, LAST_VALID]
+    // [   0,   96,  320,  672, 1184, 1296, 1408, 1520, 1632, 1744,       1856]
        if (i==96 || i==1184 || i==1744 || i==gpuClustering::MaxNumModules) printf("moduleStart %d %d\n",i,moduleStart[i]);
     }    
 #endif
@@ -559,7 +561,7 @@ namespace pixelgpudetails {
         digiErrors_d.copyErrorToHostAsync(stream);
       }
     }
-    // End  of Raw2Digi and passing data for cluserisation
+    // End  of Raw2Digi and passing data for clustering
 
     {
       // clusterizer ...
