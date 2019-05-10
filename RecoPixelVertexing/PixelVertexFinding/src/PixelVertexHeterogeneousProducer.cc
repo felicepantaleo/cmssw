@@ -80,6 +80,13 @@ public:
 
 void PixelVertexHeterogeneousProducer::fillDescriptions(edm::ConfigurationDescriptions &descriptions) {
   edm::ParameterSetDescription desc;
+
+  // Only one of these three algos can be used at once.
+  // Maybe this should become a Plugin Factory
+  desc.add<bool>("useDensity", true);
+  desc.add<bool>("useDBSCAN", false);
+  desc.add<bool>("useIterative", false);
+
   desc.add<int>("minT",2);  // min number of neighbours to be "core"
   desc.add<double>("eps",0.07); // max absolute distance to cluster
   desc.add<double>("errmax",0.01); // max error to be "seed"
@@ -104,7 +111,8 @@ PixelVertexHeterogeneousProducer::PixelVertexHeterogeneousProducer(const edm::Pa
   , enableConversion_(conf.getParameter<bool>("gpuEnableConversion"))
   , enableTransfer_(enableConversion_ || conf.getParameter<bool>("gpuEnableTransfer"))
   , gpuToken_(consumes<HeterogeneousProduct>(conf.getParameter<edm::InputTag>("src")))
-  , m_gpuAlgo( conf.getParameter<int>("minT")
+  , m_gpuAlgo( conf.getParameter<bool>("useDensity"), conf.getParameter<bool>("useDBSCAN"), conf.getParameter<bool>("useIterative"),
+          conf.getParameter<int>("minT")
 	       ,conf.getParameter<double>("eps")
 	       ,conf.getParameter<double>("errmax")
 	       ,conf.getParameter<double>("chi2max")
