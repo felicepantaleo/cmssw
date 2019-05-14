@@ -212,11 +212,13 @@ class HGCalCLUEAlgo : public HGCalClusteringAlgoBase {
                          int cell2, int layerId) const {  // 2-d distance on the layer (x-y)
     return std::sqrt(distance2(cell1, cell2, layerId));
   }
+  
+  void prepareDataStructures(const unsigned int layerId);
   void calculateLocalDensity(const unsigned int layerId, float delta_c);  // return max density
   void calculateDistanceToHigher(const unsigned int layerId, float delta_c);
   int findAndAssignClusters(const unsigned int layerId, float delta_c);
   math::XYZPoint calculatePosition(const std::vector<int> &v, const unsigned int layerId) const;
-  // void setDensity(const std::vector<KDNode> &nd);
+  void setDensity(const unsigned int layerId);
 };
 
 #endif
