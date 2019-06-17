@@ -7,11 +7,13 @@
 #include <vector>
 #include "DataFormats/TICL/interface/Common.h"
 #include "DataFormats/TICL/interface/TICLLayerTile.h"
+#include "DataFormats/TICL/interface/TICLSeedingRegion.h"
 #include "HGCDoublet.h"
 
 class HGCGraph {
 public:
   void makeAndConnectDoublets(const ticl::TICLLayerTiles &h,
+                              const std::vector<ticl::TICLSeedingRegion>& regions,
                               int nEtaBins,
                               int nPhiBins,
                               const std::vector<reco::CaloCluster> &layerClusters,

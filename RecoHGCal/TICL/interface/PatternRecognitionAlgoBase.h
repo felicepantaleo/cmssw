@@ -10,6 +10,7 @@
 #include "DataFormats/TICL/interface/Common.h"
 #include "DataFormats/TICL/interface/Trackster.h"
 #include "DataFormats/TICL/interface/TICLLayerTile.h"
+#include "DataFormats/TICL/interface/TICLSeedingRegion.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 
 namespace edm {
@@ -29,7 +30,9 @@ namespace ticl {
                                 const std::vector<reco::CaloCluster>& layerClusters,
                                 const std::vector<float>& mask,
                                 const ticl::TICLLayerTiles& tiles,
+                                const std::vector<ticl::TICLSeedingRegion>& regions,
                                 std::vector<Trackster>& result) = 0;
+
     enum VerbosityLevel { None = 0, Basic, Advanced, Expert, Guru };
 
   protected:

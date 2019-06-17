@@ -24,7 +24,7 @@ void PatternRecognitionbyCA::makeTracksters(const edm::Event &ev,
                                             const edm::EventSetup &es,
                                             const std::vector<reco::CaloCluster> &layerClusters,
                                             const std::vector<float> &mask,
-                                            const ticl::TICLLayerTiles &tiles,
+                                            const ticl::TICLLayerTiles &tiles, const std::vector<ticl::TICLSeedingRegion>& regions,
                                             std::vector<Trackster> &result) {
   rhtools_.getEventSetup(es);
 
@@ -35,7 +35,7 @@ void PatternRecognitionbyCA::makeTracksters(const edm::Event &ev,
   }
   std::vector<HGCDoublet::HGCntuplet> foundNtuplets;
   std::vector<uint8_t> layer_cluster_usage(layerClusters.size(), 0);
-  theGraph_->makeAndConnectDoublets(tiles,
+  theGraph_->makeAndConnectDoublets(tiles, regions,
                                     ticl::constants::nEtaBins,
                                     ticl::constants::nPhiBins,
                                     layerClusters,

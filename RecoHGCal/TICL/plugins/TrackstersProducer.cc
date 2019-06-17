@@ -17,6 +17,7 @@
 #include "DataFormats/ParticleFlowReco/interface/PFCluster.h"
 #include "DataFormats/TICL/interface/Trackster.h"
 #include "DataFormats/TICL/interface/TICLLayerTile.h"
+#include "DataFormats/TICL/interface/TICLSeedingRegion.h"
 
 #include "RecoHGCal/TICL/interface/PatternRecognitionAlgoBase.h"
 #include "PatternRecognitionbyCA.h"
@@ -37,6 +38,7 @@ private:
   edm::EDGetTokenT<std::vector<float>> filtered_layerclusters_mask_token_;
   edm::EDGetTokenT<std::vector<float>> original_layerclusters_mask_token_;
   edm::EDGetTokenT<ticl::TICLLayerTiles> layer_clusters_tiles_token_;
+  edm::EDGetTokenT<std::vector<ticl::TICLSeedingRegion> > seeding_regions_token_;
 
   std::unique_ptr<PatternRecognitionAlgoBase> myAlgo_;
 };
@@ -48,6 +50,8 @@ TrackstersProducer::TrackstersProducer(const edm::ParameterSet& ps)
   filtered_layerclusters_mask_token_ = consumes<std::vector<float>>(ps.getParameter<edm::InputTag>("filtered_mask"));
   original_layerclusters_mask_token_ = consumes<std::vector<float>>(ps.getParameter<edm::InputTag>("original_mask"));
   layer_clusters_tiles_token_ = consumes<ticl::TICLLayerTiles>(ps.getParameter<edm::InputTag>("layer_clusters_tiles"));
+  seeding_regions_token_ = consumes<std::vector<ticl::TICLSeedingRegion> >(ps.getParameter<edm::InputTag>("seeding_regions"));
+
   produces<std::vector<Trackster>>();
   produces<std::vector<float>>();  // Mask to be applied at the next iteration
 }
@@ -59,6 +63,7 @@ void TrackstersProducer::fillDescriptions(edm::ConfigurationDescriptions& descri
   desc.add<edm::InputTag>("filtered_mask", edm::InputTag("FilteredLayerClusters", "iterationLabelGoesHere"));
   desc.add<edm::InputTag>("original_mask", edm::InputTag("hgcalLayerClusters", "InitialLayerClustersMask"));
   desc.add<edm::InputTag>("layer_clusters_tiles", edm::InputTag("TICLLayerTileProducer"));
+  desc.add<edm::InputTag>("seeding_regions", edm::InputTag("TICLSeedingRegionProducer"));
   desc.add<int>("algo_verbosity", 0);
   desc.add<double>("min_cos_theta", 0.915);
   desc.add<double>("min_cos_pointing", -1.);
@@ -75,16 +80,21 @@ void TrackstersProducer::produce(edm::Event& evt, const edm::EventSetup& es) {
   edm::Handle<std::vector<float>> filtered_layerclusters_mask_h;
   edm::Handle<std::vector<float>> original_layerclusters_mask_h;
   edm::Handle<ticl::TICLLayerTiles> layer_clusters_tiles_h;
+  edm::Handle<std::vector<ticl::TICLSeedingRegion>> seeding_regions_h;
 
   evt.getByToken(clusters_token_, cluster_h);
   evt.getByToken(filtered_layerclusters_mask_token_, filtered_layerclusters_mask_h);
   evt.getByToken(original_layerclusters_mask_token_, original_layerclusters_mask_h);
   evt.getByToken(layer_clusters_tiles_token_, layer_clusters_tiles_h);
+  evt.getByToken(seeding_regions_token_, seeding_regions_h);
+
 
   const auto& layerClusters = *cluster_h;
   const auto& inputClusterMask = *filtered_layerclusters_mask_h;
   const auto& layer_clusters_tiles = *layer_clusters_tiles_h;
-  myAlgo_->makeTracksters(evt, es, layerClusters, inputClusterMask, layer_clusters_tiles, *result);
+  const auto& seeding_regions = *seeding_regions_h;
+
+  myAlgo_->makeTracksters(evt, es, layerClusters, inputClusterMask, layer_clusters_tiles, seeding_regions, *result);
 
   // Now update the global mask and put it into the event
   output_mask->reserve(original_layerclusters_mask_h->size());
