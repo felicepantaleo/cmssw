@@ -175,26 +175,31 @@ public:
 
   __device__ inline bool hole(Hits const& hh, GPUCACell const& innerCell) const {
     constexpr uint32_t max_ladder_bpx4 = 64;
-    constexpr float radius_even_ladder = 15.815f;
-    constexpr float radius_odd_ladder = 16.146f;
-    constexpr float ladder_length = 6.7f;
-    constexpr float ladder_tolerance = 0.2f;
-    constexpr float barrel_z_length = 26.f;
-    constexpr float forward_z_begin = 32.f;
+    constexpr uint32_t first_ladder_bpx4 = 84;
+    // constexpr float radius_even_ladder = 15.815f;
+    // constexpr float radius_odd_ladder = 16.146f;
+    constexpr float module_length = 6.7f;
+    constexpr float module_tolerance = 0.2f;
+    // constexpr float barrel_z_length = 26.f;
+    // constexpr float forward_z_begin = 32.f;
     int p = get_outer_iphi(hh);
     if (p < 0)
       p += std::numeric_limits<unsigned short>::max();
     p = (max_ladder_bpx4 * p) / std::numeric_limits<unsigned short>::max();
-    p %= 2;
-    float r4 = p == 0 ? radius_even_ladder : radius_odd_ladder;  // later on from geom
+    p %= max_ladder_bpx4;
+    auto il = first_ladder_bpx4+p;  
+    auto r4 = hh.averageGeometry().ladderR[il];
     auto ri = innerCell.get_inner_r(hh);
     auto zi = innerCell.get_inner_z(hh);
     auto ro = get_outer_r(hh);
     auto zo = get_outer_z(hh);
-    auto z4 = std::abs(zi + (r4 - ri) * (zo - zi) / (ro - ri));
-    auto z_in_ladder = z4 - ladder_length * int(z4 / ladder_length);
-    auto h = z_in_ladder < ladder_tolerance || z_in_ladder > (ladder_length - ladder_tolerance);
-    return h || (z4 > barrel_z_length && z4 < forward_z_begin);
+    auto z4 = zi + (r4 - ri) * (zo - zi) / (ro - ri);
+    auto z_in_ladder = std::abs(z4-hh.averageGeometry().ladderZ[il]);
+    auto z_in_module = z_in_ladder - module_length * int(z_in_ladder / module_length);
+    auto gap = z_in_module < module_tolerance || z_in_module > (module_length - module_tolerance);
+    auto holeP = z4 > hh.averageGeometry().ladderMaxZ[il] && z4 < hh.averageGeometry().endCapZ[0];
+    auto holeN = z4 < hh.averageGeometry().ladderMinZ[il] && z4 > hh.averageGeometry().endCapZ[1];
+    return gap || holeP || holeN;
   }
 
   // trying to free the track building process from hardcoded layers, leaving
