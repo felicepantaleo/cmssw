@@ -45,15 +45,7 @@ namespace pixelCPEforGPU {
   };
 
 
- struct AverageGeometry {
-    static constexpr auto numberOfLaddersInBarrel = phase1PixelTopology::numberOfLaddersInBarrel;
-    float ladderZ[numberOfLaddersInBarrel];
-    float ladderR[numberOfLaddersInBarrel];
-    float ladderMinZ[numberOfLaddersInBarrel];
-    float ladderMaxZ[numberOfLaddersInBarrel];
-    float endCapZ[2];  // just for pos and neg Layer1
- };
-
+  using phase1PixelTopology::AverageGeometry;
 
   struct LayerGeometry {
     uint32_t layerStart[phase1PixelTopology::numberOfLayers + 1];

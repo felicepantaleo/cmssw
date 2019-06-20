@@ -258,6 +258,8 @@ void PixelCPEFast::fillParamsForGpu() {
        aveGeom.ladderZ[il] += 0.125f*z;
        aveGeom.ladderMinZ[il] = std::min(aveGeom.ladderMinZ[il], z);
        aveGeom.ladderMaxZ[il] = std::max(aveGeom.ladderMaxZ[il], z);
+       aveGeom.ladderX[il] += 0.125f*g.frame.x();
+       aveGeom.ladderY[il] += 0.125f*g.frame.y();
        aveGeom.ladderR[il] += 0.125*sqrt(g.frame.x()*g.frame.x()+g.frame.y()*g.frame.y());
   }
   assert(il+1==int(phase1PixelTopology::numberOfLaddersInBarrel));
@@ -274,7 +276,8 @@ void PixelCPEFast::fillParamsForGpu() {
  
 
   for (int jl=0, nl=phase1PixelTopology::numberOfLaddersInBarrel; jl<nl; ++jl) {
-    std::cout << jl<<':'<<aveGeom.ladderR[jl] <<','<<aveGeom.ladderZ[jl]<<','<<aveGeom.ladderMinZ[jl]<<','<<aveGeom.ladderMaxZ[jl]<< ' ';
+    std::cout << jl<<':'<<aveGeom.ladderR[jl] << '/'<< std::sqrt(aveGeom.ladderX[jl]*aveGeom.ladderX[jl]+aveGeom.ladderY[jl]*aveGeom.ladderY[jl]) 
+                   <<','<<aveGeom.ladderZ[jl]<<','<<aveGeom.ladderMinZ[jl]<<','<<aveGeom.ladderMaxZ[jl]<< ' ';
   } std::cout<< std::endl;
   std::cout << aveGeom.endCapZ[0] << ' ' << aveGeom.endCapZ[1] << std::endl;
   

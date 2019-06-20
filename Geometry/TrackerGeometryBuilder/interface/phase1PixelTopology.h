@@ -148,6 +148,18 @@ namespace phase1PixelTopology {
     return py+shift;
   }
 
+  //FIXME move it elsewhere?
+  struct AverageGeometry {
+    static constexpr auto numberOfLaddersInBarrel = phase1PixelTopology::numberOfLaddersInBarrel;
+    float ladderZ[numberOfLaddersInBarrel];
+    float ladderX[numberOfLaddersInBarrel];
+    float ladderY[numberOfLaddersInBarrel];
+    float ladderR[numberOfLaddersInBarrel];
+    float ladderMinZ[numberOfLaddersInBarrel];
+    float ladderMaxZ[numberOfLaddersInBarrel];
+    float endCapZ[2];  // just for pos and neg Layer1
+  };
+
 }
 
 #endif // Geometry_TrackerGeometryBuilder_phase1PixelTopology_h

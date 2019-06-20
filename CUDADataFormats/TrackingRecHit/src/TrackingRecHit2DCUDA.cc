@@ -29,12 +29,14 @@ TrackingRecHit2DCUDA::TrackingRecHit2DCUDA(uint32_t nHits,
   m_store16 = cs->make_device_unique<uint16_t[]>(nHits * n16, stream);
   m_store32 = cs->make_device_unique<float[]>(nHits * n32 + 11, stream);
   m_HistStore = cs->make_device_unique<TrackingRecHit2DSOAView::Hist>(stream);
+  m_AverageGeometryStore = cs->make_device_unique<TrackingRecHit2DSOAView::AverageGeometry>(stream);
 
   auto get16 = [&](int i) { return m_store16.get() + i * nHits; };
   auto get32 = [&](int i) { return m_store32.get() + i * nHits; };
 
   // copy all the pointers
   m_hist = view->m_hist = m_HistStore.get();
+  view->m_averageGeometry = m_AverageGeometryStore.get();
 
   view->m_cpeParams = cpeParams;
   view->m_hitsModuleStart = hitsModuleStart;
