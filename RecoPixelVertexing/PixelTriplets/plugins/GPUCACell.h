@@ -173,7 +173,31 @@ public:
     return std::abs(eq.dca0()) < region_origin_radius_plus_tolerance * std::abs(eq.curvature());
   }
 
-  __device__ inline bool hole(Hits const& hh, GPUCACell const& innerCell) const {
+  __device__ inline bool hole0(Hits const& hh, GPUCACell const& innerCell) const {
+    constexpr uint32_t max_ladder_bpx0 = 12;
+    constexpr uint32_t first_ladder_bpx0 = 0;
+    constexpr float module_length = 6.7f;
+    constexpr float module_tolerance = 0.2f;
+    int p = innerCell.get_inner_iphi(hh);
+    if (p < 0)
+      p += std::numeric_limits<unsigned short>::max();
+    p = (max_ladder_bpx0 * p) / std::numeric_limits<unsigned short>::max();
+    p %= max_ladder_bpx0;
+    auto il = first_ladder_bpx0+p;
+    auto r0 = hh.averageGeometry().ladderR[il];
+    auto ri = innerCell.get_inner_r(hh);
+    auto zi = innerCell.get_inner_z(hh);
+    auto ro = get_outer_r(hh);
+    auto zo = get_outer_z(hh);
+    auto z0 = zi + (r0 - ri) * (zo - zi) / (ro - ri);
+    auto z_in_ladder = std::abs(z0-hh.averageGeometry().ladderZ[il]);
+    auto z_in_module = z_in_ladder - module_length * int(z_in_ladder / module_length);
+    auto gap = z_in_module < module_tolerance || z_in_module > (module_length - module_tolerance);
+    return gap;
+  }
+
+
+  __device__ inline bool hole4(Hits const& hh, GPUCACell const& innerCell) const {
     constexpr uint32_t max_ladder_bpx4 = 64;
     constexpr uint32_t first_ladder_bpx4 = 84;
     // constexpr float radius_even_ladder = 15.815f;
@@ -213,7 +237,8 @@ public:
                                        AtomicPairCounter& apc,
                                        CM& tupleMultiplicity,
                                        TmpTuple& tmpNtuplet,
-                                       const unsigned int minHitsPerNtuplet) const {
+                                       const unsigned int minHitsPerNtuplet,
+                                       bool startAt0) const {
     // the building process for a track ends if:
     // it has no right neighbor
     // it has no compatible neighbor
@@ -227,13 +252,16 @@ public:
       for (int j = 0; j < outerNeighbors().size(); ++j) {
         auto otherCell = outerNeighbors()[j];
         cells[otherCell].find_ntuplets(
-            hh, cells, cellTracks, foundNtuplets, apc, tupleMultiplicity, tmpNtuplet, minHitsPerNtuplet);
+            hh, cells, cellTracks, foundNtuplets, apc, tupleMultiplicity, tmpNtuplet, minHitsPerNtuplet,startAt0);
       }
     } else {  // if long enough save...
       if ((unsigned int)(tmpNtuplet.size()) >= minHitsPerNtuplet - 1) {
 #ifndef ALL_TRIPLETS
         // triplets accepted only pointing to the hole
-        if (tmpNtuplet.size() >= 3 || hole(hh, cells[tmpNtuplet[0]]))
+        if (tmpNtuplet.size() >= 3 || 
+            ( startAt0&&hole4(hh, cells[tmpNtuplet[0]]) ) ||
+            ( (!startAt0)&&hole0(hh, cells[tmpNtuplet[0]]) )
+        )
 #endif
         {
           hindex_type hits[6];

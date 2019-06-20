@@ -230,8 +230,12 @@ __global__ void kernel_find_ntuplets(GPUCACell::Hits const *__restrict__ hhp,
   __syncthreads();
 #endif
 
-  if (thisCell.theLayerPairId == 0 || thisCell.theLayerPairId == 3 ||
-      thisCell.theLayerPairId == 8) {  // inner layer is 0 FIXME
+  bool start0 =  thisCell.theLayerPairId == 0 || thisCell.theLayerPairId == 3 ||
+                 thisCell.theLayerPairId == 8;  // inner layer is 0 FIXME
+  bool start1 =  thisCell.theLayerPairId == 1 || thisCell.theLayerPairId == 4 || thisCell.theLayerPairId == 9 ||  
+                 thisCell.theLayerPairId == 6 || thisCell.theLayerPairId == 11;
+                 // inner layer is "1" FIXME
+  if (start0 || start1) {
     GPUCACell::TmpTuple stack;
     stack.reset();
     thisCell.find_ntuplets(hh,
@@ -245,7 +249,8 @@ __global__ void kernel_find_ntuplets(GPUCACell::Hits const *__restrict__ hhp,
                            *tupleMultiplicity,
 #endif
                            stack,
-                           minHitsPerNtuplet);
+                           minHitsPerNtuplet, 
+                           start0);
     assert(stack.size() == 0);
     // printf("in %d found quadruplets: %d\n", cellIndex, apc->get());
   }
