@@ -5,6 +5,9 @@
 // Author: Felice Pantaleo, CERN
 //
 
+
+// #define ALL_TRIPLETS
+
 #include <cuda_runtime.h>
 
 #include "CUDADataFormats/TrackingRecHit/interface/TrackingRecHit2DCUDA.h"
@@ -217,7 +220,7 @@ public:
     auto zi = innerCell.get_inner_z(hh);
     auto ro = get_outer_r(hh);
     auto zo = get_outer_z(hh);
-    auto z4 = zi + (r4 - ri) * (zo - zi) / (ro - ri);
+    auto z4 = zo + (r4 - ro) * (zo - zi) / (ro - ri);
     auto z_in_ladder = std::abs(z4-hh.averageGeometry().ladderZ[il]);
     auto z_in_module = z_in_ladder - module_length * int(z_in_ladder / module_length);
     auto gap = z_in_module < module_tolerance || z_in_module > (module_length - module_tolerance);

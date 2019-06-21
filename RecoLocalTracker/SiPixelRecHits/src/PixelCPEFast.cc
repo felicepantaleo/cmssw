@@ -263,8 +263,15 @@ void PixelCPEFast::fillParamsForGpu() {
        aveGeom.ladderR[il] += 0.125*sqrt(g.frame.x()*g.frame.x()+g.frame.y()*g.frame.y());
   }
   assert(il+1==int(phase1PixelTopology::numberOfLaddersInBarrel));
+  // add half_module and tollerance
+  constexpr float module_length = 6.7f;
+  constexpr float module_tolerance = 0.2f;
+  for (int il=0, nl=phase1PixelTopology::numberOfLaddersInBarrel; il<nl; ++il) {
+    aveGeom.ladderMinZ[il] -= (0.5f*module_length-module_tolerance);
+    aveGeom.ladderMaxZ[il] += (0.5f*module_length-module_tolerance);
+  }
 
-  // compute "max z" for first layer in endcap
+  // compute "max z" for first layer in endcap (should we restrict to the outermost ring?)
   for (auto im=phase1PixelTopology::layerStart[4]; im<phase1PixelTopology::layerStart[5]; ++im) {
      auto const & g = m_detParamsGPU[im];
      aveGeom.endCapZ[0] = std::max(aveGeom.endCapZ[0],g.frame.z());
@@ -273,7 +280,9 @@ void PixelCPEFast::fillParamsForGpu() {
      auto const & g = m_detParamsGPU[im];
      aveGeom.endCapZ[1] = std::min(aveGeom.endCapZ[1],g.frame.z());
   }
- 
+  // correct for outer ring being closer
+  aveGeom.endCapZ[0] -= 1.5f;
+  aveGeom.endCapZ[1] += 1.5f;
 
   for (int jl=0, nl=phase1PixelTopology::numberOfLaddersInBarrel; jl<nl; ++jl) {
     std::cout << jl<<':'<<aveGeom.ladderR[jl] << '/'<< std::sqrt(aveGeom.ladderX[jl]*aveGeom.ladderX[jl]+aveGeom.ladderY[jl]*aveGeom.ladderY[jl]) 
