@@ -180,7 +180,7 @@ public:
     constexpr uint32_t max_ladder_bpx0 = 12;
     constexpr uint32_t first_ladder_bpx0 = 0;
     constexpr float module_length = 6.7f;
-    constexpr float module_tolerance = 0.2f;
+    constexpr float module_tolerance = 0.4f; // projection to cylinder is inaccurate on BPIX1
     int p = innerCell.get_inner_iphi(hh);
     if (p < 0)
       p += std::numeric_limits<unsigned short>::max();

@@ -79,6 +79,7 @@ namespace gpuPixelDoublets {
                                CellNeighbors* cellNeighborsContainer,
                                CellTracksVector* cellTracks,
                                CellTracks* cellTracksContainer) {
+    assert(isOuterHitOfCell);
     int first = blockIdx.x * blockDim.x + threadIdx.x;
     for (int i = first; i < nHits; i += gridDim.x * blockDim.x)
       isOuterHitOfCell[i].reset();

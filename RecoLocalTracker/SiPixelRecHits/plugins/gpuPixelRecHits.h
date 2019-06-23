@@ -26,6 +26,9 @@ namespace gpuPixelRecHits {
                           int numElements,
                           uint32_t const* __restrict__ hitsModuleStart,
                           TrackingRecHit2DSOAView* phits) {
+    assert(phits);
+    assert(cpeParams);
+
     auto& hits = *phits;
 
     // copy average geometry corrected by beamspot . FIXME (move it somewhere else???)
@@ -43,7 +46,7 @@ namespace gpuPixelRecHits {
       if(0==threadIdx.x) {
          agc.endCapZ[0] = ag.endCapZ[0] - bs->z;
          agc.endCapZ[1] = ag.endCapZ[1] - bs->z;
-         printf("endcapZ %f %f\n",agc.endCapZ[0],agc.endCapZ[1]);
+//         printf("endcapZ %f %f\n",agc.endCapZ[0],agc.endCapZ[1]);
       }
     }
 

@@ -117,7 +117,15 @@ __global__ void kernel_fastDuplicateRemover(GPUCACell const *cells,
   constexpr auto dup = pixelTuplesHeterogeneousProduct::dup;
   // constexpr auto loose = pixelTuplesHeterogeneousProduct::loose;
 
+  assert(nCells);
+
   auto cellIndex = threadIdx.x + blockIdx.x * blockDim.x;
+
+#ifdef GPU_DEBUG
+  if (0==cellIndex)
+    printf("fastDuplicateRemover: %d cells\n",*nCells);
+#endif
+
 
   if (cellIndex >= (*nCells))
     return;
@@ -480,6 +488,10 @@ void CAHitQuadrupletGeneratorKernels::launchKernels(  // here goes algoparms....
   auto nhits = hh.nHits();
   assert(nhits <= pixelGPUConstants::maxNumberOfHits);
 
+  // std::cout << "N hits " << nhits << std::endl;
+  if (nhits<2) std::cout << "too few hits " << nhits << std::endl;
+
+
   if (nhits > 1 && earlyFishbone_) {
     auto nthTot = 64;
     auto stride = 4;
@@ -530,6 +542,13 @@ void CAHitQuadrupletGeneratorKernels::launchKernels(  // here goes algoparms....
                                                                      minHitsPerNtuplet_);
   cudaCheck(cudaGetLastError());
 
+#ifdef GPU_DEBUG
+  cudaDeviceSynchronize();
+  cudaCheck(cudaGetLastError());
+#endif
+
+
+  blockSize = 128;
   numberOfBlocks = (TuplesOnGPU::Container::totbins() + blockSize - 1) / blockSize;
   cudautils::finalizeBulk<<<numberOfBlocks, blockSize, 0, cudaStream>>>(gpu_.apc_d, gpu_.tuples_d);
 
@@ -564,10 +583,12 @@ void CAHitQuadrupletGeneratorKernels::launchKernels(  // here goes algoparms....
                                                                         nhits,
                                                                         counters_);
     cudaCheck(cudaGetLastError());
-#ifdef GPU_DEBUG
-    cudaDeviceSynchronize();
-#endif
   }
+#ifdef GPU_DEBUG
+  cudaDeviceSynchronize();
+  cudaCheck(cudaGetLastError());
+#endif
+
 
   // kernel_print_found_ntuplets<<<1, 1, 0, cudaStream>>>(gpu_.tuples_d, 10);
 }
@@ -579,12 +600,19 @@ void CAHitQuadrupletGeneratorKernels::buildDoublets(HitsOnCPU const &hh, cuda::s
   std::cout << "building Doublets out of " << nhits << " Hits" << std::endl;
 #endif
 
+#ifdef GPU_DEBUG
+  cudaDeviceSynchronize();
+  cudaCheck(cudaGetLastError());
+#endif
+
   // in principle we can use "nhits" to heuristically dimension the workspace...
   edm::Service<CUDAService> cs;
-  device_isOuterHitOfCell_ = cs->make_device_unique<GPUCACell::OuterHitOfCell[]>(nhits, stream);
+  device_isOuterHitOfCell_ = cs->make_device_unique<GPUCACell::OuterHitOfCell[]>(std::max(1U,nhits), stream);
+  assert(device_isOuterHitOfCell_.get());
   {
     int threadsPerBlock = 128;
-    int blocks = (nhits + threadsPerBlock - 1) / threadsPerBlock;
+    // at least one block!
+    int blocks = ( std::max(1U,nhits) + threadsPerBlock - 1) / threadsPerBlock;
     gpuPixelDoublets::initDoublets<<<blocks, threadsPerBlock, 0, stream.id()>>>(device_isOuterHitOfCell_.get(),
                                                                                 nhits,
                                                                                 device_theCellNeighbors_,
@@ -595,6 +623,11 @@ void CAHitQuadrupletGeneratorKernels::buildDoublets(HitsOnCPU const &hh, cuda::s
   }
 
   device_theCells_ = cs->make_device_unique<GPUCACell[]>(CAConstants::maxNumberOfDoublets(), stream);
+
+#ifdef GPU_DEBUG
+  cudaDeviceSynchronize();
+  cudaCheck(cudaGetLastError());
+#endif
 
   if (0 == nhits)
     return;  // protect against empty events
@@ -615,6 +648,12 @@ void CAHitQuadrupletGeneratorKernels::buildDoublets(HitsOnCPU const &hh, cuda::s
                                                                          doZCut_,
                                                                          doPhiCut_);
   cudaCheck(cudaGetLastError());
+
+#ifdef GPU_DEBUG
+  cudaDeviceSynchronize();
+  cudaCheck(cudaGetLastError());
+#endif
+
 }
 
 void CAHitQuadrupletGeneratorKernels::classifyTuples(HitsOnCPU const &hh,
@@ -666,6 +705,9 @@ void CAHitQuadrupletGeneratorKernels::classifyTuples(HitsOnCPU const &hh,
     kernel_doStatsForTracks<<<numberOfBlocks, blockSize, 0, cudaStream>>>(tuples.tuples_d, tuples.quality_d, counters_);
     cudaCheck(cudaGetLastError());
   }
+#ifdef GPU_DEBUG
+    cudaDeviceSynchronize();
+#endif
 }
 
 __global__ void kernel_printCounters(CAHitQuadrupletGeneratorKernels::Counters const *counters) {
