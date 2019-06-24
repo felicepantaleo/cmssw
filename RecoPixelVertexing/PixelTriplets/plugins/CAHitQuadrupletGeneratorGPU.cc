@@ -78,7 +78,15 @@ CAHitQuadrupletGeneratorGPU::CAHitQuadrupletGeneratorGPU(const edm::ParameterSet
       fitter(cfg.getParameter<bool>("fit5as4")),
       caThetaCut(cfg.getParameter<double>("CAThetaCut")),
       caPhiCut(cfg.getParameter<double>("CAPhiCut")),
-      caHardPtCut(cfg.getParameter<double>("CAHardPtCut")) {}
+      caHardPtCut(cfg.getParameter<double>("CAHardPtCut")) {
+
+#ifdef    DUMP_GPU_TK_TUPLES
+      printf("TK: %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s\n",
+             "tid", "qual", "nh","phi","tip","pt","cot","zip","eta","chil","chic",
+             "h1","h2","h3","h4","h5");
+#endif
+
+}
 
 void CAHitQuadrupletGeneratorGPU::fillDescriptions(edm::ParameterSetDescription &desc) {
   desc.add<double>("CAThetaCut", 0.00125);

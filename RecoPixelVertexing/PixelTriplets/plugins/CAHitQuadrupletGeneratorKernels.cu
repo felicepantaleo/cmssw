@@ -2,6 +2,8 @@
 // Author: Felice Pantaleo, CERN
 //
 
+#define NTUPLE_DEBUG
+
 #include <cmath>
 #include <cstdint>
 
@@ -45,7 +47,7 @@ __global__ void kernel_checkOverflows(TuplesOnGPU::Container *foundNtuplets,
     atomicAdd(&c.nTuples, apc->get().m);
   }
 
-#ifdef GPU_DEBUG
+#ifdef NTUPLE_DEBUG
   if (0 == idx) {
     printf("number of found cells %d, found tuples %d with total hits %d out of %d\n",
            *nCells,
@@ -120,12 +122,6 @@ __global__ void kernel_fastDuplicateRemover(GPUCACell const *cells,
   assert(nCells);
 
   auto cellIndex = threadIdx.x + blockIdx.x * blockDim.x;
-
-#ifdef GPU_DEBUG
-  if (0==cellIndex)
-    printf("fastDuplicateRemover: %d cells\n",*nCells);
-#endif
-
 
   if (cellIndex >= (*nCells))
     return;
@@ -309,7 +305,7 @@ __global__ void kernel_classifyTracks(TuplesOnGPU::Container const *__restrict__
     isNaN |= isnan(fit_results[idx].par(i));
   }
   if (isNaN) {
-#ifdef GPU_DEBUG
+#ifdef NTUPLE_DEBUG
     printf("NaN in fit %d size %d chi2 %f + %f\n",
            idx,
            tuples->size(idx),
@@ -329,10 +325,12 @@ __global__ void kernel_classifyTracks(TuplesOnGPU::Container const *__restrict__
   float chi2Cut = cuts.chi2Scale *
                   (cuts.chi2Coeff[0] + pt * (cuts.chi2Coeff[1] + pt * (cuts.chi2Coeff[2] + pt * cuts.chi2Coeff[3])));
   if (fit_results[idx].chi2_line + fit_results[idx].chi2_circle >= chi2Cut) {
-#ifdef GPU_DEBUG
-    printf("Bad fit %d size %d chi2 %f + %f\n",
+#ifdef NTUPLE_DEBUG
+    printf("Bad fit %d size %d pt %f eta %f chi2 l %f + c %f\n",
            idx,
-           tuples->size(idx),
+           tuples->size(idx), 
+           fit_results[idx].par(2),
+           asinhf(fit_results[idx].par(3)), 
            fit_results[idx].chi2_line,
            fit_results[idx].chi2_circle);
 #endif
@@ -464,17 +462,35 @@ __global__ void kernel_tripletCleaner(TrackingRecHit2DSOAView const *__restrict_
   }  // loop over hits
 }
 
-__global__ void kernel_print_found_ntuplets(TuplesOnGPU::Container const *__restrict__ foundNtuplets,
-                                            uint32_t maxPrint) {
-  for (int i = 0; i < std::min(maxPrint, foundNtuplets->nbins()); ++i) {
-    if (foundNtuplets->size(i) < 4)
-      continue;
-    printf("\nquadruplet %d: %d %d %d %d\n",
-           i,
-           (*(*foundNtuplets).begin(i)),
-           (*(*foundNtuplets).begin(i) + 1),
-           (*(*foundNtuplets).begin(i) + 2),
-           (*(*foundNtuplets).begin(i) + 3));
+__global__ void kernel_print_found_ntuplets(TrackingRecHit2DSOAView const *__restrict__ hhp,
+                                      TuplesOnGPU::Container const *__restrict__ ptuples,
+                                      Rfit::helix_fit const *__restrict__ fit_results,
+                                      Quality *__restrict__ quality,
+                                      CAHitQuadrupletGeneratorKernels::HitToTuple const *__restrict__ phitToTuple,
+                                      uint32_t maxPrint, int iev) {
+  auto const & foundNtuplets = *ptuples;
+  int first = blockDim.x * blockIdx.x + threadIdx.x;
+  for (int i = first; i < std::min(maxPrint, foundNtuplets.nbins()); i+=blockDim.x*gridDim.x) {
+    auto nh = foundNtuplets.size(i);
+    if (nh<3) continue;
+    printf("TK: %d %d %d %f %f %f %f %f %f %f %f %d %d %d %d %d\n",
+           10000*iev+i,
+           int(quality[i]),
+           nh,
+           fit_results[i].par(0),
+           fit_results[i].par(1),
+           fit_results[i].par(2),
+           fit_results[i].par(3),
+           fit_results[i].par(4),
+           asinhf(fit_results[i].par(3)),
+           fit_results[i].chi2_line,
+           fit_results[i].chi2_circle,
+           *foundNtuplets.begin(i),
+           *(foundNtuplets.begin(i) + 1),
+           *(foundNtuplets.begin(i) + 2),
+           nh>3 ? int(*(foundNtuplets.begin(i) + 3)):-1,
+           nh>4 ? int(*(foundNtuplets.begin(i) + 4)):-1
+          );
   }
 }
 
@@ -589,14 +605,12 @@ void CAHitQuadrupletGeneratorKernels::launchKernels(  // here goes algoparms....
   cudaCheck(cudaGetLastError());
 #endif
 
-
-  // kernel_print_found_ntuplets<<<1, 1, 0, cudaStream>>>(gpu_.tuples_d, 10);
 }
 
 void CAHitQuadrupletGeneratorKernels::buildDoublets(HitsOnCPU const &hh, cuda::stream_t<> &stream) {
   auto nhits = hh.nHits();
 
-#ifdef GPU_DEBUG
+#ifdef NTUPLE_DEBUG
   std::cout << "building Doublets out of " << nhits << " Hits" << std::endl;
 #endif
 
@@ -707,7 +721,15 @@ void CAHitQuadrupletGeneratorKernels::classifyTuples(HitsOnCPU const &hh,
   }
 #ifdef GPU_DEBUG
     cudaDeviceSynchronize();
+    cudaCheck(cudaGetLastError());
 #endif
+
+#ifdef    DUMP_GPU_TK_TUPLES
+  static std::atomic<int> iev(0);
+  ++iev;
+  kernel_print_found_ntuplets<<<1, 32, 0, cudaStream>>>(hh.view(), tuples.tuples_d, tuples.helix_fit_results_d, tuples.quality_d, device_hitToTuple_, 100,iev);
+#endif
+
 }
 
 __global__ void kernel_printCounters(CAHitQuadrupletGeneratorKernels::Counters const *counters) {

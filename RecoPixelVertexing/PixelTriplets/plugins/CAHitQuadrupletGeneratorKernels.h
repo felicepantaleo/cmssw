@@ -7,6 +7,9 @@
 
 #include "GPUCACell.h"
 
+#define DUMP_GPU_TK_TUPLES
+
+
 class CAHitQuadrupletGeneratorKernels {
 public:
   // counters
