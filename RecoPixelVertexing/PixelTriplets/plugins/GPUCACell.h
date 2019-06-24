@@ -6,7 +6,7 @@
 //
 
 
-// #define ALL_TRIPLETS
+#define ALL_TRIPLETS
 
 #include <cuda_runtime.h>
 
@@ -51,6 +51,7 @@ public:
     theOuterHitId = outerHitId;
     theDoubletId = doubletId;
     theLayerPairId = layerPairId;
+    theUsed = 0;
 
     theInnerZ = hh.zGlobal(innerHitId);
     theInnerR = hh.rGlobal(innerHitId);
@@ -251,13 +252,15 @@ public:
     tmpNtuplet.push_back_unsafe(theDoubletId);
     assert(tmpNtuplet.size() <= 4);
 
-    if (outerNeighbors().size() > 0) {
-      for (int j = 0; j < outerNeighbors().size(); ++j) {
-        auto otherCell = outerNeighbors()[j];
+    bool last=true;
+    for (int j = 0; j < outerNeighbors().size(); ++j) {
+      auto otherCell = outerNeighbors()[j];
+      if (cells[otherCell].theUsed>1) continue; // already in a track found in previous iteration
+        last = false;
         cells[otherCell].find_ntuplets(
             hh, cells, cellTracks, foundNtuplets, apc, tupleMultiplicity, tmpNtuplet, minHitsPerNtuplet,startAt0);
-      }
-    } else {  // if long enough save...
+    }
+    if(last) {  // if long enough save...
       if ((unsigned int)(tmpNtuplet.size()) >= minHitsPerNtuplet - 1) {
 #ifndef ALL_TRIPLETS
         // triplets accepted only pointing to the hole
@@ -269,8 +272,9 @@ public:
         {
           hindex_type hits[6];
           auto nh = 0U;
-          for (auto c : tmpNtuplet)
+          for (auto c : tmpNtuplet) {
             hits[nh++] = cells[c].theInnerHitId;
+          }
           hits[nh] = theOuterHitId;
           auto it = foundNtuplets.bulkFill(apc, hits, tmpNtuplet.size() + 1);
           if (it >= 0) {  // if negative is overflow....
@@ -293,7 +297,8 @@ private:
 
 public:
   int32_t theDoubletId;
-  int32_t theLayerPairId;
+  int16_t theLayerPairId;
+  uint16_t theUsed; // tbd
 
 private:
   float theInnerZ;

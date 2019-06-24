@@ -18,7 +18,7 @@ namespace CAConstants {
 #ifdef GPU_SMALL_EVENTS
   constexpr uint32_t maxNumberOfTuples() { return 3 * 1024; }
 #else
-  constexpr uint32_t maxNumberOfTuples() { return 6 * 1024; }
+  constexpr uint32_t maxNumberOfTuples() { return 8 * 1024; }
 #endif
   constexpr uint32_t maxNumberOfQuadruplets() { return maxNumberOfTuples(); }
 #ifndef ONLY_PHICUT
