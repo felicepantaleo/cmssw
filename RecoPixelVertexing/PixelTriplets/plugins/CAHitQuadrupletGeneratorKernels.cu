@@ -2,7 +2,7 @@
 // Author: Felice Pantaleo, CERN
 //
 
-#define NTUPLE_DEBUG
+// #define NTUPLE_DEBUG
 
 #include <cmath>
 #include <cstdint>
@@ -54,8 +54,10 @@ __global__ void kernel_checkOverflows(TuplesOnGPU::Container *foundNtuplets,
            apc->get().m,
            apc->get().n,
            nHits);
-    assert(foundNtuplets->size(apc->get().m) == 0);
-    assert(foundNtuplets->size() == apc->get().n);
+    if (apc->get().m < CAConstants::maxNumberOfQuadruplets()) {
+      assert(foundNtuplets->size(apc->get().m) == 0);
+      assert(foundNtuplets->size() == apc->get().n);
+    }
   }
 
   if (idx < foundNtuplets->nbins()) {
@@ -243,11 +245,10 @@ __global__ void kernel_find_ntuplets(GPUCACell::Hits const *__restrict__ hhp,
   // this stuff needs optimization....
   bool myStart[3];
   myStart[0] =  thisCell.theLayerPairId == 0 || thisCell.theLayerPairId == 3 ||
-                 thisCell.theLayerPairId == 8;  // inner layer is 0 FIXME
+                 thisCell.theLayerPairId == 8 || thisCell.theLayerPairId == 13;  // inner layer is 0 FIXME
   myStart[1] =  thisCell.theLayerPairId == 1 || thisCell.theLayerPairId == 4 || thisCell.theLayerPairId == 9 ||  
-                 thisCell.theLayerPairId == 6 || thisCell.theLayerPairId == 11; // inner layer is "1" FIXME
-  myStart[2] =  thisCell.theLayerPairId == 2 || thisCell.theLayerPairId == 5 || thisCell.theLayerPairId == 10 ||
-                 thisCell.theLayerPairId == 7 || thisCell.theLayerPairId == 12; // inner layer is "1" FIXME
+                 thisCell.theLayerPairId == 6 || thisCell.theLayerPairId == 11 || thisCell.theLayerPairId == 14; // inner layer is "1" FIXME
+  myStart[2] =  thisCell.theLayerPairId == 13 || thisCell.theLayerPairId == 14; // jumps...
   //
   if (myStart[start]) {
     GPUCACell::TmpTuple stack;
@@ -303,6 +304,8 @@ __global__ void kernel_fillMultiplicity(TuplesOnGPU::Container const *__restrict
   auto nhits = foundNtuplets->size(it);
   if (nhits < 3)
     return;
+  if (nhits>5) printf("wrong mult %d %d\n",it,nhits);
+  assert(nhits<8);
   tupleMultiplicity->fillDirect(nhits, it);
 }
 

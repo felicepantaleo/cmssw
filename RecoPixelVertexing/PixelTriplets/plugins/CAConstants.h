@@ -35,7 +35,7 @@ namespace CAConstants {
 #endif
   constexpr uint32_t maxNumOfActiveDoublets() { return maxNumberOfDoublets() / 4; }
 
-  constexpr uint32_t maxNumberOfLayerPairs() { return 13; }
+  constexpr uint32_t maxNumberOfLayerPairs() { return 16; }
   constexpr uint32_t maxNumberOfLayers() { return 10; }
   constexpr uint32_t maxTuples() { return maxNumberOfTuples(); }
 
