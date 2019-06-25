@@ -9,7 +9,9 @@ namespace gpuPixelDoublets {
 
   using namespace gpuPixelDoubletsAlgos;
 
-  constexpr int nPairs = 13+2;
+  constexpr int nPairs = 13+2+2;
+  static_assert(nPairs<=CAConstants::maxNumberOfLayerPairs());
+
   CONSTANT_VAR const uint8_t layerPairs[2 * nPairs] = {
       0,
       1,
@@ -38,7 +40,8 @@ namespace gpuPixelDoublets {
       5,
       5,
       6,  // pos
-      0,2, 1,3
+      0,2, 1,3,
+      4,6, 7,9
   };
 
   constexpr int16_t phi0p05 = 522;  // round(521.52189...) = phi2short(0.05);
@@ -58,13 +61,13 @@ namespace gpuPixelDoublets {
                                              phi0p06,
                                              phi0p05,
                                              phi0p05,
-                                             phi0p07, phi0p07};
+                                             phi0p07, phi0p07, phi0p06,phi0p06};
 
-  CONSTANT_VAR float const minz[nPairs] = {-20., -22., -22., -30., -30., -30., -70., -70., 0., 10., 15., -70., -70.,-20.,-22.};
+  CONSTANT_VAR float const minz[nPairs] = {-20., -22., -22., -30., -30., -30., -70., -70., 0., 10., 15., -70., -70.,-20.,-22.,-70., -70.};
 
-  CONSTANT_VAR float const maxz[nPairs] = {20., 22., 22., 0., -10., -15., 70., 70., 30., 30., 30., 70., 70.,20.,22};
+  CONSTANT_VAR float const maxz[nPairs] = {20., 22., 22., 0., -10., -15., 70., 70., 30., 30., 30., 70., 70.,20.,22,70., 70};
 
-  CONSTANT_VAR float const maxr[nPairs] = {20., 20., 20., 9., 7., 6., 5., 5., 9., 7., 6., 5., 5., 20.,20.};
+  CONSTANT_VAR float const maxr[nPairs] = {20., 20., 20., 9., 7., 6., 5., 5., 9., 7., 6., 5., 5., 20.,20.,9.,9.};
 
   constexpr uint32_t MaxNumOfDoublets = CAConstants::maxNumberOfDoublets();  // not really relevant
 

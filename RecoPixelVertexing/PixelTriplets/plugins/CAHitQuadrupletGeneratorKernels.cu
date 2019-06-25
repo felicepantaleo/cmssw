@@ -245,10 +245,11 @@ __global__ void kernel_find_ntuplets(GPUCACell::Hits const *__restrict__ hhp,
   // this stuff needs optimization....
   bool myStart[3];
   myStart[0] =  thisCell.theLayerPairId == 0 || thisCell.theLayerPairId == 3 ||
-                 thisCell.theLayerPairId == 8 || thisCell.theLayerPairId == 13;  // inner layer is 0 FIXME
+                thisCell.theLayerPairId == 8;  // inner layer is 0
   myStart[1] =  thisCell.theLayerPairId == 1 || thisCell.theLayerPairId == 4 || thisCell.theLayerPairId == 9 ||  
-                 thisCell.theLayerPairId == 6 || thisCell.theLayerPairId == 11 || thisCell.theLayerPairId == 14; // inner layer is "1" FIXME
-  myStart[2] =  thisCell.theLayerPairId == 13 || thisCell.theLayerPairId == 14; // jumps...
+                thisCell.theLayerPairId == 6 || thisCell.theLayerPairId == 11; // inner layer is "1"
+  myStart[2] =  thisCell.theLayerPairId == 13 || thisCell.theLayerPairId == 14 || // barrel jumps...
+                thisCell.theLayerPairId == 15 || thisCell.theLayerPairId == 16;    // fw jumps...
   //
   if (myStart[start]) {
     GPUCACell::TmpTuple stack;
@@ -581,7 +582,7 @@ void CAHitQuadrupletGeneratorKernels::launchKernels(  // here goes algoparms....
 
   blockSize = 64;
   numberOfBlocks = (maxNumberOfDoublets_ + blockSize - 1) / blockSize;
-  for (int startLayer=0; startLayer<2; ++startLayer) {
+  for (int startLayer=0; startLayer<3; ++startLayer) {
     kernel_find_ntuplets<<<numberOfBlocks, blockSize, 0, cudaStream>>>(hh.view(),
                                                                      device_theCells_.get(),
                                                                      device_nCells_,

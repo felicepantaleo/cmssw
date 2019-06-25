@@ -284,12 +284,13 @@ void PixelCPEFast::fillParamsForGpu() {
   aveGeom.endCapZ[0] -= 1.5f;
   aveGeom.endCapZ[1] += 1.5f;
 
+  /*
   for (int jl=0, nl=phase1PixelTopology::numberOfLaddersInBarrel; jl<nl; ++jl) {
     std::cout << jl<<':'<<aveGeom.ladderR[jl] << '/'<< std::sqrt(aveGeom.ladderX[jl]*aveGeom.ladderX[jl]+aveGeom.ladderY[jl]*aveGeom.ladderY[jl]) 
                    <<','<<aveGeom.ladderZ[jl]<<','<<aveGeom.ladderMinZ[jl]<<','<<aveGeom.ladderMaxZ[jl]<< ' ';
   } std::cout<< std::endl;
   std::cout << aveGeom.endCapZ[0] << ' ' << aveGeom.endCapZ[1] << std::endl;
-  
+  */
 
   // fill Layer and ladders geometry
   memcpy(m_layerGeometry.layerStart, phase1PixelTopology::layerStart, sizeof(phase1PixelTopology::layerStart));

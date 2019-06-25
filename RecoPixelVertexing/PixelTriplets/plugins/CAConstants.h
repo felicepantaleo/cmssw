@@ -18,7 +18,7 @@ namespace CAConstants {
 #ifdef GPU_SMALL_EVENTS
   constexpr uint32_t maxNumberOfTuples() { return 3 * 1024; }
 #else
-  constexpr uint32_t maxNumberOfTuples() { return 8 * 1024; }
+  constexpr uint32_t maxNumberOfTuples() { return 16 * 1024; }
 #endif
   constexpr uint32_t maxNumberOfQuadruplets() { return maxNumberOfTuples(); }
 #ifndef ONLY_PHICUT
@@ -35,7 +35,7 @@ namespace CAConstants {
 #endif
   constexpr uint32_t maxNumOfActiveDoublets() { return maxNumberOfDoublets() / 4; }
 
-  constexpr uint32_t maxNumberOfLayerPairs() { return 16; }
+  constexpr uint32_t maxNumberOfLayerPairs() { return 20; }
   constexpr uint32_t maxNumberOfLayers() { return 10; }
   constexpr uint32_t maxTuples() { return maxNumberOfTuples(); }
 

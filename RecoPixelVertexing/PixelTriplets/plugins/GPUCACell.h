@@ -6,7 +6,7 @@
 //
 
 
-#define ALL_TRIPLETS
+// #define ONLY_TRIPLETS_IN_HOLE
 
 #include <cuda_runtime.h>
 
@@ -262,7 +262,7 @@ public:
     }
     if(last) {  // if long enough save...
       if ((unsigned int)(tmpNtuplet.size()) >= minHitsPerNtuplet - 1) {
-#ifndef ALL_TRIPLETS
+#ifdef ONLY_TRIPLETS_IN_HOLE
         // triplets accepted only pointing to the hole
         if (tmpNtuplet.size() >= 3 || 
             ( startAt0&&hole4(hh, cells[tmpNtuplet[0]]) ) ||
