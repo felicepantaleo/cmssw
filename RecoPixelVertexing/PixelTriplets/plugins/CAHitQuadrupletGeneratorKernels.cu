@@ -251,7 +251,8 @@ __global__ void kernel_find_ntuplets(GPUCACell::Hits const *__restrict__ hhp,
   myStart[2] =  thisCell.theLayerPairId == 13 || thisCell.theLayerPairId == 14 || // barrel jumps...
                 thisCell.theLayerPairId == 15 || thisCell.theLayerPairId == 16;    // fw jumps...
   //
-  if (myStart[start]) {
+  auto doit = start>=0 ? myStart[start] : myStart[0]||myStart[1]||myStart[2];
+  if (doit) {
     GPUCACell::TmpTuple stack;
     stack.reset();
     thisCell.find_ntuplets(hh,
@@ -266,7 +267,7 @@ __global__ void kernel_find_ntuplets(GPUCACell::Hits const *__restrict__ hhp,
 #endif
                            stack,
                            minHitsPerNtuplet, 
-                           0==start);
+                           myStart[0]);
     assert(stack.size() == 0);
     // printf("in %d found quadruplets: %d\n", cellIndex, apc->get());
   }
@@ -582,7 +583,9 @@ void CAHitQuadrupletGeneratorKernels::launchKernels(  // here goes algoparms....
 
   blockSize = 64;
   numberOfBlocks = (maxNumberOfDoublets_ + blockSize - 1) / blockSize;
-  for (int startLayer=0; startLayer<3; ++startLayer) {
+  int nIter = doIterations_ ? 3 : 1;
+  if (minHitsPerNtuplet_>3) nIter=1;
+  for (int startLayer=0; startLayer<nIter; ++startLayer) {
     kernel_find_ntuplets<<<numberOfBlocks, blockSize, 0, cudaStream>>>(hh.view(),
                                                                      device_theCells_.get(),
                                                                      device_nCells_,
@@ -590,7 +593,8 @@ void CAHitQuadrupletGeneratorKernels::launchKernels(  // here goes algoparms....
                                                                      gpu_.tuples_d,
                                                                      gpu_.apc_d,
                                                                      device_tupleMultiplicity_,
-                                                                     minHitsPerNtuplet_,startLayer);
+                                                                     minHitsPerNtuplet_,
+                                                                     doIterations_ ? startLayer : -1);
     cudaCheck(cudaGetLastError());
 
     kernel_mark_used<<<numberOfBlocks, blockSize, 0, cudaStream>>>(hh.view(),
@@ -686,6 +690,14 @@ void CAHitQuadrupletGeneratorKernels::buildDoublets(HitsOnCPU const &hh, cuda::s
   if (0 == nhits)
     return;  // protect against empty events
 
+  // FIXME avoid magic numbers
+  auto nActualPairs=gpuPixelDoublets::nPairs;
+  if (noForwardTriplets_) nActualPairs = 15;
+  if (minHitsPerNtuplet_>3) {
+    nActualPairs = 13;
+  }
+
+  assert(nActualPairs<=gpuPixelDoublets::nPairs);
   int stride = 1;
   int threadsPerBlock = gpuPixelDoublets::getDoubletsFromHistoMaxBlockSize / stride;
   int blocks = (2 * nhits + threadsPerBlock - 1) / threadsPerBlock;
@@ -697,6 +709,7 @@ void CAHitQuadrupletGeneratorKernels::buildDoublets(HitsOnCPU const &hh, cuda::s
                                                                          device_theCellTracks_,
                                                                          hh.view(),
                                                                          device_isOuterHitOfCell_.get(),
+                                                                         nActualPairs,
                                                                          idealConditions_,
                                                                          doClusterCut_,
                                                                          doZCut_,

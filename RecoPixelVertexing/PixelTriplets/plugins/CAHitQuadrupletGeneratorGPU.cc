@@ -61,6 +61,7 @@ constexpr unsigned int CAHitQuadrupletGeneratorGPU::minLayers;
 
 CAHitQuadrupletGeneratorGPU::CAHitQuadrupletGeneratorGPU(const edm::ParameterSet &cfg, edm::ConsumesCollector &iC)
     : kernels(cfg.getParameter<unsigned int>("minHitsPerNtuplet"),
+              cfg.getParameter<bool>("noForwardTriplets"),
               cfg.getParameter<bool>("earlyFishbone"),
               cfg.getParameter<bool>("lateFishbone"),
               cfg.getParameter<bool>("idealConditions"),
@@ -68,6 +69,7 @@ CAHitQuadrupletGeneratorGPU::CAHitQuadrupletGeneratorGPU(const edm::ParameterSet
               cfg.getParameter<bool>("doClusterCut"),
               cfg.getParameter<bool>("doZCut"),
               cfg.getParameter<bool>("doPhiCut"),
+              cfg.getParameter<bool>("doIterations"),
               cfg.getParameter<double>("ptmin"),
               cfg.getParameter<double>("CAThetaCutBarrel"),
               cfg.getParameter<double>("CAThetaCutForward"),
@@ -106,10 +108,13 @@ void CAHitQuadrupletGeneratorGPU::fillDescriptions(edm::ParameterSetDescription 
   desc.add<bool>("idealConditions", true);
   desc.add<bool>("fillStatistics", false);
   desc.add<unsigned int>("minHitsPerNtuplet", 4);
+  desc.add<bool>("noForwardTriplets", true);
   desc.add<bool>("fit5as4", true);
   desc.add<bool>("doClusterCut", true);
   desc.add<bool>("doZCut", true);
   desc.add<bool>("doPhiCut", true);
+  desc.add<bool>("doIterations", false);
+
 
   edm::ParameterSetDescription trackQualityCuts;
   trackQualityCuts.add<double>("chi2MaxPt", 10.)->setComment("max pT used to determine the pT-dependent chi2 cut");
