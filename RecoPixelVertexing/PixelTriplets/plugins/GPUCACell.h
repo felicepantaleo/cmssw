@@ -141,7 +141,6 @@ public:
                    otherCell,
                    otherCell.get_inner_detIndex(hh) < last_bpix1_detIndex ? dcaCutInnerTriplet : dcaCutOuterTriplet,
                    hardCurvCut));  // FIXME tune cuts
-                                   // region_origin_radius_plus_tolerance,  hardCurvCut));
   }
 
   __device__ __forceinline__ static bool areAlignedRZ(

@@ -191,16 +191,16 @@ __global__ void kernel_connect(AtomicPairCounter *apc1,
   if (cellIndex >= (*nCells))
     return;
   auto & thisCell = cells[cellIndex];
-  if (thisCell.theDoubletId < 0 || thisCell.theUsed>1)
-    return;
+  //if (thisCell.theDoubletId < 0 || thisCell.theUsed>1)
+  //  return;
   auto innerHitId = thisCell.get_inner_hit_id();
   auto numberOfPossibleNeighbors = isOuterHitOfCell[innerHitId].size();
   auto vi = isOuterHitOfCell[innerHitId].data();
   for (auto j = first; j < numberOfPossibleNeighbors; j += stride) {
     auto otherCell = __ldg(vi + j);
-    if (cells[otherCell].theDoubletId < 0 ||
-        cells[otherCell].theUsed>1 )
-      continue;
+    // if (cells[otherCell].theDoubletId < 0 ||
+    //    cells[otherCell].theUsed>1 )
+    //  continue;
     if (thisCell.check_alignment(hh,
                                  cells[otherCell],
                                  ptmin,

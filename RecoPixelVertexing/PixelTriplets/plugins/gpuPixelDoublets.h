@@ -61,7 +61,7 @@ namespace gpuPixelDoublets {
                                              phi0p06,
                                              phi0p05,
                                              phi0p05,
-                                             phi0p07, phi0p07, phi0p06,phi0p06};
+                                             phi0p05, phi0p05, phi0p06,phi0p06};
 
   CONSTANT_VAR float const minz[nPairs] = {-20., -22., -22., -30., -30., -30., -70., -70., 0., 10., 15., -70., -70.,-20.,-22.,-70., -70.};
 
