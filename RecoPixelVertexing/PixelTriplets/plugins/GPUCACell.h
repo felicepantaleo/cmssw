@@ -53,6 +53,7 @@ public:
     theLayerPairId = layerPairId;
     theUsed = 0;
 
+    // optimization that depends on access pattern
     theInnerZ = hh.zGlobal(innerHitId);
     theInnerR = hh.rGlobal(innerHitId);
 
@@ -78,13 +79,11 @@ public:
   __device__ __forceinline__ float get_outer_x(Hits const& hh) const { return hh.xGlobal(theOuterHitId); }
   __device__ __forceinline__ float get_inner_y(Hits const& hh) const { return hh.yGlobal(theInnerHitId); }
   __device__ __forceinline__ float get_outer_y(Hits const& hh) const { return hh.yGlobal(theOuterHitId); }
-  __device__ __forceinline__ float get_inner_z(Hits const& hh) const {
-    return theInnerZ;
-  }  // { return hh.zGlobal(theInnerHitId); } // { return theInnerZ; }
+  __device__ __forceinline__ float get_inner_z(Hits const& hh) const { return theInnerZ; }
+     // { return hh.zGlobal(theInnerHitId); } // { return theInnerZ; }
   __device__ __forceinline__ float get_outer_z(Hits const& hh) const { return hh.zGlobal(theOuterHitId); }
-  __device__ __forceinline__ float get_inner_r(Hits const& hh) const {
-    return theInnerR;
-  }  // { return hh.rGlobal(theInnerHitId); } // { return theInnerR; }
+  __device__ __forceinline__ float get_inner_r(Hits const& hh) const { return theInnerR; }
+     // { return hh.rGlobal(theInnerHitId); } // { return theInnerR; }
   __device__ __forceinline__ float get_outer_r(Hits const& hh) const { return hh.rGlobal(theOuterHitId); }
 
   __device__ __forceinline__ auto get_inner_iphi(Hits const& hh) const { return hh.iphi(theInnerHitId); }
@@ -175,6 +174,21 @@ public:
 
     return std::abs(eq.dca0()) < region_origin_radius_plus_tolerance * std::abs(eq.curvature());
   }
+
+
+  __device__ __forceinline__ static bool dcaCutH(float x1,float y1, float x2,float y2, float x3,float y3,
+                                const float region_origin_radius_plus_tolerance,
+                                   const float maxCurv) {
+
+    CircleEq<float> eq(x1, y1, x2, y2, x3, y3);
+
+    if (eq.curvature() > maxCurv)
+      return false;
+
+    return std::abs(eq.dca0()) < region_origin_radius_plus_tolerance * std::abs(eq.curvature());
+  }
+
+
 
   __device__ inline bool hole0(Hits const& hh, GPUCACell const& innerCell) const {
     constexpr uint32_t max_ladder_bpx0 = 12;

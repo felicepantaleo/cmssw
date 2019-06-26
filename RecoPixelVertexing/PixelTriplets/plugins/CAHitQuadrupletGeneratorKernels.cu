@@ -196,24 +196,43 @@ __global__ void kernel_connect(AtomicPairCounter *apc1,
   auto innerHitId = thisCell.get_inner_hit_id();
   auto numberOfPossibleNeighbors = isOuterHitOfCell[innerHitId].size();
   auto vi = isOuterHitOfCell[innerHitId].data();
+
+  constexpr uint32_t last_bpix1_detIndex = 96;
+  constexpr uint32_t last_barrel_detIndex = 1184;
+  auto ri = thisCell.get_inner_r(hh);
+  auto zi = thisCell.get_inner_z(hh);
+
+  auto ro = thisCell.get_outer_r(hh);
+  auto zo = thisCell.get_outer_z(hh);
+  auto isBarrel = thisCell.get_inner_detIndex(hh) < last_barrel_detIndex;
+
   for (auto j = first; j < numberOfPossibleNeighbors; j += stride) {
     auto otherCell = __ldg(vi + j);
+    auto & oc = cells[otherCell];
     // if (cells[otherCell].theDoubletId < 0 ||
     //    cells[otherCell].theUsed>1 )
     //  continue;
-    if (thisCell.check_alignment(hh,
-                                 cells[otherCell],
-                                 ptmin,
-                                 hardCurvCut,
-                                 CAThetaCutBarrel,
-                                 CAThetaCutForward,
-                                 dcaCutInnerTriplet,
-                                 dcaCutOuterTriplet)) {
-      cells[otherCell].addOuterNeighbor(cellIndex, *cellNeighbors);
+    auto r1 = oc.get_inner_r(hh);
+    auto z1 = oc.get_inner_z(hh);
+    // auto isBarrel = oc.get_outer_detIndex(hh) < last_barrel_detIndex;
+    bool aligned = GPUCACell::areAlignedRZ(r1,
+                                z1,
+                                ri,
+                                zi,
+                                ro,
+                                zo,
+                                ptmin,
+                                isBarrel ? CAThetaCutBarrel : CAThetaCutForward);  // 2.f*thetaCut); // FIXME tune cuts
+    if(aligned &&
+      thisCell.dcaCut(hh,oc,
+                      oc.get_inner_detIndex(hh) < last_bpix1_detIndex ? dcaCutInnerTriplet : dcaCutOuterTriplet,
+                      hardCurvCut)
+       ) {  // FIXME tune cuts
+      oc.addOuterNeighbor(cellIndex, *cellNeighbors);
       thisCell.theUsed |= 1;
-      cells[otherCell].theUsed |= 1;
+      oc.theUsed |= 1;
     }
-  }
+  } // loop on inner cells
 }
 
 __global__ void kernel_find_ntuplets(GPUCACell::Hits const *__restrict__ hhp,
