@@ -267,8 +267,7 @@ __global__ void kernel_find_ntuplets(GPUCACell::Hits const *__restrict__ hhp,
                 thisCell.theLayerPairId == 8;  // inner layer is 0
   myStart[1] =  thisCell.theLayerPairId == 1 || thisCell.theLayerPairId == 4 || thisCell.theLayerPairId == 9 ||  
                 thisCell.theLayerPairId == 6 || thisCell.theLayerPairId == 11; // inner layer is "1"
-  myStart[2] =  thisCell.theLayerPairId == 13 || thisCell.theLayerPairId == 14 || // barrel jumps...
-                thisCell.theLayerPairId == 15 || thisCell.theLayerPairId == 16;    // fw jumps...
+  myStart[2] =  thisCell.theLayerPairId > 12;  // jumps
   //
   auto doit = start>=0 ? myStart[start] : myStart[0]||myStart[1]||myStart[2];
   if (doit) {
@@ -616,6 +615,7 @@ void CAHitQuadrupletGeneratorKernels::launchKernels(  // here goes algoparms....
                                                                      doIterations_ ? startLayer : -1);
     cudaCheck(cudaGetLastError());
 
+    if (doIterations_ || doStats_)
     kernel_mark_used<<<numberOfBlocks, blockSize, 0, cudaStream>>>(hh.view(),
                                                                    device_theCells_.get(),
                                                                    device_nCells_);
