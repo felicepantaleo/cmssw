@@ -23,14 +23,14 @@ namespace CAConstants {
   constexpr uint32_t maxNumberOfQuadruplets() { return maxNumberOfTuples(); }
 #ifndef ONLY_PHICUT
 #ifndef GPU_SMALL_EVENTS
-  constexpr uint32_t maxNumberOfDoublets() { return 262144; }
+  constexpr uint32_t maxNumberOfDoublets() { return 393216; }
   constexpr uint32_t maxCellsPerHit() { return 128; }
 #else
-  constexpr uint32_t maxNumberOfDoublets() { return 262144 / 2; }
+  constexpr uint32_t maxNumberOfDoublets() { return 393216 / 2; }
   constexpr uint32_t maxCellsPerHit() { return 128 / 2; }
 #endif
 #else
-  constexpr uint32_t maxNumberOfDoublets() { return 6 * 262144; }
+  constexpr uint32_t maxNumberOfDoublets() { return 4 * 393216; }
   constexpr uint32_t maxCellsPerHit() { return 4 * 128; }
 #endif
   constexpr uint32_t maxNumOfActiveDoublets() { return maxNumberOfDoublets() / 4; }
@@ -44,7 +44,7 @@ namespace CAConstants {
   using tindex_type = uint16_t;  //  for tuples
 
   using CellNeighbors = GPU::VecArray<uint32_t, 36>;
-  using CellTracks = GPU::VecArray<tindex_type, 42>;
+  using CellTracks = GPU::VecArray<tindex_type, 64>;
 
   using CellNeighborsVector = GPU::SimpleVector<CellNeighbors>;
   using CellTracksVector = GPU::SimpleVector<CellTracks>;
