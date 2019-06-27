@@ -12,6 +12,8 @@
 
 namespace gpuClustering {
 
+  __device__ uint32_t gMaxHit=0;
+
   __global__ void countModules(uint16_t const* __restrict__ id,
                                uint32_t* __restrict__ moduleStart,
                                int32_t* __restrict__ clusterId,
@@ -271,9 +273,12 @@ namespace gpuClustering {
     if (threadIdx.x == 0) {
       nClustersInModule[thisModuleId] = foundClusters;
       moduleId[blockIdx.x] = thisModuleId;
+      if (foundClusters>gMaxHit) {
+         gMaxHit = foundClusters;
+         if (foundClusters>8) printf("max hit %d in %d\n",foundClusters, thisModuleId);
+      }
 #ifdef GPU_DEBUG
       if (thisModuleId % 100 == 1)
-        if (threadIdx.x == 0)
           printf("%d clusters in module %d\n", foundClusters, thisModuleId);
 #endif
     }
