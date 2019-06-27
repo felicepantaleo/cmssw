@@ -261,12 +261,10 @@ __global__ void kernel_find_ntuplets(GPUCACell::Hits const *__restrict__ hhp,
     local.zero();
   __syncthreads();
 #endif
-  // this stuff needs optimization....
+  // this stuff may need further optimization....
   bool myStart[3];
-  myStart[0] =  thisCell.theLayerPairId == 0 || thisCell.theLayerPairId == 3 ||
-                thisCell.theLayerPairId == 8;  // inner layer is 0
-  myStart[1] =  thisCell.theLayerPairId == 1 || thisCell.theLayerPairId == 4 || thisCell.theLayerPairId == 9 ||  
-                thisCell.theLayerPairId == 6 || thisCell.theLayerPairId == 11; // inner layer is "1"
+  myStart[0] =  thisCell.theLayerPairId <3; // inner layer is "0"
+  myStart[1] =  thisCell.theLayerPairId >2 && thisCell.theLayerPairId <8; // inner layer is "1"
   myStart[2] =  thisCell.theLayerPairId > 12;  // jumps
   //
   auto doit = start>=0 ? myStart[start] : myStart[0]||myStart[1]||myStart[2];
