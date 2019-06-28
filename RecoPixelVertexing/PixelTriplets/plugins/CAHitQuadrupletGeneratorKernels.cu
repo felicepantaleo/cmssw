@@ -556,18 +556,6 @@ void CAHitQuadrupletGeneratorKernels::launchKernels(  // here goes algoparms....
   if (nhits<2) std::cout << "too few hits " << nhits << std::endl;
 
 
-  if (nhits > 1 && earlyFishbone_) {
-    auto nthTot = 64;
-    auto stride = 4;
-    auto blockSize = nthTot / stride;
-    auto numberOfBlocks = (nhits + blockSize - 1) / blockSize;
-    dim3 blks(1, numberOfBlocks, 1);
-    dim3 thrs(stride, blockSize, 1);
-    fishbone<<<blks, thrs, 0, cudaStream>>>(
-        hh.view(), device_theCells_.get(), device_nCells_, device_isOuterHitOfCell_.get(), nhits, false);
-    cudaCheck(cudaGetLastError());
-  }
-
   auto nthTot = 64;
   auto stride = 4;
   auto blockSize = nthTot / stride;
@@ -595,6 +583,21 @@ void CAHitQuadrupletGeneratorKernels::launchKernels(  // here goes algoparms....
       dcaCutInnerTriplet_,
       dcaCutOuterTriplet_);
   cudaCheck(cudaGetLastError());
+
+
+  if (nhits > 1 && earlyFishbone_) {
+    auto nthTot = 128;
+    auto stride = 16;
+    auto blockSize = nthTot / stride;
+    auto numberOfBlocks = (nhits + blockSize - 1) / blockSize;
+    dim3 blks(1, numberOfBlocks, 1);
+    dim3 thrs(stride, blockSize, 1);
+    fishbone<<<blks, thrs, 0, cudaStream>>>(
+        hh.view(), device_theCells_.get(), device_nCells_, device_isOuterHitOfCell_.get(), nhits, false);
+    cudaCheck(cudaGetLastError());
+  }
+
+
 
 
   blockSize = 64;
@@ -751,11 +754,13 @@ void CAHitQuadrupletGeneratorKernels::classifyTuples(HitsOnCPU const &hh,
       tuples.tuples_d, tuples.helix_fit_results_d, cuts_, tuples.quality_d);
   cudaCheck(cudaGetLastError());
 
-  // apply fishbone cleaning to good tracks
-  numberOfBlocks = (CAConstants::maxNumberOfDoublets() + blockSize - 1) / blockSize;
-  kernel_fishboneCleaner<<<numberOfBlocks, blockSize, 0, cudaStream>>>(
-      device_theCells_.get(), device_nCells_, tuples.quality_d);
-  cudaCheck(cudaGetLastError());
+  if (lateFishbone_) {
+    // apply fishbone cleaning to good tracks
+    numberOfBlocks = (CAConstants::maxNumberOfDoublets() + blockSize - 1) / blockSize;
+    kernel_fishboneCleaner<<<numberOfBlocks, blockSize, 0, cudaStream>>>(
+        device_theCells_.get(), device_nCells_, tuples.quality_d);
+    cudaCheck(cudaGetLastError());
+  }
 
   // remove duplicates (tracks that share a doublet)
   numberOfBlocks = (CAConstants::maxNumberOfDoublets() + blockSize - 1) / blockSize;

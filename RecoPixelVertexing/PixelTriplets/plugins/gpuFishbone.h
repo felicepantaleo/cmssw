@@ -50,6 +50,7 @@ namespace gpuPixelDoublets {
     auto sg = 0;
     for (uint32_t ic = 0; ic < s; ++ic) {
       auto& ci = cells[vc[ic]];
+      if (0==ci.theUsed) continue; // for triplets equivalent to next 
       if (checkTrack && ci.tracks().empty())
         continue;
       cc[sg] = vc[ic];

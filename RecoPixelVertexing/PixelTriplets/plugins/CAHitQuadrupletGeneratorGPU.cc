@@ -103,8 +103,8 @@ void CAHitQuadrupletGeneratorGPU::fillDescriptions(edm::ParameterSetDescription 
   desc.add<double>("hardCurvCut", 1.f / (0.35 * 87.f))->setComment("Cut on minimum curvature");
   desc.add<double>("dcaCutInnerTriplet", 0.15f)->setComment("Cut on origin radius when the inner hit is on BPix1");
   desc.add<double>("dcaCutOuterTriplet", 0.25f)->setComment("Cut on origin radius when the outer hit is on BPix1");
-  desc.add<bool>("earlyFishbone", false);
-  desc.add<bool>("lateFishbone", true);
+  desc.add<bool>("earlyFishbone", true);
+  desc.add<bool>("lateFishbone", false);
   desc.add<bool>("idealConditions", true);
   desc.add<bool>("fillStatistics", false);
   desc.add<unsigned int>("minHitsPerNtuplet", 4);
