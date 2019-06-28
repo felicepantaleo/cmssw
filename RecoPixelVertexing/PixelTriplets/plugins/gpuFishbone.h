@@ -40,6 +40,7 @@ namespace gpuPixelDoublets {
     if (s < 2)
       return;
     // if alligned kill one of the two.
+    // in principle one could try to relax the cut (only in r-z?) for jumping-doublets 
     auto const& c0 = cells[vc[0]];
     auto xo = c0.get_outer_x(hh);
     auto yo = c0.get_outer_y(hh);
