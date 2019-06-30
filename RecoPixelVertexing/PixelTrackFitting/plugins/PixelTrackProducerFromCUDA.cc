@@ -160,8 +160,8 @@ void PixelTrackProducerFromCUDA::produceGPUCuda(edm::HeterogeneousEvent &iEvent,
 
     LocalTrajectoryParameters lpar(opar(0),opar(1),opar(2),opar(3),opar(4),1.);
     AlgebraicSymMatrix55 m;
-    LocalTrajectoryError error(m);
     for(int i=0; i<5; ++i) for (int j=i; j<5; ++j) m(i,j) = ocov(i,j);
+    LocalTrajectoryError error(m);
 
     float sp = std::sin(phi);
     float cp = std::cos(phi);
