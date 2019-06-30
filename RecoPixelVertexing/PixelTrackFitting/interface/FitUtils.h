@@ -189,6 +189,37 @@ namespace Rfit {
     circle.par = par_pak;
   }
 
+  // transformation between the "perigee" to cmssw localcoord frame
+  // the plane of the latter is the perigee plane...
+  // from   //!<(phi,Tip,pt,cotan(theta)),Zip)
+  // to q/p,dx/dz,dy/dz,x,z
+  template<typename V5, typename M5>
+  __host__ __device__ inline void transfromToPerigeePlane(V5 const & ip, M5 const & icov, V5 & op, M5 & ocov, double charge) {
+
+    auto sinTheta2 = 1./(1.+ip(3)*ip(3));
+    auto sinTheta = std::sqrt(sinTheta2);
+    auto cosTheta = ip(3)*sinTheta;
+    auto tipSignNeg = -std::copysign(1.,ip(1));
+
+    op(0) = charge*sinTheta/ip(2);
+    op(1) = 0.;
+    op(2) = tipSignNeg*ip(3);
+    op(3) = std::abs(ip(1));
+    op(4) = tipSignNeg*ip(4);
+
+    Matrix5d J = Matrix5d::Zero();
+
+    J(0,2) = -charge*sinTheta/(ip(2)*ip(2));
+    J(0,3) = -charge*sinTheta2*cosTheta/ip(2);
+    J(1,0) = 1.;
+    J(2,3) = tipSignNeg;
+    J(3,1) = -tipSignNeg;
+    J(4,4) = tipSignNeg;
+
+    ocov=  J*icov*J.transpose();
+
+  }
+
 }  // namespace Rfit
 
 #endif  // RecoPixelVertexing_PixelTrackFitting_interface_FitUtils_h

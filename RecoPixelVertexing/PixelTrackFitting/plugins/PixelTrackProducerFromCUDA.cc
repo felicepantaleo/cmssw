@@ -11,13 +11,15 @@
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/ParameterSet/interface/ParameterSetDescription.h"
 #include "Geometry/Records/interface/TrackerTopologyRcd.h"
+#include "MagneticField/Records/interface/IdealMagneticFieldRecord.h"
 #include "HeterogeneousCore/CUDACore/interface/GPUCuda.h"
 #include "HeterogeneousCore/CUDAServices/interface/CUDAService.h"
 #include "HeterogeneousCore/Producer/interface/HeterogeneousEDProducer.h"
-#include "RecoPixelVertexing/PixelTrackFitting/interface/PixelTrackBuilder.h"
-#include "RecoPixelVertexing/PixelTrackFitting/interface/PixelTrackCleaner.h"
 #include "RecoPixelVertexing/PixelTriplets/plugins/pixelTuplesHeterogeneousProduct.h"
 #include "RecoTracker/TkHitPairs/interface/RegionsSeedingHitSets.h"
+#include "TrackingTools/TrajectoryState/interface/BasicTrajectoryStateOnSurface.h"
+#include "RecoPixelVertexing/PixelTrackFitting/interface/FitUtils.h"
+
 
 #include "storeTracks.h"
 
@@ -106,8 +108,6 @@ void PixelTrackProducerFromCUDA::produceGPUCuda(edm::HeterogeneousEvent &iEvent,
   edm::ESHandle<MagneticField> fieldESH;
   iSetup.get<IdealMagneticFieldRecord>().get(fieldESH);
 
-  PixelTrackBuilder builder;
-
   pixeltrackfitting::TracksWithTTRHs tracks;
   edm::ESHandle<TrackerTopology> httopo;
   iSetup.get<TrackerTopologyRcd>().get(httopo);
@@ -149,32 +149,43 @@ void PixelTrackProducerFromCUDA::produceGPUCuda(edm::HeterogeneousEvent &iEvent,
 
     // std::cout << "tk " << it << ": " << fittedTrack.q << ' ' << fittedTrack.par[2] << ' ' << std::sqrt(fittedTrack.cov(2, 2)) << std::endl;
 
-    int iCharge = fittedTrack.q;
-    float valPhi = fittedTrack.par(0);
-    float valTip = fittedTrack.par(1);
-    float valPt = fittedTrack.par(2);
-    float valCotTheta = fittedTrack.par(3);
-    float valZip = fittedTrack.par(4);
-
-    float errValPhi = std::sqrt(fittedTrack.cov(0, 0));
-    float errValTip = std::sqrt(fittedTrack.cov(1, 1));
-    float errValPt = std::sqrt(fittedTrack.cov(2, 2));
-    float errValCotTheta = std::sqrt(fittedTrack.cov(3, 3));
-    float errValZip = std::sqrt(fittedTrack.cov(4, 4));
-
+    auto iCharge = fittedTrack.q;
+    float tipSign = std::copysign(1.,fittedTrack.par(1));
+    float phi = fittedTrack.par(0);
     float chi2 = fittedTrack.chi2_line + fittedTrack.chi2_circle;
 
-    Measurement1D phi(valPhi, errValPhi);
-    Measurement1D tip(valTip, errValTip);
+    Rfit::Vector5d opar;
+    Rfit::Matrix5d ocov;
+    Rfit::transfromToPerigeePlane(fittedTrack.par,fittedTrack.cov,opar,ocov,iCharge);
 
-    Measurement1D pt(valPt, errValPt);
-    Measurement1D cotTheta(valCotTheta, errValCotTheta);
-    Measurement1D zip(valZip, errValZip);
+    LocalTrajectoryParameters lpar(opar(0),opar(1),opar(2),opar(3),opar(4),1.);
+    AlgebraicSymMatrix55 m;
+    LocalTrajectoryError error(m);
+    for(int i=0; i<5; ++i) for (int j=i; j<5; ++j) m(i,j) = ocov(i,j);
 
-    std::unique_ptr<reco::Track> track(
-        builder.build(pt, phi, cotTheta, tip, zip, chi2, iCharge, hits, fieldESH.product(), bs));
-    if (!track)
-      continue;
+    float sp = std::sin(phi);
+    float cp = std::cos(phi);
+    Surface::RotationType rot(
+                            sp*tipSign, -cp*tipSign,           0,
+                            0         ,           0,    -tipSign,
+                            cp        ,  sp        ,           0);
+
+    // BTSOS hold Surface in a shared pointer and  will be autodeleted when BTSOS goes out of scope...
+    // to avoid memory churn we allocate it locally and just avoid it be deleted by refcount...
+    Plane impPointPlane(bs, rot);
+    // (twice just to be sure!)
+    impPointPlane.addReference(); impPointPlane.addReference();
+    // use Base (to avoid a useless new)
+    BasicTrajectoryStateOnSurface impactPointState( lpar , error, impPointPlane, fieldESH.product());
+
+    int ndof = 2*hits.size()-5;
+    GlobalPoint vv = impactPointState.globalPosition();
+    math::XYZPoint  pos( vv.x(), vv.y(), vv.z() );
+    GlobalVector pp = impactPointState.globalMomentum();
+    math::XYZVector mom( pp.x(), pp.y(), pp.z() );
+
+    auto track =  std::make_unique<reco::Track> ( chi2, ndof, pos, mom,
+               impactPointState.charge(), impactPointState.curvilinearError());
     // filter???
     tracks.emplace_back(track.release(), shits);
     ++nh;
