@@ -89,7 +89,7 @@ public:
 
   void classifyTuples(HitsOnCPU const& hh, TuplesOnGPU& tuples_d, cudaStream_t cudaStream);
 
-  void fillHitIndices(HitsOnCPU const &hh, TuplesOnGPU &tuples, TuplesOnGPU::Container * hitDetIndices, cuda::stream_t<>& stream);
+  void fillHitDetIndices(HitsOnCPU const &hh, TuplesOnGPU &tuples, TuplesOnGPU::Container * hitDetIndices, cuda::stream_t<>& stream);
 
   void buildDoublets(HitsOnCPU const& hh, cuda::stream_t<>& stream);
   void allocateOnGPU();

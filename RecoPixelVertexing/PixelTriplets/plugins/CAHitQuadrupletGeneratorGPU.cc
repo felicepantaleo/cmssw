@@ -263,7 +263,7 @@ void CAHitQuadrupletGeneratorGPU::launchKernels(HitsOnCPU const &hh,
     cudaCheck(cudaMemcpyAsync(
         tuples_, gpu_.tuples_d, sizeof(TuplesOnGPU::Container), cudaMemcpyDeviceToHost, cudaStream.id()));
 
-    kernels.fillHitIndices(hh, gpu_, hitDetIndices_, cudaStream);
+    kernels.fillHitDetIndices(hh, gpu_, hitDetIndices_, cudaStream);
 
     cudaCheck(cudaMemcpyAsync(helix_fit_results_,
                               gpu_.helix_fit_results_d,
