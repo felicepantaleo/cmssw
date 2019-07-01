@@ -1,26 +1,34 @@
-#include "RecoPixelVertexing/PixelTrackFitting/interface/FitResult.h"
+#include "RecoPixelVertexing/PixelTrackFitting/interface/FitUtils.h"
 #include<cmath>
 
 using Rfit::Vector5d;
 using Rfit::Matrix5d;
 
-// transformation between the "perigee" to cmssw localcoord frame
-// the plane of the latter is the perigee plane...
-// from   //!<(phi,Tip,pt,cotan(theta)),Zip)
-// to 1/p,dx/dz,dy/dz,x,z
 
-Vector5d transf(Vector5d  const & p) {
-  Vector5d op;
-  auto tipSignNeg = -std::copysign(1.,p(1));
-  auto sinTheta = 1/std::sqrt(1+p(3)*p(3));
-  op(0) = sinTheta/p(2);
-  op(1) = 0.;
-  op(2) = tipSignNeg*p(3);
-  op(3) = std::abs(p(1));
-  op(4) = tipSignNeg*p(4);
-  return op;
+#include "TrackingTools/AnalyticalJacobians/interface/JacobianLocalToCurvilinear.h"
+
+#include "DataFormats/GeometrySurface/interface/Surface.h"
+#include "DataFormats/TrajectoryState/interface/LocalTrajectoryParameters.h"
+#include "TrackingTools/TrajectoryParametrization/interface/GlobalTrajectoryParameters.h"
+
+#include "DataFormats/GeometrySurface/interface/Plane.h"
+
+#include "MagneticField/Engine/interface/MagneticField.h"
+
+namespace {
+
+  struct M5T : public  MagneticField {
+    M5T() :  mf(0.,0.,5.){}
+    virtual GlobalVector inTesla (const GlobalPoint&) const {
+      return mf;
+    }
+
+    GlobalVector mf;
+  };
+
 }
 
+// old pixeltrack version...
 Matrix5d transfFast(Matrix5d cov, Vector5d const &  p) {
   auto sqr = [](auto x) { return x*x;};
   auto sinTheta = 1/std::sqrt(1+p(3)*p(3));
@@ -36,37 +44,6 @@ Matrix5d transfFast(Matrix5d cov, Vector5d const &  p) {
 
 
 }
-
-Matrix5d Jacobian(Vector5d const &  p) {
-/*
-  op(0) = sinTheta/p(2);
-  op(1) = 0.;
-  op(2) = tipSignNeg*p(3);
-  op(3) = std::abs(p(1));
-  op(4) = tipSignNeg*p(4);
-*/
-
-  Matrix5d J = Matrix5d::Zero();
-
-  auto sinTheta2 = 1/(1+p(3)*p(3));
-  auto sinTheta = std::sqrt(sinTheta2);
-  auto cosTheta = p(3)*sinTheta;
-  auto tipSignNeg = -std::copysign(1.,p(1));
-
-  J(0,2) = -sinTheta/(p(2)*p(2));
-  J(0,3) = -sinTheta2*cosTheta/p(2);
-  J(1,0) = 1.;
-  J(2,3) = tipSignNeg;
-  J(3,1) = -tipSignNeg;
-  J(4,4) = tipSignNeg;
-  return J;
-}
-
-Matrix5d transf(Matrix5d const & cov, Matrix5d const& J) {
-
-   return J*cov*J.transpose();
-
-}  
 
 Matrix5d loadCov(Vector5d const & e) {
 
@@ -86,43 +63,83 @@ Matrix5d loadCov(Vector5d const & e) {
 #include<iostream>
 int main() {
 
-  for (auto stip=-1; stip<2; stip+=2)
-  for (auto szip=-1; szip<2; szip+=2) {
+ M5T const mf;
+
+ for (auto charge=-1; charge<2; charge+=2)
+ for (auto szip=-1; szip<2; szip+=2)
+ for (auto stip=-1; stip<2; stip+=2)
+ {
   Vector5d par0; par0 << 0.2,0.1,3.5,0.8,0.1;
   Vector5d del0; del0 << 0.01,0.01,0.035,-0.03,-0.01;
   //!<(phi,Tip,pt,cotan(theta)),Zip)
     par0(1) *= stip;
     par0(4) *= szip;
 
-  Matrix5d J = Jacobian(par0);
-
-
-  Vector5d par1 = transf(par0);
-  Vector5d par2 = transf(par0+del0);
-  // not accurate as the perigee plane move as well...
-  Vector5d del1 = par2-par1; 
-
   Matrix5d cov0 = loadCov(del0);
-  Matrix5d cov1 = transf(cov0,J);
-  Matrix5d cov2 = transfFast(cov0,par0);
+
+  Vector5d par1;
+  Vector5d par2;
+
+  Matrix5d cov1;
+  Matrix5d cov2;
+
+  // Matrix5d covf = transfFast(cov0,par0);
+
+  Rfit::transfromToPerigeePlane(par0,cov0,par1,cov1,charge);
+
+  std::cout << "cov1\n" << cov1 << std::endl;
+
+
+  LocalTrajectoryParameters lpar(par1(0),par1(1),par1(2),par1(3),par1(4),1.);
+  AlgebraicSymMatrix55 m;
+  for(int i=0; i<5; ++i) for (int j=i; j<5; ++j) m(i,j) = cov1(i,j);
+  //LocalTrajectoryError error(m);
+
+    float tipSign = std::copysign(1.,par0(1));
+    float phi = par0(0);
+    float sp = std::sin(phi);
+    float cp = std::cos(phi);
+    Surface::RotationType rot(
+                            sp*tipSign, -cp*tipSign,           0,
+                            0         ,           0,    -tipSign,
+                            cp        ,  sp        ,           0);
+
+  Surface::PositionType bs(0., 0., 0.);
+  Plane plane(bs,rot);
+  GlobalTrajectoryParameters gp(plane.toGlobal(lpar.position()), plane.toGlobal(lpar.momentum()),lpar.charge(),&mf);
+  std::cout << "global par " << gp.position() << ' ' << gp.momentum() << ' ' << gp.charge() << std::endl;
+  JacobianLocalToCurvilinear jl2c(plane,lpar,mf);
+  std::cout << "jac l2c" << jl2c.jacobian() << std::endl;
+
+  AlgebraicSymMatrix55 mo = ROOT::Math::Similarity(jl2c.jacobian(),m);
+  std::cout << "curv error\n" << mo << std::endl;
+
+  /*
+
+  // not accurate as the perigee plane move as well...
+  Vector5d del1 = par2-par1;
+
 
   // don't ask: guess
+  std::cout << "charge " << charge << std::endl;
   std::cout << "par0 " << par0.transpose() << std::endl;
   std::cout << "del0 " << del0.transpose() << std::endl;
 
 
   std::cout << "par1 " << par1.transpose() << std::endl;
   std::cout << "del1 " << del1.transpose() << std::endl;
-  std::cout << "del2 " << (J*del0).transpose() << std::endl;
+  // std::cout << "del2 " << (J*del0).transpose() << std::endl;
 
   std::cout << "del1^2 " << (del1.array()*del1.array()).transpose() << std::endl;
   std::cout << std::endl;
-  std::cout << "J\n" << J << std::endl;
   
   std::cout << "cov0\n" << cov0 << std::endl;
   std::cout << "cov1\n" << cov1 << std::endl;
   std::cout << "cov2\n" << cov2 << std::endl;
+  */
+
   std::cout << std::endl << "----------" << std::endl;
+
 
   } // lopp over signs
 
