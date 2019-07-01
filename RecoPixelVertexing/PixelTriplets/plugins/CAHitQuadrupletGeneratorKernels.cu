@@ -381,6 +381,37 @@ __global__ void kernel_fillHitInTracks(TuplesOnGPU::Container const *__restrict_
   }
 }
 
+__global__ void kernel_fillHitIndices(TuplesOnGPU::Container const *__restrict__ tuples,
+                                      TrackingRecHit2DSOAView const *__restrict__ hhp,
+                                      TuplesOnGPU::Container *__restrict__ hitDetIndices) {
+  int first = blockDim.x * blockIdx.x + threadIdx.x;
+  // copy offsets
+  for (int idx = first, ntot = tuples->totbins(); idx < ntot; idx += gridDim.x * blockDim.x) {
+    hitDetIndices->off[idx] = tuples->off[idx];
+  }
+  // fill hit indices
+  auto const & hh = *hhp;
+  for (int idx = first, ntot = tuples->size(); idx < ntot; idx += gridDim.x * blockDim.x) {
+    hitDetIndices->bins[idx] = hh.detectorIndex(tuples->bins[idx]);
+  }
+}
+
+void CAHitQuadrupletGeneratorKernels::fillHitIndices(HitsOnCPU const &hh,
+                                                     TuplesOnGPU &tuples,
+                                                     TuplesOnGPU::Container * hitDetIndices,
+                                                     cuda::stream_t<> &stream) {
+  // copy directly to cpu...
+  edm::Service<CUDAService> cs;
+  auto hitDetIndices_d = cs->make_device_unique<TuplesOnGPU::Container>(stream);
+
+  auto blockSize=128;
+  auto numberOfBlocks = (TuplesOnGPU::Container::capacity() + blockSize - 1) / blockSize;
+
+  kernel_fillHitIndices<<<numberOfBlocks,blockSize,0,stream.id()>>>(tuples.tuples_d, hh.view(),hitDetIndices_d.get());
+  cudaCheck(cudaMemcpyAsync(
+        hitDetIndices, hitDetIndices_d.get(), sizeof(TuplesOnGPU::Container), cudaMemcpyDeviceToHost, stream.id()));
+}
+
 __global__ void kernel_doStatsForHitInTracks(CAHitQuadrupletGeneratorKernels::HitToTuple const *__restrict__ hitToTuple,
                                              CAHitQuadrupletGeneratorKernels::Counters *counters) {
   auto &c = *counters;
