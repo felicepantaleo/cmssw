@@ -93,16 +93,14 @@ int main() {
   LocalTrajectoryParameters lpar(par1(0),par1(1),par1(2),par1(3),par1(4),1.);
   AlgebraicSymMatrix55 m;
   for(int i=0; i<5; ++i) for (int j=i; j<5; ++j) m(i,j) = cov1(i,j);
-  //LocalTrajectoryError error(m);
 
-    float tipSign = std::copysign(1.,par0(1));
     float phi = par0(0);
     float sp = std::sin(phi);
     float cp = std::cos(phi);
     Surface::RotationType rot(
-                            sp*tipSign, -cp*tipSign,           0,
-                            0         ,           0,    -tipSign,
-                            cp        ,  sp        ,           0);
+                              sp, -cp,    0,
+                               0,   0, -1.f,
+                              cp,  sp,    0);
 
   Surface::PositionType bs(0., 0., 0.);
   Plane plane(bs,rot);

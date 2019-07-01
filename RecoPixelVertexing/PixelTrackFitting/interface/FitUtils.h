@@ -199,22 +199,21 @@ namespace Rfit {
     auto sinTheta2 = 1./(1.+ip(3)*ip(3));
     auto sinTheta = std::sqrt(sinTheta2);
     auto cosTheta = ip(3)*sinTheta;
-    auto tipSignNeg = -std::copysign(1.,ip(1));
 
     op(0) = charge*sinTheta/ip(2);
     op(1) = 0.;
-    op(2) = tipSignNeg*ip(3);
-    op(3) = std::abs(ip(1));
-    op(4) = tipSignNeg*ip(4);
+    op(2) = -ip(3);
+    op(3) = ip(1);
+    op(4) = -ip(4);
 
     Matrix5d J = Matrix5d::Zero();
 
     J(0,2) = -charge*sinTheta/(ip(2)*ip(2));
     J(0,3) = -charge*sinTheta2*cosTheta/ip(2);
     J(1,0) = 1.;
-    J(2,3) = tipSignNeg;
-    J(3,1) = -tipSignNeg;
-    J(4,4) = tipSignNeg;
+    J(2,3) = -1.;
+    J(3,1) = 1.;
+    J(4,4) = -1;
 
     ocov=  J*icov*J.transpose();
 

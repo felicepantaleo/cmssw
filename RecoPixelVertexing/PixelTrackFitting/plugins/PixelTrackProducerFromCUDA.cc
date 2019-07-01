@@ -5,6 +5,7 @@
 #include "DataFormats/TrackReco/interface/TrackFwd.h"
 #include "DataFormats/TrackerCommon/interface/TrackerTopology.h"
 #include "DataFormats/TrajectoryState/interface/LocalTrajectoryParameters.h"
+#include "DataFormats/GeometrySurface/interface/Plane.h"
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/Framework/interface/Frameworkfwd.h"
 #include "FWCore/Framework/interface/MakerMacros.h"
@@ -17,9 +18,10 @@
 #include "HeterogeneousCore/Producer/interface/HeterogeneousEDProducer.h"
 #include "RecoPixelVertexing/PixelTriplets/plugins/pixelTuplesHeterogeneousProduct.h"
 #include "RecoTracker/TkHitPairs/interface/RegionsSeedingHitSets.h"
-#include "TrackingTools/TrajectoryState/interface/BasicTrajectoryStateOnSurface.h"
+#include "TrackingTools/AnalyticalJacobians/interface/JacobianLocalToCurvilinear.h"
+#include "TrackingTools/TrajectoryParametrization/interface/GlobalTrajectoryParameters.h"
+#include "TrackingTools/TrajectoryParametrization/interface/CurvilinearTrajectoryError.h"
 #include "RecoPixelVertexing/PixelTrackFitting/interface/FitUtils.h"
-
 
 #include "storeTracks.h"
 
@@ -150,7 +152,6 @@ void PixelTrackProducerFromCUDA::produceGPUCuda(edm::HeterogeneousEvent &iEvent,
     // std::cout << "tk " << it << ": " << fittedTrack.q << ' ' << fittedTrack.par[2] << ' ' << std::sqrt(fittedTrack.cov(2, 2)) << std::endl;
 
     auto iCharge = fittedTrack.q;
-    float tipSign = std::copysign(1.,fittedTrack.par(1));
     float phi = fittedTrack.par(0);
     float chi2 = fittedTrack.chi2_line + fittedTrack.chi2_circle;
 
@@ -161,31 +162,29 @@ void PixelTrackProducerFromCUDA::produceGPUCuda(edm::HeterogeneousEvent &iEvent,
     LocalTrajectoryParameters lpar(opar(0),opar(1),opar(2),opar(3),opar(4),1.);
     AlgebraicSymMatrix55 m;
     for(int i=0; i<5; ++i) for (int j=i; j<5; ++j) m(i,j) = ocov(i,j);
-    LocalTrajectoryError error(m);
 
     float sp = std::sin(phi);
     float cp = std::cos(phi);
     Surface::RotationType rot(
-                            sp*tipSign, -cp*tipSign,           0,
-                            0         ,           0,    -tipSign,
-                            cp        ,  sp        ,           0);
+                              sp, -cp,    0,
+                               0,   0, -1.f,
+                              cp,  sp,    0);
 
-    // BTSOS hold Surface in a shared pointer and  will be autodeleted when BTSOS goes out of scope...
-    // to avoid memory churn we allocate it locally and just avoid it be deleted by refcount...
-    Plane impPointPlane(bs, rot);
-    // (twice just to be sure!)
-    impPointPlane.addReference(); impPointPlane.addReference();
-    // use Base (to avoid a useless new)
-    BasicTrajectoryStateOnSurface impactPointState( lpar , error, impPointPlane, fieldESH.product());
+    Plane impPointPlane(bs,rot);
+    GlobalTrajectoryParameters gp(impPointPlane.toGlobal(lpar.position()), 
+                                  impPointPlane.toGlobal(lpar.momentum()),lpar.charge(),fieldESH.product());
+    JacobianLocalToCurvilinear jl2c(impPointPlane,lpar,*fieldESH.product());
+
+    AlgebraicSymMatrix55 mo = ROOT::Math::Similarity(jl2c.jacobian(),m);
 
     int ndof = 2*hits.size()-5;
-    GlobalPoint vv = impactPointState.globalPosition();
+    GlobalPoint vv = gp.position();
     math::XYZPoint  pos( vv.x(), vv.y(), vv.z() );
-    GlobalVector pp = impactPointState.globalMomentum();
+    GlobalVector pp = gp.momentum();
     math::XYZVector mom( pp.x(), pp.y(), pp.z() );
 
     auto track =  std::make_unique<reco::Track> ( chi2, ndof, pos, mom,
-               impactPointState.charge(), impactPointState.curvilinearError());
+                  gp.charge(), CurvilinearTrajectoryError(mo));
     // filter???
     tracks.emplace_back(track.release(), shits);
     ++nh;
