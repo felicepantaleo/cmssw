@@ -713,7 +713,7 @@ void CAHitQuadrupletGeneratorKernels::buildDoublets(HitsOnCPU const &hh, cuda::s
 
   // FIXME avoid magic numbers
   auto nActualPairs=gpuPixelDoublets::nPairs;
-  if (noForwardTriplets_) nActualPairs = 15;
+  if (!includeJumpingForwardDoublets_) nActualPairs = 15;
   if (minHitsPerNtuplet_>3) {
     nActualPairs = 13;
   }

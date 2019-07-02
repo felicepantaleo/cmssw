@@ -61,7 +61,7 @@ constexpr unsigned int CAHitQuadrupletGeneratorGPU::minLayers;
 
 CAHitQuadrupletGeneratorGPU::CAHitQuadrupletGeneratorGPU(const edm::ParameterSet &cfg, edm::ConsumesCollector &iC)
     : kernels(cfg.getParameter<unsigned int>("minHitsPerNtuplet"),
-              cfg.getParameter<bool>("noForwardTriplets"),
+              cfg.getParameter<bool>("includeJumpingForwardDoublets"),
               cfg.getParameter<bool>("earlyFishbone"),
               cfg.getParameter<bool>("lateFishbone"),
               cfg.getParameter<bool>("idealConditions"),
@@ -108,7 +108,7 @@ void CAHitQuadrupletGeneratorGPU::fillDescriptions(edm::ParameterSetDescription 
   desc.add<bool>("idealConditions", true);
   desc.add<bool>("fillStatistics", false);
   desc.add<unsigned int>("minHitsPerNtuplet", 4);
-  desc.add<bool>("noForwardTriplets", true);
+  desc.add<bool>("includeJumpingForwardDoublets", false);
   desc.add<bool>("fit5as4", true);
   desc.add<bool>("doClusterCut", true);
   desc.add<bool>("doZCut", true);

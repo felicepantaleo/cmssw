@@ -51,7 +51,7 @@ public:
   };
 
   CAHitQuadrupletGeneratorKernels(uint32_t minHitsPerNtuplet,
-                                  bool noForwardTriplets,
+                                  bool includeJumpingForwardDoublets,
                                   bool earlyFishbone,
                                   bool lateFishbone,
                                   bool idealConditions,
@@ -68,7 +68,7 @@ public:
                                   float dcaCutOuterTriplet,
                                   QualityCuts const& cuts)
       : minHitsPerNtuplet_(minHitsPerNtuplet),
-        noForwardTriplets_(noForwardTriplets),
+        includeJumpingForwardDoublets_(includeJumpingForwardDoublets),
         earlyFishbone_(earlyFishbone),
         lateFishbone_(lateFishbone),
         idealConditions_(idealConditions),
@@ -123,7 +123,7 @@ private:
 
   // params
   const uint32_t minHitsPerNtuplet_;
-  const bool noForwardTriplets_;
+  const bool includeJumpingForwardDoublets_;
   const bool earlyFishbone_;
   const bool lateFishbone_;
   const bool idealConditions_;
