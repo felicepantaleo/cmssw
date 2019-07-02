@@ -56,12 +56,14 @@ private:
 
   edm::EDGetTokenT<reco::BeamSpot> tBeamSpot_;
   edm::EDGetTokenT<HeterogeneousProduct> gpuToken_;
+  uint32_t minNumberOfHits_;
 };
 
 SeedProducerFromCuda::SeedProducerFromCuda(const edm::ParameterSet &iConfig)
     : HeterogeneousEDProducer(iConfig),
       tBeamSpot_(consumes<reco::BeamSpot>(iConfig.getParameter<edm::InputTag>("beamSpot"))),
-      gpuToken_(consumes<HeterogeneousProduct>(iConfig.getParameter<edm::InputTag>("src")))
+      gpuToken_(consumes<HeterogeneousProduct>(iConfig.getParameter<edm::InputTag>("src"))),
+      minNumberOfHits_(iConfig.getParameter<unsigned int>("minNumberOfHits"))
 {
     produces<TrajectorySeedCollection>();
 }
@@ -70,7 +72,7 @@ void SeedProducerFromCuda::fillDescriptions(edm::ConfigurationDescriptions &desc
   edm::ParameterSetDescription desc;
   desc.add<edm::InputTag>("beamSpot", edm::InputTag("offlineBeamSpot"));
   desc.add<edm::InputTag>("src", edm::InputTag("pixelTracksHitQuadruplets"));
-
+  desc.add<unsigned int>("minNumberOfHits",4);
   HeterogeneousEDProducer::fillPSetDescription(desc);
   descriptions.addWithDefaultLabel(desc);
 }
@@ -91,6 +93,8 @@ void SeedProducerFromCuda::produceGPUCuda(edm::HeterogeneousEvent &iEvent,
                                                 cuda::stream_t<> &cudaStream) {
 
   // std::cout << "Converting gpu helix to trajectory seed" << std::endl;
+  auto result = std::make_unique<TrajectorySeedCollection>();
+
 
   edm::ESHandle<MagneticField> fieldESH;
   iSetup.get<IdealMagneticFieldRecord>().get(fieldESH);
@@ -118,8 +122,10 @@ void SeedProducerFromCuda::produceGPUCuda(edm::HeterogeneousEvent &iEvent,
     auto q = tuples_->quality[it];
     if (q != pixelTuplesHeterogeneousProduct::loose)
       continue;                           // FIXME
-    // fill hits with invalid just to hold the detId
     auto nHits = detIndices.size(it);
+    if (nHits<minNumberOfHits_) continue;
+
+    // fill hits with invalid just to hold the detId
     auto b = detIndices.begin(it);
     edm::OwnVector<TrackingRecHit> hits;
     for (unsigned int iHit = 0; iHit < nHits; ++iHit) {
@@ -128,14 +134,17 @@ void SeedProducerFromCuda::produceGPUCuda(edm::HeterogeneousEvent &iEvent,
       hits.push_back(new InvalidTrackingRecHit(*det,TrackingRecHit::bad));
     }
 
-    // mind: this values are respect the beamspot!
+    // mind: this values are respect to the beamspot!
     auto const &fittedTrack = tuples_->helix_fit_results[it];
 
     // std::cout << "tk " << it << ": " << fittedTrack.q << ' ' << fittedTrack.par[2] << ' ' << std::sqrt(fittedTrack.cov(2, 2)) << std::endl;
 
+    // "Reference implementation" following CMSSW (ORCA!) practices
+    // to be optimized, refactorized and eventually moved to GPU
+
     auto iCharge = fittedTrack.q;
     float phi = fittedTrack.par(0);
-
+   
     Rfit::Vector5d opar;
     Rfit::Matrix5d ocov;
     Rfit::transfromToPerigeePlane(fittedTrack.par,fittedTrack.cov,opar,ocov,iCharge);
@@ -154,6 +163,7 @@ void SeedProducerFromCuda::produceGPUCuda(edm::HeterogeneousEvent &iEvent,
     Plane impPointPlane(bs,rot);
     GlobalTrajectoryParameters gp(impPointPlane.toGlobal(lpar.position()), 
                                   impPointPlane.toGlobal(lpar.momentum()),lpar.charge(),fieldESH.product());
+
     JacobianLocalToCurvilinear jl2c(impPointPlane,lpar,*fieldESH.product());
 
     AlgebraicSymMatrix55 mo = ROOT::Math::Similarity(jl2c.jacobian(),m);
@@ -165,17 +175,18 @@ void SeedProducerFromCuda::produceGPUCuda(edm::HeterogeneousEvent &iEvent,
     TrajectoryStateOnSurface outerState = propagator->propagate(fts, *lastHit.surface());
 
     if (!outerState.isValid()){
-      edm::LogError("SeedFromProtoTrack")<<" was trying to create a seed from:\n"<<fts<<"\n propagating to: " 
+      edm::LogError("SeedFromGPU")<<" was trying to create a seed from:\n"<<fts<<"\n propagating to: " 
                                          << lastHit.geographicalId().rawId();
       continue;
     }
 
     auto const & pTraj = trajectoryStateTransform::persistentState(outerState, lastHit.geographicalId().rawId());
 
-    TrajectorySeed(pTraj, hits, alongMomentum);
+    result->emplace_back(pTraj, hits, alongMomentum);
 
   }
 
+  iEvent.put(std::move(result));
 }
 
 void SeedProducerFromCuda::produceCPU(edm::HeterogeneousEvent &iEvent, const edm::EventSetup &iSetup) {

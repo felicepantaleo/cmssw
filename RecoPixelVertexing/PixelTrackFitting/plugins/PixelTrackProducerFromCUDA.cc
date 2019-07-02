@@ -58,6 +58,7 @@ private:
   edm::EDGetTokenT<reco::BeamSpot> tBeamSpot_;
   edm::EDGetTokenT<HeterogeneousProduct> gpuToken_;
   edm::EDGetTokenT<RegionsSeedingHitSets> srcToken_;
+  uint32_t minNumberOfHits_;
   bool enableConversion_;
 };
 
@@ -65,6 +66,7 @@ PixelTrackProducerFromCUDA::PixelTrackProducerFromCUDA(const edm::ParameterSet &
     : HeterogeneousEDProducer(iConfig),
       tBeamSpot_(consumes<reco::BeamSpot>(iConfig.getParameter<edm::InputTag>("beamSpot"))),
       gpuToken_(consumes<HeterogeneousProduct>(iConfig.getParameter<edm::InputTag>("src"))),
+      minNumberOfHits_(iConfig.getParameter<unsigned int>("minNumberOfHits")),
       enableConversion_(iConfig.getParameter<bool>("gpuEnableConversion")) {
   if (enableConversion_) {
     srcToken_ = consumes<RegionsSeedingHitSets>(iConfig.getParameter<edm::InputTag>("src"));
@@ -81,6 +83,7 @@ void PixelTrackProducerFromCUDA::fillDescriptions(edm::ConfigurationDescriptions
   edm::ParameterSetDescription desc;
   desc.add<edm::InputTag>("beamSpot", edm::InputTag("offlineBeamSpot"));
   desc.add<edm::InputTag>("src", edm::InputTag("pixelTracksHitQuadruplets"));
+  desc.add<unsigned int>("minNumberOfHits", 4);
   desc.add<bool>("gpuEnableConversion", true);
 
   HeterogeneousEDProducer::fillPSetDescription(desc);
@@ -131,17 +134,20 @@ void PixelTrackProducerFromCUDA::produceGPUCuda(edm::HeterogeneousEvent &iEvent,
   GlobalPoint bs(bsh.x0(), bsh.y0(), bsh.z0());
 
   std::vector<const TrackingRecHit *> hits;
-  hits.reserve(4);
+  hits.reserve(5);
 
   uint32_t nh = 0;  // current hitset
   assert(tuples_->indToEdm.size() == tuples_->nTuples);
   for (uint32_t it = 0; it < tuples_->nTuples; ++it) {
     auto q = tuples_->quality[it];
+    // this should be in phase with selection of hitset....
     if (q != pixelTuplesHeterogeneousProduct::loose)
       continue;                           // FIXME
     assert(tuples_->indToEdm[it] == nh);  // filled on CPU!
     auto const &shits = *(b + nh);
     auto nHits = shits.size();
+    ++nh;
+    if (nHits< minNumberOfHits_) continue;
     hits.resize(nHits);
     for (unsigned int iHit = 0; iHit < nHits; ++iHit)
       hits[iHit] = shits[iHit];
@@ -187,7 +193,6 @@ void PixelTrackProducerFromCUDA::produceGPUCuda(edm::HeterogeneousEvent &iEvent,
                   gp.charge(), CurvilinearTrajectoryError(mo));
     // filter???
     tracks.emplace_back(track.release(), shits);
-    ++nh;
   }
   assert(nh == e - b);
   // std::cout << "processed " << nh << " good tuples " << tracks.size() << std::endl;
