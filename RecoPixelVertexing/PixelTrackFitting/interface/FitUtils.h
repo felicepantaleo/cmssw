@@ -194,7 +194,7 @@ namespace Rfit {
   // from   //!<(phi,Tip,pt,cotan(theta)),Zip)
   // to q/p,dx/dz,dy/dz,x,z
   template<typename V5, typename M5>
-  __host__ __device__ inline void transfromToPerigeePlane(V5 const & ip, M5 const & icov, V5 & op, M5 & ocov, double charge) {
+  __host__ __device__ inline void transformToPerigeePlane(V5 const & ip, M5 const & icov, V5 & op, M5 & ocov, double charge) {
 
     auto sinTheta2 = 1./(1.+ip(3)*ip(3));
     auto sinTheta = std::sqrt(sinTheta2);

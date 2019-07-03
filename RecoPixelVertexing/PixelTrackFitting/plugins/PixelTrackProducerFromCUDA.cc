@@ -163,7 +163,7 @@ void PixelTrackProducerFromCUDA::produceGPUCuda(edm::HeterogeneousEvent &iEvent,
 
     Rfit::Vector5d opar;
     Rfit::Matrix5d ocov;
-    Rfit::transfromToPerigeePlane(fittedTrack.par,fittedTrack.cov,opar,ocov,iCharge);
+    Rfit::transformToPerigeePlane(fittedTrack.par,fittedTrack.cov,opar,ocov,iCharge);
 
     LocalTrajectoryParameters lpar(opar(0),opar(1),opar(2),opar(3),opar(4),1.);
     AlgebraicSymMatrix55 m;
