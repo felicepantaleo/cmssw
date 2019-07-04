@@ -28,6 +28,7 @@ using TuplesOnGPU = pixelTuplesHeterogeneousProduct::TuplesOnGPU;
 using Quality = pixelTuplesHeterogeneousProduct::Quality;
 
 __global__ void kernel_checkOverflows(TuplesOnGPU::Container *foundNtuplets,
+                                      CAConstants::TupleMultiplicity * tupleMultiplicity,
                                       AtomicPairCounter *apc,
                                       GPUCACell const *__restrict__ cells,
                                       uint32_t const *__restrict__ nCells,
@@ -45,6 +46,7 @@ __global__ void kernel_checkOverflows(TuplesOnGPU::Container *foundNtuplets,
     atomicAdd(&c.nHits, nHits);
     atomicAdd(&c.nCells, *nCells);
     atomicAdd(&c.nTuples, apc->get().m);
+    atomicAdd(&c.nFitTracks,tupleMultiplicity->size());
   }
 
 #ifdef NTUPLE_DEBUG
@@ -694,6 +696,7 @@ void CAHitQuadrupletGeneratorKernels::launchKernels(  // here goes algoparms....
   if (doStats_) {
     numberOfBlocks = (std::max(nhits, maxNumberOfDoublets_) + blockSize - 1) / blockSize;
     kernel_checkOverflows<<<numberOfBlocks, blockSize, 0, cudaStream>>>(gpu_.tuples_d,
+                                                                        device_tupleMultiplicity_,
                                                                         gpu_.apc_d,
                                                                         device_theCells_.get(),
                                                                         device_nCells_,
@@ -850,14 +853,15 @@ void CAHitQuadrupletGeneratorKernels::classifyTuples(HitsOnCPU const &hh,
 __global__ void kernel_printCounters(CAHitQuadrupletGeneratorKernels::Counters const *counters) {
   auto const &c = *counters;
   printf(
-      "||Counters | nEvents | nHits | nCells | nTuples | nGoodTracks | nUsedHits | nDupHits | nKilledCells | "
+      "||Counters | nEvents | nHits | nCells | nTuples | nFitTacks  |  nGoodTracks | nUsedHits | nDupHits | nKilledCells | "
       "nEmptyCells | nZeroTrackCells ||\n");
-  printf("Counters Raw %lld %lld %lld %lld %lld %lld %lld %lld %lld %lld\n",
+  printf("Counters Raw %lld %lld %lld %lld %lld %lld %lld %lld %lld %lld %lld\n",
          c.nEvents,
          c.nHits,
          c.nCells,
          c.nTuples,
          c.nGoodTracks,
+         c.nFitTracks,
          c.nUsedHits,
          c.nDupHits,
          c.nKilledCells,
@@ -868,6 +872,7 @@ __global__ void kernel_printCounters(CAHitQuadrupletGeneratorKernels::Counters c
          c.nHits / double(c.nEvents),
          c.nCells / double(c.nEvents),
          c.nTuples / double(c.nEvents),
+         c.nFitTracks / double(c.nEvents),
          c.nGoodTracks / double(c.nEvents),
          c.nUsedHits / double(c.nEvents),
          c.nDupHits / double(c.nEvents),
