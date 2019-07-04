@@ -35,7 +35,8 @@ public:
 
   using TuplesOnGPU = pixelTuplesHeterogeneousProduct::TuplesOnGPU;
 
-  using TupleMultiplicity = CAConstants::TupleMultiplicity;
+  using Quality = pixelTuplesHeterogeneousProduct::Quality;
+  static constexpr auto bad = pixelTuplesHeterogeneousProduct::bad;
 
   GPUCACell() = default;
 #ifdef __CUDACC__
@@ -245,14 +246,12 @@ public:
 
   // trying to free the track building process from hardcoded layers, leaving
   // the visit of the graph based on the neighborhood connections between cells.
-
-  template <typename CM>
   __device__ inline void find_ntuplets(Hits const& hh,
                                        GPUCACell* __restrict__ cells,
                                        CellTracksVector& cellTracks,
                                        TuplesOnGPU::Container& foundNtuplets,
                                        AtomicPairCounter& apc,
-                                       CM& tupleMultiplicity,
+                                       Quality* __restrict__ quality,
                                        TmpTuple& tmpNtuplet,
                                        const unsigned int minHitsPerNtuplet,
                                        bool startAt0) const {
@@ -271,7 +270,7 @@ public:
       if (cells[otherCell].theDoubletId<0 || cells[otherCell].theUsed>1) continue; // already in a track found in previous iteration
         last = false;
         cells[otherCell].find_ntuplets(
-            hh, cells, cellTracks, foundNtuplets, apc, tupleMultiplicity, tmpNtuplet, minHitsPerNtuplet,startAt0);
+            hh, cells, cellTracks, foundNtuplets, apc, quality, tmpNtuplet, minHitsPerNtuplet,startAt0);
     }
     if(last) {  // if long enough save...
       if ((unsigned int)(tmpNtuplet.size()) >= minHitsPerNtuplet - 1) {
@@ -293,7 +292,7 @@ public:
           if (it >= 0) {  // if negative is overflow....
             for (auto c : tmpNtuplet)
               cells[c].addTrack(it, cellTracks);
-            tupleMultiplicity.countDirect(tmpNtuplet.size() + 1);
+            quality[it] =  bad; // initialize to bad
           }
         }
       }
