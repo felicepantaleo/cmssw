@@ -165,28 +165,16 @@ __global__ void kernel_fastDuplicateRemover(GPUCACell const *cells,
   if (thisCell.theDoubletId < 0)
     return;
 
-  float mc = 1000.f;
+  float mc = 10000.f;
   uint16_t im = 60000;
-  uint32_t maxNh = 0;
 
   auto score = [&](auto it) {
     return std::abs(hfit[it].par(1));  // tip
     // return hfit[it].chi2_line+hfit[it].chi2_circle;  //chi2
   };
 
-  // find maxNh
-  for (auto it : thisCell.tracks()) {
-    if (quality[it] != loose)
-      continue;
-    auto nh = foundNtuplets->size(it);
-    maxNh = std::max(nh, maxNh);
-  }
-
   // find min chi2
   for (auto it : thisCell.tracks()) {
-    auto nh = foundNtuplets->size(it);
-    if (nh != maxNh)
-      continue;
     if (quality[it] == loose && score(it) < mc) {
       mc = score(it);
       im = it;
