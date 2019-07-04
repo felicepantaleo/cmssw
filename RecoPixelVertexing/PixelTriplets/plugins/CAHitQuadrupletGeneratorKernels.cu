@@ -112,6 +112,40 @@ __global__ void kernel_fishboneCleaner(GPUCACell const *cells,
     quality[it] = bad;
 }
 
+__global__ void kernel_earlyDuplicateRemover(GPUCACell const *cells,
+                                            uint32_t const *__restrict__ nCells,
+                                            TuplesOnGPU::Container *foundNtuplets,
+                                            pixelTuplesHeterogeneousProduct::Quality *quality) {
+  // constexpr auto bad = pixelTuplesHeterogeneousProduct::bad;
+  constexpr auto dup = pixelTuplesHeterogeneousProduct::dup;
+  // constexpr auto loose = pixelTuplesHeterogeneousProduct::loose;
+
+  assert(nCells);
+
+  auto cellIndex = threadIdx.x + blockIdx.x * blockDim.x;
+
+  if (cellIndex >= (*nCells))
+    return;
+  auto const &thisCell = cells[cellIndex];
+  if (thisCell.theDoubletId < 0)
+    return;
+
+  uint32_t maxNh = 0;
+
+  // find maxNh
+  for (auto it : thisCell.tracks()) {
+    auto nh = foundNtuplets->size(it);
+    maxNh = std::max(nh, maxNh);
+  }
+
+  for (auto it : thisCell.tracks()) {
+    if (foundNtuplets->size(it) != maxNh)
+      quality[it] = dup;  //no race:  simple assignment of the same constant
+  }
+
+}
+
+
 __global__ void kernel_fastDuplicateRemover(GPUCACell const *cells,
                                             uint32_t const *__restrict__ nCells,
                                             TuplesOnGPU::Container *foundNtuplets,
@@ -119,7 +153,7 @@ __global__ void kernel_fastDuplicateRemover(GPUCACell const *cells,
                                             pixelTuplesHeterogeneousProduct::Quality *quality) {
   constexpr auto bad = pixelTuplesHeterogeneousProduct::bad;
   constexpr auto dup = pixelTuplesHeterogeneousProduct::dup;
-  // constexpr auto loose = pixelTuplesHeterogeneousProduct::loose;
+  constexpr auto loose = pixelTuplesHeterogeneousProduct::loose;
 
   assert(nCells);
 
@@ -142,22 +176,23 @@ __global__ void kernel_fastDuplicateRemover(GPUCACell const *cells,
 
   // find maxNh
   for (auto it : thisCell.tracks()) {
-    if (quality[it] == bad)
+    if (quality[it] != loose)
       continue;
     auto nh = foundNtuplets->size(it);
     maxNh = std::max(nh, maxNh);
   }
+
   // find min chi2
   for (auto it : thisCell.tracks()) {
     auto nh = foundNtuplets->size(it);
     if (nh != maxNh)
       continue;
-    if (quality[it] != bad && score(it) < mc) {
+    if (quality[it] == loose && score(it) < mc) {
       mc = score(it);
       im = it;
     }
   }
-  // mark duplicates
+  // mark all other duplicates
   for (auto it : thisCell.tracks()) {
     if (quality[it] != bad && it != im)
       quality[it] = dup;  //no race:  simple assignment of the same constant
@@ -308,6 +343,7 @@ __global__ void kernel_countMultiplicity(TuplesOnGPU::Container const *__restric
   if (nhits < 3)
     return;
   if (quality[it] == pixelTuplesHeterogeneousProduct::dup) return;
+  assert(quality[it] == pixelTuplesHeterogeneousProduct::bad);
   if (nhits>5) printf("wrong mult %d %d\n",it,nhits);
   assert(nhits<8);
   tupleMultiplicity->countDirect(nhits);
@@ -641,6 +677,12 @@ void CAHitQuadrupletGeneratorKernels::launchKernels(  // here goes algoparms....
   blockSize = 128;
   numberOfBlocks = (TuplesOnGPU::Container::totbins() + blockSize - 1) / blockSize;
   cudautils::finalizeBulk<<<numberOfBlocks, blockSize, 0, cudaStream>>>(gpu_.apc_d, gpu_.tuples_d);
+
+  // remove duplicates (tracks that share a doublet)
+  numberOfBlocks = (CAConstants::maxNumberOfDoublets() + blockSize - 1) / blockSize;
+  kernel_earlyDuplicateRemover<<<numberOfBlocks, blockSize, 0, cudaStream>>>(
+      device_theCells_.get(), device_nCells_, gpu_.tuples_d, gpu_.quality_d);
+  cudaCheck(cudaGetLastError());
 
   blockSize = 128;
   numberOfBlocks = (CAConstants::maxTuples() + blockSize - 1) / blockSize;
