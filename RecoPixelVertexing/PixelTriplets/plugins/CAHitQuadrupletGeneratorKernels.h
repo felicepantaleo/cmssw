@@ -7,6 +7,9 @@
 
 #include "GPUCACell.h"
 
+// #define DUMP_GPU_TK_TUPLES
+
+
 class CAHitQuadrupletGeneratorKernels {
 public:
   // counters
@@ -15,6 +18,7 @@ public:
     unsigned long long nHits;
     unsigned long long nCells;
     unsigned long long nTuples;
+    unsigned long long nFitTracks;
     unsigned long long nGoodTracks;
     unsigned long long nUsedHits;
     unsigned long long nDupHits;
@@ -48,6 +52,7 @@ public:
   };
 
   CAHitQuadrupletGeneratorKernels(uint32_t minHitsPerNtuplet,
+                                  bool includeJumpingForwardDoublets,
                                   bool earlyFishbone,
                                   bool lateFishbone,
                                   bool idealConditions,
@@ -55,6 +60,7 @@ public:
                                   bool doClusterCut,
                                   bool doZCut,
                                   bool doPhiCut,
+                                  bool doIterations,
                                   float ptmin,
                                   float CAThetaCutBarrel,
                                   float CAThetaCutForward,
@@ -63,6 +69,7 @@ public:
                                   float dcaCutOuterTriplet,
                                   QualityCuts const& cuts)
       : minHitsPerNtuplet_(minHitsPerNtuplet),
+        includeJumpingForwardDoublets_(includeJumpingForwardDoublets),
         earlyFishbone_(earlyFishbone),
         lateFishbone_(lateFishbone),
         idealConditions_(idealConditions),
@@ -70,6 +77,7 @@ public:
         doClusterCut_(doClusterCut),
         doZCut_(doZCut),
         doPhiCut_(doPhiCut),
+        doIterations_(doIterations),
         ptmin_(ptmin),
         CAThetaCutBarrel_(CAThetaCutBarrel),
         CAThetaCutForward_(CAThetaCutForward),
@@ -116,6 +124,7 @@ private:
 
   // params
   const uint32_t minHitsPerNtuplet_;
+  const bool includeJumpingForwardDoublets_;
   const bool earlyFishbone_;
   const bool lateFishbone_;
   const bool idealConditions_;
@@ -123,6 +132,7 @@ private:
   const bool doClusterCut_;
   const bool doZCut_;
   const bool doPhiCut_;
+  const bool doIterations_;
   const float ptmin_;
   const float CAThetaCutBarrel_;
   const float CAThetaCutForward_;
