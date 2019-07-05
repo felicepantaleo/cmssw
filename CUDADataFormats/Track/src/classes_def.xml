@@ -1,0 +1,4 @@
+<lcgdict>
+  <class name="CUDAProduct<PixelTrackCUDA>" persistent="false"/>
+  <class name="edm::Wrapper<CUDAProduct<PixelTrackCUDA>>" persistent="false"/>
+</lcgdict>
