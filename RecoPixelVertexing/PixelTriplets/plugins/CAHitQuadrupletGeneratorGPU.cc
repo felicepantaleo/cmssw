@@ -131,6 +131,19 @@ void CAHitQuadrupletGeneratorGPU::fillDescriptions(edm::ParameterSetDescription 
     ->setComment("Quality cuts based on the results of the track fit:\n  - apply a pT-dependent chi2 cut;\n  - apply \"region cuts\" based on the fit results (pT, Tip, Zip).");
 }
 
+
+PixelTrackCUDA CAHitQuadrupletGeneratorGPU::makeTuplesAsync(TrackingRecHit2DCUDA const& hits_d,
+                                                           cuda::stream_t<>& stream) const {
+
+  PixelTrackCUDA tuples_d(hits_d.view(),stream);
+
+
+  return tuples_d;
+}
+
+
+
+
 void CAHitQuadrupletGeneratorGPU::initEvent(edm::Event const &ev, edm::EventSetup const &es) {
   fitter.setBField(1 / PixelRecoUtilities::fieldInInvGev(es));
 }

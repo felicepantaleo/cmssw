@@ -2,6 +2,9 @@
 #define RecoPixelVertexing_PixelTriplets_plugins_CAHitQuadrupletGeneratorGPU_h
 
 #include <cuda_runtime.h>
+#include "CUDADataFormats/TrackingRecHit/interface/TrackingRecHit2DCUDA.h"
+#include "CUDADataFormats/Track/interface/PixelTrackCUDA.h"
+
 
 #include "DataFormats/SiPixelDetId/interface/PixelSubdetector.h"
 #include "DataFormats/TrackerRecHit2D/interface/SiPixelRecHitCollection.h"
@@ -42,6 +45,8 @@ public:
   using HitsOnCPU = TrackingRecHit2DCUDA;
   using hindex_type = TrackingRecHit2DSOAView::hindex_type;
 
+
+
   using TuplesOnGPU = pixelTuplesHeterogeneousProduct::TuplesOnGPU;
   using TuplesOnCPU = pixelTuplesHeterogeneousProduct::TuplesOnCPU;
   using Quality = pixelTuplesHeterogeneousProduct::Quality;
@@ -60,6 +65,9 @@ public:
   static void fillDescriptions(edm::ParameterSetDescription& desc);
   static const char* fillDescriptionsLabel() { return "caHitQuadrupletGPU"; }
 
+  PixelTrackCUDA makeTuplesAsync(TrackingRecHit2DCUDA const& hits_d,
+                                cuda::stream_t<>& stream) const;
+ 
   void initEvent(const edm::Event& ev, const edm::EventSetup& es);
 
   void buildDoublets(HitsOnCPU const& hh, cuda::stream_t<>& stream);
