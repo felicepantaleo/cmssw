@@ -11,8 +11,6 @@ void CAHitNtupletGeneratorKernels::allocateOnGPU(cuda::stream_t<>& stream) {
 
   edm::Service<CUDAService> cs;
 
-  cudaCheck(cudaMalloc(&device_nCells_, sizeof(uint32_t)));
-
   /* not used at the moment 
   cudaCheck(cudaMalloc(&device_theCellNeighbors_, sizeof(CAConstants::CellNeighborsVector)));
   cudaCheck(cudaMemset(device_theCellNeighbors_, 0, sizeof(CAConstants::CellNeighborsVector)));
@@ -21,12 +19,19 @@ void CAHitNtupletGeneratorKernels::allocateOnGPU(cuda::stream_t<>& stream) {
   */
 
   device_hitToTuple_ = cs->make_device_unique<HitToTuple>(stream);
-  device_hitToTuple_apcHolder_ = cs->make_device_unique<AtomicPairCounter::c_type>(stream);
-  device_hitToTuple_apc_ = (AtomicPairCounter*)device_hitToTuple_apcHolder_.get();
 
   device_tupleMultiplicity_ = cs->make_device_unique<TupleMultiplicity>(stream);
 
-  device_tmws_ = cs->make_device_unique<uint8_t[]>(std::max(TupleMultiplicity::wsSize(), HitToTuple::wsSize()),stream);
+  auto storageSize = 3+(std::max(TupleMultiplicity::wsSize(), HitToTuple::wsSize())+sizeof(AtomicPairCounter::c_type))/sizeof(AtomicPairCounter::c_type);
+
+  device_storage_ = cs->make_device_unique<AtomicPairCounter::c_type[]>(storageSize,stream);
+  
+  device_hitTuple_apc_ = (AtomicPairCounter*)device_storage_.get();
+  device_hitToTuple_apc_ = (AtomicPairCounter*)device_storage_.get()+1;
+  device_nCells_ = (uint32_t *)(device_storage_.get()+2);
+  device_tmws_ = (uint8_t*)(device_storage_.get()+3);
+
+  assert(device_tmws_+std::max(TupleMultiplicity::wsSize(), HitToTuple::wsSize()) <= (uint8_t*)(device_storage_.get()+storageSize));
 
   cudaCheck(cudaMemsetAsync(device_nCells_, 0, sizeof(uint32_t), stream.id()));
   cudautils::launchZero(device_tupleMultiplicity_.get(), stream.id());

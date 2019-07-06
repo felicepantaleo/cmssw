@@ -10,8 +10,6 @@ PixelTrackCUDA::PixelTrackCUDA(TrackingRecHit2DSOAView const* hhp,
                 hitsOnGPU_(hhp), m_nTracks(0) {
   edm::Service<CUDAService> cs;
   m_soa = cs->make_device_unique<SoA>(stream);
-//  m_apc = cs->make_device_unique<AtomicPairCounter>(stream);
-  m_apc = cs->make_device_unique<AtomicPairCounter::c_type>(stream);
 }
 
 

@@ -174,11 +174,14 @@ private:
 
   cudautils::device::unique_ptr<HitToTuple> device_hitToTuple_;
   AtomicPairCounter* device_hitToTuple_apc_ = nullptr;
-  cudautils::device::unique_ptr<AtomicPairCounter::c_type> device_hitToTuple_apcHolder_;
+
+  AtomicPairCounter* device_hitTuple_apc_ = nullptr;
 
   cudautils::device::unique_ptr<TupleMultiplicity> device_tupleMultiplicity_;
-  cudautils::device::unique_ptr<uint8_t[]> device_tmws_;
+  
+  uint8_t * device_tmws_;
 
+  cudautils::device::unique_ptr<AtomicPairCounter::c_type[]> device_storage_;
   // params
   Params const & m_params;
 };

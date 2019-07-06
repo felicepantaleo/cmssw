@@ -77,8 +77,6 @@ public:
 
   auto * soa() { return m_soa.get();}
   auto const * soa() const { return m_soa.get();}
-  auto * apc() { return (AtomicPairCounter*)m_apc.get();}
-  auto const * apc() const { return (AtomicPairCounter const*)m_apc.get();}
 
   TrackingRecHit2DSOAView const * hitsOnGPU() const { return hitsOnGPU_;}
 
@@ -91,7 +89,6 @@ private:
   TrackingRecHit2DSOAView const* hitsOnGPU_ = nullptr;  // forwarding
 
   cudautils::device::unique_ptr<SoA> m_soa;
-  cudautils::device::unique_ptr<AtomicPairCounter::c_type> m_apc;
 
   uint32_t m_nTracks;
 
