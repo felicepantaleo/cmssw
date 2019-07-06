@@ -189,6 +189,31 @@ namespace Rfit {
     circle.par = par_pak;
   }
 
+  /*!
+    \brief Transform circle parameter from (X0,Y0,R) to (phi,Tip,q/R) and
+    consequently covariance matrix.
+    \param circle_uvr parameter (X0,Y0,R), covariance matrix to
+    be transformed and particle charge.
+  */
+  __host__ __device__ inline void fromCircleToPerigee(circle_fit& circle) {
+    Vector3d par_pak;
+    const double temp0 = circle.par.head(2).squaredNorm();
+    const double temp1 = sqrt(temp0);
+    par_pak << atan2(circle.q * circle.par(0), -circle.q * circle.par(1)), circle.q * (temp1 - circle.par(2)),
+           circle.q/circle.par(2);
+    
+      const double temp2 = sqr(circle.par(0)) * 1. / temp0;
+      const double temp3 = 1. / temp1 * circle.q;
+      Matrix3d J4;
+      J4 << -circle.par(1) * temp2 * 1. / sqr(circle.par(0)), temp2 * 1. / circle.par(0), 0., circle.par(0) * temp3,
+          circle.par(1) * temp3, -circle.q, 0., 0., -circle.q/(circle.par(2)*circle.par(2));
+      circle.cov = J4 * circle.cov * J4.transpose();
+    
+    circle.par = par_pak;
+  }
+
+
+
   // transformation between the "perigee" to cmssw localcoord frame
   // the plane of the latter is the perigee plane...
   // from   //!<(phi,Tip,pt,cotan(theta)),Zip)

@@ -56,11 +56,10 @@ namespace {
 
 using namespace std;
 
-constexpr unsigned int CAHitNtupletGeneratorOnGPU::minLayers;
-
 CAHitNtupletGeneratorOnGPU::CAHitNtupletGeneratorOnGPU(const edm::ParameterSet &cfg, edm::ConsumesCollector &iC)
-    : params(cfg.getParameter<unsigned int>("minHitsPerNtuplet"),
-              cfg.getParameter<bool>("fit5as4")),
+    : m_params(cfg.getParameter<unsigned int>("minHitsPerNtuplet"),
+              cfg.getParameter<bool>("useRiemannFit"),
+              cfg.getParameter<bool>("fit5as4"),
               cfg.getParameter<bool>("includeJumpingForwardDoublets"),
               cfg.getParameter<bool>("earlyFishbone"),
               cfg.getParameter<bool>("lateFishbone"),
@@ -107,7 +106,7 @@ void CAHitNtupletGeneratorOnGPU::fillDescriptions(edm::ParameterSetDescription &
   desc.add<bool>("doZCut", true);
   desc.add<bool>("doPhiCut", true);
   desc.add<bool>("doIterations", false);
-
+  desc.add<bool>("useRiemannFit", false)->setComment("true for Riemann, false for BrokenLine");
 
   edm::ParameterSetDescription trackQualityCuts;
   trackQualityCuts.add<double>("chi2MaxPt", 10.)->setComment("max pT used to determine the pT-dependent chi2 cut");
@@ -129,25 +128,25 @@ PixelTrackCUDA CAHitNtupletGeneratorOnGPU::makeTuplesAsync(TrackingRecHit2DCUDA 
                                                            float bfield,
                                                            cuda::stream_t<>& stream) const {
 
-  PixelTrackCUDA tracksSoA(hits_d.view(),stream);
+  PixelTrackCUDA tracks(hits_d.view(),stream);
 
   auto * soa = tracks.soa();
   
-  CAHitNtupletGeneratorKernels kernels(params);
-  HelixFitOnGPU fitter(bfield,params.fit5as4_);
+  CAHitNtupletGeneratorKernels kernels(m_params);
+  HelixFitOnGPU fitter(bfield,m_params.fit5as4_);
 
   kernels.allocateOnGPU(stream);
-  fitter.allocateOnGPU(soa, kernels.tupleMultiplicity());
+  fitter.allocateOnGPU(&(soa->hitIndices), kernels.tupleMultiplicity(), soa);
 
   kernels.buildDoublets(hits_d, stream);
-  kernels.launchKernels(hits_d, soa, cudaStream.id());
-  if (useRiemannFit) {
-    fitter.launchRiemannKernels(hits_d, hh.nHits(), CAConstants::maxNumberOfQuadruplets(), cudaStream);
+  kernels.launchKernels(hits_d, soa, stream.id());
+  if (m_params.useRiemannFit_) {
+    fitter.launchRiemannKernels(hits_d, hits_d.nHits(), CAConstants::maxNumberOfQuadruplets(), stream);
   } else {
-    fitter.launchBrokenLineKernels(hits_d, hh.nHits(), CAConstants::maxNumberOfQuadruplets(), cudaStream);
+    fitter.launchBrokenLineKernels(hits_d, hits_d.nHits(), CAConstants::maxNumberOfQuadruplets(), stream);
   }
-  kernels.classifyTuples(hits_d, soa, cudaStream.id());
+  kernels.classifyTuples(hits_d, soa, stream.id());
 
-  return tracksSoA;
+  return tracks;
 }
 

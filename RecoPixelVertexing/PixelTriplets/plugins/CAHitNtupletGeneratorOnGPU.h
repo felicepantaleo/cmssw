@@ -30,12 +30,10 @@ public:
   using HitsOnCPU = TrackingRecHit2DCUDA;
   using hindex_type = TrackingRecHit2DSOAView::hindex_type;
 
-  using Quality = PixelTrackSoA::Quality;
-  using OutputSoA = PixelTrackSoA::TrackSoA;
-  using HitContainer = PixelTrackSoA::HitContainer;
-  using Tuple = HitContiner;
-
-  static constexpr unsigned int minLayers = 4;
+  using Quality = PixelTrackCUDA::Quality;
+  using OutputSoA = PixelTrackCUDA::SoA;
+  using HitContainer = PixelTrackCUDA::HitContainer;
+  using Tuple = HitContainer;
 
 public:
   CAHitNtupletGeneratorOnGPU(const edm::ParameterSet& cfg, edm::ConsumesCollector&& iC)
@@ -65,7 +63,7 @@ private:
   void launchKernels(HitsOnCPU const& hh, bool useRiemannFit, cuda::stream_t<>& cudaStream) const;
 
 
-  CAHitNtupletGeneratorKernels::Params;
+  CAHitNtupletGeneratorKernels::Params m_params;
 
 };
 

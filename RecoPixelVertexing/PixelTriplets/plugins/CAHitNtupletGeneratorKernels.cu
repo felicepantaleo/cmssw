@@ -1,5 +1,6 @@
+/*
 //
-// Author: Felice Pantaleo, CERN
+// Original Author: Felice Pantaleo, CERN
 //
 
 // #define NTUPLE_DEBUG
@@ -923,3 +924,5 @@ __global__ void kernel_printCounters(CAHitNtupletGeneratorKernels::Counters cons
 }
 
 void CAHitNtupletGeneratorKernels::printCounters() const { kernel_printCounters<<<1, 1>>>(counters_); }
+
+*/

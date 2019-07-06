@@ -19,6 +19,7 @@
 #include "HeterogeneousCore/CUDACore/interface/CUDAScopedContext.h"
 #include "HeterogeneousCore/CUDACore/interface/GPUCuda.h"
 #include "HeterogeneousCore/CUDAServices/interface/CUDAService.h"
+#include "RecoTracker/TkMSParametrization/interface/PixelRecoUtilities.h"
 
 #include "CAHitNtupletGeneratorOnGPU.h"
 #include "CUDADataFormats/Track/interface/PixelTrackCUDA.h"
@@ -40,17 +41,12 @@ private:
 
   CAHitNtupletGeneratorOnGPU gpuAlgo_;
 
-  const bool useRiemannFit_;
-
 };
 
 CAHitNtupletCUDA::CAHitNtupletCUDA(const edm::ParameterSet& iConfig) :
       tokenHit_(consumes<CUDAProduct<TrackingRecHit2DCUDA>>(iConfig.getParameter<edm::InputTag>("pixelRecHitSrc"))),
       tokenTrack_(produces<CUDAProduct<PixelTrackCUDA>>()),
-      gpuAlgo_(iConfig, consumesCollector()),
-      useRiemannFit_(iConfig.getParameter<bool>("useRiemannFit")) {
-
-}
+      gpuAlgo_(iConfig, consumesCollector()) {}
 
 
 void CAHitNtupletCUDA::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
@@ -59,7 +55,7 @@ void CAHitNtupletCUDA::fillDescriptions(edm::ConfigurationDescriptions& descript
   desc.add<edm::InputTag>("pixelRecHitSrc", edm::InputTag("siPixelRecHitsCUDAPreSplitting"));
   desc.add<bool>("useRiemannFit", false)->setComment("true for Riemann, false for BrokenLine");
 
-  CAHitQuadrupletGeneratorGPU::fillDescriptions(desc);
+  CAHitNtupletGeneratorOnGPU::fillDescriptions(desc);
   auto label = "caHitNtupletCUDA";
   descriptions.add(label, desc);
 }
@@ -72,12 +68,13 @@ void CAHitNtupletCUDA::produce(edm::StreamID streamID, edm::Event& iEvent, const
   CUDAScopedContextProduce ctx{*hHits};
   auto const& hits = ctx.get(*hHits);
 
-  auto bf = 1./PixelRecoUtilities::fieldInInvGev(es));
+  auto bf = 1./PixelRecoUtilities::fieldInInvGev(es);
 
   ctx.emplace(
       iEvent,
       tokenTrack_,
-      std::move(gpuAlgo_.makeTuplesAsync(hits, bf, ctx.stream())));
+      std::move(gpuAlgo_.makeTuplesAsync(hits, bf, ctx.stream()))
+   );
 
 }
 

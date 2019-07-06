@@ -1,7 +1,11 @@
 #include "CAHitNtupletGeneratorKernels.h"
 
+#include "FWCore/ServiceRegistry/interface/Service.h"
+#include "HeterogeneousCore/CUDAServices/interface/CUDAService.h"
+#include "HeterogeneousCore/CUDAUtilities/interface/cudaCheck.h"
+
 void CAHitNtupletGeneratorKernels::deallocateOnGPU() {
-  if (doStats_) {
+  if (m_params.doStats_) {
     // crash on multi-gpu processes
     printCounters();
   }

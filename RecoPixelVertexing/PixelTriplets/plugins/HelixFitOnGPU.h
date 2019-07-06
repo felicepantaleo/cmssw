@@ -4,7 +4,9 @@
 #include <cuda/api_wrappers.h>
 
 #include "RecoPixelVertexing/PixelTrackFitting/interface/FitResult.h"
-#include "RecoPixelVertexing/PixelTriplets/plugins/pixelTuplesHeterogeneousProduct.h"
+#include "CUDADataFormats/Track/interface/PixelTrackCUDA.h"
+
+#include "CAConstants.h"
 
 class TrackingRecHit2DSOAView;
 class TrackingRecHit2DCUDA;
@@ -43,7 +45,7 @@ public:
 
   using TupleMultiplicity = CAConstants::TupleMultiplicity;
 
-  explicit HelixFitOnGPU(float bf, bool fit5as4) : bfield_(bf), fit5as4_(fit5as4) {}
+  explicit HelixFitOnGPU(float bf, bool fit5as4) : bField_(bf), fit5as4_(fit5as4) {}
   ~HelixFitOnGPU() { deallocateOnGPU(); }
 
   void setBField(double bField) { bField_ = bField; }
@@ -58,7 +60,7 @@ public:
 
   void allocateOnGPU(Tuples const *tuples,
                      TupleMultiplicity const *tupleMultiplicity,
-                     OutputSoA *helix_fit_results);
+                     OutputSoA * outputSoA);
   void deallocateOnGPU();
 
 private:
@@ -67,7 +69,7 @@ private:
   // fowarded
   Tuples const *tuples_d = nullptr;
   TupleMultiplicity const *tupleMultiplicity_d = nullptr;
-  OutputSoA outputSoa_d;
+  OutputSoA * outputSoa_d;
   float bField_;
 
   const bool fit5as4_;

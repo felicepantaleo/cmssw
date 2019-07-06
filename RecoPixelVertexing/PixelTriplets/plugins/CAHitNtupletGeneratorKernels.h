@@ -3,8 +3,8 @@
 
 #include "HeterogeneousCore/CUDAServices/interface/CUDAService.h"
 #include "HeterogeneousCore/CUDAUtilities/interface/device_unique_ptr.h"
-#include "RecoPixelVertexing/PixelTriplets/plugins/pixelTuplesHeterogeneousProduct.h"
 
+#include "CUDADataFormats/Track/interface/PixelTrackCUDA.h"
 #include "GPUCACell.h"
 
 // #define DUMP_GPU_TK_TUPLES
@@ -33,9 +33,9 @@ public:
   using HitToTuple = CAConstants::HitToTuple;
   using TupleMultiplicity = CAConstants::TupleMultiplicity;
 
-    using Quality = PixelTrackSoA::Quality;
-    using TupleOnGPU = PixelTrackSoA::TrackSoA;
-    using HitContainer = PixelTrackSoA::HitContainer;
+  using Quality = PixelTrackCUDA::Quality;
+  using TuplesOnGPU = PixelTrackCUDA::SoA;
+  using HitContainer = PixelTrackCUDA::HitContainer;
 
 
   struct QualityCuts {
@@ -58,6 +58,7 @@ public:
   // params
   struct Params {
     Params(uint32_t minHitsPerNtuplet,
+                                  bool useRiemannFit,
                                   bool fit5as4,
                                   bool includeJumpingForwardDoublets,
                                   bool earlyFishbone,
@@ -76,6 +77,7 @@ public:
                                   float dcaCutOuterTriplet,
                                   QualityCuts const& cuts)
       : minHitsPerNtuplet_(minHitsPerNtuplet),
+        useRiemannFit_(useRiemannFit),
         fit5as4_(fit5as4),
         includeJumpingForwardDoublets_(includeJumpingForwardDoublets),
         earlyFishbone_(earlyFishbone),
@@ -92,10 +94,10 @@ public:
         hardCurvCut_(hardCurvCut),
         dcaCutInnerTriplet_(dcaCutInnerTriplet),
         dcaCutOuterTriplet_(dcaCutOuterTriplet),
-        cuts_(cuts)
-  { }
+        cuts_(cuts) { }
 
   const uint32_t minHitsPerNtuplet_;
+  const bool useRiemannFit_;
   const bool fit5as4_;
   const bool includeJumpingForwardDoublets_;
   const bool earlyFishbone_;
@@ -112,7 +114,6 @@ public:
   const float hardCurvCut_;
   const float dcaCutInnerTriplet_;
   const float dcaCutOuterTriplet_;
-
 
   // quality cuts
   QualityCuts cuts_
@@ -134,7 +135,8 @@ public:
       0.5,  // |Tip| < 0.5 cm
       0.3,  // pT > 0.3 GeV
       12.0  // |Zip| < 12.0 cm
-    }};
+    }
+   };
   
   }; // Params
 
@@ -144,11 +146,11 @@ public:
 
   TupleMultiplicity const* tupleMultiplicity() const { return device_tupleMultiplicity_.get(); }
 
-  void launchKernels(HitsOnCPU const& hh, TuplesOnGPU& tuples_d, cudaStream_t cudaStream);
+  void launchKernels(HitsOnCPU const& hh, TuplesOnGPU * tuples_d, cudaStream_t cudaStream);
 
-  void classifyTuples(HitsOnCPU const& hh, TuplesOnGPU& tuples_d, cudaStream_t cudaStream);
+  void classifyTuples(HitsOnCPU const& hh, TuplesOnGPU * tuples_d, cudaStream_t cudaStream);
 
-  void fillHitDetIndices(HitsOnCPU const &hh, TuplesOnGPU &tuples, cuda::stream_t<>& stream);
+  void fillHitDetIndices(HitsOnCPU const &hh, TuplesOnGPU * tuples_d, cuda::stream_t<>& stream);
 
   void buildDoublets(HitsOnCPU const& hh, cuda::stream_t<>& stream);
   void allocateOnGPU(cuda::stream_t<>& stream);
@@ -173,7 +175,7 @@ private:
   AtomicPairCounter* device_hitToTuple_apc_ = nullptr;
   cudautils::device::unique_ptr<AtomicPairCounter::c_type> device_hitToTuple_apcHolder_;
 
-  cudautils::device::unique_ptr<TupleMultiplicity> device_tupleMultiplicity_>;
+  cudautils::device::unique_ptr<TupleMultiplicity> device_tupleMultiplicity_;
   cudautils::device::unique_ptr<uint8_t[]> device_tmws_;
 
   // params

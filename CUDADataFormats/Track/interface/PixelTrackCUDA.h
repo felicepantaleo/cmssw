@@ -10,9 +10,9 @@
 
 
 
-
-enum TrackQuality : uint8_t { bad=0, dup, loose, strict, tight, highPurity };
-
+namespace trackQuality {
+  enum Quality : uint8_t { bad=0, dup, loose, strict, tight, highPurity };
+}
 
 template <int32_t S>
 class TrackSoA {
@@ -20,7 +20,9 @@ public:
 
   static constexpr int32_t stride() { return S; }
 
-  using Quality = TrackQuality;
+  using Quality = trackQuality::Quality;
+  using hindex_type = uint16_t;
+  using HitContainer = OneToManyAssoc<hindex_type, S, 5 * S>;
 
   // Always check quality is at least loose!
   eigenSoA::ScalarSoA<Quality, S> quality;
@@ -43,9 +45,6 @@ public:
   // representation to be decided...
   // not yet filled on GPU
   TrajectoryStateSoA<S> stateAtOuterDet;
-
-  using hindex_type = uint16_t;  
-  using HitContainer = OneToManyAssoc<hindex_type, S, 5 * S>;
 
   HitContainer hitIndices;
   HitContainer detIndices;
@@ -70,8 +69,8 @@ public:
 
   using SoA = TrackSoA<maxNumber>;
   using TrajectoryState = TrajectoryStateSoA<maxNumber>;
-  using HitContainer = Soa::HitContainer;
-  using Quality = TrackQuality;
+  using HitContainer = SoA::HitContainer;
+  using Quality = trackQuality::Quality;
 
   PixelTrackCUDA(){}
   PixelTrackCUDA(TrackingRecHit2DSOAView const* hhp, cuda::stream_t<> &stream);
