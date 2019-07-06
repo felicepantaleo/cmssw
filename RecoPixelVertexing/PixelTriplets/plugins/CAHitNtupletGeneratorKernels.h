@@ -154,12 +154,13 @@ public:
 
   void buildDoublets(HitsOnCPU const& hh, cuda::stream_t<>& stream);
   void allocateOnGPU(cuda::stream_t<>& stream);
-  void deallocateOnGPU();
   void cleanup(cudaStream_t cudaStream);
-  void printCounters() const;
+
+  static void printCounters(Counters* counters);
+  Counters* counters_ = nullptr;
+
 
 private:
-  Counters* counters_ = nullptr;
 
   // workspace
   CAConstants::CellNeighborsVector* device_theCellNeighbors_ = nullptr;

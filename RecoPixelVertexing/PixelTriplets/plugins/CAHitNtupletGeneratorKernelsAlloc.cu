@@ -4,25 +4,12 @@
 #include "HeterogeneousCore/CUDAServices/interface/CUDAService.h"
 #include "HeterogeneousCore/CUDAUtilities/interface/cudaCheck.h"
 
-void CAHitNtupletGeneratorKernels::deallocateOnGPU() {
-  if (m_params.doStats_) {
-    // crash on multi-gpu processes
-    printCounters();
-  }
-  cudaFree(counters_);
-
-}
-
 void CAHitNtupletGeneratorKernels::allocateOnGPU(cuda::stream_t<>& stream) {
   //////////////////////////////////////////////////////////
   // ALLOCATIONS FOR THE INTERMEDIATE RESULTS (STAYS ON WORKER)
   //////////////////////////////////////////////////////////
 
   edm::Service<CUDAService> cs;
-
-
-  cudaCheck(cudaMalloc(&counters_, sizeof(Counters)));
-  cudaCheck(cudaMemset(counters_, 0, sizeof(Counters)));
 
   cudaCheck(cudaMalloc(&device_nCells_, sizeof(uint32_t)));
 

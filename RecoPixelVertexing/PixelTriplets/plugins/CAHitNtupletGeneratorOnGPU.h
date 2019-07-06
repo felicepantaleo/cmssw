@@ -40,7 +40,7 @@ public:
       : CAHitNtupletGeneratorOnGPU(cfg, iC) {}
   CAHitNtupletGeneratorOnGPU(const edm::ParameterSet& cfg, edm::ConsumesCollector& iC);
 
-  ~CAHitNtupletGeneratorOnGPU() = default;
+  ~CAHitNtupletGeneratorOnGPU();
 
   static void fillDescriptions(edm::ParameterSetDescription& desc);
   static const char* fillDescriptionsLabel() { return "caHitNtupletOnGPU"; }
@@ -64,6 +64,9 @@ private:
 
 
   CAHitNtupletGeneratorKernels::Params m_params;
+
+  using Counters = CAHitNtupletGeneratorKernels::Counters;
+  CAHitNtupletGeneratorKernels::Counters * m_counters = nullptr;
 
 };
 

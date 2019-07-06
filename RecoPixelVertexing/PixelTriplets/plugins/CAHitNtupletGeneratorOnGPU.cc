@@ -83,7 +83,19 @@ CAHitNtupletGeneratorOnGPU::CAHitNtupletGeneratorOnGPU(const edm::ParameterSet &
              "h1","h2","h3","h4","h5");
 #endif
 
+  cudaCheck(cudaMalloc(&m_counters, sizeof(Counters)));
+  cudaCheck(cudaMemset(m_counters, 0, sizeof(Counters)));
+
 }
+
+CAHitNtupletGeneratorOnGPU::~CAHitNtupletGeneratorOnGPU(){
+ if (m_params.doStats_) {
+    // crash on multi-gpu processes
+    CAHitNtupletGeneratorKernels::printCounters(m_counters);
+  }
+  cudaFree(m_counters);
+}
+
 
 void CAHitNtupletGeneratorOnGPU::fillDescriptions(edm::ParameterSetDescription &desc) {
   // 87 cm/GeV = 1/(3.8T * 0.3)
@@ -133,6 +145,7 @@ PixelTrackCUDA CAHitNtupletGeneratorOnGPU::makeTuplesAsync(TrackingRecHit2DCUDA 
   auto * soa = tracks.soa();
   
   CAHitNtupletGeneratorKernels kernels(m_params);
+  kernels.counters_ = m_counters;
   HelixFitOnGPU fitter(bfield,m_params.fit5as4_);
 
   kernels.allocateOnGPU(stream);

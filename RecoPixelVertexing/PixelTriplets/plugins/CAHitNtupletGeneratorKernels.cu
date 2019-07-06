@@ -923,6 +923,8 @@ __global__ void kernel_printCounters(CAHitNtupletGeneratorKernels::Counters cons
          c.nZeroTrackCells / double(c.nCells));
 }
 
-void CAHitNtupletGeneratorKernels::printCounters() const { kernel_printCounters<<<1, 1>>>(counters_); }
+void CAHitNtupletGeneratorKernels::printCounters(Counters * counters) const { 
+   kernel_printCounters<<<1, 1>>>(counters);
+}
 
 */
