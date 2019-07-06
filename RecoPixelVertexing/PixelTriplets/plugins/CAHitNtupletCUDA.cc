@@ -20,7 +20,7 @@
 #include "HeterogeneousCore/CUDACore/interface/GPUCuda.h"
 #include "HeterogeneousCore/CUDAServices/interface/CUDAService.h"
 
-#include "CAHitQuadrupletGeneratorGPU.h"
+#include "CAHitNtupletGeneratorOnGPU.h"
 #include "CUDADataFormats/Track/interface/PixelTrackCUDA.h"
 #include "CUDADataFormats/TrackingRecHit/interface/TrackingRecHit2DCUDA.h"
 
@@ -38,7 +38,7 @@ private:
   edm::EDGetTokenT<CUDAProduct<TrackingRecHit2DCUDA>> tokenHit_;
   edm::EDPutTokenT<CUDAProduct<PixelTrackCUDA>> tokenTrack_;
 
-  CAHitQuadrupletGeneratorGPU gpuAlgo_;
+  CAHitNtupletGeneratorOnGPU gpuAlgo_;
 
   const bool useRiemannFit_;
 
@@ -72,10 +72,12 @@ void CAHitNtupletCUDA::produce(edm::StreamID streamID, edm::Event& iEvent, const
   CUDAScopedContextProduce ctx{*hHits};
   auto const& hits = ctx.get(*hHits);
 
+  auto bf = 1./PixelRecoUtilities::fieldInInvGev(es));
+
   ctx.emplace(
       iEvent,
       tokenTrack_,
-      std::move(gpuAlgo_.makeTuplesAsync(hits, ctx.stream())));
+      std::move(gpuAlgo_.makeTuplesAsync(hits, bf, ctx.stream())));
 
 }
 
