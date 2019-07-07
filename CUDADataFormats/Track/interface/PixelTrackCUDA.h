@@ -36,7 +36,7 @@ public:
   // this is chi2/ndof as not necessarely all hits are used in the fit  
   eigenSoA::ScalarSoA<float, S> chi2;
 
-  int nHits(int i) const { return detIndices.size(i);}
+  constexpr int nHits(int i) const { return detIndices.size(i);}
 
   // State at the Beam spot
   // phi,tip,1/pt,cotan(theta),zip
@@ -90,8 +90,6 @@ public:
   cudautils::host::unique_ptr<SoA> soaToHostAsync(cuda::stream_t<>& stream) const;
 
 private:
-
-  std::vector<uint32_t> m_indToEdm;  // index of    tuple in reco tracks....
 
   TrackingRecHit2DSOAView const* hitsOnGPU_ = nullptr;  // forwarding
 
