@@ -78,8 +78,8 @@ CAHitNtupletGeneratorOnGPU::CAHitNtupletGeneratorOnGPU(const edm::ParameterSet &
               makeQualityCuts(cfg.getParameterSet("trackQualityCuts"))) {
 
 #ifdef    DUMP_GPU_TK_TUPLES
-      printf("TK: %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s\n",
-             "tid", "qual", "nh","phi","tip","pt","cot","zip","eta","chil","chic",
+      printf("TK: %s %s % %s %s %s %s %s %s %s %s %s %s %s %s %s\n",
+             "tid", "qual", "nh","charge","pt","eta","phi","tip","zip","chi2",
              "h1","h2","h3","h4","h5");
 #endif
 

@@ -156,7 +156,7 @@ public:
   void allocateOnGPU(cuda::stream_t<>& stream);
   void cleanup(cudaStream_t cudaStream);
 
-  static void printCounters(Counters* counters);
+  static void printCounters(Counters const * counters);
   Counters* counters_ = nullptr;
 
 

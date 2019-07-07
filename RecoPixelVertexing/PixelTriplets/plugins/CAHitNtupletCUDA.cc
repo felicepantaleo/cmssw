@@ -53,7 +53,6 @@ void CAHitNtupletCUDA::fillDescriptions(edm::ConfigurationDescriptions& descript
   edm::ParameterSetDescription desc;
 
   desc.add<edm::InputTag>("pixelRecHitSrc", edm::InputTag("siPixelRecHitsCUDAPreSplitting"));
-  desc.add<bool>("useRiemannFit", false)->setComment("true for Riemann, false for BrokenLine");
 
   CAHitNtupletGeneratorOnGPU::fillDescriptions(desc);
   auto label = "caHitNtupletCUDA";
