@@ -34,7 +34,7 @@ public:
   using TupleMultiplicity = CAConstants::TupleMultiplicity;
 
   using Quality = PixelTrackCUDA::Quality;
-  using TuplesOnGPU = PixelTrackCUDA::SoA;
+  using TkSoA = PixelTrackCUDA::SoA;
   using HitContainer = PixelTrackCUDA::HitContainer;
 
 
@@ -146,11 +146,11 @@ public:
 
   TupleMultiplicity const* tupleMultiplicity() const { return device_tupleMultiplicity_.get(); }
 
-  void launchKernels(HitsOnCPU const& hh, TuplesOnGPU * tuples_d, cudaStream_t cudaStream);
+  void launchKernels(HitsOnCPU const& hh, TkSoA * tuples_d, cudaStream_t cudaStream);
 
-  void classifyTuples(HitsOnCPU const& hh, TuplesOnGPU * tuples_d, cudaStream_t cudaStream);
+  void classifyTuples(HitsOnCPU const& hh, TkSoA * tuples_d, cudaStream_t cudaStream);
 
-  void fillHitDetIndices(HitsOnCPU const &hh, TuplesOnGPU * tuples_d, cuda::stream_t<>& stream);
+  void fillHitDetIndices(HitsOnCPU const &hh, TkSoA * tuples_d, cuda::stream_t<>& stream);
 
   void buildDoublets(HitsOnCPU const& hh, cuda::stream_t<>& stream);
   void allocateOnGPU(cuda::stream_t<>& stream);

@@ -25,7 +25,13 @@ public:
   using HitContainer = OneToManyAssoc<hindex_type, S, 5 * S>;
 
   // Always check quality is at least loose!
-  eigenSoA::ScalarSoA<Quality, S> quality;
+  // CUDA does not support enums  in __lgc ...
+  eigenSoA::ScalarSoA<uint8_t, S> m_quality;
+  constexpr Quality quality(int32_t i) const { return (Quality)(m_quality(i));}
+  constexpr Quality & quality(int32_t i) { return (Quality&)(m_quality(i));}
+  constexpr Quality const * qualityData() const { return (Quality const *)(m_quality.data());}
+  constexpr Quality * qualityData() { return (Quality*)(m_quality.data());}
+
 
   // this is chi2/ndof as not necessarely all hits are used in the fit  
   eigenSoA::ScalarSoA<float, S> chi2;
@@ -37,9 +43,10 @@ public:
   TrajectoryStateSoA<S> stateAtBS;
   eigenSoA::ScalarSoA<float, S> eta;
   eigenSoA::ScalarSoA<float, S> pt;
-  float phi(int32_t i) const { return stateAtBS.state(i)(0); }
-  float tip(int32_t i) const { return stateAtBS.state(i)(1); }
-  float zip(int32_t i) const { return stateAtBS.state(i)(2); }
+  constexpr float charge(int32_t i) const { return std::copysign(1.f,stateAtBS.state(i)(2)); }
+  constexpr float phi(int32_t i) const { return stateAtBS.state(i)(0); }
+  constexpr float tip(int32_t i) const { return stateAtBS.state(i)(1); }
+  constexpr float zip(int32_t i) const { return stateAtBS.state(i)(4); }
 
   // state at the detector of the outermost hit
   // representation to be decided...
