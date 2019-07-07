@@ -52,6 +52,7 @@ pixelTracksHitQuadruplets = _initialStepCAHitQuadruplets.clone(
 )
 
 from Configuration.ProcessModifiers.gpu_cff import gpu
+from RecoPixelVertexing.PixelTriplets.caHitNtupletCUDA_cfi import caHitNtupletCUDA as _caHitNtupletCUDA
 from RecoPixelVertexing.PixelTriplets.caHitQuadrupletHeterogeneousEDProducer_cfi import caHitQuadrupletHeterogeneousEDProducer as _caHitQuadrupletHeterogeneousEDProducer
 gpu.toReplaceWith(pixelTracksHitQuadruplets, _caHitQuadrupletHeterogeneousEDProducer)
 gpu.toModify(pixelTracksHitQuadruplets, trackingRegions = "pixelTracksTrackingRegions")
