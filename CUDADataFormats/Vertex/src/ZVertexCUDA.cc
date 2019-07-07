@@ -6,7 +6,8 @@
 #include "HeterogeneousCore/CUDAUtilities/interface/cudaCheck.h"
 
 
-ZVertexCUDA::ZVertexCUDA(cuda::stream_t<> &stream) {
+ZVertexCUDA::ZVertexCUDA(TkSoA const *  trackOnGPU, cuda::stream_t<> &stream) :
+             m_trackOnGPU(trackOnGPU) {
   edm::Service<CUDAService> cs;
   m_soa = cs->make_device_unique<SoA>(stream);
 }
