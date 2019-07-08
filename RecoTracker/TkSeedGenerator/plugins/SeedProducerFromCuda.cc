@@ -88,6 +88,7 @@ void SeedProducerFromCuda::acquireGPUCuda(const edm::HeterogeneousEvent &iEvent,
   tuples_ = gh.product();
 }
 
+// OBSOLETE!!!!!!!
 void SeedProducerFromCuda::produceGPUCuda(edm::HeterogeneousEvent &iEvent,
                                                 const edm::EventSetup &iSetup,
                                                 cuda::stream_t<> &cudaStream) {
@@ -147,7 +148,7 @@ void SeedProducerFromCuda::produceGPUCuda(edm::HeterogeneousEvent &iEvent,
    
     Rfit::Vector5d opar;
     Rfit::Matrix5d ocov;
-    Rfit::transformToPerigeePlane(fittedTrack.par,fittedTrack.cov,opar,ocov,iCharge);
+    Rfit::transformToPerigeePlane(fittedTrack.par,fittedTrack.cov,opar,ocov);
 
     LocalTrajectoryParameters lpar(opar(0),opar(1),opar(2),opar(3),opar(4),1.);
     AlgebraicSymMatrix55 m;
