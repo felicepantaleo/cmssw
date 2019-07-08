@@ -158,11 +158,7 @@ template <typename T,                  // the type of the discretized input valu
           >
 class HistoContainer {
 public:
-#ifdef __CUDACC__
   using Counter = uint32_t;
-#else
-  using Counter = std::atomic<uint32_t>;
-#endif
 
   using CountersOnly = HistoContainer<T, NBINS, 0, S, I, NHISTS>;
 
@@ -219,7 +215,8 @@ public:
 #ifdef __CUDA_ARCH__
       atomicAdd(off + i, co.off[i]);
 #else
-      off[i] += co.off[i];
+      auto & a = (std::atomic<Counter>&)(off[i]);
+      a += co.off[i];
 #endif
     }
   }
@@ -228,7 +225,8 @@ public:
 #ifdef __CUDA_ARCH__
     return atomicAdd(&x, 1);
 #else
-    return x++;
+    auto & a = (std::atomic<Counter>&)(x);
+    return a++;
 #endif
   }
 
@@ -236,7 +234,8 @@ public:
 #ifdef __CUDA_ARCH__
     return atomicSub(&x, 1);
 #else
-    return x--;
+    auto & a = (std::atomic<Counter>&)(x);
+    return a--;
 #endif
   }
 

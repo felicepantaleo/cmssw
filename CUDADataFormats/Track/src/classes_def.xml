@@ -5,4 +5,5 @@
   <class name="edm::Wrapper<TrackSoA<32*1024>>" persistent="false"/>
   <class name="CUDAProduct<PixelTrackCUDA>" persistent="false"/>
   <class name="edm::Wrapper<CUDAProduct<PixelTrackCUDA>>" persistent="false"/>
+  <class name="edm::Wrapper<cudautils::host::unique_ptr<PixelTrackCUDA::SoA>>" persistent="false"/>
 </lcgdict>
