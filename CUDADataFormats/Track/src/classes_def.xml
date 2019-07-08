@@ -1,4 +1,8 @@
 <lcgdict>
+  <class name="TrackSoA<2*1024>" persistent="false"/>
+  <class name="TrackSoA<32*1024>" persistent="false"/>
+  <class name="edm::Wrapper<TrackSoA<2*1024>>" persistent="false"/>
+  <class name="edm::Wrapper<TrackSoA<32*1024>>" persistent="false"/>
   <class name="CUDAProduct<PixelTrackCUDA>" persistent="false"/>
   <class name="edm::Wrapper<CUDAProduct<PixelTrackCUDA>>" persistent="false"/>
 </lcgdict>
