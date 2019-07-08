@@ -69,7 +69,10 @@ void PixelTrackSoAFromCUDA::acquire(edm::Event const& iEvent,
 
 void PixelTrackSoAFromCUDA::produce(edm::Event& iEvent, edm::EventSetup const& iSetup) {
 
-  std::unique_ptr<PixelTrackCUDA::SoA> output(m_soa.release());
+  // I suspect this is wrong
+  //std::unique_ptr<PixelTrackCUDA::SoA> output(m_soa.release());
+  //we need to make a copy to use standard destructor
+  auto output = std::make_unique<PixelTrackCUDA::SoA>(*m_soa);
   iEvent.put(std::move(output));
 
 }
