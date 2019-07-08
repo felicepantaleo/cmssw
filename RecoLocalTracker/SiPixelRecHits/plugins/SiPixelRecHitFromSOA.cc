@@ -28,6 +28,8 @@ public:
 
   static void fillDescriptions(edm::ConfigurationDescriptions& descriptions);
 
+  using HitModuleStart = std::array<uint32_t,gpuClustering::MaxNumModules + 1>;
+
 private:
   void acquire(edm::Event const& iEvent,
                edm::EventSetup const& iSetup,
@@ -47,6 +49,7 @@ SiPixelRecHitFromSOA::SiPixelRecHitFromSOA(const edm::ParameterSet& iConfig)
     : tokenHit_(consumes<CUDAProduct<TrackingRecHit2DCUDA>>(iConfig.getParameter<edm::InputTag>("pixelRecHitSrc"))),
       clusterToken_(consumes<SiPixelClusterCollectionNew>(iConfig.getParameter<edm::InputTag>("src"))) {
   produces<SiPixelRecHitCollectionNew>();
+  produces<HitModuleStart>();
 }
 
 void SiPixelRecHitFromSOA::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
@@ -75,6 +78,10 @@ void SiPixelRecHitFromSOA::acquire(edm::Event const& iEvent,
 }
 
 void SiPixelRecHitFromSOA::produce(edm::Event& iEvent, edm::EventSetup const& es) {
+  auto hml = std::make_unique<HitModuleStart>();
+  std::copy(m_hitsModuleStart.get(),m_hitsModuleStart.get()+hml->size(), hml->begin());
+  iEvent.put(std::move(hml));
+
   auto output = std::make_unique<SiPixelRecHitCollectionNew>();
   if (0 == m_nHits) {
     iEvent.put(std::move(output));

@@ -216,16 +216,16 @@ namespace Rfit {
 
   // transformation between the "perigee" to cmssw localcoord frame
   // the plane of the latter is the perigee plane...
-  // from   //!<(phi,Tip,pt,cotan(theta)),Zip)
+  // from   //!<(phi,Tip,q/pt,cotan(theta)),Zip)
   // to q/p,dx/dz,dy/dz,x,z
-  template<typename V5, typename M5>
-  __host__ __device__ inline void transformToPerigeePlane(V5 const & ip, M5 const & icov, V5 & op, M5 & ocov, double charge) {
+  template<typename VI5, typename MI5, typename VO5, typename MO5>
+  __host__ __device__ inline void transformToPerigeePlane(VI5 const & ip, MI5 const & icov, VO5 & op, MO5 & ocov) {
 
     auto sinTheta2 = 1./(1.+ip(3)*ip(3));
     auto sinTheta = std::sqrt(sinTheta2);
     auto cosTheta = ip(3)*sinTheta;
 
-    op(0) = charge*sinTheta/ip(2);
+    op(0) = sinTheta*ip(2);
     op(1) = 0.;
     op(2) = -ip(3);
     op(3) = ip(1);
@@ -233,8 +233,8 @@ namespace Rfit {
 
     Matrix5d J = Matrix5d::Zero();
 
-    J(0,2) = -charge*sinTheta/(ip(2)*ip(2));
-    J(0,3) = -charge*sinTheta2*cosTheta/ip(2);
+    J(0,2) = sinTheta;
+    J(0,3) = -sinTheta2*cosTheta*ip(2);
     J(1,0) = 1.;
     J(2,3) = -1.;
     J(3,1) = 1.;
