@@ -21,6 +21,7 @@
 #include "HeterogeneousCore/CUDAServices/interface/CUDAService.h"
 #include "RecoTracker/TkMSParametrization/interface/PixelRecoUtilities.h"
 
+#include "CUDADataFormats/Vertex/interface/ZVertexCUDA.h"
 #include "CUDADataFormats/Track/interface/PixelTrackCUDA.h"
 #include "CUDADataFormats/TrackingRecHit/interface/TrackingRecHit2DCUDA.h"
 
@@ -36,17 +37,21 @@ private:
   void analyze(edm::StreamID streamID, edm::Event const & iEvent, const edm::EventSetup& iSetup) const override;
 
   edm::EDGetTokenT<CUDAProduct<PixelTrackCUDA>> tokenTrack_;
+  edm::EDGetTokenT<CUDAProduct<ZVertexCUDA>> tokenVertex_;
 
 };
 
 PixelTrackDumpCUDA::PixelTrackDumpCUDA(const edm::ParameterSet& iConfig) :
-  tokenTrack_(consumes<CUDAProduct<PixelTrackCUDA>>(iConfig.getParameter<edm::InputTag>("pixelTrackSrc")))
+  tokenTrack_(consumes<CUDAProduct<PixelTrackCUDA>>(iConfig.getParameter<edm::InputTag>("pixelTrackSrc"))),
+  tokenVertex_(consumes<CUDAProduct<ZVertexCUDA>>(iConfig.getParameter<edm::InputTag>("pixelVertexSrc")))
+
 {}
 
 void PixelTrackDumpCUDA::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
   edm::ParameterSetDescription desc;
 
    desc.add<edm::InputTag>("pixelTrackSrc", edm::InputTag("caHitNtupletCUDA"));
+   desc.add<edm::InputTag>("pixelVertexSrc", edm::InputTag("pixelVertexCUDA"));
    descriptions.add("pixelTrackDumpCUDA", desc);
 }
 
@@ -58,8 +63,17 @@ void PixelTrackDumpCUDA::analyze(edm::StreamID streamID, edm::Event const & iEve
   CUDAScopedContextProduce ctx{*hTracks};
   auto const& tracks = ctx.get(*hTracks);
 
-  auto const * soa = tracks.soa();
-  assert(soa);
+  auto const * tsoa = tracks.soa();
+  assert(tsoa);
+
+  edm::Handle<CUDAProduct<ZVertexCUDA>>  hVertices;
+  iEvent.getByToken(tokenVertex_, hVertices);
+
+  auto const& vertices = ctx.get(*hVertices);
+
+  auto const * vsoa = vertices.soa();
+  assert(vsoa);
+
 
 }
 
