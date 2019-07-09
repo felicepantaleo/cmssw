@@ -90,7 +90,7 @@ void PixelTrackDumpCUDA::analyze(edm::StreamID streamID, edm::Event const & iEve
     auto const * tsoa = hTracks.product();
     assert(tsoa);
 
-    edm::Handle<CUDAProduct<ZVertexCUDA>>  hVertices;
+    edm::Handle<ZVertexCUDA::SoA>  hVertices;
     iEvent.getByToken(tokenSoAVertex_, hVertices);
 
     auto const * vsoa = hVertices.product();
