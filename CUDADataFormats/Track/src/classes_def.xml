@@ -5,4 +5,6 @@
   <class name="edm::Wrapper<TrackSoA<32*1024>>" persistent="false"/>
   <class name="CUDAProduct<PixelTrackCUDA>" persistent="false"/>
   <class name="edm::Wrapper<CUDAProduct<PixelTrackCUDA>>" persistent="false"/>
+  <class name="ArrayShadow<std::array<unsigned int,2001>>" persistent="false"/>
+  <class name="edm::Wrapper<ArrayShadow<std::array<unsigned int,2001>>>" persistent="false"/>
 </lcgdict>

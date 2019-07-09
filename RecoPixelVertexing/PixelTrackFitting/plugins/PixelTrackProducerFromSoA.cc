@@ -34,6 +34,8 @@
 #include "CUDADataFormats/SiPixelCluster/interface/gpuClusteringConstants.h"
 
 #include "storeTracks.h"
+#include "CUDADataFormats/Common/interface/ArrayShadow.h"
+
 
 /**
  * This class creates "leagcy"  reco::Track
@@ -50,6 +52,7 @@ public:
   static void fillDescriptions(edm::ConfigurationDescriptions &descriptions);
 
   using HitModuleStart = std::array<uint32_t,gpuClustering::MaxNumModules + 1>;
+  using HMSstorage = ArrayShadow<HitModuleStart>;
 
 
 private:
@@ -58,7 +61,7 @@ private:
   edm::EDGetTokenT<reco::BeamSpot> tBeamSpot_;
   edm::EDGetTokenT<PixelTrackCUDA::SoA> tokenTrack_;
   edm::EDGetTokenT<SiPixelRecHitCollectionNew> cpuHits_;
-  edm::EDGetTokenT<HitModuleStart> hmsToken_;
+  edm::EDGetTokenT<HMSstorage> hmsToken_;
 
   int32_t minNumberOfHits_;
 };
@@ -67,8 +70,8 @@ PixelTrackProducerFromSoA::PixelTrackProducerFromSoA(const edm::ParameterSet &iC
       tBeamSpot_(consumes<reco::BeamSpot>(iConfig.getParameter<edm::InputTag>("beamSpot"))),
       tokenTrack_(consumes<PixelTrackCUDA::SoA>(iConfig.getParameter<edm::InputTag>("trackSrc"))),
       cpuHits_(consumes<SiPixelRecHitCollectionNew>(iConfig.getParameter<edm::InputTag>("pixelRecHitLegacySrc"))),
-      hmsToken_(consumes<HitModuleStart>(iConfig.getParameter<edm::InputTag>("pixelRecHitLegacySrc"))),
-      minNumberOfHits_(iConfig.getParameter<unsigned int>("minNumberOfHits"))
+      hmsToken_(consumes<HMSstorage>(iConfig.getParameter<edm::InputTag>("pixelRecHitLegacySrc"))),
+      minNumberOfHits_(iConfig.getParameter<int>("minNumberOfHits"))
 {
     produces<reco::TrackCollection>();
     produces<TrackingRecHitCollection>();
@@ -81,7 +84,7 @@ void PixelTrackProducerFromSoA::fillDescriptions(edm::ConfigurationDescriptions 
   desc.add<edm::InputTag>("beamSpot", edm::InputTag("offlineBeamSpot"));
   desc.add<edm::InputTag>("trackSrc", edm::InputTag("pixelTrackSoA"));
   desc.add<edm::InputTag>("pixelRecHitLegacySrc", edm::InputTag("siPixelRecHitsLegacyPreSplitting"));
-  desc.add<int>("minNumberOfHits", 4);
+  desc.add<int>("minNumberOfHits", 0);
 
   descriptions.addWithDefaultLabel(desc);
 }
@@ -107,11 +110,11 @@ void PixelTrackProducerFromSoA::produce(edm::StreamID streamID, edm::Event& iEve
   // std::cout << "beamspot " << bsh.x0() << ' ' << bsh.y0() << ' ' << bsh.z0() << std::endl;
   GlobalPoint bs(bsh.x0(), bsh.y0(), bsh.z0());
 
-  edm::Handle<HitModuleStart> hhms;
+  edm::Handle<HMSstorage> hhms;
   iEvent.getByToken(hmsToken_,hhms);
   auto const & hitsModuleStart = *hhms;
 
-  auto fc = &hitsModuleStart[0];
+  auto fc = hitsModuleStart.data;
 
   edm::Handle<SiPixelRecHitCollectionNew> gh;
   iEvent.getByToken(cpuHits_, gh);

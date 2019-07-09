@@ -8,3 +8,12 @@ from RecoPixelVertexing.PixelVertexFinding.PixelVertexes_cff import *
 #from RecoVertex.PrimaryVertexProducer.OfflinePixel3DPrimaryVertices_cfi import *
 recopixelvertexingTask = cms.Task(pixelTracksTask,pixelVertices)
 recopixelvertexing = cms.Sequence(recopixelvertexingTask)
+
+from Configuration.ProcessModifiers.gpu_cff import gpu
+
+from RecoPixelVertexing.PixelVertexFinding.pixelVertexCUDA_cfi import pixelVertexCUDA
+from RecoPixelVertexing.PixelVertexFinding.pixelVertexSoA_cfi import pixelVertexSoA
+from RecoPixelVertexing.PixelVertexFinding.pixelTracksFromSoA_cfi import pixelTracksFromSoA
+pixelVertexingCUDATask = cms.Task(pixelTracksGPUTask,pixelVertexCUDA,pixelVertexSoA,pixelTracksFromSoA)
+gpu.toReplaceWith(recopixelvertexingTask,pixelVertexingCUDATask)
+

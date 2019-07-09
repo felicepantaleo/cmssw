@@ -57,7 +57,7 @@ private:
 SeedProducerFromSoA::SeedProducerFromSoA(const edm::ParameterSet &iConfig) :
       tBeamSpot_(consumes<reco::BeamSpot>(iConfig.getParameter<edm::InputTag>("beamSpot"))),
       tokenTrack_(consumes<PixelTrackCUDA::SoA>(iConfig.getParameter<edm::InputTag>("src"))),
-      minNumberOfHits_(iConfig.getParameter<unsigned int>("minNumberOfHits"))
+      minNumberOfHits_(iConfig.getParameter<int>("minNumberOfHits"))
 
 {
     produces<TrajectorySeedCollection>();
@@ -67,7 +67,7 @@ void SeedProducerFromSoA::fillDescriptions(edm::ConfigurationDescriptions &descr
   edm::ParameterSetDescription desc;
   desc.add<edm::InputTag>("beamSpot", edm::InputTag("offlineBeamSpot"));
   desc.add<edm::InputTag>("src", edm::InputTag("pixelTrackSoA"));
-  desc.add<int>("minNumberOfHits", 4);
+  desc.add<int>("minNumberOfHits", 0);
 
   descriptions.addWithDefaultLabel(desc);
 }
