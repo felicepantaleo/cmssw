@@ -157,7 +157,7 @@ __global__ void kernelLineFit(CAConstants::TupleMultiplicity const *__restrict__
 
   results->stateAtBS.copyFromCircle(circle_fit[local_start].par,circle_fit[local_start].cov,
                                    line_fit.par,line_fit.cov,1.f/float(B),tkid);
-  results->pt(tkid) =  1./(B*std::abs(circle_fit[local_start].par(2)));
+  results->pt(tkid) =  B/std::abs(circle_fit[local_start].par(2));
   results->eta(tkid) =  asinhf(line_fit.par(0));
   results->chi2(tkid) = (circle_fit[local_start].chi2+line_fit.chi2)/(2*N-5);
 
