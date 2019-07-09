@@ -24,15 +24,14 @@
 #include "MagneticField/Records/interface/IdealMagneticFieldRecord.h"
 #include "HeterogeneousCore/CUDACore/interface/GPUCuda.h"
 #include "HeterogeneousCore/CUDAServices/interface/CUDAService.h"
-#include "RecoPixelVertexing/PixelTriplets/plugins/pixelTuplesHeterogeneousProduct.h"
-#include "RecoTracker/TkHitPairs/interface/RegionsSeedingHitSets.h"
+
 #include "TrackingTools/AnalyticalJacobians/interface/JacobianLocalToCurvilinear.h"
 #include "TrackingTools/TrajectoryParametrization/interface/GlobalTrajectoryParameters.h"
 #include "TrackingTools/TrajectoryParametrization/interface/CurvilinearTrajectoryError.h"
 #include "RecoPixelVertexing/PixelTrackFitting/interface/FitUtils.h"
 
 #include "CUDADataFormats/Track/interface/PixelTrackCUDA.h"
-
+#include "CUDADataFormats/SiPixelCluster/interface/gpuClusteringConstants.h"
 
 #include "storeTracks.h"
 
@@ -42,6 +41,8 @@
  */
 class PixelTrackProducerFromSoA : public edm::global::EDProducer<> {
 public:
+
+  using IndToEdm = std::vector<uint16_t>;
 
   explicit PixelTrackProducerFromSoA(const edm::ParameterSet &iConfig);
   ~PixelTrackProducerFromSoA() override = default;
@@ -72,6 +73,7 @@ PixelTrackProducerFromSoA::PixelTrackProducerFromSoA(const edm::ParameterSet &iC
     produces<reco::TrackCollection>();
     produces<TrackingRecHitCollection>();
     produces<reco::TrackExtraCollection>();
+    produces<IndToEdm>();
 }
 
 void PixelTrackProducerFromSoA::fillDescriptions(edm::ConfigurationDescriptions &descriptions) {
@@ -87,6 +89,9 @@ void PixelTrackProducerFromSoA::fillDescriptions(edm::ConfigurationDescriptions 
 
 void PixelTrackProducerFromSoA::produce(edm::StreamID streamID, edm::Event& iEvent, const edm::EventSetup& iSetup) const {
   // std::cout << "Converting gpu helix in reco tracks" << std::endl;
+
+  auto indToEdmP = std::make_unique<IndToEdm>();
+  auto & indToEdm = *indToEdmP;
 
   edm::ESHandle<MagneticField> fieldESH;
   iSetup.get<IdealMagneticFieldRecord>().get(fieldESH);
@@ -137,15 +142,17 @@ void PixelTrackProducerFromSoA::produce(edm::StreamID streamID, edm::Event& iEve
   auto const & hitIndices = tsoa.hitIndices; 
   auto maxTracks = PixelTrackCUDA::SoA::stride();
 
-  int32_t nt = 0; 
+  int32_t nt = 0;
+ 
   for (int32_t it = 0; it < maxTracks; ++it) {
     auto nHits = tsoa.nHits(it);
     if (nHits == 0) break;  // this is a guard: maybe we need to move to nTracks...
-
+    indToEdm.push_back(-1);
     auto q = quality[it];
     if (q != trackQuality::loose)
       continue;                           // FIXME
-   if (nHits< minNumberOfHits_) continue;
+    if (nHits< minNumberOfHits_) continue;
+    indToEdm.back() = nt;
     ++nt;
 
     hits.resize(nHits);
@@ -197,6 +204,7 @@ void PixelTrackProducerFromSoA::produce(edm::StreamID streamID, edm::Event& iEve
 
   // store tracks
   storeTracks(iEvent, tracks, *httopo);
+  iEvent.put(std::move(indToEdmP));
 }
 
 
