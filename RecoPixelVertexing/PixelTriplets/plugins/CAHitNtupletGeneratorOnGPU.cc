@@ -153,6 +153,7 @@ PixelTrackCUDA CAHitNtupletGeneratorOnGPU::makeTuplesAsync(TrackingRecHit2DCUDA 
 
   kernels.buildDoublets(hits_d, stream);
   kernels.launchKernels(hits_d, soa, stream.id());
+  kernels.fillHitDetIndices(hits_d, soa, stream.id());  // in principle needed only if Hits not "available"
   if (m_params.useRiemannFit_) {
     fitter.launchRiemannKernels(hits_d, hits_d.nHits(), CAConstants::maxNumberOfQuadruplets(), stream);
   } else {

@@ -504,11 +504,11 @@ __global__ void kernel_fillHitDetIndices(HitContainer const *__restrict__ tuples
   }
 }
 
-void CAHitNtupletGeneratorKernels::fillHitDetIndices(HitsOnCPU const &hh, TkSoA * tracks_d, cuda::stream_t<>& stream) {
+void CAHitNtupletGeneratorKernels::fillHitDetIndices(HitsOnCPU const &hh, TkSoA * tracks_d, cudaStream_t cudaStream) {
   auto blockSize=128;
   auto numberOfBlocks = (HitContainer::capacity() + blockSize - 1) / blockSize;
 
-  kernel_fillHitDetIndices<<<numberOfBlocks,blockSize,0,stream.id()>>>(&tracks_d->hitIndices, hh.view(), &tracks_d->detIndices);
+  kernel_fillHitDetIndices<<<numberOfBlocks,blockSize,0,cudaStream>>>(&tracks_d->hitIndices, hh.view(), &tracks_d->detIndices);
   cudaCheck(cudaGetLastError());
 #ifdef GPU_DEBUG
     cudaDeviceSynchronize();

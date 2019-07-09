@@ -56,7 +56,9 @@ PixelVertexProducerFromSoA::PixelVertexProducerFromSoA(const edm::ParameterSet &
      tokenVertex_(consumes<ZVertexCUDA::SoA>(conf.getParameter<edm::InputTag>("src"))),
      tokenBeamSpot_(consumes<reco::BeamSpot>(conf.getParameter<edm::InputTag>("beamSpot"))),
      tokenTracks_(consumes<reco::TrackCollection>(conf.getParameter<edm::InputTag>("TrackCollection"))),
-     tokenIndToEdm_(consumes<IndToEdm>(conf.getParameter<edm::InputTag>("TrackCollection"))) {}
+     tokenIndToEdm_(consumes<IndToEdm>(conf.getParameter<edm::InputTag>("TrackCollection"))) {
+     produces<reco::VertexCollection>();
+}
 
 
 void PixelVertexProducerFromSoA::fillDescriptions(edm::ConfigurationDescriptions &descriptions) {
@@ -103,6 +105,8 @@ void PixelVertexProducerFromSoA::produce(edm::StreamID streamID, edm::Event& iEv
 
   int nv = soa.nvFinal;
 
+  // std::cout << "converting " << nv << " vertices " << " from " << indToEdm.size() << " tracks" << std::endl;
+
   std::set<uint16_t> uind;  // fort verifing index consistency
   for (int j = nv - 1; j >= 0; --j) {
     auto i = soa.sortInd[j];  // on gpu sorted in ascending order....
@@ -117,7 +121,7 @@ void PixelVertexProducerFromSoA::produce(edm::StreamID streamID, edm::Event& iEv
     err(2, 2) = 1.f / soa.wv[i];
     err(2, 2) *= 2.;  // artifically inflate error
     //Copy also the tracks (no intention to be efficient....)
-    for (auto k = 0U; k < ZVertexCUDA::SoA::MAXTRACKS; ++k) {
+    for (auto k = 0U; k < indToEdm.size(); ++k) {
       if (soa.idv[k] == int16_t(i))
         itrk.push_back(k);
     }

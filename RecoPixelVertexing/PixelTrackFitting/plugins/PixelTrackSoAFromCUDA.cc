@@ -69,6 +69,21 @@ void PixelTrackSoAFromCUDA::acquire(edm::Event const& iEvent,
 
 void PixelTrackSoAFromCUDA::produce(edm::Event& iEvent, edm::EventSetup const& iSetup) {
 
+  /*
+  auto tsoa = *m_soa;
+  auto maxTracks = PixelTrackCUDA::SoA::stride();
+  std::cout << "size of SoA" << sizeof(PixelTrackCUDA::SoA) << " stride " << maxTracks << std::endl;
+
+  int32_t nt = 0;
+  for (int32_t it = 0; it < maxTracks; ++it) {
+    auto nHits = tsoa.nHits(it);
+    assert(nHits==int(tsoa.hitIndices.size(it)));
+    if (nHits == 0) break;  // this is a guard: maybe we need to move to nTracks...
+    nt++;
+  }
+  std::cout << "found " << nt << " tracks in cpu SoA" << std::endl;
+  */
+
   // I suspect this is wrong
   //std::unique_ptr<PixelTrackCUDA::SoA> output(m_soa.release());
   //we need to make a copy to use standard destructor

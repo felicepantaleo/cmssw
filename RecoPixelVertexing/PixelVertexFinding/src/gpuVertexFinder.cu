@@ -17,8 +17,7 @@
 
 namespace gpuVertexFinder {
 
-
-  __global__ void loadTracks(TkSoA const* ptracks, WorkSpace* pws, float ptMin) {
+  __global__ void loadTracks(TkSoA const* ptracks, ZVertexSoA * soa, WorkSpace* pws, float ptMin) {
     
     auto const & tracks = *ptracks;
     auto const & fit = tracks.stateAtBS;
@@ -30,6 +29,9 @@ namespace gpuVertexFinder {
 
     auto nHits = tracks.nHits(idx);
     if (nHits == 0) return;  // this is a guard: maybe we need to move to nTracks...
+
+    // initialize soa...
+    soa->idv[idx]=-1;
 
     if (nHits < 4)
       return;  // no triplets
@@ -61,7 +63,7 @@ namespace gpuVertexFinder {
     init<<<1, 1, 0, stream.id()>>>(soa, ws_d.get());
     auto blockSize = 128;
     auto numberOfBlocks = (TkSoA::stride() + blockSize - 1) / blockSize;
-    loadTracks<<<numberOfBlocks, blockSize, 0, stream.id()>>>(tksoa, ws_d.get(), ptMin);
+    loadTracks<<<numberOfBlocks, blockSize, 0, stream.id()>>>(tksoa, soa, ws_d.get(), ptMin);
     cudaCheck(cudaGetLastError());
     if (useDensity_) {
       clusterTracksByDensity<<<1, 1024 - 256, 0, stream.id()>>>(soa, ws_d.get(), minT, eps, errmax, chi2max);

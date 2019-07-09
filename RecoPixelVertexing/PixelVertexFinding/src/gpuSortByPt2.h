@@ -29,6 +29,11 @@ namespace gpuVertexFinder {
     if (nvFinal < 1)
       return;
 
+    // fill indexing
+    for (auto i = threadIdx.x; i < nt; i += blockDim.x) {
+      data.idv[ws.itrk[i]] = iv[i];
+    }
+
     // can be done asynchronoisly at the end of previous event
     for (auto i = threadIdx.x; i < nvFinal; i += blockDim.x) {
       ptv2[i] = 0;

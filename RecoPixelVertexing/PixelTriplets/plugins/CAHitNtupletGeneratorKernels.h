@@ -150,7 +150,7 @@ public:
 
   void classifyTuples(HitsOnCPU const& hh, TkSoA * tuples_d, cudaStream_t cudaStream);
 
-  void fillHitDetIndices(HitsOnCPU const &hh, TkSoA * tuples_d, cuda::stream_t<>& stream);
+  void fillHitDetIndices(HitsOnCPU const &hh, TkSoA * tuples_d, cudaStream_t cudaStream);
 
   void buildDoublets(HitsOnCPU const& hh, cuda::stream_t<>& stream);
   void allocateOnGPU(cuda::stream_t<>& stream);

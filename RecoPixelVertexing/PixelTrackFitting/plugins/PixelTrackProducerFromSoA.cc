@@ -203,7 +203,7 @@ void PixelTrackProducerFromSoA::produce(edm::StreamID streamID, edm::Event& iEve
     // filter???
     tracks.emplace_back(track.release(), hits);
   }
-  // std::cout << "processed " << nt << " good tuples " << tracks.size() << std::endl;
+  // std::cout << "processed " << nt << " good tuples " << tracks.size() << "out of " << indToEdm.size() << std::endl;
 
   // store tracks
   storeTracks(iEvent, tracks, *httopo);
