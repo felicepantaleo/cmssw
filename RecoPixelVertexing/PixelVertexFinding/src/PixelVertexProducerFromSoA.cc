@@ -66,7 +66,7 @@ void PixelVertexProducerFromSoA::fillDescriptions(edm::ConfigurationDescriptions
   desc.add<edm::InputTag>("beamSpot", edm::InputTag("offlineBeamSpot"));
   desc.add<edm::InputTag>("src", edm::InputTag("pixelVertexSoA"));
 
-  descriptions.add("pixelTracksFromSoA", desc);
+  descriptions.add("pixelVertexFromSoA", desc);
 }
 
 

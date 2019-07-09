@@ -89,14 +89,15 @@ ntupleFit.toReplaceWith(pixelTracksTask, _pixelTracksTask_ntupleFit)
 from Configuration.ProcessModifiers.gpu_cff import gpu
 from RecoPixelVertexing.PixelTriplets.caHitNtupletCUDA_cfi import caHitNtupletCUDA
 from RecoPixelVertexing.PixelTrackFitting.pixelTrackSoA_cfi import pixelTrackSoA
-from RecoPixelVertexing.PixelTrackFitting.pixelTrackProducerFromSoA_cfi import pixelTrackProducerFromSoA
-pixelTracksGPUTask = cms.Task(
+from RecoPixelVertexing.PixelTrackFitting.pixelTrackProducerFromSoA_cfi import pixelTrackProducerFromSoA as _pixelTrackFromSoA
+_pixelTracksGPUTask = cms.Task(
   caHitNtupletCUDA,
   pixelTrackSoA,
-  pixelTrackProducerFromSoA
+  pixelTracks # FromSoA
 )
 
-gpu.toReplaceWith(pixelTracksTask, pixelTracksGPUTask)
+gpu.toReplaceWith(pixelTracksTask, _pixelTracksGPUTask)
+gpu.toReplaceWith(pixelTracks,_pixelTrackFromSoA)
 
 
 pixelTracksSequence = cms.Sequence(pixelTracksTask)

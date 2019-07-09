@@ -13,7 +13,10 @@ from Configuration.ProcessModifiers.gpu_cff import gpu
 
 from RecoPixelVertexing.PixelVertexFinding.pixelVertexCUDA_cfi import pixelVertexCUDA
 from RecoPixelVertexing.PixelVertexFinding.pixelVertexSoA_cfi import pixelVertexSoA
-from RecoPixelVertexing.PixelVertexFinding.pixelTracksFromSoA_cfi import pixelTracksFromSoA
-pixelVertexingCUDATask = cms.Task(pixelTracksGPUTask,pixelVertexCUDA,pixelVertexSoA,pixelTracksFromSoA)
-gpu.toReplaceWith(recopixelvertexingTask,pixelVertexingCUDATask)
+from RecoPixelVertexing.PixelVertexFinding.pixelVertexFromSoA_cfi import pixelVertexFromSoA as _pixelVertexFromSoA
+
+_pixelVertexingCUDATask = cms.Task(pixelTracksTask,pixelVertexCUDA,pixelVertexSoA,pixelVertices)
+
+gpu.toReplaceWith(pixelVertices,_pixelVertexFromSoA)
+gpu.toReplaceWith(recopixelvertexingTask,_pixelVertexingCUDATask)
 
