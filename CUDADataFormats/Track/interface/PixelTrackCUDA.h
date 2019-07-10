@@ -51,7 +51,7 @@ public:
   // state at the detector of the outermost hit
   // representation to be decided...
   // not yet filled on GPU
-  TrajectoryStateSoA<S> stateAtOuterDet;
+  // TrajectoryStateSoA<S> stateAtOuterDet;
 
   HitContainer hitIndices;
   HitContainer detIndices;
