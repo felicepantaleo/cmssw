@@ -1,10 +1,11 @@
 <lcgdict>
-  <class name="TrackSoA<2*1024>" persistent="false"/>
-  <class name="TrackSoA<32*1024>" persistent="false"/>
-  <class name="edm::Wrapper<TrackSoA<2*1024>>" persistent="false"/>
-  <class name="edm::Wrapper<TrackSoA<32*1024>>" persistent="false"/>
   <class name="CUDAProduct<PixelTrackCUDA>" persistent="false"/>
   <class name="edm::Wrapper<CUDAProduct<PixelTrackCUDA>>" persistent="false"/>
+  <class name="HostProduct<PixelTrackCUDA::SoA>" persistent="false">
+   <field name="hm_ptr" transient = "true"/>
+   <field name="hm_std" transient = "true"/>
+  </class>
+  <class name="edm::Wrapper<HostProduct<PixelTrackCUDA::SoA>>" persistent="false"/>
   <class name="ArrayShadow<std::array<unsigned int,2001>>" persistent="false"/>
   <class name="edm::Wrapper<ArrayShadow<std::array<unsigned int,2001>>>" persistent="false"/>
 </lcgdict>

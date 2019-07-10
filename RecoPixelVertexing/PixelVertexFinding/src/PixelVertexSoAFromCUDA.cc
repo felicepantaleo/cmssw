@@ -1,5 +1,6 @@
 #include <cuda_runtime.h>
 
+#include "CUDADataFormats/Common/interface/HostProduct.h"
 #include "CUDADataFormats/Common/interface/CUDAProduct.h"
 #include "DataFormats/Common/interface/Handle.h"
 #include "FWCore/Framework/interface/ESHandle.h"
@@ -33,7 +34,7 @@ private:
 
 
   edm::EDGetTokenT<CUDAProduct<ZVertexCUDA>> tokenCUDA_;
-  edm::EDPutTokenT<ZVertexCUDA::SoA> tokenSOA_;
+  edm::EDPutTokenT<HostProduct<ZVertexCUDA::SoA>> tokenSOA_;
 
   cudautils::host::unique_ptr<ZVertexCUDA::SoA> m_soa;
 
@@ -41,7 +42,7 @@ private:
 
 PixelVertexSoAFromCUDA::PixelVertexSoAFromCUDA(const edm::ParameterSet& iConfig) :
   tokenCUDA_(consumes<CUDAProduct<ZVertexCUDA>>(iConfig.getParameter<edm::InputTag>("src"))),
-  tokenSOA_(produces<ZVertexCUDA::SoA>())
+  tokenSOA_(produces<HostProduct<ZVertexCUDA::SoA>>())
 {}
 
 
@@ -69,8 +70,8 @@ void PixelVertexSoAFromCUDA::acquire(edm::Event const& iEvent,
 
 void PixelVertexSoAFromCUDA::produce(edm::Event& iEvent, edm::EventSetup const& iSetup) {
 
-  //we need to make a copy to use standard destructor
-  auto output = std::make_unique<ZVertexCUDA::SoA>(*m_soa);
+  // No copies....
+  auto output = std::make_unique<HostProduct<ZVertexCUDA::SoA>>(std::move(m_soa));
   iEvent.put(std::move(output));
 
 }

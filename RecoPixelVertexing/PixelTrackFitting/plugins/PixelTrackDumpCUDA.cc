@@ -21,6 +21,7 @@
 #include "HeterogeneousCore/CUDAServices/interface/CUDAService.h"
 #include "RecoTracker/TkMSParametrization/interface/PixelRecoUtilities.h"
 
+#include "CUDADataFormats/Common/interface/HostProduct.h"
 #include "CUDADataFormats/Vertex/interface/ZVertexCUDA.h"
 #include "CUDADataFormats/Track/interface/PixelTrackCUDA.h"
 #include "CUDADataFormats/TrackingRecHit/interface/TrackingRecHit2DCUDA.h"
@@ -38,8 +39,8 @@ private:
   const bool m_onGPU;
   edm::EDGetTokenT<CUDAProduct<PixelTrackCUDA>> tokenGPUTrack_;
   edm::EDGetTokenT<CUDAProduct<ZVertexCUDA>> tokenGPUVertex_;
-  edm::EDGetTokenT<PixelTrackCUDA::SoA> tokenSoATrack_;
-  edm::EDGetTokenT<ZVertexCUDA::SoA> tokenSoAVertex_;
+  edm::EDGetTokenT<HostProduct<PixelTrackCUDA::SoA>> tokenSoATrack_;
+  edm::EDGetTokenT<HostProduct<ZVertexCUDA::SoA>> tokenSoAVertex_;
 
 
 };
@@ -50,8 +51,8 @@ PixelTrackDumpCUDA::PixelTrackDumpCUDA(const edm::ParameterSet& iConfig) :
     tokenGPUTrack_ = consumes<CUDAProduct<PixelTrackCUDA>>(iConfig.getParameter<edm::InputTag>("pixelTrackSrc"));
     tokenGPUVertex_ = consumes<CUDAProduct<ZVertexCUDA>>(iConfig.getParameter<edm::InputTag>("pixelVertexSrc"));
   } else {
-    tokenSoATrack_ = consumes<PixelTrackCUDA::SoA>(iConfig.getParameter<edm::InputTag>("pixelTrackSrc"));
-    tokenSoAVertex_ = consumes<ZVertexCUDA::SoA>(iConfig.getParameter<edm::InputTag>("pixelVertexSrc"));
+    tokenSoATrack_ = consumes<HostProduct<PixelTrackCUDA::SoA>>(iConfig.getParameter<edm::InputTag>("pixelTrackSrc"));
+    tokenSoAVertex_ = consumes<HostProduct<ZVertexCUDA::SoA>>(iConfig.getParameter<edm::InputTag>("pixelVertexSrc"));
   }
 }
 
@@ -84,16 +85,16 @@ void PixelTrackDumpCUDA::analyze(edm::StreamID streamID, edm::Event const & iEve
     assert(vsoa);
 
   } else {
-    edm::Handle<PixelTrackCUDA::SoA>  hTracks;
+    edm::Handle<HostProduct<PixelTrackCUDA::SoA>>  hTracks;
     iEvent.getByToken(tokenSoATrack_, hTracks);
 
-    auto const * tsoa = hTracks.product();
+    auto const * tsoa = hTracks.product()->get();
     assert(tsoa);
 
-    edm::Handle<ZVertexCUDA::SoA>  hVertices;
+    edm::Handle<HostProduct<ZVertexCUDA::SoA>>  hVertices;
     iEvent.getByToken(tokenSoAVertex_, hVertices);
 
-    auto const * vsoa = hVertices.product();
+    auto const * vsoa = hVertices.product()->get();
     assert(vsoa);
 
   }

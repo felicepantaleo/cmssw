@@ -1,6 +1,7 @@
 #include <cuda_runtime.h>
 
 #include "CUDADataFormats/Common/interface/CUDAProduct.h"
+#include "CUDADataFormats/Common/interface/HostProduct.h"
 #include "DataFormats/Common/interface/Handle.h"
 #include "FWCore/Framework/interface/ESHandle.h"
 #include "FWCore/Framework/interface/Event.h"
@@ -34,7 +35,7 @@ private:
 
 
   edm::EDGetTokenT<CUDAProduct<PixelTrackCUDA>> tokenCUDA_;
-  edm::EDPutTokenT<PixelTrackCUDA::SoA> tokenSOA_;
+  edm::EDPutTokenT<HostProduct<PixelTrackCUDA::SoA>> tokenSOA_;
 
   cudautils::host::unique_ptr<PixelTrackCUDA::SoA> m_soa;
 
@@ -42,7 +43,7 @@ private:
 
 PixelTrackSoAFromCUDA::PixelTrackSoAFromCUDA(const edm::ParameterSet& iConfig) :
   tokenCUDA_(consumes<CUDAProduct<PixelTrackCUDA>>(iConfig.getParameter<edm::InputTag>("src"))),
-  tokenSOA_(produces<PixelTrackCUDA::SoA>())
+  tokenSOA_(produces<HostProduct<PixelTrackCUDA::SoA>>())
 {}
 
 
@@ -86,8 +87,8 @@ void PixelTrackSoAFromCUDA::produce(edm::Event& iEvent, edm::EventSetup const& i
 
   // I suspect this is wrong
   //std::unique_ptr<PixelTrackCUDA::SoA> output(m_soa.release());
-  //we need to make a copy to use standard destructor
-  auto output = std::make_unique<PixelTrackCUDA::SoA>(*m_soa);
+  // DO NOT  make a copy  (actually TWO....)
+  auto output = std::make_unique<HostProduct<PixelTrackCUDA::SoA>>(std::move(m_soa));
   iEvent.put(std::move(output));
 
 }

@@ -1,6 +1,9 @@
 <lcgdict>
   <class name="CUDAProduct<ZVertexCUDA>" persistent="false"/>
   <class name="edm::Wrapper<CUDAProduct<ZVertexCUDA>>" persistent="false"/>
-  <class name="ZVertexSoA" persistent="false"/>
-  <class name="edm::Wrapper<ZVertexSoA>" persistent="false"/>
+  <class name="HostProduct<ZVertexSoA>" persistent="false">
+   <field name="hm_ptr" transient = "true"/>
+   <field name="hm_std" transient = "true"/>
+  </class>
+  <class name="edm::Wrapper<HostProduct<ZVertexSoA>>" persistent="false"/>
 </lcgdict>
