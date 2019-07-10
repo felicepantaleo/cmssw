@@ -122,7 +122,7 @@ void PixelTrackProducerFromSoA::produce(edm::StreamID streamID, edm::Event& iEve
   std::vector<TrackingRecHit const*> hitmap;
   auto const &rcs = rechits.data();
   auto nhits = rcs.size();
-  hitmap.resize(nhits);
+  hitmap.resize(nhits,nullptr);
   for (auto const &h : rcs) {
     auto const &thit = static_cast<BaseTrackerRecHit const &>(h);
     auto detI = thit.det()->index();
@@ -130,6 +130,7 @@ void PixelTrackProducerFromSoA::produce(edm::StreamID streamID, edm::Event& iEve
     assert(clus.isPixel());
     auto i = fc[detI] + clus.pixelCluster().originalId();
     assert(i < nhits);
+    assert(nullptr==hitmap[i]);
     hitmap[i] = &h;
   }
 
