@@ -113,15 +113,16 @@ namespace gpuPixelDoubletsAlgos {
         continue;
 
       if (doClusterCut) {
-        mes = hh.clusterSizeY(i);
-
         // if ideal treat inner ladder as outer
         auto mi = hh.detectorIndex(i);
         if (inner == 0)
           assert(mi < 96);
         isOuterLadder = ideal_cond ? true : 0 == (mi / 8) % 2;  // only for B1/B2/B3 B4 is opposite, FPIX:noclue...
 
-        if (inner == 0 && outer > 3 && isOuterLadder)  // B1 and F1
+        // in any case we always test mes>0 ...
+        mes = inner > 0 || isOuterLadder ? hh.clusterSizeY(i) : -1;
+
+        if (inner == 0 && outer > 3 )  // B1 and F1
           if (mes > 0 && mes < minYsizeB1)
             continue;                 // only long cluster  (5*8)
         if (inner == 1 && outer > 3)  // B2 and F1
@@ -155,7 +156,7 @@ namespace gpuPixelDoubletsAlgos {
       auto zsizeCut = [&](int j) {
         auto onlyBarrel = outer < 4;
         auto so = hh.clusterSizeY(j);
-        auto dy = inner == 0 ? (isOuterLadder ? maxDYsize12 : 100) : maxDYsize;
+        auto dy = inner == 0 ? maxDYsize12  : maxDYsize;
         // in the barrel cut on difference in size
         // in the endcap on the prediction on the first layer (actually in the barrel only: happen to be safe for endcap as well)
         // FIXME move pred cut to z0cutoff to optmize loading of and computaiton ...
@@ -163,7 +164,8 @@ namespace gpuPixelDoubletsAlgos {
         auto ro = hh.rGlobal(j);
         return onlyBarrel ?
                      mes > 0 && so > 0 && std::abs(so - mes) > dy :
-                     (inner<4) && std::abs(mes - int(std::abs((mez-zo)/(mer-ro))*dzdrFact+0.5f)) > maxDYPred;
+                     (inner<4) && mes>0 
+                     && std::abs(mes - int(std::abs((mez-zo)/(mer-ro))*dzdrFact+0.5f)) > maxDYPred;
       };
 
       auto iphicut = phicuts[pairLayerId];
