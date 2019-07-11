@@ -158,12 +158,12 @@ namespace gpuPixelDoubletsAlgos {
         auto dy = inner == 0 ? (isOuterLadder ? maxDYsize12 : 100) : maxDYsize;
         // in the barrel cut on difference in size
         // in the endcap on the prediction on the first layer (actually in the barrel only: happen to be safe for endcap as well)
-        // FIXME move pred cut to z0cutoff: make configurable act on cut value...
+        // FIXME move pred cut to z0cutoff to optmize loading of and computaiton ...
         auto zo = hh.zGlobal(j);
         auto ro = hh.rGlobal(j);
         return onlyBarrel ?
                      mes > 0 && so > 0 && std::abs(so - mes) > dy :
-                     mes - int(std::abs((mez-zo)/(mer-ro))*dzdrFact+0.5f) > maxDYPred;
+                     (inner<4) && std::abs(mes - int(std::abs((mez-zo)/(mer-ro))*dzdrFact+0.5f)) > maxDYPred;
       };
 
       auto iphicut = phicuts[pairLayerId];
