@@ -48,6 +48,9 @@ namespace gpuPixelDoubletsAlgos {
     constexpr int minYsizeB2 = 28;
     constexpr int maxDYsize12 = 28;
     constexpr int maxDYsize = 20;
+    constexpr int maxDYPred = 20;
+    constexpr float dzdrFact = 8*0.0285/0.015;  // from dz/dr to "DY"
+
     int16_t mes;
     bool isOuterLadder = ideal_cond;
 
@@ -110,7 +113,7 @@ namespace gpuPixelDoubletsAlgos {
         continue;
 
       if (doClusterCut) {
-        auto mes = hh.clusterSizeY(i);
+        mes = hh.clusterSizeY(i);
 
         // if ideal treat inner ladder as outer
         auto mi = hh.detectorIndex(i);
@@ -128,6 +131,7 @@ namespace gpuPixelDoubletsAlgos {
       auto mep = hh.iphi(i);
       auto mer = hh.rGlobal(i);
 
+      // all cuts: true if fails
       constexpr float z0cut = 12.f;      // cm
       constexpr float hardPtCut = 0.5f;  // GeV
       constexpr float minRadius =
@@ -143,7 +147,6 @@ namespace gpuPixelDoubletsAlgos {
       };
       auto z0cutoff = [&](int j) {
         auto zo = hh.zGlobal(j);
-        ;
         auto ro = hh.rGlobal(j);
         auto dr = ro - mer;
         return dr > maxr[pairLayerId] || dr < 0 || std::abs((mez * ro - mer * zo)) > z0cut * dr;
@@ -153,7 +156,14 @@ namespace gpuPixelDoubletsAlgos {
         auto onlyBarrel = outer < 4;
         auto so = hh.clusterSizeY(j);
         auto dy = inner == 0 ? (isOuterLadder ? maxDYsize12 : 100) : maxDYsize;
-        return onlyBarrel && mes > 0 && so > 0 && std::abs(so - mes) > dy;
+        // in the barrel cut on difference in size
+        // in the endcap on the prediction on the first layer (actually in the barrel only: happen to be safe for endcap as well)
+        // FIXME move pred cut to z0cutoff: make configurable act on cut value...
+        auto zo = hh.zGlobal(j);
+        auto ro = hh.rGlobal(j);
+        return onlyBarrel ?
+                     mes > 0 && so > 0 && std::abs(so - mes) > dy :
+                     mes - int(std::abs((mez-zo)/(mer-ro))*dzdrFact+0.5f) > maxDYPred;
       };
 
       auto iphicut = phicuts[pairLayerId];
@@ -187,7 +197,7 @@ namespace gpuPixelDoubletsAlgos {
             continue;
           if (doPhiCut) {
             if (doClusterCut && zsizeCut(oi))
-              continue;
+               continue;
             if (z0cutoff(oi) || ptcut(oi,mop))
               continue;
           }
