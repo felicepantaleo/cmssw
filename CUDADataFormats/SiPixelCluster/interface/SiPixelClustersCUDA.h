@@ -66,7 +66,7 @@ private:
   cudautils::device::unique_ptr<uint32_t[]> moduleId_d;      // module id of each module
 
   // originally from rechits
-  cudautils::device::unique_ptr<uint32_t[]> clusModuleStart_d; / index of the first cluster of each module
+  cudautils::device::unique_ptr<uint32_t[]> clusModuleStart_d; // index of the first cluster of each module
 
   cudautils::device::unique_ptr<DeviceConstView> view_d;    // "me" pointer
 

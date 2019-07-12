@@ -151,8 +151,10 @@ TrackingRecHit2DHeterogeneous<Traits>::TrackingRecHit2DHeterogeneous(uint32_t nH
 
   // if empy do not bother
   if (0 == nHits) {
-    if /*constexpr*/ (std::is_same<Traits,cudaCompat::CUDATraits>::value) { 
+    if /*constexpr*/ (std::is_same<Traits,cudaCompat::CUDATraits>::value) {
+#ifndef VIEW_ON_HOST 
       cudautils::copyAsync(m_view, view, stream);
+#endif
     } else { m_view.reset(view.release());}
     return;
   }
@@ -193,7 +195,9 @@ TrackingRecHit2DHeterogeneous<Traits>::TrackingRecHit2DHeterogeneous(uint32_t nH
 
   // transfer view
     if /*constexpr*/ (std::is_same<Traits,cudaCompat::CUDATraits>::value) {
+#ifndef VIEW_ON_HOST
       cudautils::copyAsync(m_view, view, stream);
+#endif
     } else { m_view.reset(view.release());}
 }
 
