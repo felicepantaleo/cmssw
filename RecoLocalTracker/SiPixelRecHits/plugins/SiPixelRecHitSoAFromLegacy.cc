@@ -194,6 +194,7 @@ void SiPixelRecHitSoAFromLegacy::produce(edm::StreamID streamID, edm::Event& iEv
 
   }
 
+  iEvent.put(std::move(output));
 
 }
 
