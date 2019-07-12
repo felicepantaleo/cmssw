@@ -1,4 +1,6 @@
 <lcgdict>
+  <class name="TrackingRecHit2DHost" persistent="false"/>
   <class name="CUDAProduct<TrackingRecHit2DCUDA>" persistent="false"/>
+  <class name="edm::Wrapper<TrackingRecHit2DHost>" persistent="false"/>
   <class name="edm::Wrapper<CUDAProduct<TrackingRecHit2DCUDA>>" persistent="false"/>
 </lcgdict>

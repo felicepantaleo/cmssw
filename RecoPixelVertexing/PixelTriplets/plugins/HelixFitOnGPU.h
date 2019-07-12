@@ -5,11 +5,8 @@
 
 #include "RecoPixelVertexing/PixelTrackFitting/interface/FitResult.h"
 #include "CUDADataFormats/Track/interface/PixelTrackCUDA.h"
-
+#include "CUDADataFormats/TrackingRecHit/interface/TrackingRecHit2DCUDA.h"
 #include "CAConstants.h"
-
-class TrackingRecHit2DSOAView;
-class TrackingRecHit2DCUDA;
 
 namespace Rfit {
   // in case of memory issue can be made smaller
