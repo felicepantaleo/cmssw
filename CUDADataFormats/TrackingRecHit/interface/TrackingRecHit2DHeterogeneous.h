@@ -79,7 +79,14 @@ public:
                                 pixelCPEforGPU::ParamsOnGPU const* cpeParams,
                                 uint32_t const* hitsModuleStart,
                                 cuda::stream_t<>& stream);
-  ~TrackingRecHit2DHeterogeneous() = default;
+
+
+  ~TrackingRecHit2DHeterogeneous() {
+    // as long as digi/cluster are not in edm we need to own this
+   if /*constexpr*/ (std::is_same<Traits,cudaCompat::HostTraits>::value) {
+     delete m_hitsModuleStart;
+   }
+  }
 
   TrackingRecHit2DHeterogeneous(const TrackingRecHit2DHeterogeneous&) = delete;
   TrackingRecHit2DHeterogeneous& operator=(const TrackingRecHit2DHeterogeneous&) = delete;

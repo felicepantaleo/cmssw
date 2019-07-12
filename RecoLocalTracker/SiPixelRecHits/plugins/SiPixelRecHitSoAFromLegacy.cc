@@ -39,8 +39,8 @@ public:
 
   static void fillDescriptions(edm::ConfigurationDescriptions& descriptions);
 
-  using HitModuleStart = std::array<uint32_t,gpuClustering::MaxNumModules + 1>;
-  using HMSstorage = ArrayShadow<HitModuleStart>;
+   using HitModuleStart = std::array<uint32_t,gpuClustering::MaxNumModules + 1>;
+   using HMSstorage = ArrayShadow<HitModuleStart>;
 
 
 private:
@@ -104,8 +104,8 @@ void SiPixelRecHitSoAFromLegacy::produce(edm::StreamID streamID, edm::Event& iEv
   int numberOfClusters = input.size();
 
 
-  auto hms = std::make_unique<HMSstorage>();
-  auto * hitsModuleStart = hms->data;
+
+  auto * hitsModuleStart = new uint32_t[gpuClustering::MaxNumModules + 1]; // FIXME owned by the SoA on CPU.... 
   auto dummyStream = cuda::stream::wrap(0,0,false);
   auto output = std::make_unique<TrackingRecHit2DHost>(numberOfClusters,
                                    &cpeView,
