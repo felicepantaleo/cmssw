@@ -51,13 +51,13 @@ namespace cudaCompat {
   template <typename T1, typename T2>
   T1 atomicMin(T1* a, T2 b) {
     auto ret = *a;
-    *a = std::min(*a, b);
+    *a = std::min(*a, T1(b));
     return ret;
   }
   template <typename T1, typename T2>
   T1 atomicMax(T1* a, T2 b) {
     auto ret = *a;
-    a = std::max(*a, b);
+    *a = std::max(*a, T1(b));
     return ret;
   }
 
@@ -80,7 +80,7 @@ namespace cudaCompat {
 #ifndef __CUDA_RUNTIME_H__
 #define __host__
 #define __device__
-#define __global__
+#define __global__ 
 #define __shared__
 #define __forceinline__
 #endif

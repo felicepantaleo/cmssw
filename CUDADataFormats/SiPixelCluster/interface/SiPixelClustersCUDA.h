@@ -6,6 +6,8 @@
 
 #include <cuda/api_wrappers.h>
 
+#include "HeterogeneousCore/CUDAUtilities/interface/cudaCompat.h"
+
 class SiPixelClustersCUDA {
 public:
   SiPixelClustersCUDA() = default;
@@ -40,18 +42,16 @@ public:
 
   class DeviceConstView {
   public:
-    DeviceConstView() = default;
+    // DeviceConstView() = default;
 
-#ifdef __CUDACC__
     __device__ __forceinline__ uint32_t moduleStart(int i) const { return __ldg(moduleStart_+i); }
     __device__ __forceinline__ uint32_t clusInModule(int i) const { return __ldg(clusInModule_+i); }
     __device__ __forceinline__ uint32_t moduleId(int i) const { return __ldg(moduleId_+i); }
     __device__ __forceinline__ uint32_t clusModuleStart(int i) const { return __ldg(clusModuleStart_+i); }
-#endif
 
     friend SiPixelClustersCUDA;
 
-  private:
+//   private:
     uint32_t const *moduleStart_;
     uint32_t const *clusInModule_;
     uint32_t const *moduleId_;

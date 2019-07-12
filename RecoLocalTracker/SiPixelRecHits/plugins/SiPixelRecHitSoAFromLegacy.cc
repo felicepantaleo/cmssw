@@ -30,6 +30,8 @@
 #include "CUDADataFormats/Common/interface/ArrayShadow.h"
 
 
+#include "RecoLocalTracker/SiPixelRecHits/plugins/gpuPixelRecHits.h"
+
 class SiPixelRecHitSoAFromLegacy : public edm::global::EDProducer<> {
 public:
   explicit SiPixelRecHitSoAFromLegacy(const edm::ParameterSet& iConfig);
@@ -98,9 +100,6 @@ void SiPixelRecHitSoAFromLegacy::produce(edm::StreamID streamID, edm::Event& iEv
   bsHost.y = bs.y0();
   bsHost.z = bs.z0();
 
-  assert(bsHost.z!=0);
-
-
   auto const& input = iEvent.get(clusterToken_);
   int numberOfClusters = input.size();
 
@@ -122,6 +121,26 @@ void SiPixelRecHitSoAFromLegacy::produce(edm::StreamID streamID, edm::Event& iEv
     std::vector<uint16_t> adc_;
     std::vector<uint16_t> moduleInd_;
     std::vector<int32_t>  clus_;
+
+    HitModuleStart moduleStart_; // index of the first pixel of each module
+    HitModuleStart clusInModule_{{0}};
+    uint32_t  moduleId_;
+    moduleStart_[1]=0;
+
+    SiPixelClustersCUDA::DeviceConstView clusterView{moduleStart_.data(),clusInModule_.data(), &moduleId_, hitsModuleStart};
+
+  // fill cluster arrays
+  for (auto DSViter = input.begin(); DSViter != input.end(); DSViter++) {
+   unsigned int detid = DSViter->detId();
+    DetId detIdObject(detid);
+    const GeomDetUnit* genericDet = geom_->idToDetUnit(detIdObject);
+    auto gind = genericDet->index();
+    assert(gind<2000);
+    auto const nclus =  DSViter->size();
+    clusInModule_[gind]=nclus;
+  }
+  hitsModuleStart[0]=0;
+  for (int i=1, n=clusInModule_.size(); i<n; ++i) hitsModuleStart[i]+=hitsModuleStart[i-1]+clusInModule_[i-1];
 
 
   int numberOfDetUnits = 0;
@@ -145,6 +164,8 @@ void SiPixelRecHitSoAFromLegacy::produce(edm::StreamID streamID, edm::Event& iEv
 
     // fill digis
     xx_.clear();yy_.clear();adc_.clear();moduleInd_.clear(); clus_.clear();
+    moduleId_ = gind;
+    clusInModule_[gind]=nclus;
     uint32_t ic = 0;
     uint32_t ndigi = 0;
     for (auto const& clust : *DSViter) {
@@ -166,6 +187,10 @@ void SiPixelRecHitSoAFromLegacy::produce(edm::StreamID streamID, edm::Event& iEv
     // filled creates view
     SiPixelDigisCUDA::DeviceConstView digiView{xx_.data(),yy_.data(),adc_.data(),moduleInd_.data(), clus_.data()};
     assert(digiView.adc(0)!=0);
+    // not needed...
+    cudaCompat::resetGrid();
+    // we run on blockId.x==0
+    gpuPixelRecHits::getHits(&cpeView, &bsHost, &digiView, ndigi, &clusterView, output->view());
 
   }
 

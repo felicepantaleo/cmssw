@@ -13,12 +13,13 @@
 
 namespace gpuPixelRecHits {
 
-  __global__ void getHits(pixelCPEforGPU::ParamsOnGPU const* __restrict__ cpeParams,
+  __global__ inline void getHits(pixelCPEforGPU::ParamsOnGPU const* __restrict__ cpeParams,
                           BeamSpotCUDA::Data const* __restrict__ bs,
                           SiPixelDigisCUDA::DeviceConstView const * __restrict__ pdigis,
                           int numElements,
                           SiPixelClustersCUDA::DeviceConstView const * __restrict__ pclusters,
-                          TrackingRecHit2DSOAView* phits) {
+                          TrackingRecHit2DSOAView* phits
+                         ){
 
     // FIXME
     // the compiler seems NOT to optimize loads from views (even in a simple test case)
@@ -95,7 +96,7 @@ namespace gpuPixelRecHits {
     }
     nclus = std::min(nclus, MaxHitsInModule);
 
-    for (int ic = threadIdx.x; ic < nclus; ic += blockDim.x) {
+    for (int ic = threadIdx.x, nc=nclus; ic < nc; ic += blockDim.x) {
       clusParams.minRow[ic] = std::numeric_limits<uint32_t>::max();
       clusParams.maxRow[ic] = 0;
       clusParams.minCol[ic] = std::numeric_limits<uint32_t>::max();
@@ -120,7 +121,7 @@ namespace gpuPixelRecHits {
       if (id != me)
         break;  // end of module
       auto cl = digis.clus(i);
-      if (cl >= nclus)
+      if (cl >= int(nclus))
         continue;
       auto x = digis.xx(i);
       auto y = digis.yy(i);
@@ -139,7 +140,7 @@ namespace gpuPixelRecHits {
       if (id != me)
         break;  // end of module
       auto cl = digis.clus(i);
-      if (cl >= nclus)
+      if (cl >= int(nclus))
         continue;
       auto x = digis.xx(i);
       auto y = digis.yy(i);      
@@ -161,7 +162,7 @@ namespace gpuPixelRecHits {
 
     first = clusters.clusModuleStart(me);
 
-    for (int ic = threadIdx.x; ic < nclus; ic += blockDim.x) {
+    for (int ic = threadIdx.x, nc=nclus; ic < nc; ic += blockDim.x) {
       auto h = first + ic;  // output index in global memory
 
       if (h >= TrackingRecHit2DSOAView::maxHits())
