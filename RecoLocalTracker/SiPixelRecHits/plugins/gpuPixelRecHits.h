@@ -84,7 +84,8 @@ namespace gpuPixelRecHits {
         printf("hitbuilder: %d clusters in module %d. will write at %d\n", nclus, me, hitsModuleStart[me]);
 #endif
 
-    assert(blockDim.x >= MaxHitsInModule);
+//      true on gpu only...
+//    assert(blockDim.x >= MaxHitsInModule);
 
     if (threadIdx.x == 0 && nclus > MaxHitsInModule) {
       printf("WARNING: too many clusters %d in Module %d. Only first %d processed\n", nclus, me, MaxHitsInModule);

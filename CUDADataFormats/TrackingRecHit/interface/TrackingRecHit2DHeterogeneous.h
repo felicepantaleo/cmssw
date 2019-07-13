@@ -82,9 +82,9 @@ public:
 
 
   ~TrackingRecHit2DHeterogeneous() {
-    // as long as digi/cluster are not in edm we need to own this
+    // FIXME as long as digi/cluster are not in edm we need to own this
    if /*constexpr*/ (std::is_same<Traits,cudaCompat::HostTraits>::value) {
-     delete m_hitsModuleStart;
+     delete [] m_hitsModuleStart;
    }
   }
 
