@@ -193,6 +193,7 @@ void SiPixelRecHitSoAFromLegacy::produce(edm::StreamID streamID, edm::Event& iEv
         clus_.push_back(ic);
         ++ndigi;
       }
+      assert(clust.originalId()==ic);  // make sure hits and clus are in sync
       ic++;
     }
     assert(nclus==ic);
@@ -210,7 +211,7 @@ void SiPixelRecHitSoAFromLegacy::produce(edm::StreamID streamID, edm::Event& iEv
 
   }
   assert(numberOfHits==numberOfClusters);
-  std::cout << "created HitSoa for " <<  numberOfClusters << " clusters in " << numberOfDetUnits << " Dets" << std::endl;
+  // std::cout << "created HitSoa for " <<  numberOfClusters << " clusters in " << numberOfDetUnits << " Dets" << std::endl;
   iEvent.put(std::move(output));
 
 }
