@@ -6,6 +6,7 @@
 #include "CUDADataFormats/SiPixelCluster/interface/SiPixelClustersCUDA.h"
 #include "CUDADataFormats/SiPixelDigi/interface/SiPixelDigisCUDA.h"
 #include "CUDADataFormats/TrackingRecHit/interface/TrackingRecHit2DHeterogeneous.h"
+#include "CUDADataFormats/Common/interface/HostProduct.h"
 #include "DataFormats/BeamSpot/interface/BeamSpot.h"
 #include "DataFormats/Common/interface/DetSetVectorNew.h"
 #include "DataFormats/Common/interface/Handle.h"
@@ -40,7 +41,7 @@ public:
   static void fillDescriptions(edm::ConfigurationDescriptions& descriptions);
 
    using HitModuleStart = std::array<uint32_t,gpuClustering::MaxNumModules + 1>;
-   using HMSstorage = ArrayShadow<HitModuleStart>;
+   using HMSstorage = HostProduct<unsigned int[]>;
 
 
 private:
@@ -50,6 +51,7 @@ private:
   edm::EDGetTokenT<reco::BeamSpot> bsGetToken_;
   edm::EDGetTokenT<SiPixelClusterCollectionNew> clusterToken_;    // Legacy Clusters
   edm::EDPutTokenT<TrackingRecHit2DHost> tokenHit_;
+  edm::EDPutTokenT<HMSstorage> tokenModuleStart_;
 
   std::string cpeName_;
 
@@ -59,6 +61,7 @@ SiPixelRecHitSoAFromLegacy::SiPixelRecHitSoAFromLegacy(const edm::ParameterSet& 
     : bsGetToken_{consumes<reco::BeamSpot>(iConfig.getParameter<edm::InputTag>("beamSpot"))},
       clusterToken_{consumes<SiPixelClusterCollectionNew>(iConfig.getParameter<edm::InputTag>("src"))},
       tokenHit_{produces<TrackingRecHit2DHost>()},
+      tokenModuleStart_{produces<HMSstorage>()},
       cpeName_(iConfig.getParameter<std::string>("CPE")) {}
 
 void SiPixelRecHitSoAFromLegacy::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
@@ -102,8 +105,11 @@ void SiPixelRecHitSoAFromLegacy::produce(edm::StreamID streamID, edm::Event& iEv
 
   auto const& input = iEvent.get(clusterToken_);
 
-  auto * hitsModuleStart = new uint32_t[gpuClustering::MaxNumModules + 1]; // FIXME owned by the SoA on CPU.... 
-
+  // yes a unique ptr of a unique ptr so edm is happy and the pointer stay still...
+  auto hmsp = std::make_unique<uint32_t[]>(gpuClustering::MaxNumModules + 1);
+  auto hitsModuleStart = hmsp.get();
+  auto hms = std::make_unique<HMSstorage>(std::move(hmsp)); // hmsp is gone
+  iEvent.put(std::move(hms));  // hms is gone! hitsModuleStart still alive and kicking...
 
 
     // storage
@@ -156,7 +162,7 @@ void SiPixelRecHitSoAFromLegacy::produce(edm::StreamID streamID, edm::Event& iEv
     unsigned int detid = DSViter->detId();
     DetId detIdObject(detid);
     const GeomDetUnit* genericDet = geom_->idToDetUnit(detIdObject);
-    auto gind = genericDet->index();
+    auto const gind = genericDet->index();
     assert(gind<2000);
     const PixelGeomDetUnit* pixDet = dynamic_cast<const PixelGeomDetUnit*>(genericDet);
     assert(pixDet);
@@ -199,6 +205,8 @@ void SiPixelRecHitSoAFromLegacy::produce(edm::StreamID streamID, edm::Event& iEv
     cudaCompat::resetGrid();
     // we run on blockId.x==0
     gpuPixelRecHits::getHits(&cpeView, &bsHost, &digiView, ndigi, &clusterView, output->view());
+    for (auto h=fc; h<lc; ++h)
+       assert(gind == output->view()->detectorIndex(h));
 
   }
   assert(numberOfHits==numberOfClusters);

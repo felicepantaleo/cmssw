@@ -165,9 +165,12 @@ namespace gpuPixelRecHits {
 
     for (int ic = threadIdx.x, nc=nclus; ic < nc; ic += blockDim.x) {
       auto h = first + ic;  // output index in global memory
-
+     
+      // this cannot happen anymore
       if (h >= TrackingRecHit2DSOAView::maxHits())
         break;  // overflow...
+      assert(h<hits.nHits());
+      assert(h<clusters.clusModuleStart(me+1));
 
       pixelCPEforGPU::position(cpeParams->commonParams(), cpeParams->detParams(me), clusParams, ic);
       pixelCPEforGPU::errorFromDB(cpeParams->commonParams(), cpeParams->detParams(me), clusParams, ic);

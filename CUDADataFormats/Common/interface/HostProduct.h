@@ -18,15 +18,15 @@ public:
   explicit HostProduct(std::unique_ptr<T> && p) : std_ptr(std::move(p)) {}
 
 
-  T const * get() const {
+  auto const * get() const {
     return hm_ptr ? hm_ptr.get() : std_ptr.get();
   }
   
-  T const & operator*() const {
+  auto const & operator*() const {
     return *get();
   }
 
-  T const * operator->() const {
+  auto const * operator->() const {
     return get();
   }
   
