@@ -13,7 +13,7 @@
 
 namespace gpuPixelRecHits {
 
-  __global__ inline void getHits(pixelCPEforGPU::ParamsOnGPU const* __restrict__ cpeParams,
+  __global__ void getHits(pixelCPEforGPU::ParamsOnGPU const* __restrict__ cpeParams,
                           BeamSpotCUDA::Data const* __restrict__ bs,
                           SiPixelDigisCUDA::DeviceConstView const * __restrict__ pdigis,
                           int numElements,

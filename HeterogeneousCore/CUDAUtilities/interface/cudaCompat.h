@@ -77,13 +77,23 @@ namespace cudaCompat {
 
 }  // namespace cudaCompat
 
+// some  not needed as done by cuda runtime...
 #ifndef __CUDA_RUNTIME_H__
 #define __host__
 #define __device__
-#define __global__ 
+#define __global__
 #define __shared__
 #define __forceinline__
 #endif
+
+// make sure function are inlined to avoid multiple definition
+#ifndef __CUDA_ARCH__
+#undef __global__
+#define __global__ inline
+#undef __forceinline__
+#define __forceinline__ inline
+#endif
+
 
 #ifndef __CUDA_ARCH__
 using namespace cudaCompat;
