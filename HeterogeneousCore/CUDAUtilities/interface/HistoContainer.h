@@ -27,12 +27,12 @@ namespace cudautils {
                                   T const *__restrict__ v,
                                   uint32_t const *__restrict__ offsets) {
     int first = blockDim.x * blockIdx.x + threadIdx.x;
-    for (int i = first; i < offsets[nh]; i += gridDim.x * blockDim.x) {
+    for (int i = first, nt = offsets[nh]; i<nt; i += gridDim.x * blockDim.x) {
       auto off = cuda_std::upper_bound(offsets, offsets + nh + 1, i);
       assert((*off) > 0);
       int32_t ih = off - offsets - 1;
       assert(ih >= 0);
-      assert(ih < nh);
+      assert(ih < int(nh));
       (*h).count(v[i], ih);
     }
   }
@@ -43,12 +43,12 @@ namespace cudautils {
                                  T const *__restrict__ v,
                                  uint32_t const *__restrict__ offsets) {
     int first = blockDim.x * blockIdx.x + threadIdx.x;
-    for (int i = first; i < offsets[nh]; i += gridDim.x * blockDim.x) {
+    for (int i = first, nt = offsets[nh]; i<nt; i += gridDim.x * blockDim.x) {
       auto off = cuda_std::upper_bound(offsets, offsets + nh + 1, i);
       assert((*off) > 0);
       int32_t ih = off - offsets - 1;
       assert(ih >= 0);
-      assert(ih < nh);
+      assert(ih < int(nh));
       (*h).fill(v[i], i, ih);
     }
   }

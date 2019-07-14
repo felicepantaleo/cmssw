@@ -109,7 +109,7 @@ void SiPixelRecHitSoAFromLegacy::produce(edm::StreamID streamID, edm::Event& iEv
   auto hmsp = std::make_unique<uint32_t[]>(gpuClustering::MaxNumModules + 1);
   auto hitsModuleStart = hmsp.get();
   auto hms = std::make_unique<HMSstorage>(std::move(hmsp)); // hmsp is gone
-  iEvent.put(std::move(hms));  // hms is gone! hitsModuleStart still alive and kicking...
+  iEvent.put(tokenModuleStart_,std::move(hms));  // hms is gone! hitsModuleStart still alive and kicking...
 
 
     // storage
@@ -211,6 +211,14 @@ void SiPixelRecHitSoAFromLegacy::produce(edm::StreamID streamID, edm::Event& iEv
 
   }
   assert(numberOfHits==numberOfClusters);
+
+  // fill data structure to support CA
+  for (auto i=0; i < 11; ++i) {
+      output->hitsLayerStart()[i] = hitsModuleStart[cpeView.layerGeometry().layerStart[i]];
+  }
+ cudautils::fillManyFromVector(
+         output->phiBinner(), nullptr, 10, output->iphi(), output->hitsLayerStart(), numberOfHits, 256, 0);
+
   // std::cout << "created HitSoa for " <<  numberOfClusters << " clusters in " << numberOfDetUnits << " Dets" << std::endl;
   iEvent.put(std::move(output));
 
