@@ -1,7 +1,6 @@
 #include <cuda_runtime.h>
 
 // hack waiting for if constexpr
-#define VIEW_ON_HOST
 #include "CUDADataFormats/BeamSpot/interface/BeamSpotCUDA.h"
 #include "CUDADataFormats/SiPixelCluster/interface/SiPixelClustersCUDA.h"
 #include "CUDADataFormats/SiPixelDigi/interface/SiPixelDigisCUDA.h"

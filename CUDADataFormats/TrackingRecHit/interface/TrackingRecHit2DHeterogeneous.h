@@ -126,12 +126,10 @@ private:
   int16_t* m_iphi;
 };
 
-
 #include "FWCore/ServiceRegistry/interface/Service.h"
 #include "HeterogeneousCore/CUDAServices/interface/CUDAService.h"
 #include "HeterogeneousCore/CUDAUtilities/interface/copyAsync.h"
 #include "HeterogeneousCore/CUDAUtilities/interface/cudaCheck.h"
-
 
 template<typename Traits>
 TrackingRecHit2DHeterogeneous<Traits>::TrackingRecHit2DHeterogeneous(uint32_t nHits,
@@ -153,10 +151,12 @@ TrackingRecHit2DHeterogeneous<Traits>::TrackingRecHit2DHeterogeneous(uint32_t nH
 
   // if empy do not bother
   if (0 == nHits) {
-    if /*constexpr*/ (std::is_same<Traits,cudaCompat::CUDATraits>::value) {
-#ifndef VIEW_ON_HOST 
+    if 
+#ifndef __CUDACC__
+    constexpr 
+#endif 
+       (std::is_same<Traits,cudaCompat::CUDATraits>::value) {
       cudautils::copyAsync(m_view, view, stream);
-#endif
     } else { m_view.reset(view.release());}
     return;
   }
@@ -196,13 +196,14 @@ TrackingRecHit2DHeterogeneous<Traits>::TrackingRecHit2DHeterogeneous(uint32_t nH
   m_hitsLayerStart = view->m_hitsLayerStart = reinterpret_cast<uint32_t *>(get32(n32));
 
   // transfer view
-    if /*constexpr*/ (std::is_same<Traits,cudaCompat::CUDATraits>::value) {
-#ifndef VIEW_ON_HOST
-      cudautils::copyAsync(m_view, view, stream);
+    if 
+#ifndef __CUDACC__
+    constexpr
 #endif
+      (std::is_same<Traits,cudaCompat::CUDATraits>::value) {
+      cudautils::copyAsync(m_view, view, stream);
     } else { m_view.reset(view.release());}
 }
-
 
 using TrackingRecHit2DCUDA = TrackingRecHit2DHeterogeneous<cudaCompat::CUDATraits>;
 using TrackingRecHit2DHost = TrackingRecHit2DHeterogeneous<cudaCompat::HostTraits>;
