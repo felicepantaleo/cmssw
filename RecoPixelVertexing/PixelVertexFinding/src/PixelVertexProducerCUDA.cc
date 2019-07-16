@@ -22,6 +22,9 @@
 
 #include "gpuVertexFinder.h"
 
+#include "CUDADataFormats/Common/interface/HostProduct.h"
+
+
 class PixelVertexProducerCUDA : public edm::global::EDProducer<> {
 public:
   explicit PixelVertexProducerCUDA(const edm::ParameterSet& iConfig);
@@ -32,8 +35,13 @@ public:
 private:
   void produce(edm::StreamID streamID, edm::Event& iEvent, const edm::EventSetup& iSetup) const override;
 
-  edm::EDGetTokenT<CUDAProduct<PixelTrackCUDA>> tokenTrack_;
-  edm::EDPutTokenT<CUDAProduct<ZVertexCUDA>> tokenVertex_;
+  bool m_OnGPU;
+
+  edm::EDGetTokenT<CUDAProduct<PixelTrackCUDA>> tokenGPUTrack_;
+  edm::EDPutTokenT<CUDAProduct<ZVertexGPU>> tokenGPUVertex_;
+  edm::EDGetTokenT<HostProduct<PixelTrackCUDA::SoA>> tokenCPUTrack_;
+  edm::EDPutTokenT<ZVertexCPU> tokenCPUVertex_;
+
 
   const gpuVertexFinder::Producer m_gpuAlgo;
 
@@ -43,8 +51,7 @@ private:
 };
 
 PixelVertexProducerCUDA::PixelVertexProducerCUDA(const edm::ParameterSet& conf) :
-     tokenTrack_(consumes<CUDAProduct<PixelTrackCUDA>>(conf.getParameter<edm::InputTag>("pixelTrackSrc"))),
-     tokenVertex_(produces<CUDAProduct<ZVertexCUDA>>()),
+     m_OnGPU(conf.getParameter<double>("onGPU")),
      m_gpuAlgo(conf.getParameter<bool>("useDensity"),
                 conf.getParameter<bool>("useDBSCAN"),
                 conf.getParameter<bool>("useIterative"),
@@ -53,7 +60,15 @@ PixelVertexProducerCUDA::PixelVertexProducerCUDA(const edm::ParameterSet& conf) 
                 conf.getParameter<double>("errmax"),
                 conf.getParameter<double>("chi2max")),
      m_ptMin(conf.getParameter<double>("PtMin"))  // 0.5 GeV
-{}
+{
+  if (m_OnGPU) {
+     tokenGPUTrack_ = consumes<CUDAProduct<PixelTrackCUDA>>(conf.getParameter<edm::InputTag>("pixelTrackSrc"));
+     tokenGPUVertex_ = produces<CUDAProduct<ZVertexGPU>>();
+  } else {
+     tokenCPUTrack_ = consumes<HostProduct<PixelTrackCUDA::SoA>>(conf.getParameter<edm::InputTag>("pixelTrackSrc"));
+     tokenCPUVertex_ = produces<ZVertexCPU>();
+  }
+}
 
 
 void PixelVertexProducerCUDA::fillDescriptions(edm::ConfigurationDescriptions &descriptions) {
@@ -61,6 +76,7 @@ void PixelVertexProducerCUDA::fillDescriptions(edm::ConfigurationDescriptions &d
 
   // Only one of these three algos can be used at once.
   // Maybe this should become a Plugin Factory
+  desc.add<bool>("onGPU", true);
   desc.add<bool>("useDensity", true);
   desc.add<bool>("useDBSCAN", false);
   desc.add<bool>("useIterative", false);
@@ -79,21 +95,36 @@ void PixelVertexProducerCUDA::fillDescriptions(edm::ConfigurationDescriptions &d
 
 
 void PixelVertexProducerCUDA::produce(edm::StreamID streamID, edm::Event& iEvent, const edm::EventSetup& iSetup) const {
+  if (m_OnGPU) {
+    edm::Handle<CUDAProduct<PixelTrackCUDA>>  hTracks;
+    iEvent.getByToken(tokenGPUTrack_, hTracks);
 
-  edm::Handle<CUDAProduct<PixelTrackCUDA>>  hTracks;
-  iEvent.getByToken(tokenTrack_, hTracks);
+    CUDAScopedContextProduce ctx{*hTracks};
+    auto const& tracks = ctx.get(*hTracks);
 
-  CUDAScopedContextProduce ctx{*hTracks};
-  auto const& tracks = ctx.get(*hTracks);
+    auto const * soa = tracks.soa();
+    assert(soa);
 
-  auto const * soa = tracks.soa();
-  assert(soa);
-
-  ctx.emplace(
+    ctx.emplace(
         iEvent,
-        tokenVertex_,
+        tokenGPUVertex_,
         std::move(m_gpuAlgo.makeAsync(ctx.stream(),soa,m_ptMin))
-      );
+        );
+
+  } else {
+
+    auto const& tracks = iEvent.get(tokenCPUTrack_);
+    auto const * soa = tracks.get();
+    assert(soa);
+
+    auto dummyStream = cuda::stream::wrap(0,0,false);
+    iEvent.emplace(
+        tokenCPUVertex_,
+        std::move(m_gpuAlgo.make(dummyStream,soa,m_ptMin))
+        );
+
+ }
+
 
 }
 
