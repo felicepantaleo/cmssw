@@ -51,7 +51,7 @@ private:
 };
 
 PixelVertexProducerCUDA::PixelVertexProducerCUDA(const edm::ParameterSet& conf) :
-     m_OnGPU(conf.getParameter<double>("onGPU")),
+     m_OnGPU(conf.getParameter<bool>("onGPU")),
      m_gpuAlgo(conf.getParameter<bool>("useDensity"),
                 conf.getParameter<bool>("useDBSCAN"),
                 conf.getParameter<bool>("useIterative"),
