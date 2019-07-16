@@ -200,7 +200,7 @@ cudautils::host::unique_ptr<T>
 HeterogeneousSoAImpl<T,Traits>::toHostAsync(cuda::stream_t<>& stream) const {
   edm::Service<CUDAService> cs;
   auto ret = cs->make_host_unique<T>(stream);
-  cudaCheck(cudaMemcpyAsync(ret.get(), m_ptr.get(), sizeof(T), cudaMemcpyDefault, stream.id()));
+  cudaCheck(cudaMemcpyAsync(ret.get(), get(), sizeof(T), cudaMemcpyDefault, stream.id()));
   return ret;
 }
 
