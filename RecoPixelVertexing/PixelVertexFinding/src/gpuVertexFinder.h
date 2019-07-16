@@ -32,12 +32,10 @@ namespace gpuVertexFinder {
     }
   };
 
-#ifdef __CUDACC__
   __global__ void init(ZVertexSoA * pdata, WorkSpace* pws) {
     pdata->init();
     pws->init();
   }
-#endif
 
   class Producer {
   public:
@@ -64,7 +62,8 @@ namespace gpuVertexFinder {
 
     ~Producer() = default;
 
-    ZVertexCUDA makeAsync(cuda::stream_t<>& stream, TkSoA const * tksoa, float ptMin) const;
+    ZVertexGPU makeAsync(cuda::stream_t<>& stream, TkSoA const * tksoa, float ptMin) const;
+    ZVertexCPU make(cuda::stream_t<>& stream, TkSoA const * tksoa, float ptMin) const;
 
   private:
 
