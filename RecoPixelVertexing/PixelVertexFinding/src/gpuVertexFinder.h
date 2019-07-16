@@ -4,12 +4,12 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "CUDADataFormats/Vertex/interface/ZVertexCUDA.h"
+#include "CUDADataFormats/Vertex/interface/ZVertexHeterogeneous.h"
 
 namespace gpuVertexFinder {
 
   using ZVertices = ZVertexSoA;
-  using TkSoA = ZVertexCUDA::TkSoA;
+  using TkSoA = PixelTrackCUDA::SoA;
 
   // workspace used in the vertex reco algos
   struct WorkSpace {
@@ -44,7 +44,7 @@ namespace gpuVertexFinder {
     
     using ZVertices = ZVertexSoA;
     using WorkSpace = gpuVertexFinder::WorkSpace;
-    using TkSoA = ZVertexCUDA::TkSoA;
+    using TkSoA = PixelTrackCUDA::SoA;
 
     Producer(bool useDensity,
              bool useDBSCAN,

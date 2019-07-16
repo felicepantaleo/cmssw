@@ -17,7 +17,7 @@
 #include "HeterogeneousCore/CUDACore/interface/CUDAScopedContext.h"
 #include "HeterogeneousCore/CUDACore/interface/GPUCuda.h"
 
-#include "CUDADataFormats/Vertex/interface/ZVertexCUDA.h"
+#include "CUDADataFormats/Vertex/interface/ZVertexHeterogeneous.h"
 
 class PixelVertexSoAFromCUDA : public edm::stream::EDProducer<edm::ExternalWork> {
 public:
@@ -33,16 +33,16 @@ private:
   void produce(edm::Event& iEvent, edm::EventSetup const& iSetup) override;
 
 
-  edm::EDGetTokenT<CUDAProduct<ZVertexCUDA>> tokenCUDA_;
-  edm::EDPutTokenT<HostProduct<ZVertexCUDA::SoA>> tokenSOA_;
+  edm::EDGetTokenT<CUDAProduct<ZVertexGPU>> tokenCUDA_;
+  edm::EDPutTokenT<ZVertexHost> tokenSOA_;
 
-  cudautils::host::unique_ptr<ZVertexCUDA::SoA> m_soa;
+  cudautils::host::unique_ptr<ZVertexSoA> m_soa;
 
 };
 
 PixelVertexSoAFromCUDA::PixelVertexSoAFromCUDA(const edm::ParameterSet& iConfig) :
-  tokenCUDA_(consumes<CUDAProduct<ZVertexCUDA>>(iConfig.getParameter<edm::InputTag>("src"))),
-  tokenSOA_(produces<HostProduct<ZVertexCUDA::SoA>>())
+  tokenCUDA_(consumes<CUDAProduct<ZVertexGPU>>(iConfig.getParameter<edm::InputTag>("src"))),
+  tokenSOA_(produces<ZVertexHost>())
 {}
 
 
@@ -59,19 +59,18 @@ void PixelVertexSoAFromCUDA::fillDescriptions(edm::ConfigurationDescriptions& de
 void PixelVertexSoAFromCUDA::acquire(edm::Event const& iEvent,
                edm::EventSetup const& iSetup,
                edm::WaitingTaskWithArenaHolder waitingTaskHolder) {
-  // CUDAProduct<ZVertexCUDA> 
   auto const& inputDataWrapped = iEvent.get(tokenCUDA_);
   CUDAScopedContextAcquire ctx{inputDataWrapped, std::move(waitingTaskHolder)};
   auto const& inputData = ctx.get(inputDataWrapped);
 
-  m_soa = inputData.soaToHostAsync(ctx.stream());
+  m_soa = inputData.toHostAsync(ctx.stream());
 
 }
 
 void PixelVertexSoAFromCUDA::produce(edm::Event& iEvent, edm::EventSetup const& iSetup) {
 
   // No copies....
-  auto output = std::make_unique<HostProduct<ZVertexCUDA::SoA>>(std::move(m_soa));
+  auto output = std::make_unique<ZVertexHost>(std::move(m_soa));
   iEvent.put(std::move(output));
 
 }

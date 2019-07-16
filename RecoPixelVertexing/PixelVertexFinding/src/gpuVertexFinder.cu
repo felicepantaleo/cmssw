@@ -53,9 +53,9 @@ namespace gpuVertexFinder {
 
   ZVertexCUDA Producer::makeAsync(cuda::stream_t<>& stream, TkSoA const * tksoa, float ptMin) const {
     assert(tksoa);
-    ZVertexCUDA vertices(tksoa,stream);
+    ZVertexCUDA vertices(stream);
 
-    auto * soa = vertices.soa();
+    auto * soa = vertices.get();
 
     edm::Service<CUDAService> cs;
     auto ws_d = cs->make_device_unique<WorkSpace>(stream);

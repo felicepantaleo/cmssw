@@ -21,8 +21,8 @@
 #include "HeterogeneousCore/CUDACore/interface/GPUCuda.h"
 #include "HeterogeneousCore/CUDAServices/interface/CUDAService.h"
 
-#include "CUDADataFormats/Common/interface/HostProduct.h"
-#include "CUDADataFormats/Vertex/interface/ZVertexCUDA.h"
+#include "CUDADataFormats/Vertex/interface/ZVertexHeterogeneous.h"
+
 #include "DataFormats/VertexReco/interface/Vertex.h"
 #include "DataFormats/VertexReco/interface/VertexFwd.h"
 
@@ -42,7 +42,7 @@ public:
 private:
   void produce(edm::StreamID streamID, edm::Event& iEvent, const edm::EventSetup& iSetup) const override;
 
-  edm::EDGetTokenT<HostProduct<ZVertexCUDA::SoA>> tokenVertex_;
+  edm::EDGetTokenT<ZVertexHost> tokenVertex_;
   edm::EDGetTokenT<reco::BeamSpot> tokenBeamSpot_;
   edm::EDGetTokenT<reco::TrackCollection> tokenTracks_;
   edm::EDGetTokenT<IndToEdm> tokenIndToEdm_;
@@ -54,7 +54,7 @@ private:
 
 
 PixelVertexProducerFromSoA::PixelVertexProducerFromSoA(const edm::ParameterSet & conf) :
-     tokenVertex_(consumes<HostProduct<ZVertexCUDA::SoA>>(conf.getParameter<edm::InputTag>("src"))),
+     tokenVertex_(consumes<ZVertexHost>(conf.getParameter<edm::InputTag>("src"))),
      tokenBeamSpot_(consumes<reco::BeamSpot>(conf.getParameter<edm::InputTag>("beamSpot"))),
      tokenTracks_(consumes<reco::TrackCollection>(conf.getParameter<edm::InputTag>("TrackCollection"))),
      tokenIndToEdm_(consumes<IndToEdm>(conf.getParameter<edm::InputTag>("TrackCollection"))) {
@@ -100,9 +100,7 @@ void PixelVertexProducerFromSoA::produce(edm::StreamID streamID, edm::Event& iEv
     dydz = bs.dydz();
   }
 
-  edm::Handle<HostProduct<ZVertexCUDA::SoA>> soaH;
-  iEvent.getByToken(tokenVertex_, soaH);
-  auto const& soa = *soaH->get();
+  auto const& soa = *(iEvent.get(tokenVertex_).get());
 
   int nv = soa.nvFinal;
 
