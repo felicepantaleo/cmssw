@@ -17,6 +17,9 @@ from RecoPixelVertexing.PixelVertexFinding.pixelVertexFromSoA_cfi import pixelVe
 
 _pixelVertexingCUDATask = cms.Task(pixelTracksTask,pixelVertexCUDA,pixelVertexSoA,pixelVertices)
 
+# pixelVertexSoAonCPU = pixelVertexCUDA.clone()
+# pixelVertexSoAonCPU.onGPU = False;
+
 gpu.toReplaceWith(pixelVertices,_pixelVertexFromSoA)
 gpu.toReplaceWith(recopixelvertexingTask,_pixelVertexingCUDATask)
 

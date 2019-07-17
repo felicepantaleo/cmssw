@@ -9,15 +9,28 @@ def customizePixelTracksForProfilingGPUOnly(process):
     process.load('RecoPixelVertexing.PixelVertexFinding.pixelVertexCUDA_cfi')
     process.TVreco = cms.Path(process.caHitNtupletCUDA+process.pixelVertexCUDA)
 
-    process.load('RecoPixelVertexing.PixelTrackFitting.pixelTrackSoA_cfi')
-    process.load('RecoPixelVertexing.PixelVertexFinding.pixelVertexSoA_cfi')
-    process.toSoA = cms.Path(process.pixelTrackSoA+process.pixelVertexSoA)
-
     process.schedule = cms.Schedule(process.Raw2Hit, process.TVreco)
+    return process
+
+def customizePixelTracksForProfilingSoAonCPU(process):
+    process = customizePixelTracksForProfilingGPUOnly(process)
+
+    process.pixelVertexSoA = process.pixelVertexCUDA.clone()
+    process.pixelVertexSoA.onGPU = False
+    process.pixelVertexSoA.pixelTrackSrc = 'pixelTrackSoA'
+    process.TVSoAreco = cms.Path(process.caHitNtupletCUDA+process.pixelTrackSoA+process.pixelVertexSoA)
+
+    process.schedule = cms.Schedule(process.Raw2Hit, process.TVSoAreco)
+
     return process
 
 def customizePixelTracksForProfilingEnableTransfer(process):
     process = customizePixelTracksForProfilingGPUOnly(process)
+
+    process.load('RecoPixelVertexing.PixelTrackFitting.pixelTrackSoA_cfi')
+    process.load('RecoPixelVertexing.PixelVertexFinding.pixelVertexSoA_cfi')
+    process.toSoA = cms.Path(process.pixelTrackSoA+process.pixelVertexSoA)
+
     process.schedule = cms.Schedule(process.Raw2Hit, process.TVreco, process.toSoA)
     return process
 
