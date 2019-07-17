@@ -38,9 +38,9 @@ private:
   bool m_OnGPU;
 
   edm::EDGetTokenT<CUDAProduct<PixelTrackCUDA>> tokenGPUTrack_;
-  edm::EDPutTokenT<CUDAProduct<ZVertexGPU>> tokenGPUVertex_;
+  edm::EDPutTokenT<ZVertexCUDAProduct> tokenGPUVertex_;
   edm::EDGetTokenT<HostProduct<PixelTrackCUDA::SoA>> tokenCPUTrack_;
-  edm::EDPutTokenT<ZVertexCPU> tokenCPUVertex_;
+  edm::EDPutTokenT<ZVertexHeterogeneous> tokenCPUVertex_;
 
 
   const gpuVertexFinder::Producer m_gpuAlgo;
@@ -63,10 +63,10 @@ PixelVertexProducerCUDA::PixelVertexProducerCUDA(const edm::ParameterSet& conf) 
 {
   if (m_OnGPU) {
      tokenGPUTrack_ = consumes<CUDAProduct<PixelTrackCUDA>>(conf.getParameter<edm::InputTag>("pixelTrackSrc"));
-     tokenGPUVertex_ = produces<CUDAProduct<ZVertexGPU>>();
+     tokenGPUVertex_ = produces<ZVertexCUDAProduct>();
   } else {
      tokenCPUTrack_ = consumes<HostProduct<PixelTrackCUDA::SoA>>(conf.getParameter<edm::InputTag>("pixelTrackSrc"));
-     tokenCPUVertex_ = produces<ZVertexCPU>();
+     tokenCPUVertex_ = produces<ZVertexHeterogeneous>();
   }
 }
 
@@ -117,10 +117,9 @@ void PixelVertexProducerCUDA::produce(edm::StreamID streamID, edm::Event& iEvent
     auto const * soa = tracks.get();
     assert(soa);
 
-    auto dummyStream = cuda::stream::wrap(0,0,false);
     iEvent.emplace(
         tokenCPUVertex_,
-        std::move(m_gpuAlgo.make(dummyStream,soa,m_ptMin))
+        std::move(m_gpuAlgo.make(soa,m_ptMin))
         );
 
  }

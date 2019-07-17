@@ -33,16 +33,16 @@ private:
   void produce(edm::Event& iEvent, edm::EventSetup const& iSetup) override;
 
 
-  edm::EDGetTokenT<CUDAProduct<ZVertexGPU>> tokenCUDA_;
-  edm::EDPutTokenT<ZVertexHost> tokenSOA_;
+  edm::EDGetTokenT<CUDAProduct<ZVertexHeterogeneous>> tokenCUDA_;
+  edm::EDPutTokenT<ZVertexHeterogeneous> tokenSOA_;
 
   cudautils::host::unique_ptr<ZVertexSoA> m_soa;
 
 };
 
 PixelVertexSoAFromCUDA::PixelVertexSoAFromCUDA(const edm::ParameterSet& iConfig) :
-  tokenCUDA_(consumes<CUDAProduct<ZVertexGPU>>(iConfig.getParameter<edm::InputTag>("src"))),
-  tokenSOA_(produces<ZVertexHost>())
+  tokenCUDA_(consumes<CUDAProduct<ZVertexHeterogeneous>>(iConfig.getParameter<edm::InputTag>("src"))),
+  tokenSOA_(produces<ZVertexHeterogeneous>())
 {}
 
 
@@ -70,8 +70,7 @@ void PixelVertexSoAFromCUDA::acquire(edm::Event const& iEvent,
 void PixelVertexSoAFromCUDA::produce(edm::Event& iEvent, edm::EventSetup const& iSetup) {
 
   // No copies....
-  auto output = std::make_unique<ZVertexHost>(std::move(m_soa));
-  iEvent.put(std::move(output));
+  iEvent.emplace(tokenSOA_,ZVertexHeterogeneous(std::move(m_soa)));
 
 }
 

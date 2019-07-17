@@ -48,17 +48,17 @@ namespace gpuVertexFinder {
   }
 
 #ifdef __CUDACC__
-  ZVertexGPU Producer::makeAsync(cuda::stream_t<>& stream, TkSoA const * tksoa, float ptMin) const {
-    ZVertexGPU vertices(stream);
+  ZVertexHeterogeneous Producer::makeAsync(cuda::stream_t<>& stream, TkSoA const * tksoa, float ptMin) const {
+    edm::Service<CUDAService> cs;
+    ZVertexHeterogeneous vertices(std::move(cs->make_device_unique<ZVertexSoA>(stream)));
 #else
-  ZVertexCPU Producer::make(cuda::stream_t<>& stream, TkSoA const * tksoa, float ptMin) const {
-    ZVertexCPU vertices(stream);
+  ZVertexHeterogeneous Producer::make(TkSoA const * tksoa, float ptMin) const {
+    ZVertexHeterogeneous vertices(std::move(std::make_unique<ZVertexSoA>()));
 #endif
     assert(tksoa);
     auto * soa = vertices.get();
 
 #ifdef __CUDACC__
-    edm::Service<CUDAService> cs;
     auto ws_d = cs->make_device_unique<WorkSpace>(stream);
 #else
     auto ws_d = std::make_unique<WorkSpace>();

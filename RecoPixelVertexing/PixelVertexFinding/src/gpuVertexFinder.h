@@ -62,8 +62,8 @@ namespace gpuVertexFinder {
 
     ~Producer() = default;
 
-    ZVertexGPU makeAsync(cuda::stream_t<>& stream, TkSoA const * tksoa, float ptMin) const;
-    ZVertexCPU make(cuda::stream_t<>& stream, TkSoA const * tksoa, float ptMin) const;
+    ZVertexHeterogeneous makeAsync(cuda::stream_t<>& stream, TkSoA const * tksoa, float ptMin) const;
+    ZVertexHeterogeneous make(TkSoA const * tksoa, float ptMin) const;
 
   private:
 

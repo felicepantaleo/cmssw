@@ -1,8 +1,6 @@
 <lcgdict>
-  <class name="CUDAProduct<HeterogeneousSoAImpl<ZVertexSoA,cudaCompat::GPUTraits>>" persistent="false"/>
-  <class name="edm::Wrapper<CUDAProduct<HeterogeneousSoAImpl<ZVertexSoA,cudaCompat::GPUTraits>>>" persistent="false"/>
-  <class name="HeterogeneousSoAImpl<ZVertexSoA,cudaCompat::CPUTraits>" persistent="false"/>
-  <class name="edm::Wrapper<HeterogeneousSoAImpl<ZVertexSoA,cudaCompat::CPUTraits>>" persistent="false"/>
-  <class name="HeterogeneousSoAImpl<ZVertexSoA,cudaCompat::HostTraits>" persistent="false"/>
-  <class name="edm::Wrapper<HeterogeneousSoAImpl<ZVertexSoA,cudaCompat::HostTraits>>" persistent="false"/>
+  <class name="CUDAProduct<ZVertexHeterogeneous>" persistent="false"/>
+  <class name="edm::Wrapper<ZVertexCUDAProduct>" persistent="false"/>
+  <class name="ZVertexHeterogeneous" persistent="false"/>
+  <class name="edm::Wrapper<ZVertexHeterogeneous>" persistent="false"/>
 </lcgdict>

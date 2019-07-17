@@ -17,20 +17,17 @@ public:
   using Product = T;
 
   HeterogeneousSoA() = default; // make root happy
-  virtual ~HeterogeneousSoA() = default;
+  ~HeterogeneousSoA() = default;
   HeterogeneousSoA(HeterogeneousSoA&&) = default;
   HeterogeneousSoA& operator=(HeterogeneousSoA&&) = default;
 
+  explicit HeterogeneousSoA(cudautils::device::unique_ptr<T> && p) : dm_ptr(std::move(p)) {}
+  explicit HeterogeneousSoA(cudautils::host::unique_ptr<T> && p) : hm_ptr(std::move(p)) {}
+  explicit HeterogeneousSoA(std::unique_ptr<T> && p) : std_ptr(std::move(p)) {}
 
-  virtual T const * get() const = 0;
-  virtual T * get() = 0;
 
-  auto & operator*() {
-    return *get();
-  }
-
-  auto * operator->() {
-    return get();
+  auto const * get() const {
+    return dm_ptr ? dm_ptr.get() : (hm_ptr ? hm_ptr.get() : std_ptr.get());
   }
 
   auto const & operator*() const {
@@ -41,6 +38,38 @@ public:
     return get();
   }
 
+
+  auto * get() {
+    return dm_ptr ? dm_ptr.get() : (hm_ptr ? hm_ptr.get() : std_ptr.get());
+  }
+
+  auto &  operator*() {
+    return *get();
+  }
+
+  auto * operator->() {
+    return get();
+  }
+
+
+
+  // in reality valid only for GPU version...
+  cudautils::host::unique_ptr<T>
+  toHostAsync(cuda::stream_t<>& stream) const {
+    assert(dm_ptr);
+    edm::Service<CUDAService> cs;
+    auto ret = cs->make_host_unique<T>(stream);
+    cudaCheck(cudaMemcpyAsync(ret.get(), dm_ptr.get(), sizeof(T), cudaMemcpyDefault, stream.id()));
+    return ret;
+  }
+
+
+
+private:
+  // a union wan't do it, a variant will not be more efficienct
+  cudautils::device::unique_ptr<T> dm_ptr; //!
+  cudautils::host::unique_ptr<T> hm_ptr; //!
+  std::unique_ptr<T> std_ptr; //!
 
 };
 
@@ -152,9 +181,9 @@ namespace cudaCompat {
 
 
 
-// a heterogeneous unique pointer...
+// a heterogeneous unique pointer (of a different sort) ...
 template<typename T, typename Traits>
-class HeterogeneousSoAImpl : public HeterogeneousSoA<T> {
+class HeterogeneousSoAImpl {
 public:
 
   template<typename V>
@@ -169,11 +198,11 @@ public:
   explicit HeterogeneousSoAImpl(unique_ptr<T> && p) : m_ptr(std::move(p)) {}
   explicit HeterogeneousSoAImpl(cuda::stream_t<> &stream);
 
-  T const * get() const final {
+  T const * get() const {
     return m_ptr.get();
   }
   
-  T * get() final {
+  T * get() {
     return m_ptr.get();
   }
 

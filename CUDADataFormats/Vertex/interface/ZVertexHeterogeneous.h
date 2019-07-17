@@ -5,9 +5,11 @@
 #include "CUDADataFormats/Common/interface/HeterogeneousSoA.h"
 #include "CUDADataFormats/Track/interface/PixelTrackCUDA.h"
 
-using ZVertexGPU = HeterogeneousSoAGPU<ZVertexSoA>;
-using ZVertexCUDA = HeterogeneousSoAGPU<ZVertexSoA>;
-using ZVertexHost = HeterogeneousSoAHost<ZVertexSoA>;
-using ZVertexCPU = HeterogeneousSoACPU<ZVertexSoA>;
+
+using ZVertexHeterogeneous = HeterogeneousSoA<ZVertexSoA>;
+#ifndef __CUDACC__
+#include "CUDADataFormats/Common/interface/CUDAProduct.h"
+using ZVertexCUDAProduct =  CUDAProduct<ZVertexHeterogeneous>;
+#endif
 
 #endif

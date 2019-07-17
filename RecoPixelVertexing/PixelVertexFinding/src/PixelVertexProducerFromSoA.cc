@@ -42,7 +42,7 @@ public:
 private:
   void produce(edm::StreamID streamID, edm::Event& iEvent, const edm::EventSetup& iSetup) const override;
 
-  edm::EDGetTokenT<ZVertexHost> tokenVertex_;
+  edm::EDGetTokenT<ZVertexHeterogeneous> tokenVertex_;
   edm::EDGetTokenT<reco::BeamSpot> tokenBeamSpot_;
   edm::EDGetTokenT<reco::TrackCollection> tokenTracks_;
   edm::EDGetTokenT<IndToEdm> tokenIndToEdm_;
@@ -54,7 +54,7 @@ private:
 
 
 PixelVertexProducerFromSoA::PixelVertexProducerFromSoA(const edm::ParameterSet & conf) :
-     tokenVertex_(consumes<ZVertexHost>(conf.getParameter<edm::InputTag>("src"))),
+     tokenVertex_(consumes<ZVertexHeterogeneous>(conf.getParameter<edm::InputTag>("src"))),
      tokenBeamSpot_(consumes<reco::BeamSpot>(conf.getParameter<edm::InputTag>("beamSpot"))),
      tokenTracks_(consumes<reco::TrackCollection>(conf.getParameter<edm::InputTag>("TrackCollection"))),
      tokenIndToEdm_(consumes<IndToEdm>(conf.getParameter<edm::InputTag>("TrackCollection"))) {
