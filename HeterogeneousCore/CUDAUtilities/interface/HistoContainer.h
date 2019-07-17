@@ -54,7 +54,7 @@ namespace cudautils {
   }
 
   template <typename Histo>
-  void launchZero(Histo *__restrict__ h,
+  inline void launchZero(Histo *__restrict__ h,
                   cudaStream_t stream
 #ifndef __CUDACC__
                   = 0
@@ -69,7 +69,7 @@ namespace cudautils {
   }
 
   template <typename Histo>
-  void launchFinalize(Histo *__restrict__ h,
+  inline void launchFinalize(Histo *__restrict__ h,
                       uint8_t *__restrict__ ws
 #ifndef __CUDACC__
                       = nullptr
@@ -92,7 +92,7 @@ namespace cudautils {
   }
 
   template <typename Histo, typename T>
-  void fillManyFromVector(Histo *__restrict__ h,
+  inline void fillManyFromVector(Histo *__restrict__ h,
                           uint8_t *__restrict__ ws,
                           uint32_t nh,
                           T const *__restrict__ v,

@@ -113,6 +113,23 @@ void PixelVertexProducerCUDA::produce(edm::StreamID streamID, edm::Event& iEvent
     auto const * tracks = iEvent.get(tokenCPUTrack_).get();
     assert(tracks);
 
+    /*
+    auto const & tsoa = *tracks;
+    auto maxTracks = tsoa.stride();
+    std::cout << "size of SoA " << sizeof(tsoa) << " stride " << maxTracks << std::endl;
+
+    int32_t nt = 0;
+    for (int32_t it = 0; it < maxTracks; ++it) {
+      auto nHits = tsoa.nHits(it);
+      assert(nHits==int(tsoa.hitIndices.size(it)));
+      if (nHits == 0) break;  // this is a guard: maybe we need to move to nTracks...
+      nt++;
+    }
+    std::cout << "found " << nt << " tracks in cpu SoA for Vertexing at " << tracks << std::endl;
+    */
+
+
+
     iEvent.emplace(
         tokenCPUVertex_,
         std::move(m_gpuAlgo.make(tracks,m_ptMin))

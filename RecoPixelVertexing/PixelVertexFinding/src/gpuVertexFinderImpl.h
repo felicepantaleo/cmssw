@@ -14,7 +14,9 @@
 namespace gpuVertexFinder {
 
   __global__ void loadTracks(TkSoA const* ptracks, ZVertexSoA * soa, WorkSpace* pws, float ptMin) {
-    
+
+    assert(ptracks);
+    assert(soa);    
     auto const & tracks = *ptracks;
     auto const & fit = tracks.stateAtBS;
     auto const* quality = tracks.qualityData();
@@ -28,9 +30,9 @@ namespace gpuVertexFinder {
       soa->idv[idx]=-1;
 
       if (nHits < 4)
-        return;  // no triplets
+        continue;  // no triplets
       if (quality[idx] != trackQuality::loose)
-        return;
+        continue;
  
       auto pt = tracks.pt(idx);
 
@@ -49,14 +51,17 @@ namespace gpuVertexFinder {
 
 #ifdef __CUDACC__
   ZVertexHeterogeneous Producer::makeAsync(cuda::stream_t<>& stream, TkSoA const * tksoa, float ptMin) const {
+    // std::cout << "producing Vertices on GPU" << std::endl;
     edm::Service<CUDAService> cs;
     ZVertexHeterogeneous vertices(std::move(cs->make_device_unique<ZVertexSoA>(stream)));
 #else
   ZVertexHeterogeneous Producer::make(TkSoA const * tksoa, float ptMin) const {
+     // std::cout << "producing Vertices on  CPU" <<    std::endl;
     ZVertexHeterogeneous vertices(std::move(std::make_unique<ZVertexSoA>()));
 #endif
     assert(tksoa);
     auto * soa = vertices.get();
+    assert(soa);
 
 #ifdef __CUDACC__
     auto ws_d = cs->make_device_unique<WorkSpace>(stream);
@@ -71,6 +76,7 @@ namespace gpuVertexFinder {
     loadTracks<<<numberOfBlocks, blockSize, 0, stream.id()>>>(tksoa, soa, ws_d.get(), ptMin);
     cudaCheck(cudaGetLastError());
 #else
+    cudaCompat::resetGrid();
     init(soa, ws_d.get());
     loadTracks(tksoa, soa, ws_d.get(), ptMin);
 #endif
@@ -95,6 +101,7 @@ namespace gpuVertexFinder {
     } else if (useIterative_) {
       clusterTracksIterative(soa, ws_d.get(), minT, eps, errmax, chi2max);
     }
+    // std::cout << "found " << (*ws_d).nvIntermediate << " vertices " << std::endl;
     fitVertices(soa, ws_d.get(), 50.);
 #endif
 

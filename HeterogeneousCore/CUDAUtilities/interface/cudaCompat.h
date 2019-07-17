@@ -89,9 +89,9 @@ namespace cudaCompat {
 // make sure function are inlined to avoid multiple definition
 #ifndef __CUDA_ARCH__
 #undef __global__
-#define __global__ inline
+#define __global__ inline __attribute__((always_inline))
 #undef __forceinline__
-#define __forceinline__ inline
+#define __forceinline__ inline __attribute__((always_inline))
 #endif
 
 
