@@ -1,21 +1,17 @@
-#ifndef CUDADataFormatsTrackTrackSoA_H
-#define CUDADataFormatsTrackTrackSoA_H
+#ifndef CUDADataFormatsTrackTrackHeterogeneous_H
+#define CUDADataFormatsTrackTrackHeterogeneous_H
 
 #include "CUDADataFormats/Track/interface/TrajectoryStateSoA.h"
 #include "HeterogeneousCore/CUDAUtilities/interface/HistoContainer.h"
 
-#include <cuda/api_wrappers.h>
-#include "HeterogeneousCore/CUDAUtilities/interface/device_unique_ptr.h"
-#include "HeterogeneousCore/CUDAUtilities/interface/host_unique_ptr.h"
-
-
+#include "CUDADataFormats/Common/interface/HeterogeneousSoA.h"
 
 namespace trackQuality {
   enum Quality : uint8_t { bad=0, dup, loose, strict, tight, highPurity };
 }
 
 template <int32_t S>
-class TrackSoA {
+class TrackSoAT {
 public:
 
   static constexpr int32_t stride() { return S; }
@@ -61,43 +57,23 @@ public:
 
 };
 
-
-
-class TrackingRecHit2DSOAView;
-
-class PixelTrackCUDA {
-public:
+namespace pixelTrack{
 
 #ifdef GPU_SMALL_EVENTS
-  static constexpr uint32_t maxNumber = 2 * 1024;
+  constexpr uint32_t maxNumber() { return 2 * 1024;}
 #else
-  static constexpr uint32_t maxNumber = 32 * 1024;
+  constexpr uint32_t maxNumber() { return 32 * 1024;}
 #endif
 
-  using SoA = TrackSoA<maxNumber>;
-  using TrajectoryState = TrajectoryStateSoA<maxNumber>;
-  using HitContainer = SoA::HitContainer;
+  using TrackSoA = TrackSoAT<maxNumber()>;
+  using TrajectoryState = TrajectoryStateSoA<maxNumber()>;
+  using HitContainer = TrackSoA::HitContainer;
   using Quality = trackQuality::Quality;
 
-  PixelTrackCUDA(){}
-  PixelTrackCUDA(TrackingRecHit2DSOAView const* hhp, cuda::stream_t<> &stream);
+}
 
-  auto * soa() { return m_soa.get();}
-  auto const * soa() const { return m_soa.get();}
+using PixelTrackHeterogeneous = HeterogeneousSoA<pixelTrack::TrackSoA>;
 
-  TrackingRecHit2DSOAView const * hitsOnGPU() const { return hitsOnGPU_;}
-
-  cudautils::host::unique_ptr<SoA> soaToHostAsync(cuda::stream_t<>& stream) const;
-
-private:
-
-  TrackingRecHit2DSOAView const* hitsOnGPU_ = nullptr;  // forwarding
-
-  cudautils::device::unique_ptr<SoA> m_soa;
-
-  uint32_t m_nTracks;
-
-};
 
 #endif // CUDADataFormatsTrackTrackSoA_H
 

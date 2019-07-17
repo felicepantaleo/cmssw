@@ -15,7 +15,7 @@
 #include "HeterogeneousCore/CUDAUtilities/interface/GPUVecArray.h"
 #include "HeterogeneousCore/CUDAUtilities/interface/cuda_assert.h"
 #include "RecoPixelVertexing/PixelTriplets/interface/CircleEq.h"
-#include "CUDADataFormats/Track/interface/PixelTrackCUDA.h"
+#include "CUDADataFormats/Track/interface/PixelTrackHeterogeneous.h"
 #include "CAConstants.h"
 
 class GPUCACell {
@@ -34,7 +34,7 @@ public:
 
   using TmpTuple = GPU::VecArray<uint32_t, 6>;
 
-  using HitContainer = PixelTrackCUDA::HitContainer;
+  using HitContainer = pixelTrack::HitContainer;
   using Quality = trackQuality::Quality;
   static constexpr auto bad = trackQuality::bad;
 

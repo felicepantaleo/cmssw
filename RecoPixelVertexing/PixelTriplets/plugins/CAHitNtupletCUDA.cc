@@ -22,7 +22,7 @@
 #include "RecoTracker/TkMSParametrization/interface/PixelRecoUtilities.h"
 
 #include "CAHitNtupletGeneratorOnGPU.h"
-#include "CUDADataFormats/Track/interface/PixelTrackCUDA.h"
+#include "CUDADataFormats/Track/interface/PixelTrackHeterogeneous.h"
 #include "CUDADataFormats/TrackingRecHit/interface/TrackingRecHit2DCUDA.h"
 
 
@@ -37,7 +37,7 @@ private:
   void produce(edm::StreamID streamID, edm::Event& iEvent, const edm::EventSetup& iSetup) const override;
 
   edm::EDGetTokenT<CUDAProduct<TrackingRecHit2DCUDA>> tokenHit_;
-  edm::EDPutTokenT<CUDAProduct<PixelTrackCUDA>> tokenTrack_;
+  edm::EDPutTokenT<CUDAProduct<PixelTrackHeterogeneous>> tokenTrack_;
 
   CAHitNtupletGeneratorOnGPU gpuAlgo_;
 
@@ -45,7 +45,7 @@ private:
 
 CAHitNtupletCUDA::CAHitNtupletCUDA(const edm::ParameterSet& iConfig) :
       tokenHit_(consumes<CUDAProduct<TrackingRecHit2DCUDA>>(iConfig.getParameter<edm::InputTag>("pixelRecHitSrc"))),
-      tokenTrack_(produces<CUDAProduct<PixelTrackCUDA>>()),
+      tokenTrack_(produces<CUDAProduct<PixelTrackHeterogeneous>>()),
       gpuAlgo_(iConfig, consumesCollector()) {}
 
 

@@ -29,10 +29,9 @@ using namespace gpuPixelDoublets;
   using HitToTuple = CAConstants::HitToTuple;
   using TupleMultiplicity = CAConstants::TupleMultiplicity;
 
-  using Quality = PixelTrackCUDA::Quality;
-  using TkSoA = PixelTrackCUDA::SoA;
-  using TkSoA = PixelTrackCUDA::SoA;
-  using HitContainer = PixelTrackCUDA::HitContainer;
+  using Quality = pixelTrack::Quality;
+  using TkSoA = pixelTrack::TrackSoA;
+  using HitContainer = pixelTrack::HitContainer;
 
 __global__ void kernel_checkOverflows(HitContainer const * foundNtuplets,
                                       CAConstants::TupleMultiplicity * tupleMultiplicity,

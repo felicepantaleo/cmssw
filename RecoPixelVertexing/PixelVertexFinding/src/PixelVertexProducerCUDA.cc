@@ -22,8 +22,6 @@
 
 #include "gpuVertexFinder.h"
 
-#include "CUDADataFormats/Common/interface/HostProduct.h"
-
 
 class PixelVertexProducerCUDA : public edm::global::EDProducer<> {
 public:
@@ -37,9 +35,9 @@ private:
 
   bool m_OnGPU;
 
-  edm::EDGetTokenT<CUDAProduct<PixelTrackCUDA>> tokenGPUTrack_;
+  edm::EDGetTokenT<CUDAProduct<PixelTrackHeterogeneous>> tokenGPUTrack_;
   edm::EDPutTokenT<ZVertexCUDAProduct> tokenGPUVertex_;
-  edm::EDGetTokenT<HostProduct<PixelTrackCUDA::SoA>> tokenCPUTrack_;
+  edm::EDGetTokenT<PixelTrackHeterogeneous> tokenCPUTrack_;
   edm::EDPutTokenT<ZVertexHeterogeneous> tokenCPUVertex_;
 
 
@@ -62,10 +60,10 @@ PixelVertexProducerCUDA::PixelVertexProducerCUDA(const edm::ParameterSet& conf) 
      m_ptMin(conf.getParameter<double>("PtMin"))  // 0.5 GeV
 {
   if (m_OnGPU) {
-     tokenGPUTrack_ = consumes<CUDAProduct<PixelTrackCUDA>>(conf.getParameter<edm::InputTag>("pixelTrackSrc"));
+     tokenGPUTrack_ = consumes<CUDAProduct<PixelTrackHeterogeneous>>(conf.getParameter<edm::InputTag>("pixelTrackSrc"));
      tokenGPUVertex_ = produces<ZVertexCUDAProduct>();
   } else {
-     tokenCPUTrack_ = consumes<HostProduct<PixelTrackCUDA::SoA>>(conf.getParameter<edm::InputTag>("pixelTrackSrc"));
+     tokenCPUTrack_ = consumes<PixelTrackHeterogeneous>(conf.getParameter<edm::InputTag>("pixelTrackSrc"));
      tokenCPUVertex_ = produces<ZVertexHeterogeneous>();
   }
 }
@@ -96,30 +94,28 @@ void PixelVertexProducerCUDA::fillDescriptions(edm::ConfigurationDescriptions &d
 
 void PixelVertexProducerCUDA::produce(edm::StreamID streamID, edm::Event& iEvent, const edm::EventSetup& iSetup) const {
   if (m_OnGPU) {
-    edm::Handle<CUDAProduct<PixelTrackCUDA>>  hTracks;
+    edm::Handle<CUDAProduct<PixelTrackHeterogeneous>>  hTracks;
     iEvent.getByToken(tokenGPUTrack_, hTracks);
 
     CUDAScopedContextProduce ctx{*hTracks};
-    auto const& tracks = ctx.get(*hTracks);
+    auto const * tracks = ctx.get(*hTracks).get();
 
-    auto const * soa = tracks.soa();
-    assert(soa);
+    assert(tracks);
 
     ctx.emplace(
         iEvent,
         tokenGPUVertex_,
-        std::move(m_gpuAlgo.makeAsync(ctx.stream(),soa,m_ptMin))
+        std::move(m_gpuAlgo.makeAsync(ctx.stream(),tracks,m_ptMin))
         );
 
   } else {
 
-    auto const& tracks = iEvent.get(tokenCPUTrack_);
-    auto const * soa = tracks.get();
-    assert(soa);
+    auto const * tracks = iEvent.get(tokenCPUTrack_).get();
+    assert(tracks);
 
     iEvent.emplace(
         tokenCPUVertex_,
-        std::move(m_gpuAlgo.make(soa,m_ptMin))
+        std::move(m_gpuAlgo.make(tracks,m_ptMin))
         );
 
  }

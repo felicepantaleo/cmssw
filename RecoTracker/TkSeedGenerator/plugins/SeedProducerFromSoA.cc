@@ -31,7 +31,7 @@
 #include "TrackingTools/TrajectoryParametrization/interface/CurvilinearTrajectoryError.h"
 #include "TrackingTools/TrajectoryState/interface/TrajectoryStateTransform.h"
 
-#include "CUDADataFormats/Track/interface/PixelTrackCUDA.h"
+#include "CUDADataFormats/Track/interface/PixelTrackHeterogeneous.h"
 #include "RecoPixelVertexing/PixelTrackFitting/interface/FitUtils.h"
 
 /*
@@ -49,14 +49,14 @@ private:
   void produce(edm::StreamID streamID, edm::Event& iEvent, const edm::EventSetup& iSetup) const override;
 
   edm::EDGetTokenT<reco::BeamSpot> tBeamSpot_;
-  edm::EDGetTokenT<PixelTrackCUDA::SoA> tokenTrack_;
+  edm::EDGetTokenT<PixelTrackHeterogeneous> tokenTrack_;
 
   int32_t minNumberOfHits_;
 };
 
 SeedProducerFromSoA::SeedProducerFromSoA(const edm::ParameterSet &iConfig) :
       tBeamSpot_(consumes<reco::BeamSpot>(iConfig.getParameter<edm::InputTag>("beamSpot"))),
-      tokenTrack_(consumes<PixelTrackCUDA::SoA>(iConfig.getParameter<edm::InputTag>("src"))),
+      tokenTrack_(consumes<PixelTrackHeterogeneous>(iConfig.getParameter<edm::InputTag>("src"))),
       minNumberOfHits_(iConfig.getParameter<int>("minNumberOfHits"))
 
 {
@@ -93,20 +93,16 @@ void SeedProducerFromSoA::produce(edm::StreamID streamID, edm::Event& iEvent, co
   iSetup.get<TrackerTopologyRcd>().get(httopo);
 
 
-  edm::Handle<reco::BeamSpot> bsHandle;
-  iEvent.getByToken(tBeamSpot_, bsHandle);
-  const auto &bsh = *bsHandle;
+  const auto &bsh = iEvent.get(tBeamSpot_);
   // std::cout << "beamspot " << bsh.x0() << ' ' << bsh.y0() << ' ' << bsh.z0() << std::endl;
   GlobalPoint bs(bsh.x0(), bsh.y0(), bsh.z0());
 
-   edm::Handle<PixelTrackCUDA::SoA> soaHandle;
-  iEvent.getByToken(tokenTrack_, soaHandle);
-  const auto & tsoa = *soaHandle;
+  const auto & tsoa = *(iEvent.get(tokenTrack_));
 
   auto const * quality = tsoa.qualityData();
   auto const & fit = tsoa.stateAtBS;
   auto const & detIndices = tsoa.detIndices;
-  auto maxTracks = PixelTrackCUDA::SoA::stride();
+  auto maxTracks = tsoa.stride();
 
   int32_t nt = 0;
   for (int32_t it = 0; it < maxTracks; ++it) {

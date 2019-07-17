@@ -4,7 +4,7 @@
 #include <cuda/api_wrappers.h>
 
 #include "RecoPixelVertexing/PixelTrackFitting/interface/FitResult.h"
-#include "CUDADataFormats/Track/interface/PixelTrackCUDA.h"
+#include "CUDADataFormats/Track/interface/PixelTrackHeterogeneous.h"
 #include "CUDADataFormats/TrackingRecHit/interface/TrackingRecHit2DCUDA.h"
 #include "CAConstants.h"
 
@@ -37,8 +37,8 @@ public:
   using HitsOnGPU = TrackingRecHit2DSOAView;
   using HitsOnCPU = TrackingRecHit2DCUDA;
 
-  using Tuples = PixelTrackCUDA::HitContainer;
-  using OutputSoA = PixelTrackCUDA::SoA;
+  using Tuples = pixelTrack::HitContainer;
+  using OutputSoA = pixelTrack::TrackSoA;
 
   using TupleMultiplicity = CAConstants::TupleMultiplicity;
 

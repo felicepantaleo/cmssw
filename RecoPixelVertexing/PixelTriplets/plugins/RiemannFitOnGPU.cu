@@ -17,8 +17,8 @@
 #include "HelixFitOnGPU.h"
 
 using HitsOnGPU = TrackingRecHit2DSOAView;
-using Tuples = PixelTrackCUDA::HitContainer;
-using OutputSoA = PixelTrackCUDA::SoA;
+using Tuples = pixelTrack::HitContainer;
+using OutputSoA = pixelTrack::TrackSoA;
 
 using namespace Eigen;
 

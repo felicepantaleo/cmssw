@@ -9,7 +9,7 @@
 namespace gpuVertexFinder {
 
   using ZVertices = ZVertexSoA;
-  using TkSoA = PixelTrackCUDA::SoA;
+  using TkSoA = pixelTrack::TrackSoA;
 
   // workspace used in the vertex reco algos
   struct WorkSpace {
@@ -42,7 +42,7 @@ namespace gpuVertexFinder {
     
     using ZVertices = ZVertexSoA;
     using WorkSpace = gpuVertexFinder::WorkSpace;
-    using TkSoA = PixelTrackCUDA::SoA;
+    using TkSoA = pixelTrack::TrackSoA;
 
     Producer(bool useDensity,
              bool useDBSCAN,

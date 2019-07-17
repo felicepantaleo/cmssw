@@ -18,7 +18,7 @@
 #include "HeterogeneousCore/CUDACore/interface/GPUCuda.h"
 
 
-#include "CUDADataFormats/Track/interface/PixelTrackCUDA.h"
+#include "CUDADataFormats/Track/interface/PixelTrackHeterogeneous.h"
 
 class PixelTrackSoAFromCUDA : public edm::stream::EDProducer<edm::ExternalWork> {
 public:
@@ -34,16 +34,16 @@ private:
   void produce(edm::Event& iEvent, edm::EventSetup const& iSetup) override;
 
 
-  edm::EDGetTokenT<CUDAProduct<PixelTrackCUDA>> tokenCUDA_;
-  edm::EDPutTokenT<HostProduct<PixelTrackCUDA::SoA>> tokenSOA_;
+  edm::EDGetTokenT<CUDAProduct<PixelTrackHeterogeneous>> tokenCUDA_;
+  edm::EDPutTokenT<PixelTrackHeterogeneous> tokenSOA_;
 
-  cudautils::host::unique_ptr<PixelTrackCUDA::SoA> m_soa;
+  cudautils::host::unique_ptr<pixelTrack::TrackSoA> m_soa;
 
 };
 
 PixelTrackSoAFromCUDA::PixelTrackSoAFromCUDA(const edm::ParameterSet& iConfig) :
-  tokenCUDA_(consumes<CUDAProduct<PixelTrackCUDA>>(iConfig.getParameter<edm::InputTag>("src"))),
-  tokenSOA_(produces<HostProduct<PixelTrackCUDA::SoA>>())
+  tokenCUDA_(consumes<CUDAProduct<PixelTrackHeterogeneous>>(iConfig.getParameter<edm::InputTag>("src"))),
+  tokenSOA_(produces<PixelTrackHeterogeneous>())
 {}
 
 
@@ -60,11 +60,11 @@ void PixelTrackSoAFromCUDA::fillDescriptions(edm::ConfigurationDescriptions& des
 void PixelTrackSoAFromCUDA::acquire(edm::Event const& iEvent,
                edm::EventSetup const& iSetup,
                edm::WaitingTaskWithArenaHolder waitingTaskHolder) {
-  CUDAProduct<PixelTrackCUDA> const& inputDataWrapped = iEvent.get(tokenCUDA_);
+  CUDAProduct<PixelTrackHeterogeneous> const& inputDataWrapped = iEvent.get(tokenCUDA_);
   CUDAScopedContextAcquire ctx{inputDataWrapped, std::move(waitingTaskHolder)};
   auto const& inputData = ctx.get(inputDataWrapped);
 
-  m_soa = inputData.soaToHostAsync(ctx.stream());
+  m_soa = inputData.toHostAsync(ctx.stream());
 
 }
 
@@ -72,8 +72,8 @@ void PixelTrackSoAFromCUDA::produce(edm::Event& iEvent, edm::EventSetup const& i
 
   /*
   auto tsoa = *m_soa;
-  auto maxTracks = PixelTrackCUDA::SoA::stride();
-  std::cout << "size of SoA" << sizeof(PixelTrackCUDA::SoA) << " stride " << maxTracks << std::endl;
+  auto maxTracks = tdoa.stride();
+  std::cout << "size of SoA" << sizeof(PixelTrackHeterogeneous::SoA) << " stride " << maxTracks << std::endl;
 
   int32_t nt = 0;
   for (int32_t it = 0; it < maxTracks; ++it) {
@@ -85,11 +85,8 @@ void PixelTrackSoAFromCUDA::produce(edm::Event& iEvent, edm::EventSetup const& i
   std::cout << "found " << nt << " tracks in cpu SoA" << std::endl;
   */
 
-  // I suspect this is wrong
-  //std::unique_ptr<PixelTrackCUDA::SoA> output(m_soa.release());
   // DO NOT  make a copy  (actually TWO....)
-  auto output = std::make_unique<HostProduct<PixelTrackCUDA::SoA>>(std::move(m_soa));
-  iEvent.put(std::move(output));
+  iEvent.emplace(tokenSOA_,PixelTrackHeterogeneous(std::move(m_soa)));
 
 }
 

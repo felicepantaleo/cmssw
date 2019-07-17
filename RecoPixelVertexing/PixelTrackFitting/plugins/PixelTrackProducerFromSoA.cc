@@ -31,7 +31,7 @@
 #include "RecoPixelVertexing/PixelTrackFitting/interface/FitUtils.h"
 
 #include "CUDADataFormats/Common/interface/HostProduct.h"
-#include "CUDADataFormats/Track/interface/PixelTrackCUDA.h"
+#include "CUDADataFormats/Track/interface/PixelTrackHeterogeneous.h"
 #include "CUDADataFormats/SiPixelCluster/interface/gpuClusteringConstants.h"
 
 #include "storeTracks.h"
@@ -60,7 +60,7 @@ private:
   void produce(edm::StreamID streamID, edm::Event& iEvent, const edm::EventSetup& iSetup) const override;
 
   edm::EDGetTokenT<reco::BeamSpot> tBeamSpot_;
-  edm::EDGetTokenT<HostProduct<PixelTrackCUDA::SoA>> tokenTrack_;
+  edm::EDGetTokenT<PixelTrackHeterogeneous> tokenTrack_;
   edm::EDGetTokenT<SiPixelRecHitCollectionNew> cpuHits_;
   edm::EDGetTokenT<HMSstorage> hmsToken_;
 
@@ -69,7 +69,7 @@ private:
 
 PixelTrackProducerFromSoA::PixelTrackProducerFromSoA(const edm::ParameterSet &iConfig) :
       tBeamSpot_(consumes<reco::BeamSpot>(iConfig.getParameter<edm::InputTag>("beamSpot"))),
-      tokenTrack_(consumes<HostProduct<PixelTrackCUDA::SoA>>(iConfig.getParameter<edm::InputTag>("trackSrc"))),
+      tokenTrack_(consumes<PixelTrackHeterogeneous>(iConfig.getParameter<edm::InputTag>("trackSrc"))),
       cpuHits_(consumes<SiPixelRecHitCollectionNew>(iConfig.getParameter<edm::InputTag>("pixelRecHitLegacySrc"))),
       hmsToken_(consumes<HMSstorage>(iConfig.getParameter<edm::InputTag>("pixelRecHitLegacySrc"))),
       minNumberOfHits_(iConfig.getParameter<int>("minNumberOfHits"))
@@ -138,14 +138,12 @@ void PixelTrackProducerFromSoA::produce(edm::StreamID streamID, edm::Event& iEve
   std::vector<const TrackingRecHit *> hits;
   hits.reserve(5);
 
-   edm::Handle<HostProduct<PixelTrackCUDA::SoA>> soaHandle;
-  iEvent.getByToken(tokenTrack_, soaHandle);
-  const auto & tsoa = **soaHandle;
+  const auto & tsoa = *iEvent.get(tokenTrack_);
 
   auto const * quality = tsoa.qualityData();
   auto const & fit = tsoa.stateAtBS;
   auto const & hitIndices = tsoa.hitIndices; 
-  auto maxTracks = PixelTrackCUDA::SoA::stride();
+  auto maxTracks =tsoa.stride();
 
   int32_t nt = 0;
  

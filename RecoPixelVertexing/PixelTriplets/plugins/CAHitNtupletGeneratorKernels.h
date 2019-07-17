@@ -4,7 +4,7 @@
 #include "HeterogeneousCore/CUDAServices/interface/CUDAService.h"
 #include "HeterogeneousCore/CUDAUtilities/interface/device_unique_ptr.h"
 
-#include "CUDADataFormats/Track/interface/PixelTrackCUDA.h"
+#include "CUDADataFormats/Track/interface/PixelTrackHeterogeneous.h"
 #include "GPUCACell.h"
 
 // #define DUMP_GPU_TK_TUPLES
@@ -33,9 +33,9 @@ public:
   using HitToTuple = CAConstants::HitToTuple;
   using TupleMultiplicity = CAConstants::TupleMultiplicity;
 
-  using Quality = PixelTrackCUDA::Quality;
-  using TkSoA = PixelTrackCUDA::SoA;
-  using HitContainer = PixelTrackCUDA::HitContainer;
+  using Quality = pixelTrack::Quality;
+  using TkSoA = pixelTrack::TrackSoA;
+  using HitContainer = pixelTrack::HitContainer;
 
 
   struct QualityCuts {

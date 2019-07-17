@@ -3,7 +3,7 @@
 
 #include <cuda_runtime.h>
 #include "CUDADataFormats/TrackingRecHit/interface/TrackingRecHit2DCUDA.h"
-#include "CUDADataFormats/Track/interface/PixelTrackCUDA.h"
+#include "CUDADataFormats/Track/interface/PixelTrackHeterogeneous.h"
 
 
 #include "DataFormats/SiPixelDetId/interface/PixelSubdetector.h"
@@ -30,9 +30,9 @@ public:
   using HitsOnCPU = TrackingRecHit2DCUDA;
   using hindex_type = TrackingRecHit2DSOAView::hindex_type;
 
-  using Quality = PixelTrackCUDA::Quality;
-  using OutputSoA = PixelTrackCUDA::SoA;
-  using HitContainer = PixelTrackCUDA::HitContainer;
+  using Quality = pixelTrack::Quality;
+  using OutputSoA = pixelTrack::TrackSoA;
+  using HitContainer = pixelTrack::HitContainer;
   using Tuple = HitContainer;
 
 public:
@@ -45,7 +45,7 @@ public:
   static void fillDescriptions(edm::ParameterSetDescription& desc);
   static const char* fillDescriptionsLabel() { return "caHitNtupletOnGPU"; }
 
-  PixelTrackCUDA makeTuplesAsync(TrackingRecHit2DCUDA const& hits_d,
+  PixelTrackHeterogeneous makeTuplesAsync(TrackingRecHit2DCUDA const& hits_d,
                                 float bfield,
                                 cuda::stream_t<>& stream) const;
  
