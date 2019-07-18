@@ -99,9 +99,6 @@ __global__ void kernelCircleFit(CAConstants::TupleMultiplicity const *__restrict
   auto local_start = (blockIdx.x * blockDim.x + threadIdx.x);
   for (int tuple_start = local_start + offset, nt =  tupleMultiplicity->size(nHits); tuple_start<nt; tuple_start+=gridDim.x*blockDim.x) {
 
-    // get it for the ntuple container (one to one to helix)
-    auto tkid = *(tupleMultiplicity->begin(nHits) + tuple_start);
-
     Rfit::Map3xNd<N> hits(phits + local_start);
     Rfit::Map4d fast_fit(pfast_fit_input + local_start);
     Rfit::Map6xNf<N> hits_ge(phits_ge + local_start);
@@ -114,6 +111,7 @@ __global__ void kernelCircleFit(CAConstants::TupleMultiplicity const *__restrict
     circle_fit[local_start] = Rfit::Circle_fit(hits.block(0, 0, 2, N), hits_cov, fast_fit, rad, B, true);
 
 #ifdef RIEMANN_DEBUG
+//    auto tkid = *(tupleMultiplicity->begin(nHits) + tuple_start);
 //  printf("kernelCircleFit circle.par(0,1,2): %d %f,%f,%f\n", tkid,
 //         circle_fit[local_start].par(0), circle_fit[local_start].par(1), circle_fit[local_start].par(2));
 #endif
