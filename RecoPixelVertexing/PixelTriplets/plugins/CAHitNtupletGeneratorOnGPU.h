@@ -45,9 +45,14 @@ public:
   static void fillDescriptions(edm::ParameterSetDescription& desc);
   static const char* fillDescriptionsLabel() { return "caHitNtupletOnGPU"; }
 
-  PixelTrackHeterogeneous makeTuplesAsync(TrackingRecHit2DCUDA const& hits_d,
+  PixelTrackHeterogeneous makeTuplesAsync(TrackingRecHit2DGPU const& hits_d,
                                 float bfield,
                                 cuda::stream_t<>& stream) const;
+
+  PixelTrackHeterogeneous makeTuples(TrackingRecHit2DCPU const& hits_d,
+                                float bfield) const;
+
+
  
 private:
 
@@ -57,8 +62,6 @@ private:
                    const edm::EventSetup& es,
                    bool useRiemannFit,
                    cuda::stream_t<>& cudaStream);
-
-  void cleanup(cudaStream_t stream);
 
   void launchKernels(HitsOnCPU const& hh, bool useRiemannFit, cuda::stream_t<>& cudaStream) const;
 

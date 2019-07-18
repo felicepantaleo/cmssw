@@ -49,7 +49,7 @@ private:
   // The mess with inputs will be cleaned up when migrating to the new framework
   edm::EDGetTokenT<reco::BeamSpot> bsGetToken_;
   edm::EDGetTokenT<SiPixelClusterCollectionNew> clusterToken_;    // Legacy Clusters
-  edm::EDPutTokenT<TrackingRecHit2DHost> tokenHit_;
+  edm::EDPutTokenT<TrackingRecHit2DCPU> tokenHit_;
   edm::EDPutTokenT<HMSstorage> tokenModuleStart_;
 
   std::string cpeName_;
@@ -59,7 +59,7 @@ private:
 SiPixelRecHitSoAFromLegacy::SiPixelRecHitSoAFromLegacy(const edm::ParameterSet& iConfig)
     : bsGetToken_{consumes<reco::BeamSpot>(iConfig.getParameter<edm::InputTag>("beamSpot"))},
       clusterToken_{consumes<SiPixelClusterCollectionNew>(iConfig.getParameter<edm::InputTag>("src"))},
-      tokenHit_{produces<TrackingRecHit2DHost>()},
+      tokenHit_{produces<TrackingRecHit2DCPU>()},
       tokenModuleStart_{produces<HMSstorage>()},
       cpeName_(iConfig.getParameter<std::string>("CPE")) {}
 
@@ -147,7 +147,7 @@ void SiPixelRecHitSoAFromLegacy::produce(edm::StreamID streamID, edm::Event& iEv
 
   // output SoA
   auto dummyStream = cuda::stream::wrap(0,0,false);
-  auto output = std::make_unique<TrackingRecHit2DHost>(numberOfClusters,
+  auto output = std::make_unique<TrackingRecHit2DCPU>(numberOfClusters,
                                    &cpeView,
                                    hitsModuleStart,
                                    dummyStream
