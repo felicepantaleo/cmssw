@@ -27,7 +27,7 @@ namespace gpuPixelDoublets {
     constexpr auto maxCellsPerHit = GPUCACell::maxCellsPerHit;
 
     auto const& hh = *hhp;
-    auto layer = [&](uint16_t id) { return hh.cpeParams().layer(id); };
+    // auto layer = [&](uint16_t id) { return hh.cpeParams().layer(id); };
 
     // x run faster...
     auto idy = threadIdx.y + blockIdx.y * blockDim.y;
@@ -49,7 +49,7 @@ namespace gpuPixelDoublets {
     uint16_t d[maxCellsPerHit];  // uint8_t l[maxCellsPerHit];
     uint32_t cc[maxCellsPerHit];
     auto sg = 0;
-    for (uint32_t ic = 0; ic < s; ++ic) {
+    for (int32_t ic = 0; ic < s; ++ic) {
       auto& ci = cells[vc[ic]];
       if (0==ci.theUsed) continue; // for triplets equivalent to next 
       if (checkTrack && ci.tracks().empty())
@@ -66,7 +66,7 @@ namespace gpuPixelDoublets {
     if (sg < 2)
       return;
     // here we parallelize
-    for (uint32_t ic = first; ic < sg - 1; ic += blockDim.x) {
+    for (int32_t ic = first; ic < sg - 1; ic += blockDim.x) {
       auto& ci = cells[cc[ic]];
       for (auto jc = ic + 1; jc < sg; ++jc) {
         auto& cj = cells[cc[jc]];

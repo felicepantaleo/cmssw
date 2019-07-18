@@ -35,6 +35,11 @@ public:
   using HitContainer = pixelTrack::HitContainer;
   using Tuple = HitContainer;
 
+
+  using QualityCuts = cAHitNtupletGenerator::QualityCuts;
+  using Params = cAHitNtupletGenerator::Params;
+  using Counters = cAHitNtupletGenerator::Counters;
+
 public:
   CAHitNtupletGeneratorOnGPU(const edm::ParameterSet& cfg, edm::ConsumesCollector&& iC)
       : CAHitNtupletGeneratorOnGPU(cfg, iC) {}
@@ -66,10 +71,9 @@ private:
   void launchKernels(HitsOnCPU const& hh, bool useRiemannFit, cuda::stream_t<>& cudaStream) const;
 
 
-  CAHitNtupletGeneratorKernels::Params m_params;
+  Params m_params;
 
-  using Counters = CAHitNtupletGeneratorKernels::Counters;
-  CAHitNtupletGeneratorKernels::Counters * m_counters = nullptr;
+  Counters * m_counters = nullptr;
 
 };
 

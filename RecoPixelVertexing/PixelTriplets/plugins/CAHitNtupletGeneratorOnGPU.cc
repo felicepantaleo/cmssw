@@ -25,12 +25,12 @@ namespace {
     return x * x;
   }
 
-  CAHitNtupletGeneratorKernels::QualityCuts makeQualityCuts(edm::ParameterSet const& pset) {
+  cAHitNtupletGenerator::QualityCuts makeQualityCuts(edm::ParameterSet const& pset) {
     auto coeff = pset.getParameter<std::vector<double>>("chi2Coeff");
     if (coeff.size() != 4) {
       throw edm::Exception(edm::errors::Configuration, "CAHitNtupletGeneratorOnGPU.trackQualityCuts.chi2Coeff must have 4 elements");
     }
-    return CAHitNtupletGeneratorKernels::QualityCuts {
+    return cAHitNtupletGenerator::QualityCuts {
       // polynomial coefficients for the pT-dependent chi2 cut
       { (float) coeff[0], (float) coeff[1], (float) coeff[2], (float) coeff[3] },
       // max pT used to determine the chi2 cut
@@ -57,7 +57,8 @@ namespace {
 using namespace std;
 
 CAHitNtupletGeneratorOnGPU::CAHitNtupletGeneratorOnGPU(const edm::ParameterSet &cfg, edm::ConsumesCollector &iC)
-    : m_params(cfg.getParameter<unsigned int>("minHitsPerNtuplet"),
+    : m_params(cfg.getParameter<bool>("onGPU"),
+              cfg.getParameter<unsigned int>("minHitsPerNtuplet"),
               cfg.getParameter<bool>("useRiemannFit"),
               cfg.getParameter<bool>("fit5as4"),
               cfg.getParameter<bool>("includeJumpingForwardDoublets"),
@@ -83,17 +84,30 @@ CAHitNtupletGeneratorOnGPU::CAHitNtupletGeneratorOnGPU(const edm::ParameterSet &
              "h1","h2","h3","h4","h5");
 #endif
 
-  cudaCheck(cudaMalloc(&m_counters, sizeof(Counters)));
-  cudaCheck(cudaMemset(m_counters, 0, sizeof(Counters)));
+  if (m_params.onGPU_) {
+    cudaCheck(cudaMalloc(&m_counters, sizeof(Counters)));
+    cudaCheck(cudaMemset(m_counters, 0, sizeof(Counters)));
+  } else {
+    m_counters = new Counters();
+    memset(m_counters, 0, sizeof(Counters));
+  }
 
 }
 
 CAHitNtupletGeneratorOnGPU::~CAHitNtupletGeneratorOnGPU(){
  if (m_params.doStats_) {
     // crash on multi-gpu processes
-    CAHitNtupletGeneratorKernels::printCounters(m_counters);
+    if (m_params.onGPU_) {
+      CAHitNtupletGeneratorKernelsGPU::printCounters(m_counters);
+    } else {
+      CAHitNtupletGeneratorKernelsCPU::printCounters(m_counters);
+    }
   }
-  cudaFree(m_counters);
+  if (m_params.onGPU_) {
+    cudaFree(m_counters);
+  }else {
+    delete m_counters;
+  }
 }
 
 
@@ -144,7 +158,7 @@ PixelTrackHeterogeneous CAHitNtupletGeneratorOnGPU::makeTuplesAsync(TrackingRecH
 
   auto * soa = tracks.get();
   
-  CAHitNtupletGeneratorKernels kernels(m_params);
+  CAHitNtupletGeneratorKernelsGPU kernels(m_params);
   kernels.counters_ = m_counters;
   HelixFitOnGPU fitter(bfield,m_params.fit5as4_);
 
@@ -169,9 +183,14 @@ PixelTrackHeterogeneous CAHitNtupletGeneratorOnGPU::makeTuples(TrackingRecHit2DC
 
 
   PixelTrackHeterogeneous tracks(std::make_unique<pixelTrack::TrackSoA>());
+  auto dummyStream = cuda::stream::wrap(0,0,false);
 
   auto * soa = tracks.get();
   assert(soa);
+
+  CAHitNtupletGeneratorKernelsCPU kernels(m_params);
+  kernels.counters_ = m_counters;
+  kernels.allocateOnGPU(dummyStream);
 
   return tracks;
 
