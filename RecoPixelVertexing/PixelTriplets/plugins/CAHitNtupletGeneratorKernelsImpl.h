@@ -322,114 +322,103 @@ __global__ void kernel_mark_used(GPUCACell::Hits const *__restrict__ hhp,
 __global__ void kernel_countMultiplicity(HitContainer const *__restrict__ foundNtuplets,
                                          Quality const * __restrict__ quality,
                                          CAConstants::TupleMultiplicity *tupleMultiplicity) {
-  auto it = blockIdx.x * blockDim.x + threadIdx.x;
 
-  if (it >= foundNtuplets->nbins())
-    return;
-
-  auto nhits = foundNtuplets->size(it);
-  if (nhits < 3)
-    return;
-  if (quality[it] == trackQuality::dup) return;
-  assert(quality[it] == trackQuality::bad);
-  if (nhits>5) printf("wrong mult %d %d\n",it,nhits);
-  assert(nhits<8);
-  tupleMultiplicity->countDirect(nhits);
+  auto first = blockIdx.x * blockDim.x + threadIdx.x;
+  for (int it = first, nt = foundNtuplets->nbins(); it<nt; it += gridDim.x * blockDim.x) {
+    auto nhits = foundNtuplets->size(it);
+    if (nhits < 3) continue;
+    if (quality[it] == trackQuality::dup) continue;
+    assert(quality[it] == trackQuality::bad);
+    if (nhits>5) printf("wrong mult %d %d\n",it,nhits);
+    assert(nhits<8);
+    tupleMultiplicity->countDirect(nhits);
+  }
 }
-
 
 
 __global__ void kernel_fillMultiplicity(HitContainer const *__restrict__ foundNtuplets,
                                         Quality const * __restrict__ quality,
                                         CAConstants::TupleMultiplicity *tupleMultiplicity) {
-  auto it = blockIdx.x * blockDim.x + threadIdx.x;
-
-  if (it >= foundNtuplets->nbins())
-    return;
-
-  auto nhits = foundNtuplets->size(it);
-  if (nhits < 3)
-    return;
-  if (quality[it] == trackQuality::dup) return;
-  if (nhits>5) printf("wrong mult %d %d\n",it,nhits);
-  assert(nhits<8);
-  tupleMultiplicity->fillDirect(nhits, it);
+  auto first = blockIdx.x * blockDim.x + threadIdx.x;
+  for (int it = first, nt = foundNtuplets->nbins(); it<nt; it += gridDim.x * blockDim.x) {
+    auto nhits = foundNtuplets->size(it);
+    if (nhits < 3) continue;
+    if (quality[it] == trackQuality::dup) continue;
+    assert(quality[it] == trackQuality::bad);
+    if (nhits>5) printf("wrong mult %d %d\n",it,nhits);
+    assert(nhits<8);
+    tupleMultiplicity->fillDirect(nhits, it);
+  }
 }
-
 
 
 __global__ void kernel_classifyTracks(HitContainer const *__restrict__ tuples,
                                       TkSoA const * __restrict__ tracks,
                                       CAHitNtupletGeneratorKernelsGPU::QualityCuts cuts,
                                       Quality *__restrict__ quality) {
-  auto idx = blockIdx.x * blockDim.x + threadIdx.x;
-  if (idx >= tuples->nbins()) {
-    return;
-  }
-  if (tuples->size(idx) == 0) {
-    return;
-  }
 
-  // if duplicate: not even fit
-  if (quality[idx] == trackQuality::dup) return;
+  int first = blockDim.x * blockIdx.x + threadIdx.x;
+  for (int it = first, nt = tuples->nbins(); it<nt; it += gridDim.x * blockDim.x) {
+    auto nhits = tuples->size(it);
+    if (nhits == 0) break; // guard
 
-  assert(quality[idx] == trackQuality::bad);
+    // if duplicate: not even fit
+    if (quality[it] == trackQuality::dup) continue;
 
-  // mark doublets as bad
-  if (tuples->size(idx) < 3) {
-    return;
-  }
+    assert(quality[it] == trackQuality::bad);
 
-  // if the fit has any invalid parameters, mark it as bad
-  bool isNaN = false;
-  for (int i = 0; i < 5; ++i) {
-    isNaN |= isnan(tracks->stateAtBS.state(idx)(i));
-  }
-  if (isNaN) {
+    // mark doublets as bad
+    if (nhits < 3) continue;
+
+    // if the fit has any invalid parameters, mark it as bad
+    bool isNaN = false;
+    for (int i = 0; i < 5; ++i) {
+      isNaN |= isnan(tracks->stateAtBS.state(it)(i));
+    }
+    if (isNaN) {
 #ifdef NTUPLE_DEBUG
-    printf("NaN in fit %d size %d chi2 %f\n",
-           idx,
-           tuples->size(idx),
-           tracks->chi2(idx)
-    );
+      printf("NaN in fit %d size %d chi2 %f\n",
+           it,
+           tuples->size(it),
+           tracks->chi2(it)
+      );
 #endif
-    return;
-  }
+      continue;
+    }
 
-  // compute a pT-dependent chi2 cut
-  // default parameters:
-  //   - chi2MaxPt = 10 GeV
-  //   - chi2Coeff = { 0.68177776, 0.74609577, -0.08035491, 0.00315399 }
-  //   - chi2Scale = 30 for broken line fit, 45 for Riemann fit
-  // (see CAHitNtupletGeneratorGPU.cc)
-  float pt = std::min<float>(tracks->pt(idx), cuts.chi2MaxPt);
-  float chi2Cut = cuts.chi2Scale *
+    // compute a pT-dependent chi2 cut
+    // default parameters:
+    //   - chi2MaxPt = 10 GeV
+    //   - chi2Coeff = { 0.68177776, 0.74609577, -0.08035491, 0.00315399 }
+    //   - chi2Scale = 30 for broken line fit, 45 for Riemann fit
+    // (see CAHitNtupletGeneratorGPU.cc)
+    float pt = std::min<float>(tracks->pt(it), cuts.chi2MaxPt);
+    float chi2Cut = cuts.chi2Scale *
                   (cuts.chi2Coeff[0] + pt * (cuts.chi2Coeff[1] + pt * (cuts.chi2Coeff[2] + pt * cuts.chi2Coeff[3])));
-  // above number were for Quads not normalized so for the time being just multiple by ndof for Quads  (triplets to be understood)
-  if (3.f*tracks->chi2(idx) >= chi2Cut) {
+    // above number were for Quads not normalized so for the time being just multiple by ndof for Quads  (triplets to be understood)
+    if (3.f*tracks->chi2(it) >= chi2Cut) {
 #ifdef NTUPLE_DEBUG
-    printf("Bad fit %d size %d pt %f eta %f chi2 %f\n",
-           idx,
-           tuples->size(idx), 
-           tracks->pt(idx),
-           tracks->eta(idx),
-           3.f*tracks->chi2(idx)
-    );
+      printf("Bad fit %d size %d pt %f eta %f chi2 %f\n",
+           it,
+           tuples->size(it), 
+           tracks->pt(it),
+           tracks->eta(it),
+           3.f*tracks->chi2(it)
+      );
 #endif
-    return;
-  }
+      continue;
+    }
 
-  // impose "region cuts" based on the fit results (phi, Tip, pt, cotan(theta)), Zip)
-  // default cuts:
-  //   - for triplets:    |Tip| < 0.3 cm, pT > 0.5 GeV, |Zip| < 12.0 cm
-  //   - for quadruplets: |Tip| < 0.5 cm, pT > 0.3 GeV, |Zip| < 12.0 cm
-  // (see CAHitNtupletGeneratorGPU.cc)
-  auto const &region = (tuples->size(idx) > 3) ? cuts.quadruplet : cuts.triplet;
-  bool isOk = (std::abs(tracks->tip(idx)) < region.maxTip) and (tracks->pt(idx) > region.minPt) and
-              (std::abs(tracks->zip(idx)) < region.maxZip);
+    // impose "region cuts" based on the fit results (phi, Tip, pt, cotan(theta)), Zip)
+    // default cuts:
+    //   - for triplets:    |Tip| < 0.3 cm, pT > 0.5 GeV, |Zip| < 12.0 cm
+    //   - for quadruplets: |Tip| < 0.5 cm, pT > 0.3 GeV, |Zip| < 12.0 cm
+    // (see CAHitNtupletGeneratorGPU.cc)
+    auto const &region = (nhits > 3) ? cuts.quadruplet : cuts.triplet;
+    bool isOk = (std::abs(tracks->tip(it)) < region.maxTip) and (tracks->pt(it) > region.minPt) and
+              (std::abs(tracks->zip(it)) < region.maxZip);
 
-  if (isOk) {
-    quality[idx] = trackQuality::loose;
+    if (isOk) quality[it] = trackQuality::loose;
   }
 }
 
@@ -525,7 +514,6 @@ __global__ void kernel_tripletCleaner(TrackingRecHit2DSOAView const *__restrict_
   // auto l1end = hh.hitsLayerStart_d[1];
 
   int first = blockDim.x * blockIdx.x + threadIdx.x;
-
   for (int idx = first, ntot = hitToTuple.nbins(); idx < ntot; idx += gridDim.x * blockDim.x) {
     if (hitToTuple.size(idx) < 2)
       continue;

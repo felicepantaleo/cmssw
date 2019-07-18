@@ -191,8 +191,24 @@ PixelTrackHeterogeneous CAHitNtupletGeneratorOnGPU::makeTuples(TrackingRecHit2DC
   CAHitNtupletGeneratorKernelsCPU kernels(m_params);
   kernels.counters_ = m_counters;
   kernels.allocateOnGPU(dummyStream);
+
   kernels.buildDoublets(hits_d, dummyStream);
   kernels.launchKernels(hits_d, soa, dummyStream.id());
+  kernels.fillHitDetIndices(hits_d.view(), soa, dummyStream.id());  // in principle needed only if Hits not "available"
+
+  // now fit
+  HelixFitOnGPU fitter(bfield,m_params.fit5as4_);
+  fitter.allocateOnGPU(&(soa->hitIndices), kernels.tupleMultiplicity(), soa);
+  /*
+  if (m_params.useRiemannFit_) {
+    fitter.launchRiemannKernels(hits_d, hits_d.nHits(), CAConstants::maxNumberOfQuadruplets(), stream);
+  } else {
+    fitter.launchBrokenLineKernels(hits_d, hits_d.nHits(), CAConstants::maxNumberOfQuadruplets(), stream);
+  }
+  */
+
+  kernels.classifyTuples(hits_d, soa, dummyStream.id());
+
   return tracks;
 
 }

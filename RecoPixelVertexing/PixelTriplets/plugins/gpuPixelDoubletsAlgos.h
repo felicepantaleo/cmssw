@@ -51,7 +51,6 @@ namespace gpuPixelDoubletsAlgos {
     constexpr int maxDYPred = 20;
     constexpr float dzdrFact = 8*0.0285/0.015;  // from dz/dr to "DY"
 
-    int16_t mes;
     bool isOuterLadder = ideal_cond;
 
     using Hist = TrackingRecHit2DSOAView::Hist;
@@ -82,10 +81,10 @@ namespace gpuPixelDoubletsAlgos {
     auto idy = blockIdx.y * blockDim.y + threadIdx.y;
     auto first = threadIdx.x;
     auto stride = blockDim.x;
+      
+    uint32_t pairLayerId = 0; // cannot go backward 
     for (auto j = idy; j < ntot; j += blockDim.y * gridDim.y) {
-      uint32_t pairLayerId = 0;
-      while (j >= innerLayerCumulativeSize[pairLayerId++])
-        ;
+      while (j >= innerLayerCumulativeSize[pairLayerId++]);
       --pairLayerId;  // move to lower_bound ??
 
       assert(pairLayerId < nPairs);
@@ -112,6 +111,7 @@ namespace gpuPixelDoubletsAlgos {
       if (doZCut && (mez < minz[pairLayerId] || mez > maxz[pairLayerId]))
         continue;
 
+      int16_t mes=-1;  // make compiler happy 
       if (doClusterCut) {
         // if ideal treat inner ladder as outer
         auto mi = hh.detectorIndex(i);

@@ -73,6 +73,10 @@ void CAHitNtupletGeneratorKernelsCPU::launchKernels(
 
   assert(tuples_d && quality_d);
 
+  // zero tuples
+  cudautils::launchZero(tuples_d, cudaStream);
+
+
   auto nhits = hh.nHits();
   assert(nhits <= pixelGPUConstants::maxNumberOfHits);
 
@@ -130,6 +134,14 @@ void CAHitNtupletGeneratorKernelsCPU::launchKernels(
   kernel_earlyDuplicateRemover(
       device_theCells_.get(), device_nCells_, tuples_d, quality_d);
 
+  kernel_countMultiplicity(tuples_d, quality_d, device_tupleMultiplicity_.get());
+  cudautils::launchFinalize(device_tupleMultiplicity_.get(), device_tmws_, cudaStream);
+  kernel_fillMultiplicity(tuples_d, quality_d, device_tupleMultiplicity_.get());
+
+  if (nhits > 1 && m_params.lateFishbone_) {
+    fishbone(
+        hh.view(), device_theCells_.get(), device_nCells_, device_isOuterHitOfCell_.get(), nhits, true);
+  }
 
 
  if (m_params.doStats_) {
@@ -144,5 +156,53 @@ void CAHitNtupletGeneratorKernelsCPU::launchKernels(
                                                                         nhits,
                                                                         counters_);
   }
+
+}
+
+
+
+template<>
+void CAHitNtupletGeneratorKernelsCPU::classifyTuples(HitsOnCPU const &hh,
+                                                     TkSoA * tracks_d,
+                                                     cudaStream_t cudaStream) {
+  auto const * tuples_d = &tracks_d->hitIndices;
+  auto * quality_d = (Quality*)(&tracks_d->m_quality);
+
+  // classify tracks based on kinematics
+  kernel_classifyTracks(
+      tuples_d, tracks_d, m_params.cuts_, quality_d);
+
+  if (m_params.lateFishbone_) {
+    // apply fishbone cleaning to good tracks
+    kernel_fishboneCleaner(
+        device_theCells_.get(), device_nCells_, quality_d);
+  }
+
+  // remove duplicates (tracks that share a doublet)
+  kernel_fastDuplicateRemover(
+      device_theCells_.get(), device_nCells_, tuples_d, tracks_d);
+
+  // fill hit->track "map"
+  kernel_countHitInTracks(
+      tuples_d, quality_d, device_hitToTuple_.get());
+  cudautils::launchFinalize(device_hitToTuple_.get(), device_tmws_, cudaStream);
+  kernel_fillHitInTracks(
+      tuples_d, quality_d, device_hitToTuple_.get());
+
+  // remove duplicates (tracks that share a hit)
+  kernel_tripletCleaner(
+      hh.view(), tuples_d, tracks_d, quality_d, device_hitToTuple_.get());
+
+  if (m_params.doStats_) {
+    // counters (add flag???)
+    kernel_doStatsForHitInTracks(device_hitToTuple_.get(), counters_);
+    kernel_doStatsForTracks(tuples_d, quality_d, counters_);
+  }
+
+#ifdef    DUMP_GPU_TK_TUPLES
+  static std::atomic<int> iev(0);
+  ++iev;
+  kernel_print_found_ntuplets(hh.view(), tuples_d, tracks_d, quality_d, device_hitToTuple_.get(), 100,iev);
+#endif
 
 }
