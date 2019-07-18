@@ -92,7 +92,7 @@ void SiPixelRecHitSoAFromLegacy::produce(edm::StreamID streamID, edm::Event& iEv
   if (!fcpe) {
     throw cms::Exception("Configuration") << "too bad, not a fast cpe gpu processing not possible....";
   }
-  auto cpeView = fcpe->getCPUProduct();
+  auto const & cpeView = fcpe->getCPUProduct();
 
   const reco::BeamSpot& bs = iEvent.get(bsGetToken_);
 
@@ -153,6 +153,7 @@ void SiPixelRecHitSoAFromLegacy::produce(edm::StreamID streamID, edm::Event& iEv
                                    dummyStream
                                   );
 
+   std::cout << "cpeView @ " << &cpeView << std::endl;
 
   int numberOfDetUnits = 0;
   int numberOfHits = 0;

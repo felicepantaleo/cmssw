@@ -2,6 +2,7 @@
 // Author: Felice Pantaleo, CERN
 //
 
+
 #include <cstdint>
 
 #include <cuda_runtime.h>
@@ -37,6 +38,7 @@ __global__ void kernelBLFastFit(Tuples const *__restrict__ foundNtuplets,
 
   assert(hitsInFit <= nHits);
 
+  assert(hhp);
   assert(pfast_fit);
   assert(foundNtuplets);
   assert(tupleMultiplicity);
