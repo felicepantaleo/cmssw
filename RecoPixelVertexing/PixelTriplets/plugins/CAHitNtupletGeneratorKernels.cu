@@ -1,11 +1,11 @@
 #include "RecoPixelVertexing/PixelTriplets/plugins/CAHitNtupletGeneratorKernelsImpl.h"
 
 template<>
-void CAHitNtupletGeneratorKernelsGPU::fillHitDetIndices(HitsOnCPU const &hh, TkSoA * tracks_d, cudaStream_t cudaStream) {
+void CAHitNtupletGeneratorKernelsGPU::fillHitDetIndices(HitsView const * hv, TkSoA * tracks_d, cudaStream_t cudaStream) {
   auto blockSize=128;
   auto numberOfBlocks = (HitContainer::capacity() + blockSize - 1) / blockSize;
 
-  kernel_fillHitDetIndices<<<numberOfBlocks,blockSize,0,cudaStream>>>(&tracks_d->hitIndices, hh.view(), &tracks_d->detIndices);
+  kernel_fillHitDetIndices<<<numberOfBlocks,blockSize,0,cudaStream>>>(&tracks_d->hitIndices, hv, &tracks_d->detIndices);
   cudaCheck(cudaGetLastError());
 #ifdef GPU_DEBUG
     cudaDeviceSynchronize();

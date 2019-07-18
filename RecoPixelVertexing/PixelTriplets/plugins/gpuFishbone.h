@@ -24,17 +24,16 @@ namespace gpuPixelDoublets {
                            GPUCACell::OuterHitOfCell const* __restrict__ isOuterHitOfCell,
                            uint32_t nHits,
                            bool checkTrack) {
-    constexpr auto maxCellsPerHit = GPUCACell::maxCellsPerHit;
+  constexpr auto maxCellsPerHit = GPUCACell::maxCellsPerHit;
 
-    auto const& hh = *hhp;
-    // auto layer = [&](uint16_t id) { return hh.cpeParams().layer(id); };
+  auto const& hh = *hhp;
+  // auto layer = [&](uint16_t id) { return hh.cpeParams().layer(id); };
 
-    // x run faster...
-    auto idy = threadIdx.y + blockIdx.y * blockDim.y;
-    auto first = threadIdx.x;
+  // x run faster...
+  auto firstY = threadIdx.y + blockIdx.y * blockDim.y;
+  auto firstX = threadIdx.x;
 
-    if (idy >= nHits)
-      return;
+  for (int idy = firstY, nt = nHits; idy<nt; idy += gridDim.y * blockDim.y) {
     auto const& vc = isOuterHitOfCell[idy];
     auto s = vc.size();
     if (s < 2)
@@ -66,7 +65,7 @@ namespace gpuPixelDoublets {
     if (sg < 2)
       return;
     // here we parallelize
-    for (int32_t ic = first; ic < sg - 1; ic += blockDim.x) {
+    for (int32_t ic = firstX; ic < sg - 1; ic += blockDim.x) {
       auto& ci = cells[cc[ic]];
       for (auto jc = ic + 1; jc < sg; ++jc) {
         auto& cj = cells[cc[jc]];
@@ -85,8 +84,8 @@ namespace gpuPixelDoublets {
         }
       }  //cj
     }    // ci
-  }
-
+  } // hits
+ }
 }  // namespace gpuPixelDoublets
 
 #endif  // RecoLocalTracker_SiPixelRecHits_plugins_gpuFishbone_h

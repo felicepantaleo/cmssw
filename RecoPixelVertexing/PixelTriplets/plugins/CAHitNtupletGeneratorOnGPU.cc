@@ -167,7 +167,7 @@ PixelTrackHeterogeneous CAHitNtupletGeneratorOnGPU::makeTuplesAsync(TrackingRecH
 
   kernels.buildDoublets(hits_d, stream);
   kernels.launchKernels(hits_d, soa, stream.id());
-  kernels.fillHitDetIndices(hits_d, soa, stream.id());  // in principle needed only if Hits not "available"
+  kernels.fillHitDetIndices(hits_d.view(), soa, stream.id());  // in principle needed only if Hits not "available"
   if (m_params.useRiemannFit_) {
     fitter.launchRiemannKernels(hits_d, hits_d.nHits(), CAConstants::maxNumberOfQuadruplets(), stream);
   } else {
@@ -191,7 +191,8 @@ PixelTrackHeterogeneous CAHitNtupletGeneratorOnGPU::makeTuples(TrackingRecHit2DC
   CAHitNtupletGeneratorKernelsCPU kernels(m_params);
   kernels.counters_ = m_counters;
   kernels.allocateOnGPU(dummyStream);
-
+  kernels.buildDoublets(hits_d, dummyStream);
+  kernels.launchKernels(hits_d, soa, dummyStream.id());
   return tracks;
 
 }

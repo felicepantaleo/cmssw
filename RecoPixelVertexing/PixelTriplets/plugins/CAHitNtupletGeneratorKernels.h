@@ -24,8 +24,8 @@ namespace cAHitNtupletGenerator {
     unsigned long long nZeroTrackCells;
   };
 
+  using HitsView = TrackingRecHit2DSOAView;
   using HitsOnGPU = TrackingRecHit2DSOAView;
-  using HitsOnCPU = TrackingRecHit2DCUDA;
 
   using HitToTuple = CAConstants::HitToTuple;
   using TupleMultiplicity = CAConstants::TupleMultiplicity;
@@ -156,8 +156,9 @@ public:
   using unique_ptr = typename Traits:: template unique_ptr<T>;
 
 
+  using HitsView = TrackingRecHit2DSOAView;
   using HitsOnGPU = TrackingRecHit2DSOAView;
-  using HitsOnCPU = TrackingRecHit2DCUDA;
+  using HitsOnCPU = TrackingRecHit2DHeterogeneous<Traits>;
 
   using HitToTuple = CAConstants::HitToTuple;
   using TupleMultiplicity = CAConstants::TupleMultiplicity;
@@ -177,7 +178,7 @@ public:
 
   void classifyTuples(HitsOnCPU const& hh, TkSoA * tuples_d, cudaStream_t cudaStream);
 
-  void fillHitDetIndices(HitsOnCPU const &hh, TkSoA * tuples_d, cudaStream_t cudaStream);
+  void fillHitDetIndices(HitsView const * hv, TkSoA * tuples_d, cudaStream_t cudaStream);
 
   void buildDoublets(HitsOnCPU const& hh, cuda::stream_t<>& stream);
   void allocateOnGPU(cuda::stream_t<>& stream);
