@@ -153,8 +153,6 @@ void SiPixelRecHitSoAFromLegacy::produce(edm::StreamID streamID, edm::Event& iEv
                                    dummyStream
                                   );
 
-   std::cout << "cpeView @ " << &cpeView << std::endl;
-
   int numberOfDetUnits = 0;
   int numberOfHits = 0;
   for (auto DSViter = input.begin(); DSViter != input.end(); DSViter++) {
