@@ -33,20 +33,21 @@ namespace gpuPixelDoublets {
   auto firstY = threadIdx.y + blockIdx.y * blockDim.y;
   auto firstX = threadIdx.x;
 
+   float x[maxCellsPerHit], y[maxCellsPerHit], z[maxCellsPerHit], n[maxCellsPerHit];
+   uint16_t d[maxCellsPerHit];  // uint8_t l[maxCellsPerHit];
+   uint32_t cc[maxCellsPerHit];
+
   for (int idy = firstY, nt = nHits; idy<nt; idy += gridDim.y * blockDim.y) {
     auto const& vc = isOuterHitOfCell[idy];
     auto s = vc.size();
     if (s < 2)
-      return;
+      continue;
     // if alligned kill one of the two.
     // in principle one could try to relax the cut (only in r-z?) for jumping-doublets 
     auto const& c0 = cells[vc[0]];
     auto xo = c0.get_outer_x(hh);
     auto yo = c0.get_outer_y(hh);
     auto zo = c0.get_outer_z(hh);
-    float x[maxCellsPerHit], y[maxCellsPerHit], z[maxCellsPerHit], n[maxCellsPerHit];
-    uint16_t d[maxCellsPerHit];  // uint8_t l[maxCellsPerHit];
-    uint32_t cc[maxCellsPerHit];
     auto sg = 0;
     for (int32_t ic = 0; ic < s; ++ic) {
       auto& ci = cells[vc[ic]];
@@ -63,7 +64,7 @@ namespace gpuPixelDoublets {
       ++sg;
     }
     if (sg < 2)
-      return;
+      continue;
     // here we parallelize
     for (int32_t ic = firstX; ic < sg - 1; ic += blockDim.x) {
       auto& ci = cells[cc[ic]];
