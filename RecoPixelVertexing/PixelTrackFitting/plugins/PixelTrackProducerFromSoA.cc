@@ -64,16 +64,20 @@ private:
   edm::EDGetTokenT<SiPixelRecHitCollectionNew> cpuHits_;
   edm::EDGetTokenT<HMSstorage> hmsToken_;
 
-  int32_t minNumberOfHits_;
+  bool const hitsFromSoA_;
+  int32_t const minNumberOfHits_;
 };
 
 PixelTrackProducerFromSoA::PixelTrackProducerFromSoA(const edm::ParameterSet &iConfig) :
       tBeamSpot_(consumes<reco::BeamSpot>(iConfig.getParameter<edm::InputTag>("beamSpot"))),
       tokenTrack_(consumes<PixelTrackHeterogeneous>(iConfig.getParameter<edm::InputTag>("trackSrc"))),
       cpuHits_(consumes<SiPixelRecHitCollectionNew>(iConfig.getParameter<edm::InputTag>("pixelRecHitLegacySrc"))),
-      hmsToken_(consumes<HMSstorage>(iConfig.getParameter<edm::InputTag>("pixelRecHitLegacySrc"))),
+      hitsFromSoA_(iConfig.getParameter<bool>("hitsFromSoA")),
       minNumberOfHits_(iConfig.getParameter<int>("minNumberOfHits"))
 {
+    if (!hitsFromSoA_) 
+       hmsToken_ = consumes<HMSstorage>(iConfig.getParameter<edm::InputTag>("pixelRecHitLegacySrc"));
+
     produces<reco::TrackCollection>();
     produces<TrackingRecHitCollection>();
     produces<reco::TrackExtraCollection>();
@@ -85,6 +89,7 @@ void PixelTrackProducerFromSoA::fillDescriptions(edm::ConfigurationDescriptions 
   desc.add<edm::InputTag>("beamSpot", edm::InputTag("offlineBeamSpot"));
   desc.add<edm::InputTag>("trackSrc", edm::InputTag("pixelTrackSoA"));
   desc.add<edm::InputTag>("pixelRecHitLegacySrc", edm::InputTag("siPixelRecHitsLegacyPreSplitting"));
+  desc.add<bool>("hitsFromSoA", false);
   desc.add<int>("minNumberOfHits", 0);
 
   descriptions.addWithDefaultLabel(desc);
@@ -111,12 +116,6 @@ void PixelTrackProducerFromSoA::produce(edm::StreamID streamID, edm::Event& iEve
   // std::cout << "beamspot " << bsh.x0() << ' ' << bsh.y0() << ' ' << bsh.z0() << std::endl;
   GlobalPoint bs(bsh.x0(), bsh.y0(), bsh.z0());
 
-  edm::Handle<HMSstorage> hhms;
-  iEvent.getByToken(hmsToken_,hhms);
-  auto const & hitsModuleStart = *hhms;
-
-  auto fc = hitsModuleStart.data;
-
   edm::Handle<SiPixelRecHitCollectionNew> gh;
   iEvent.getByToken(cpuHits_, gh);
   auto const &rechits = *gh;
@@ -124,15 +123,30 @@ void PixelTrackProducerFromSoA::produce(edm::StreamID streamID, edm::Event& iEve
   auto const &rcs = rechits.data();
   auto nhits = rcs.size();
   hitmap.resize(nhits,nullptr);
-  for (auto const &h : rcs) {
-    auto const &thit = static_cast<BaseTrackerRecHit const &>(h);
-    auto detI = thit.det()->index();
-    auto const &clus = thit.firstClusterRef();
-    assert(clus.isPixel());
-    auto i = fc[detI] + clus.pixelCluster().originalId();
-    assert(i < nhits);
-    assert(nullptr==hitmap[i]);
-    hitmap[i] = &h;
+
+  // if from SoA is one to one
+  if (hitsFromSoA_) {
+    int i=0; 
+    for (auto const &h : rcs) {
+      hitmap[i++] = &h;
+    }
+  } else {
+    edm::Handle<HMSstorage> hhms;
+    iEvent.getByToken(hmsToken_,hhms);
+    auto const & hitsModuleStart = *hhms;
+
+    auto fc = hitsModuleStart.data;
+
+    for (auto const &h : rcs) {
+      auto const &thit = static_cast<BaseTrackerRecHit const &>(h);
+      auto detI = thit.det()->index();
+      auto const &clus = thit.firstClusterRef();
+      assert(clus.isPixel());
+      auto i = fc[detI] + clus.pixelCluster().originalId();
+      assert(i < nhits);
+      assert(nullptr==hitmap[i]);
+      hitmap[i] = &h;
+    }
   }
 
   std::vector<const TrackingRecHit *> hits;
