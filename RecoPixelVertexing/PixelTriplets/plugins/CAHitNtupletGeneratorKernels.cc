@@ -23,8 +23,9 @@ void CAHitNtupletGeneratorKernelsCPU::buildDoublets(HitsOnCPU const &hh, cuda::s
 
   // in principle we can use "nhits" to heuristically dimension the workspace...
   // overkill to use template here (std::make_unique would suffice)
-  edm::Service<CUDAService> cs;
-  device_isOuterHitOfCell_ = Traits:: template make_unique<GPUCACell::OuterHitOfCell[]>(cs, std::max(1U,nhits), stream);
+  //edm::Service<CUDAService> cs;
+  // device_isOuterHitOfCell_ = Traits:: template make_unique<GPUCACell::OuterHitOfCell[]>(cs, std::max(1U,nhits), stream);
+  device_isOuterHitOfCell_.reset((GPUCACell::OuterHitOfCell*)malloc(std::max(1U,nhits)*sizeof(GPUCACell::OuterHitOfCell)));
   assert(device_isOuterHitOfCell_.get());
   gpuPixelDoublets::initDoublets(device_isOuterHitOfCell_.get(),
                                                                                    nhits,
@@ -33,8 +34,8 @@ void CAHitNtupletGeneratorKernelsCPU::buildDoublets(HitsOnCPU const &hh, cuda::s
                                                                                    device_theCellTracks_,
                                                                                    device_theCellTracksContainer_.get());
 
-  device_theCells_ = Traits:: template make_unique<GPUCACell[]>(cs, CAConstants::maxNumberOfDoublets(), stream);
-
+  // device_theCells_ = Traits:: template make_unique<GPUCACell[]>(cs, CAConstants::maxNumberOfDoublets(), stream);
+  device_theCells_.reset((GPUCACell*)malloc(sizeof(GPUCACell)*CAConstants::maxNumberOfDoublets()));
   if (0 == nhits)
     return;  // protect against empty events
 
