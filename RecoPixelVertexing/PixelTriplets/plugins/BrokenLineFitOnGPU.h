@@ -2,6 +2,7 @@
 // Author: Felice Pantaleo, CERN
 //
 
+// #define BROKENLINE_DEBUG
 
 #include <cstdint>
 
@@ -44,7 +45,7 @@ __global__ void kernelBLFastFit(Tuples const *__restrict__ foundNtuplets,
   assert(tupleMultiplicity);
 
   // look in bin for this hit multiplicity
-  auto local_start = (blockIdx.x * blockDim.x + threadIdx.x);
+  auto local_start = blockIdx.x * blockDim.x + threadIdx.x;
 
 #ifdef BROKENLINE_DEBUG
   if (0 == local_start) {
@@ -53,17 +54,19 @@ __global__ void kernelBLFastFit(Tuples const *__restrict__ foundNtuplets,
   }
 #endif
 
-  for (int tuple_start = local_start + offset, nt =  tupleMultiplicity->size(nHits); tuple_start<nt; tuple_start+=gridDim.x*blockDim.x) {
+  for (int local_idx = local_start, nt = Rfit::maxNumberOfConcurrentFits(); local_idx < nt; local_idx+=gridDim.x*blockDim.x) {
+     auto tuple_idx = local_idx + offset;
+    if (tuple_idx >= tupleMultiplicity->size(nHits)) break;
 
     // get it from the ntuple container (one to one to helix)
-    auto tkid = *(tupleMultiplicity->begin(nHits) + tuple_start);
+    auto tkid = *(tupleMultiplicity->begin(nHits) + tuple_idx);
     assert(tkid < foundNtuplets->nbins());
 
     assert(foundNtuplets->size(tkid) == nHits);
 
-    Rfit::Map3xNd<N> hits(phits + local_start);
-    Rfit::Map4d fast_fit(pfast_fit + local_start);
-    Rfit::Map6xNf<N> hits_ge(phits_ge + local_start);
+    Rfit::Map3xNd<N> hits(phits + local_idx);
+    Rfit::Map4d fast_fit(pfast_fit + local_idx);
+    Rfit::Map6xNf<N> hits_ge(phits_ge + local_idx);
 
 #ifdef BL_DUMP_HITS
   __shared__ int done;
@@ -129,15 +132,17 @@ __global__ void kernelBLFit(CAConstants::TupleMultiplicity const *__restrict__ t
   // same as above...
 
   // look in bin for this hit multiplicity
-  auto local_start = (blockIdx.x * blockDim.x + threadIdx.x);
-  for (int tuple_start = local_start + offset, nt =  tupleMultiplicity->size(nHits); tuple_start<nt; tuple_start+=gridDim.x*blockDim.x) {
+  auto local_start = blockIdx.x * blockDim.x + threadIdx.x;
+  for (int local_idx = local_start, nt = Rfit::maxNumberOfConcurrentFits(); local_idx < nt; local_idx+=gridDim.x*blockDim.x) {
+     auto tuple_idx = local_idx + offset;
+    if (tuple_idx >= tupleMultiplicity->size(nHits)) break;
 
     // get it for the ntuple container (one to one to helix)
-    auto tkid = *(tupleMultiplicity->begin(nHits) + tuple_start);
+    auto tkid = *(tupleMultiplicity->begin(nHits) + tuple_idx);
 
-    Rfit::Map3xNd<N> hits(phits + local_start);
-    Rfit::Map4d fast_fit(pfast_fit + local_start);
-    Rfit::Map6xNf<N> hits_ge(phits_ge + local_start);
+    Rfit::Map3xNd<N> hits(phits + local_idx);
+    Rfit::Map4d fast_fit(pfast_fit + local_idx);
+    Rfit::Map6xNf<N> hits_ge(phits_ge + local_idx);
 
     BrokenLine::PreparedBrokenLineData<N> data;
     Rfit::Matrix3d Jacob;

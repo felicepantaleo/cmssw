@@ -313,8 +313,7 @@ __global__ void kernel_mark_used(GPUCACell::Hits const *__restrict__ hhp,
   auto first = threadIdx.x + blockIdx.x * blockDim.x;
   for (int idx = first, nt = (*nCells); idx<nt; idx += gridDim.x * blockDim.x) {
     auto &thisCell = cells[idx];
-    if (!thisCell.tracks().empty())
-    thisCell.theUsed |= 2;
+    if (!thisCell.tracks().empty()) thisCell.theUsed |= 2;
   }
 }
 
@@ -360,7 +359,7 @@ __global__ void kernel_classifyTracks(HitContainer const *__restrict__ tuples,
   int first = blockDim.x * blockIdx.x + threadIdx.x;
   for (int it = first, nt = tuples->nbins(); it<nt; it += gridDim.x * blockDim.x) {
     auto nhits = tuples->size(it);
-    if (nhits == 0) break; // guard
+    if (nhits == 0) continue; // guard
 
     // if duplicate: not even fit
     if (quality[it] == trackQuality::dup) continue;

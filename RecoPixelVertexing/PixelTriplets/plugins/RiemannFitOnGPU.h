@@ -40,24 +40,27 @@ __global__ void kernelFastFit(Tuples const *__restrict__ foundNtuplets,
   assert(tupleMultiplicity);
 
   // look in bin for this hit multiplicity
-  auto local_start = (blockIdx.x * blockDim.x + threadIdx.x);
+  auto local_start = blockIdx.x * blockDim.x + threadIdx.x;
 
 #ifdef RIEMANN_DEBUG
   if (0 == local_start)
     printf("%d Ntuple of size %d for %d hits to fit\n", tupleMultiplicity->size(nHits), nHits, hitsInFit);
 #endif
 
-  for (int tuple_start = local_start + offset, nt =  tupleMultiplicity->size(nHits); tuple_start<nt; tuple_start+=gridDim.x*blockDim.x) {
+
+  for (int local_idx = local_start, nt = Rfit::maxNumberOfConcurrentFits(); local_idx < nt; local_idx+=gridDim.x*blockDim.x) {
+     auto tuple_idx = local_idx + offset;
+    if (tuple_idx >= tupleMultiplicity->size(nHits)) break;
 
     // get it from the ntuple container (one to one to helix)
-    auto tkid = *(tupleMultiplicity->begin(nHits) + tuple_start);
+    auto tkid = *(tupleMultiplicity->begin(nHits) + tuple_idx);
     assert(tkid < foundNtuplets->nbins());
 
     assert(foundNtuplets->size(tkid) == nHits);
 
-    Rfit::Map3xNd<N> hits(phits + local_start);
-    Rfit::Map4d fast_fit(pfast_fit + local_start);
-    Rfit::Map6xNf<N> hits_ge(phits_ge + local_start);
+    Rfit::Map3xNd<N> hits(phits + local_idx);
+    Rfit::Map4d fast_fit(pfast_fit + local_idx);
+    Rfit::Map6xNf<N> hits_ge(phits_ge + local_idx);
 
     // Prepare data structure
     auto const *hitId = foundNtuplets->begin(tkid);
@@ -96,24 +99,26 @@ __global__ void kernelCircleFit(CAConstants::TupleMultiplicity const *__restrict
   // same as above...
 
   // look in bin for this hit multiplicity
-  auto local_start = (blockIdx.x * blockDim.x + threadIdx.x);
-  for (int tuple_start = local_start + offset, nt =  tupleMultiplicity->size(nHits); tuple_start<nt; tuple_start+=gridDim.x*blockDim.x) {
+  auto local_start = blockIdx.x * blockDim.x + threadIdx.x;
+  for (int local_idx = local_start, nt = Rfit::maxNumberOfConcurrentFits(); local_idx < nt; local_idx+=gridDim.x*blockDim.x) {
+     auto tuple_idx = local_idx + offset;
+    if (tuple_idx >= tupleMultiplicity->size(nHits)) break;
 
-    Rfit::Map3xNd<N> hits(phits + local_start);
-    Rfit::Map4d fast_fit(pfast_fit_input + local_start);
-    Rfit::Map6xNf<N> hits_ge(phits_ge + local_start);
+    Rfit::Map3xNd<N> hits(phits + local_idx);
+    Rfit::Map4d fast_fit(pfast_fit_input + local_idx);
+    Rfit::Map6xNf<N> hits_ge(phits_ge + local_idx);
 
     Rfit::VectorNd<N> rad = (hits.block(0, 0, 2, N).colwise().norm());
 
     Rfit::Matrix2Nd<N> hits_cov = Rfit::Matrix2Nd<N>::Zero();
     Rfit::loadCovariance2D(hits_ge, hits_cov);
 
-    circle_fit[local_start] = Rfit::Circle_fit(hits.block(0, 0, 2, N), hits_cov, fast_fit, rad, B, true);
+    circle_fit[local_idx] = Rfit::Circle_fit(hits.block(0, 0, 2, N), hits_cov, fast_fit, rad, B, true);
 
 #ifdef RIEMANN_DEBUG
-//    auto tkid = *(tupleMultiplicity->begin(nHits) + tuple_start);
+//    auto tkid = *(tupleMultiplicity->begin(nHits) + tuple_idx);
 //  printf("kernelCircleFit circle.par(0,1,2): %d %f,%f,%f\n", tkid,
-//         circle_fit[local_start].par(0), circle_fit[local_start].par(1), circle_fit[local_start].par(2));
+//         circle_fit[local_idx].par(0), circle_fit[local_idx].par(1), circle_fit[local_idx].par(2));
 #endif
   }
 }
@@ -136,40 +141,42 @@ __global__ void kernelLineFit(CAConstants::TupleMultiplicity const *__restrict__
 
   // look in bin for this hit multiplicity
   auto local_start = (blockIdx.x * blockDim.x + threadIdx.x);
-  for (int tuple_start = local_start + offset, nt =  tupleMultiplicity->size(nHits); tuple_start<nt; tuple_start+=gridDim.x*blockDim.x) {
+  for (int local_idx = local_start, nt = Rfit::maxNumberOfConcurrentFits(); local_idx < nt; local_idx+=gridDim.x*blockDim.x) {
+     auto tuple_idx = local_idx + offset;
+    if (tuple_idx >= tupleMultiplicity->size(nHits)) break;
 
      // get it for the ntuple container (one to one to helix)
-    auto tkid = *(tupleMultiplicity->begin(nHits) + tuple_start);
+    auto tkid = *(tupleMultiplicity->begin(nHits) + tuple_idx);
 
-    Rfit::Map3xNd<N> hits(phits + local_start);
-    Rfit::Map4d fast_fit(pfast_fit_input + local_start);
-    Rfit::Map6xNf<N> hits_ge(phits_ge + local_start);
+    Rfit::Map3xNd<N> hits(phits + local_idx);
+    Rfit::Map4d fast_fit(pfast_fit_input + local_idx);
+    Rfit::Map6xNf<N> hits_ge(phits_ge + local_idx);
 
-    auto const &line_fit = Rfit::Line_fit(hits, hits_ge, circle_fit[local_start], fast_fit, B, true);
+    auto const &line_fit = Rfit::Line_fit(hits, hits_ge, circle_fit[local_idx], fast_fit, B, true);
 
-    Rfit::fromCircleToPerigee(circle_fit[local_start]);
+    Rfit::fromCircleToPerigee(circle_fit[local_idx]);
 
-    results->stateAtBS.copyFromCircle(circle_fit[local_start].par,circle_fit[local_start].cov,
+    results->stateAtBS.copyFromCircle(circle_fit[local_idx].par,circle_fit[local_idx].cov,
                                      line_fit.par,line_fit.cov,1.f/float(B),tkid);
-    results->pt(tkid) =  B/std::abs(circle_fit[local_start].par(2));
+    results->pt(tkid) =  B/std::abs(circle_fit[local_idx].par(2));
     results->eta(tkid) =  asinhf(line_fit.par(0));
-    results->chi2(tkid) = (circle_fit[local_start].chi2+line_fit.chi2)/(2*N-5);
+    results->chi2(tkid) = (circle_fit[local_idx].chi2+line_fit.chi2)/(2*N-5);
 
 #ifdef RIEMANN_DEBUG
   printf("kernelLineFit size %d for %d hits circle.par(0,1,2): %d %f,%f,%f\n",
          N,
          nHits,
          tkid,
-         circle_fit[local_start].par(0),
-         circle_fit[local_start].par(1),
-         circle_fit[local_start].par(2));
+         circle_fit[local_idx].par(0),
+         circle_fit[local_idx].par(1),
+         circle_fit[local_idx].par(2));
   printf("kernelLineFit line.par(0,1): %d %f,%f\n", tkid, line_fit.par(0), line_fit.par(1));
   printf("kernelLineFit chi2 cov %f/%f %e,%e,%e,%e,%e\n",
-         circle_fit[local_start].chi2,
+         circle_fit[local_idx].chi2,
          line_fit.chi2,
-         circle_fit[local_start].cov(0, 0),
-         circle_fit[local_start].cov(1, 1),
-         circle_fit[local_start].cov(2, 2),
+         circle_fit[local_idx].cov(0, 0),
+         circle_fit[local_idx].cov(1, 1),
+         circle_fit[local_idx].cov(2, 2),
          line_fit.cov(0, 0),
          line_fit.cov(1, 1));
 #endif
