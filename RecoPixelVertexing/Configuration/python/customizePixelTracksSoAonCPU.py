@@ -1,3 +1,5 @@
+import FWCore.ParameterSet.Config as cms
+
 def customizePixelTracksSoAonCPU(process) :
 
   process.load('RecoLocalTracker/SiPixelRecHits/siPixelRecHitHostSoA_cfi')
@@ -15,10 +17,19 @@ def customizePixelTracksSoAonCPU(process) :
   process.pixelTracks = process.pixelTrackProducerFromSoA.clone()
   process.load('RecoPixelVertexing.PixelVertexFinding.pixelVertexFromSoA_cfi')
   process.pixelVertices = process.pixelVertexFromSoA.clone()
-  process.pixelTracks.pixelRecHitLegacySrc = 'siPixelRecHitsPreSplitting'
+  process.pixelTracks.pixelRecHitLegacySrc = 'siPixelRecHitHostSoA'
+  process.siPixelRecHitHostSoA.convertToLegacy = True
 
   process.reconstruction_step += process.siPixelRecHitHostSoA+process.pixelTrackSoA+process.pixelVertexSoA
 
-
   return process
 
+def customizePixelTracksSoAonCPUForProfiling(process) :
+
+  process.MessageLogger.cerr.FwkReport.reportEvery = 100
+
+  process = customizePixelTracksSoAonCPU(process)
+  
+  process.TkSoA = cms.Path(process.offlineBeamSpot+process.siPixelDigis+process.siPixelClustersPreSplitting+process.siPixelRecHitHostSoA+process.pixelTrackSoA+process.pixelVertexSoA)
+  process.schedule = cms.Schedule(process.TkSoA)
+  return process
