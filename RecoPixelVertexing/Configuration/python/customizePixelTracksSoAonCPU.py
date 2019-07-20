@@ -16,7 +16,7 @@ def customizePixelTracksSoAonCPU(process) :
   process.load('RecoPixelVertexing.PixelVertexFinding.pixelVertexFromSoA_cfi')
   process.pixelVertices = process.pixelVertexFromSoA.clone()
   process.pixelTracks.pixelRecHitLegacySrc = 'siPixelRecHitsPreSplitting'
-  process.pixelTracks.hitsFromSoA = True
+#  process.pixelTracks.hitsFromSoA = True
 
   process.reconstruction_step += process.siPixelRecHitHostSoA+process.pixelTrackSoA+process.pixelVertexSoA
 

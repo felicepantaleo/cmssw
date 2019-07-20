@@ -35,7 +35,7 @@
 #include "CUDADataFormats/SiPixelCluster/interface/gpuClusteringConstants.h"
 
 #include "storeTracks.h"
-#include "CUDADataFormats/Common/interface/ArrayShadow.h"
+#include "CUDADataFormats/Common/interface/HostProduct.h"
 
 
 /**
@@ -52,8 +52,8 @@ public:
 
   static void fillDescriptions(edm::ConfigurationDescriptions &descriptions);
 
-  using HitModuleStart = std::array<uint32_t,gpuClustering::MaxNumModules + 1>;
-  using HMSstorage = ArrayShadow<HitModuleStart>;
+//  using HitModuleStart = std::array<uint32_t,gpuClustering::MaxNumModules + 1>;
+  using HMSstorage = HostProduct<unsigned int[]>;
 
 
 private:
@@ -133,9 +133,9 @@ void PixelTrackProducerFromSoA::produce(edm::StreamID streamID, edm::Event& iEve
   } else {
     edm::Handle<HMSstorage> hhms;
     iEvent.getByToken(hmsToken_,hhms);
-    auto const & hitsModuleStart = *hhms;
+    auto const * hitsModuleStart = (*hhms).get();
 
-    auto fc = hitsModuleStart.data;
+    auto fc = hitsModuleStart;
 
     for (auto const &h : rcs) {
       auto const &thit = static_cast<BaseTrackerRecHit const &>(h);

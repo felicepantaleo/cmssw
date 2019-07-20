@@ -6,6 +6,7 @@
 #include "DataFormats/Common/interface/Handle.h"
 #include "DataFormats/SiPixelCluster/interface/SiPixelCluster.h"
 #include "DataFormats/TrackerRecHit2D/interface/SiPixelRecHitCollection.h"
+#include "CUDADataFormats/Common/interface/HostProduct.h"
 #include "FWCore/Framework/interface/ESHandle.h"
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/Framework/interface/EventSetup.h"
@@ -20,7 +21,6 @@
 #include "Geometry/TrackerGeometryBuilder/interface/TrackerGeometry.h"
 #include "HeterogeneousCore/CUDACore/interface/CUDAScopedContext.h"
 #include "HeterogeneousCore/CUDACore/interface/GPUCuda.h"
-#include "CUDADataFormats/Common/interface/ArrayShadow.h"
 
 class SiPixelRecHitFromSOA : public edm::stream::EDProducer<edm::ExternalWork> {
 public:
@@ -29,8 +29,7 @@ public:
 
   static void fillDescriptions(edm::ConfigurationDescriptions& descriptions);
 
-  using HitModuleStart = std::array<uint32_t,gpuClustering::MaxNumModules + 1>;
-  using HMSstorage = ArrayShadow<HitModuleStart>;
+  using HMSstorage = HostProduct<unsigned int[]>;
 
 private:
   void acquire(edm::Event const& iEvent,
@@ -80,9 +79,12 @@ void SiPixelRecHitFromSOA::acquire(edm::Event const& iEvent,
 }
 
 void SiPixelRecHitFromSOA::produce(edm::Event& iEvent, edm::EventSetup const& es) {
-  auto hml = std::make_unique< HMSstorage>();
-  std::copy(m_hitsModuleStart.get(),m_hitsModuleStart.get()+hml->size(), hml->data);
-  iEvent.put(std::move(hml));
+  // yes a unique ptr of a unique ptr so edm is happy
+  auto sizeOfHitModuleStart = gpuClustering::MaxNumModules + 1;
+  auto hmsp = std::make_unique<uint32_t[]>(sizeOfHitModuleStart);
+  std::copy(m_hitsModuleStart.get(),m_hitsModuleStart.get()+sizeOfHitModuleStart, hmsp.get());
+  auto hms = std::make_unique<HMSstorage>(std::move(hmsp)); // hmsp is gone
+  iEvent.put(std::move(hms));  // hms is gone!
 
   auto output = std::make_unique<SiPixelRecHitCollectionNew>();
   if (0 == m_nHits) {

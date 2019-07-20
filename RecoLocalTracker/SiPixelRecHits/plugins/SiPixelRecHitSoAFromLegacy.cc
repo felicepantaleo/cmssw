@@ -27,9 +27,6 @@
 #include "RecoLocalTracker/SiPixelRecHits/interface/PixelCPEBase.h"
 #include "RecoLocalTracker/SiPixelRecHits/interface/PixelCPEFast.h"
 
-#include "CUDADataFormats/Common/interface/ArrayShadow.h"
-
-
 #include "RecoLocalTracker/SiPixelRecHits/plugins/gpuPixelRecHits.h"
 
 class SiPixelRecHitSoAFromLegacy : public edm::global::EDProducer<> {
