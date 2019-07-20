@@ -196,6 +196,8 @@ PixelTrackHeterogeneous CAHitNtupletGeneratorOnGPU::makeTuples(TrackingRecHit2DC
   kernels.launchKernels(hits_d, soa, dummyStream.id());
   kernels.fillHitDetIndices(hits_d.view(), soa, dummyStream.id());  // in principle needed only if Hits not "available"
 
+  if (0==hits_d.nHits()) return tracks;
+
   // now fit
   HelixFitOnGPU fitter(bfield,m_params.fit5as4_);
   fitter.allocateOnGPU(&(soa->hitIndices), kernels.tupleMultiplicity(), soa);

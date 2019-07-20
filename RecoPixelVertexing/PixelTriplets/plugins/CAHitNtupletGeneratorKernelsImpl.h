@@ -359,7 +359,7 @@ __global__ void kernel_classifyTracks(HitContainer const *__restrict__ tuples,
   int first = blockDim.x * blockIdx.x + threadIdx.x;
   for (int it = first, nt = tuples->nbins(); it<nt; it += gridDim.x * blockDim.x) {
     auto nhits = tuples->size(it);
-    if (nhits == 0) continue; // guard
+    if (nhits == 0) break; // guard
 
     // if duplicate: not even fit
     if (quality[it] == trackQuality::dup) continue;
@@ -426,8 +426,7 @@ __global__ void kernel_doStatsForTracks(HitContainer const *__restrict__ tuples,
                                         CAHitNtupletGeneratorKernelsGPU::Counters *counters) {
   int first = blockDim.x * blockIdx.x + threadIdx.x;
   for (int idx = first, ntot = tuples->nbins(); idx < ntot; idx += gridDim.x * blockDim.x) {
-    if (tuples->size(idx) == 0)
-      continue;
+    if (tuples->size(idx) == 0) break; //guard
     if (quality[idx] != trackQuality::loose)
       continue;
     atomicAdd(&(counters->nGoodTracks), 1);
@@ -440,8 +439,7 @@ __global__ void kernel_countHitInTracks(HitContainer const *__restrict__ tuples,
                                         CAHitNtupletGeneratorKernelsGPU::HitToTuple *hitToTuple) {
   int first = blockDim.x * blockIdx.x + threadIdx.x;
   for (int idx = first, ntot = tuples->nbins(); idx < ntot; idx += gridDim.x * blockDim.x) {
-    if (tuples->size(idx) == 0)
-      continue;
+    if (tuples->size(idx) == 0) break; // guard
     if (quality[idx] != trackQuality::loose)
       continue;
     for (auto h = tuples->begin(idx); h != tuples->end(idx); ++h)
@@ -454,8 +452,7 @@ __global__ void kernel_fillHitInTracks(HitContainer const *__restrict__ tuples,
                                        CAHitNtupletGeneratorKernelsGPU::HitToTuple *hitToTuple) {
   int first = blockDim.x * blockIdx.x + threadIdx.x;
   for (int idx = first, ntot = tuples->nbins(); idx < ntot; idx += gridDim.x * blockDim.x) {
-    if (tuples->size(idx) == 0)
-      continue;
+    if (tuples->size(idx) == 0) break; // guard
     if (quality[idx] != trackQuality::loose)
       continue;
     for (auto h = tuples->begin(idx); h != tuples->end(idx); ++h)
@@ -487,8 +484,7 @@ __global__ void kernel_doStatsForHitInTracks(CAHitNtupletGeneratorKernelsGPU::Hi
   auto &c = *counters;
   int first = blockDim.x * blockIdx.x + threadIdx.x;
   for (int idx = first, ntot = hitToTuple->nbins(); idx < ntot; idx += gridDim.x * blockDim.x) {
-    if (hitToTuple->size(idx) == 0)
-      continue;
+    if (hitToTuple->size(idx) == 0) continue; // SHALL NOT BE break
     atomicAdd(&c.nUsedHits, 1);
     if (hitToTuple->size(idx) > 1)
       atomicAdd(&c.nDupHits, 1);
