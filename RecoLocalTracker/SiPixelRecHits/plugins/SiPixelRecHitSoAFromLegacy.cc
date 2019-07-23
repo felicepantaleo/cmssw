@@ -152,7 +152,6 @@ void SiPixelRecHitSoAFromLegacy::produce(edm::StreamID streamID, edm::Event& iEv
   for (int i=1, n=clusInModule_.size(); i<n; ++i) hitsModuleStart[i]=hitsModuleStart[i-1]+clusInModule_[i-1];
   assert(numberOfClusters==int(hitsModuleStart[2000]));
 
-
   // output SoA
   auto dummyStream = cuda::stream::wrap(0,0,false);
   auto output = std::make_unique<TrackingRecHit2DCPU>(numberOfClusters,
@@ -160,6 +159,18 @@ void SiPixelRecHitSoAFromLegacy::produce(edm::StreamID streamID, edm::Event& iEv
                                    hitsModuleStart,
                                    dummyStream
                                   );
+  
+  if (0==numberOfClusters) {
+    iEvent.put(std::move(output));
+    if (convert2Legacy_)
+      iEvent.put(std::move(legacyOutput));
+   return;
+  } 
+
+
+  if (convert2Legacy_)
+    legacyOutput->reserve(2000,numberOfClusters);
+
 
   int numberOfDetUnits = 0;
   int numberOfHits = 0;
