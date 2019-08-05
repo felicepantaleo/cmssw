@@ -41,6 +41,7 @@ private:
 
   std::unique_ptr<PatternRecognitionAlgoBase> myAlgo_;
 };
+
 DEFINE_FWK_MODULE(TrackstersProducer);
 
 TrackstersProducer::TrackstersProducer(const edm::ParameterSet& ps)
@@ -68,6 +69,7 @@ void TrackstersProducer::fillDescriptions(edm::ConfigurationDescriptions& descri
   desc.add<int>("missing_layers", 0);
   desc.add<int>("min_clusters_per_ntuplet", 10);
   desc.add<double>("max_delta_time", 0.09);
+  desc.add<bool>("out_in_dfs", false);
   descriptions.add("trackstersProducer", desc);
 }
 

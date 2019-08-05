@@ -31,6 +31,7 @@ namespace ticl {
     int missing_layers_;
     int min_clusters_per_ntuplet_;
     float max_delta_time_;
+    const bool out_in_dfs_ = false;
   };
 }  // namespace ticl
 #endif
