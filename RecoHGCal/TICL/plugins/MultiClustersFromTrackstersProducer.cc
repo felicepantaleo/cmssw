@@ -87,6 +87,8 @@ void MultiClustersFromTrackstersProducer::produce(edm::Event& evt, const edm::Ev
           return val / total_weight;
         });
     temp.setEnergy(total_weight);
+    std::cout<< label_ << " Energy: " <<total_weight << " x, y, z: " << baricenter[0] << ", " << baricenter[1]<< ", "  << baricenter[2]<< std::endl;
+    
     temp.setCorrectedEnergy(total_weight);
     temp.setPosition(math::XYZPoint(baricenter[0], baricenter[1], baricenter[2]));
     temp.setAlgoId(reco::CaloCluster::hgcal_em);
