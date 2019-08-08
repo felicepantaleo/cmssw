@@ -47,11 +47,11 @@ def TICL_iterations_withReco(process):
       min_cluster_size = 2,
       algo_number = 8,
       iteration_label = "algo8",
-      LayerClustersInputMask = "TrackstersMIP"
+ #     LayerClustersInputMask = "TrackstersMIP"
   )
 
   process.Tracksters = trackstersProducer.clone(
-      original_mask = "TrackstersMIP",
+#      original_mask = "TrackstersMIP",
       filtered_mask = cms.InputTag("FilteredLayerClusters", "algo8"),
       missing_layers = 2,
       min_clusters_per_ntuplet = 10,
