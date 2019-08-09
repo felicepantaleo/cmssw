@@ -15,10 +15,16 @@ from RecoHGCal.TICL.ticlLayerTileProducer_cfi import ticlLayerTileProducer
 from RecoHGCal.TICL.trackstersProducer_cfi import trackstersProducer
 from RecoHGCal.TICL.filteredLayerClustersProducer_cfi import filteredLayerClustersProducer
 from RecoHGCal.TICL.multiClustersFromTrackstersProducer_cfi import multiClustersFromTrackstersProducer
+from RecoHGCal.TICL.ticlCandidateFromTrackstersProducer_cfi import ticlCandidateFromTrackstersProducer
+from RecoHGCal.TICL.pfTICLProducer_cfi import pfTICLProducer
 
 
 def TICL_iterations_withReco(process):
-  process.FEVTDEBUGHLTEventContent.outputCommands.extend(['keep *_MultiClustersFromTracksters*_*_*'])
+  process.FEVTDEBUGHLTEventContent.outputCommands.extend([
+    'keep *_MultiClustersFromTracksters*_*_*',
+    'keep *_ticlCandidateFromTrackstersProducer*_*_*',
+    'keep *_pfTICLProducer*_*_*',
+  ])
 
   process.TICLLayerTileProducer = ticlLayerTileProducer.clone()
 
@@ -64,9 +70,10 @@ def TICL_iterations_withReco(process):
       eid_n_clusters = cms.int32(10),
   )
 
-  process.MultiClustersFromTracksters = multiClustersFromTrackstersProducer.clone(
-      Tracksters = "Tracksters"
+  process.ticlCandidateFromTrackstersProducer = ticlCandidateFromTrackstersProducer.clone(
   )
+
+  process.pfTICLProducer =  pfTICLProducer.clone()
 
   process.hgcalMultiClusters = hgcalMultiClusters
   process.TICL_Task = cms.Task(
@@ -76,7 +83,8 @@ def TICL_iterations_withReco(process):
       process.MultiClustersFromTrackstersMIP,
       process.FilteredLayerClusters,
       process.Tracksters,
-      process.MultiClustersFromTracksters)
+      process.ticlCandidateFromTrackstersProducer,
+      process.pfTICLProducer)
   process.schedule.associate(process.TICL_Task)
   return process
 
