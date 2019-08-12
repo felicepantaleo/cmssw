@@ -12,7 +12,7 @@
 <use name="RecoPixelVertexing/PixelTriplets"/>
 <use name="RecoTracker/TkSeedingLayers"/>
 <use name="RecoTracker/TkTrackingRegions"/>
-<flags CXXFLAGS="-fno-math-errno"/>
+<use name="CUDADataFormats/Track"/>
 
 <library file="*.cu *.cc" name="RecoPixelVertexingPixelTripletsPlugins">
   <flags EDM_PLUGIN="1"/>

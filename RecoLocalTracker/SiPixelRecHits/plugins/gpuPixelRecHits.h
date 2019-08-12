@@ -18,17 +18,40 @@ namespace gpuPixelRecHits {
                           SiPixelDigisCUDA::DeviceConstView const * __restrict__ pdigis,
                           int numElements,
                           SiPixelClustersCUDA::DeviceConstView const * __restrict__ pclusters,
-                          TrackingRecHit2DSOAView* phits) {
+                          TrackingRecHit2DSOAView* phits
+                         ){
 
     // FIXME
     // the compiler seems NOT to optimize loads from views (even in a simple test case)
     // The whole gimnastic here of copying or not is a pure heuristic exercise that seems to produce the fastest code with the above signature
     // not using views (passing a gazzilion of array pointers) seems to produce the fastest code (but it is harder to mantain)  
 
+    assert(phits);
+    assert(cpeParams);
+
     auto& hits = *phits;
 
     auto const digis = *pdigis; // the copy is intentional!
     auto const & clusters = *pclusters;
+
+    // copy average geometry corrected by beamspot . FIXME (move it somewhere else???)
+    if (0==blockIdx.x) {
+      auto & agc = hits.averageGeometry();
+      auto const & ag  = cpeParams->averageGeometry();
+      for(int il=threadIdx.x, nl=TrackingRecHit2DSOAView::AverageGeometry::numberOfLaddersInBarrel; il<nl; il+=blockDim.x) {
+        agc.ladderZ[il] = ag.ladderZ[il] - bs->z; 
+        agc.ladderX[il] = ag.ladderX[il] - bs->x;
+        agc.ladderY[il] = ag.ladderY[il] - bs->y;
+        agc.ladderR[il] = sqrt(agc.ladderX[il]*agc.ladderX[il] + agc.ladderY[il]*agc.ladderY[il] );
+        agc.ladderMinZ[il] = ag.ladderMinZ[il] - bs->z;
+        agc.ladderMaxZ[il] = ag.ladderMaxZ[il] - bs->z;
+      }
+      if(0==threadIdx.x) {
+         agc.endCapZ[0] = ag.endCapZ[0] - bs->z;
+         agc.endCapZ[1] = ag.endCapZ[1] - bs->z;
+//         printf("endcapZ %f %f\n",agc.endCapZ[0],agc.endCapZ[1]);
+      }
+    }
 
     // to be moved in common namespace...
     constexpr uint16_t InvId = 9999;  // must be > MaxNumModules
@@ -61,7 +84,8 @@ namespace gpuPixelRecHits {
         printf("hitbuilder: %d clusters in module %d. will write at %d\n", nclus, me, hitsModuleStart[me]);
 #endif
 
-    assert(blockDim.x >= MaxHitsInModule);
+//      true on gpu only...
+//    assert(blockDim.x >= MaxHitsInModule);
 
     if (threadIdx.x == 0 && nclus > MaxHitsInModule) {
       printf("WARNING: too many clusters %d in Module %d. Only first %d processed\n", nclus, me, MaxHitsInModule);
@@ -73,7 +97,7 @@ namespace gpuPixelRecHits {
     }
     nclus = std::min(nclus, MaxHitsInModule);
 
-    for (int ic = threadIdx.x; ic < nclus; ic += blockDim.x) {
+    for (int ic = threadIdx.x, nc=nclus; ic < nc; ic += blockDim.x) {
       clusParams.minRow[ic] = std::numeric_limits<uint32_t>::max();
       clusParams.maxRow[ic] = 0;
       clusParams.minCol[ic] = std::numeric_limits<uint32_t>::max();
@@ -98,7 +122,7 @@ namespace gpuPixelRecHits {
       if (id != me)
         break;  // end of module
       auto cl = digis.clus(i);
-      if (cl >= nclus)
+      if (cl >= int(nclus))
         continue;
       auto x = digis.xx(i);
       auto y = digis.yy(i);
@@ -117,7 +141,7 @@ namespace gpuPixelRecHits {
       if (id != me)
         break;  // end of module
       auto cl = digis.clus(i);
-      if (cl >= nclus)
+      if (cl >= int(nclus))
         continue;
       auto x = digis.xx(i);
       auto y = digis.yy(i);      
@@ -139,11 +163,14 @@ namespace gpuPixelRecHits {
 
     first = clusters.clusModuleStart(me);
 
-    for (int ic = threadIdx.x; ic < nclus; ic += blockDim.x) {
+    for (int ic = threadIdx.x, nc=nclus; ic < nc; ic += blockDim.x) {
       auto h = first + ic;  // output index in global memory
-
+     
+      // this cannot happen anymore
       if (h >= TrackingRecHit2DSOAView::maxHits())
         break;  // overflow...
+      assert(h<hits.nHits());
+      assert(h<clusters.clusModuleStart(me+1));
 
       pixelCPEforGPU::position(cpeParams->commonParams(), cpeParams->detParams(me), clusParams, ic);
       pixelCPEforGPU::errorFromDB(cpeParams->commonParams(), cpeParams->detParams(me), clusParams, ic);

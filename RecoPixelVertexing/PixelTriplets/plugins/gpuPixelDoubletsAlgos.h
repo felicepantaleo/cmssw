@@ -48,7 +48,9 @@ namespace gpuPixelDoubletsAlgos {
     constexpr int minYsizeB2 = 28;
     constexpr int maxDYsize12 = 28;
     constexpr int maxDYsize = 20;
-    int16_t mes;
+    constexpr int maxDYPred = 20;
+    constexpr float dzdrFact = 8*0.0285/0.015;  // from dz/dr to "DY"
+
     bool isOuterLadder = ideal_cond;
 
     using Hist = TrackingRecHit2DSOAView::Hist;
@@ -62,7 +64,7 @@ namespace gpuPixelDoubletsAlgos {
     // nPairsMax to be optimized later (originally was 64).
     // If it should be much bigger, consider using a block-wide parallel prefix scan,
     // e.g. see  https://nvlabs.github.io/cub/classcub_1_1_warp_scan.html
-    const int nPairsMax = 16;
+    const int nPairsMax = CAConstants::maxNumberOfLayerPairs();
     assert(nPairs <= nPairsMax);
     __shared__ uint32_t innerLayerCumulativeSize[nPairsMax];
     __shared__ uint32_t ntot;
@@ -79,10 +81,10 @@ namespace gpuPixelDoubletsAlgos {
     auto idy = blockIdx.y * blockDim.y + threadIdx.y;
     auto first = threadIdx.x;
     auto stride = blockDim.x;
+      
+    uint32_t pairLayerId = 0; // cannot go backward 
     for (auto j = idy; j < ntot; j += blockDim.y * gridDim.y) {
-      uint32_t pairLayerId = 0;
-      while (j >= innerLayerCumulativeSize[pairLayerId++])
-        ;
+      while (j >= innerLayerCumulativeSize[pairLayerId++]);
       --pairLayerId;  // move to lower_bound ??
 
       assert(pairLayerId < nPairs);
@@ -109,16 +111,18 @@ namespace gpuPixelDoubletsAlgos {
       if (doZCut && (mez < minz[pairLayerId] || mez > maxz[pairLayerId]))
         continue;
 
+      int16_t mes=-1;  // make compiler happy 
       if (doClusterCut) {
-        auto mes = hh.clusterSizeY(i);
-
         // if ideal treat inner ladder as outer
         auto mi = hh.detectorIndex(i);
         if (inner == 0)
           assert(mi < 96);
         isOuterLadder = ideal_cond ? true : 0 == (mi / 8) % 2;  // only for B1/B2/B3 B4 is opposite, FPIX:noclue...
 
-        if (inner == 0 && outer > 3 && isOuterLadder)  // B1 and F1
+        // in any case we always test mes>0 ...
+        mes = inner > 0 || isOuterLadder ? hh.clusterSizeY(i) : -1;
+
+        if (inner == 0 && outer > 3 )  // B1 and F1
           if (mes > 0 && mes < minYsizeB1)
             continue;                 // only long cluster  (5*8)
         if (inner == 1 && outer > 3)  // B2 and F1
@@ -128,21 +132,22 @@ namespace gpuPixelDoubletsAlgos {
       auto mep = hh.iphi(i);
       auto mer = hh.rGlobal(i);
 
+      // all cuts: true if fails
       constexpr float z0cut = 12.f;      // cm
       constexpr float hardPtCut = 0.5f;  // GeV
       constexpr float minRadius =
           hardPtCut * 87.78f;  // cm (1 GeV track has 1 GeV/c / (e * 3.8T) ~ 87 cm radius in a 3.8T field)
       constexpr float minRadius2T4 = 4.f * minRadius * minRadius;
-      auto ptcut = [&](int j) {
+      auto ptcut = [&](int j, int16_t mop) {
         auto r2t4 = minRadius2T4;
         auto ri = mer;
         auto ro = hh.rGlobal(j);
-        auto dphi = short2phi(min(abs(int16_t(mep - hh.iphi(j))), abs(int16_t(hh.iphi(j) - mep))));
+        // auto mop = hh.iphi(j);
+        auto dphi = short2phi(std::min(std::abs(int16_t(mep - mop)), std::abs(int16_t(mop - mep))));
         return dphi * dphi * (r2t4 - ri * ro) > (ro - ri) * (ro - ri);
       };
       auto z0cutoff = [&](int j) {
         auto zo = hh.zGlobal(j);
-        ;
         auto ro = hh.rGlobal(j);
         auto dr = ro - mer;
         return dr > maxr[pairLayerId] || dr < 0 || std::abs((mez * ro - mer * zo)) > z0cut * dr;
@@ -151,8 +156,16 @@ namespace gpuPixelDoubletsAlgos {
       auto zsizeCut = [&](int j) {
         auto onlyBarrel = outer < 4;
         auto so = hh.clusterSizeY(j);
-        auto dy = inner == 0 ? (isOuterLadder ? maxDYsize12 : 100) : maxDYsize;
-        return onlyBarrel && mes > 0 && so > 0 && std::abs(so - mes) > dy;
+        auto dy = inner == 0 ? maxDYsize12  : maxDYsize;
+        // in the barrel cut on difference in size
+        // in the endcap on the prediction on the first layer (actually in the barrel only: happen to be safe for endcap as well)
+        // FIXME move pred cut to z0cutoff to optmize loading of and computaiton ...
+        auto zo = hh.zGlobal(j);
+        auto ro = hh.rGlobal(j);
+        return onlyBarrel ?
+                     mes > 0 && so > 0 && std::abs(so - mes) > dy :
+                     (inner<4) && mes>0 
+                     && std::abs(mes - int(std::abs((mez-zo)/(mer-ro))*dzdrFact+0.5f)) > maxDYPred;
       };
 
       auto iphicut = phicuts[pairLayerId];
@@ -181,13 +194,13 @@ namespace gpuPixelDoubletsAlgos {
           auto oi = __ldg(p);
           assert(oi >= offsets[outer]);
           assert(oi < offsets[outer + 1]);
-
-          if (std::min(std::abs(int16_t(hh.iphi(oi) - mep)), std::abs(int16_t(mep - hh.iphi(oi)))) > iphicut)
+          auto mop = hh.iphi(oi);
+          if (std::min(std::abs(int16_t(mop - mep)), std::abs(int16_t(mep - mop))) > iphicut)
             continue;
           if (doPhiCut) {
             if (doClusterCut && zsizeCut(oi))
-              continue;
-            if (z0cutoff(oi) || ptcut(oi))
+               continue;
+            if (z0cutoff(oi) || ptcut(oi,mop))
               continue;
           }
           auto ind = atomicAdd(nCells, 1);

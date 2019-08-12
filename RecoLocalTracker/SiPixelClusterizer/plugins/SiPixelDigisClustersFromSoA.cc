@@ -78,6 +78,7 @@ void SiPixelDigisClustersFromSoA::fillDescriptions(edm::ConfigurationDescription
 
 void SiPixelDigisClustersFromSoA::produce(edm::StreamID, edm::Event& iEvent, const edm::EventSetup& iSetup) const {
   const auto& digis = iEvent.get(digiGetToken_);
+  const uint32_t nDigis = digis.size();
 
   edm::ESHandle<TrackerTopology> trackerTopologyHandle;
   iSetup.get<TrackerTopologyRcd>().get(trackerTopologyHandle);
@@ -85,15 +86,15 @@ void SiPixelDigisClustersFromSoA::produce(edm::StreamID, edm::Event& iEvent, con
 
   auto collection = std::make_unique<edm::DetSetVector<PixelDigi>>();
   auto outputClusters = std::make_unique<SiPixelClusterCollectionNew>();
+  outputClusters->reserve(2000,nDigis/4);
 
-  const uint32_t nDigis = digis.size();
   edm::DetSet<PixelDigi>* detDigis = nullptr;
   for (uint32_t i = 0; i < nDigis; i++) {
     if (digis.pdigi(i) == 0)
       continue;
     detDigis = &collection->find_or_insert(digis.rawIdArr(i));
     if ((*detDigis).empty())
-      (*detDigis).data.reserve(32);  // avoid the first relocations
+      (*detDigis).data.reserve(64);  // avoid the first relocations
     break;
   }
 
@@ -109,8 +110,10 @@ void SiPixelDigisClustersFromSoA::produce(edm::StreamID, edm::Event& iEvent, con
     auto clusterThreshold = (layer == 1) ? 2000 : 4000;
     for (int32_t ic = 0; ic < nclus + 1; ++ic) {
       auto const& acluster = aclusters[ic];
+      // in any case we cannot  go out of sync with gpu...
       if (acluster.charge < clusterThreshold)
-        continue;
+        edm::LogWarning("SiPixelDigisClustersFromSoA") << "cluster below charge Threshold "
+             << "Layer/DetId/clusId " << layer<<'/'<<detId<<'/'<<ic << " size/charge " << acluster.isize<<'/'<<acluster.charge; 
       SiPixelCluster cluster(acluster.isize, acluster.adc, acluster.x, acluster.y, acluster.xmin, acluster.ymin);
       cluster.setOriginalId(ic);
       ++totCluseFilled;
@@ -143,7 +146,7 @@ void SiPixelDigisClustersFromSoA::produce(edm::StreamID, edm::Event& iEvent, con
       assert(nclus == -1);
       detDigis = &collection->find_or_insert(digis.rawIdArr(i));
       if ((*detDigis).empty())
-        (*detDigis).data.reserve(32);  // avoid the first relocations
+        (*detDigis).data.reserve(64);  // avoid the first relocations
       else {
         std::cout << "Problem det present twice in input! " << (*detDigis).detId() << std::endl;
       }

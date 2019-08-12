@@ -4,13 +4,13 @@
 #include <cuda/api_wrappers.h>
 
 #include "RecoPixelVertexing/PixelTrackFitting/interface/FitResult.h"
-#include "RecoPixelVertexing/PixelTriplets/plugins/pixelTuplesHeterogeneousProduct.h"
-
-class TrackingRecHit2DSOAView;
-class TrackingRecHit2DCUDA;
+#include "CUDADataFormats/Track/interface/PixelTrackHeterogeneous.h"
+#include "CUDADataFormats/TrackingRecHit/interface/TrackingRecHit2DCUDA.h"
+#include "CAConstants.h"
 
 namespace Rfit {
-  constexpr uint32_t maxNumberOfConcurrentFits() { return 6 * 1024; }
+  // in case of memory issue can be made smaller
+  constexpr uint32_t maxNumberOfConcurrentFits() { return CAConstants::maxNumberOfTuples(); }
   constexpr uint32_t stride() { return maxNumberOfConcurrentFits(); }
   using Matrix3x4d = Eigen::Matrix<double, 3, 4>;
   using Map3x4d = Eigen::Map<Matrix3x4d, 0, Eigen::Stride<3 * stride(), stride()> >;
@@ -34,38 +34,48 @@ namespace Rfit {
 
 class HelixFitOnGPU {
 public:
-  using HitsOnGPU = TrackingRecHit2DSOAView;
-  using HitsOnCPU = TrackingRecHit2DCUDA;
+  using HitsView = TrackingRecHit2DSOAView;
 
-  using TuplesOnGPU = pixelTuplesHeterogeneousProduct::TuplesOnGPU;
+  using Tuples = pixelTrack::HitContainer;
+  using OutputSoA = pixelTrack::TrackSoA;
+
   using TupleMultiplicity = CAConstants::TupleMultiplicity;
 
-  explicit HelixFitOnGPU(bool fit5as4) : fit5as4_(fit5as4) {}
+  explicit HelixFitOnGPU(float bf, bool fit5as4) : bField_(bf), fit5as4_(fit5as4) {}
   ~HelixFitOnGPU() { deallocateOnGPU(); }
 
   void setBField(double bField) { bField_ = bField; }
-  void launchRiemannKernels(HitsOnCPU const &hh,
+  void launchRiemannKernels(HitsView const * hv,
                             uint32_t nhits,
                             uint32_t maxNumberOfTuples,
                             cuda::stream_t<> &cudaStream);
-  void launchBrokenLineKernels(HitsOnCPU const &hh,
+  void launchBrokenLineKernels(HitsView const * hv,
                                uint32_t nhits,
                                uint32_t maxNumberOfTuples,
                                cuda::stream_t<> &cudaStream);
 
-  void allocateOnGPU(TuplesOnGPU::Container const *tuples,
+  void launchRiemannKernelsOnCPU(HitsView const * hv,
+                            uint32_t nhits,
+                            uint32_t maxNumberOfTuples);
+  void launchBrokenLineKernelsOnCPU(HitsView const * hv,
+                               uint32_t nhits,
+                               uint32_t maxNumberOfTuples);
+
+
+
+  void allocateOnGPU(Tuples const *tuples,
                      TupleMultiplicity const *tupleMultiplicity,
-                     Rfit::helix_fit *helix_fit_results);
+                     OutputSoA * outputSoA);
   void deallocateOnGPU();
 
 private:
   static constexpr uint32_t maxNumberOfConcurrentFits_ = Rfit::maxNumberOfConcurrentFits();
 
   // fowarded
-  TuplesOnGPU::Container const *tuples_d = nullptr;
+  Tuples const *tuples_d = nullptr;
   TupleMultiplicity const *tupleMultiplicity_d = nullptr;
-  double bField_;
-  Rfit::helix_fit *helix_fit_results_d = nullptr;
+  OutputSoA * outputSoa_d;
+  float bField_;
 
   const bool fit5as4_;
 };
