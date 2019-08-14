@@ -20,13 +20,7 @@ namespace ticl {
         : PatternRecognitionAlgoBase(conf, cache) {}
     ~PatternRecognitionbyMultiClusters() override{};
 
-    void makeTracksters(const edm::Event& ev,
-                        const edm::EventSetup& es,
-                        const std::vector<reco::CaloCluster>& layerClusters,
-                        const std::vector<float>& mask,
-                        const edm::ValueMap<float>& layerClustersTime,
-                        const TICLLayerTiles& tiles,
-                        std::vector<Trackster>& result) override;
+    void makeTracksters(const PatternRecognitionAlgoBase::Inputs& input) override;
   };
 }  // namespace ticl
 #endif

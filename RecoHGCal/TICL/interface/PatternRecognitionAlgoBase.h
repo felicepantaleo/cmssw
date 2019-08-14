@@ -10,6 +10,7 @@
 #include "DataFormats/HGCalReco/interface/Common.h"
 #include "DataFormats/HGCalReco/interface/Trackster.h"
 #include "DataFormats/HGCalReco/interface/TICLLayerTile.h"
+#include "DataFormats/HGCalReco/interface/TICLSeedingRegion.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "DataFormats/Common/interface/ValueMap.h"
 #include "RecoHGCal/TICL/interface/GlobalCache.h"
@@ -26,13 +27,29 @@ namespace ticl {
         : algo_verbosity_(conf.getParameter<int>("algo_verbosity")) {}
     virtual ~PatternRecognitionAlgoBase(){};
 
-    virtual void makeTracksters(const edm::Event& ev,
-                                const edm::EventSetup& es,
-                                const std::vector<reco::CaloCluster>& layerClusters,
-                                const std::vector<float>& mask,
-                                const edm::ValueMap<float>& layerClustersTime,
-                                const TICLLayerTiles& tiles,
-                                std::vector<Trackster>& result) = 0;
+    struct Inputs {
+      const edm::Event& ev;
+      const edm::EventSetup& es;
+      const std::vector<reco::CaloCluster>& layerClusters;
+      const std::vector<float>& mask;
+      const edm::ValueMap<float>& layerClustersTime;
+      const TICLLayerTiles& tiles;
+      const std::vector<TICLSeedingRegion>& regions;
+      std::vector<Trackster>& result;
+
+      Inputs(const edm::Event& eV,
+             const edm::EventSetup& eS,
+             const std::vector<reco::CaloCluster>& lC,
+             const std::vector<float>& mS,
+             const edm::ValueMap<float>& lT,
+             const TICLLayerTiles& tL,
+             const std::vector<TICLSeedingRegion>& rG,
+             std::vector<Trackster>& rS)
+          : ev(eV), es(eS), layerClusters(lC), mask(mS), layerClustersTime(lT), tiles(tL), regions(rG), result(rS) {}
+    };
+
+    virtual void makeTracksters(const Inputs& input) = 0;
+
     enum VerbosityLevel { None = 0, Basic, Advanced, Expert, Guru };
 
   protected:

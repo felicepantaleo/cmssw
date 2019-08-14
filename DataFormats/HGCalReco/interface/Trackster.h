@@ -6,6 +6,7 @@
 
 #include <array>
 #include <vector>
+#include "DataFormats/Provenance/interface/ProductID.h"
 
 // A Trackster is a Direct Acyclic Graph created when
 // pattern recognition algorithms connect hits or
@@ -45,6 +46,9 @@ namespace ticl {
     inline float ambiguous_probability() { return id_probabilities[5]; };
 
     inline float unknown_probability() { return id_probabilities[6]; };
+
+    edm::ProductID seedID;
+    int seedIndex;
   };
 }  // namespace ticl
 #endif

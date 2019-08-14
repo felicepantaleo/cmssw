@@ -16,6 +16,9 @@
 <use   name="Geometry/HGCalGeometry"/>
 <use   name="RecoHGCal/TICL"/>
 <use   name="PhysicsTools/TensorFlow"/>
+<use   name="DataFormats/TrackReco"/>
+<use   name="TrackingTools/Records"/>
+<use   name="Geometry/Records"/>
 
 <library   file="*.cc" name="RecoHGCalTICLPlugins">
   <flags   EDM_PLUGIN="1"/>
