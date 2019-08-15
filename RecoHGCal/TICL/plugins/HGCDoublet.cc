@@ -8,9 +8,9 @@ bool HGCDoublet::checkCompatibilityAndTag(std::vector<HGCDoublet> &allDoublets,
   int nDoublets = innerDoublets.size();
   int constexpr VSIZE = 4;
   int ok[VSIZE];
-  double xi[VSIZE];
-  double yi[VSIZE];
-  double zi[VSIZE];
+  float xi[VSIZE];
+  float yi[VSIZE];
+  float zi[VSIZE];
   auto xo = outerX();
   auto yo = outerY();
   auto zo = outerZ();
@@ -51,12 +51,12 @@ bool HGCDoublet::checkCompatibilityAndTag(std::vector<HGCDoublet> &allDoublets,
   return innerNeighbors_.empty();
 }
 
-int HGCDoublet::areAligned(double xi,
-                           double yi,
-                           double zi,
-                           double xo,
-                           double yo,
-                           double zo,
+int HGCDoublet::areAligned(float xi,
+                           float yi,
+                           float zi,
+                           float xo,
+                           float yo,
+                           float zo,
                            float minCosTheta,
                            float minCosPointing,
                            bool debug) const {
@@ -80,21 +80,28 @@ int HGCDoublet::areAligned(double xi,
                            << " isWithinLimits: " << (cosTheta > minCosTheta) << std::endl;
   }
 
-  // Now check the compatibility with the pointing origin.
-  // TODO(rovere): pass in also the origin, which is now fixed at (0,0,0)
-  // The compatibility is checked only for the innermost doublets: the
-  // one with the outer doublets comes in by the alignment requirement of
-  // the doublets themeselves
-  auto dot_pointing = dx2 * xi + dy2 * yi + dz2 * zi;
-  auto mag_pointing = std::sqrt(xi * xi + yi * yi + zi * zi);
-  auto cosTheta_pointing = dot_pointing / (mag2 * mag_pointing);
-  if (debug) {
-    LogDebug("HGCDoublet") << "dot_pointing: " << dot_pointing << " mag_pointing: " << mag_pointing << " mag2: " << mag2
-                           << " cosTheta_pointing: " << cosTheta_pointing
-                           << " isWithinLimits: " << (cosTheta_pointing < minCosPointing) << std::endl;
+  bool areAligned = cosTheta > minCosTheta;
+  if(!areAligned)
+  {
+    return false;
   }
-
-  return (cosTheta > minCosTheta) && (cosTheta_pointing > minCosPointing);
+  else
+  {
+    // Now check the compatibility with the pointing origin.
+    // TODO(rovere): pass in also the origin, which is now fixed at (0,0,0)
+    // The compatibility is checked only for the innermost doublets: the
+    // one with the outer doublets comes in by the alignment requirement of
+    // the doublets themeselves
+    auto dot_pointing = dx2 * xi + dy2 * yi + dz2 * zi;
+    auto mag_pointing = std::sqrt(xi * xi + yi * yi + zi * zi);
+    auto cosTheta_pointing = dot_pointing / (mag2 * mag_pointing);
+    if (debug) {
+      LogDebug("HGCDoublet") << "dot_pointing: " << dot_pointing << " mag_pointing: " << mag_pointing << " mag2: " << mag2
+                            << " cosTheta_pointing: " << cosTheta_pointing
+                            << " isWithinLimits: " << (cosTheta_pointing < minCosPointing) << std::endl;
+    }
+    return cosTheta_pointing > minCosPointing;
+  }
 }
 
 void HGCDoublet::findNtuplets(std::vector<HGCDoublet> &allDoublets, HGCntuplet &tmpNtuplet) {
