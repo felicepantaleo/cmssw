@@ -21,6 +21,8 @@ public:
                               int deltaIPhi,
                               float minCosThetai,
                               float maxCosPointing,
+			      float minCosThetaOutIn,
+                              float maxCosPointingOutIn,
                               int missing_layers,
                               int maxNumberOfLayers,
                               float maxDeltaTime);
