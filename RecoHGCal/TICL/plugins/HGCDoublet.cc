@@ -97,13 +97,39 @@ int HGCDoublet::areAligned(double xi,
   return (cosTheta > minCosTheta) && (cosTheta_pointing > minCosPointing);
 }
 
-void HGCDoublet::findNtuplets(std::vector<HGCDoublet> &allDoublets, HGCntuplet &tmpNtuplet) {
+void HGCDoublet::findNtuplets(std::vector<HGCDoublet> &allDoublets, HGCntuplet &tmpNtuplet, const bool outInDFS) {
+ 
   if (!alreadyVisited_) {
     alreadyVisited_ = true;
     tmpNtuplet.push_back(theDoubletId_);
     unsigned int numberOfOuterNeighbors = outerNeighbors_.size();
+    #ifdef FP_DEBUG
+
+    std::cout << "- - - - - - - - - - " << std::endl;
+    std::cout << "visiting doublet: " << theDoubletId_ << " innerlc : " << innerClusterId_ <<  " outerlc: " << outerClusterId_ << " visited: " 
+    << alreadyVisited_ << " oneighbors " <<  outerNeighbors_.size()<< " ineighbors " << innerNeighbors_.size() <<  std::endl;
+    std::cout << "outer neighbors: " << std::endl;
     for (unsigned int i = 0; i < numberOfOuterNeighbors; ++i) {
-      allDoublets[outerNeighbors_[i]].findNtuplets(allDoublets, tmpNtuplet);
+      std::cout << i << "    " << outerNeighbors_[i] << std::endl;
+
     }
+    std::cout << "\n inner neighbors: " << std::endl;
+    for (unsigned int i = 0; i < innerNeighbors_.size(); ++i) {
+      std::cout << i << "    " << innerNeighbors_[i] << std::endl;
+
+    }
+    #endif
+
+
+    for (unsigned int i = 0; i < numberOfOuterNeighbors; ++i) {
+      allDoublets[outerNeighbors_[i]].findNtuplets(allDoublets, tmpNtuplet, outInDFS);
+    }
+    if (outInDFS){
+      unsigned int numberOfInnerNeighbors = innerNeighbors_.size();
+      for (unsigned int i = 0; i < numberOfInnerNeighbors; ++i) {
+        allDoublets[innerNeighbors_[i]].findNtuplets(allDoublets, tmpNtuplet, outInDFS);
+      }
+    }
+
   }
 }

@@ -69,7 +69,9 @@ public:
                  float minCosPointing,
                  bool debug = false) const;
 
-  void findNtuplets(std::vector<HGCDoublet> &, HGCntuplet &);
+  void findNtuplets(std::vector<HGCDoublet> &, HGCntuplet &, const bool );
+
+  void setVisited(bool visited) { alreadyVisited_ = visited; }
 
 private:
   const std::vector<reco::CaloCluster> *layerClusters_;
