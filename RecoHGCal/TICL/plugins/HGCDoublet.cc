@@ -4,6 +4,8 @@ bool HGCDoublet::checkCompatibilityAndTag(std::vector<HGCDoublet> &allDoublets,
                                           const std::vector<int> &innerDoublets,
                                           float minCosTheta,
                                           float minCosPointing,
+					  float minCosThetaOutIn,
+                                          float minCosPointingOutIn,
                                           bool debug) {
   int nDoublets = innerDoublets.size();
   int constexpr VSIZE = 4;
@@ -25,7 +27,7 @@ bool HGCDoublet::checkCompatibilityAndTag(std::vector<HGCDoublet> &allDoublets,
       zi[j] = otherDoublet.innerZ();
     }
     for (int j = 0; j < vs; ++j) {
-      ok[j] = areAligned(xi[j], yi[j], zi[j], xo, yo, zo, minCosTheta, minCosPointing, debug);
+      ok[j] = areAligned(xi[j], yi[j], zi[j], xo, yo, zo, minCosTheta, minCosPointing, minCosThetaOutIn, minCosPointingOutIn, debug);
       if (debug) {
         LogDebug("HGCDoublet") << "Are aligned for InnerDoubletId: " << i + j << " is " << ok[j] << std::endl;
       }
@@ -33,9 +35,9 @@ bool HGCDoublet::checkCompatibilityAndTag(std::vector<HGCDoublet> &allDoublets,
     for (int j = 0; j < vs; ++j) {
       auto otherDoubletId = innerDoublets[i + j];
       auto &otherDoublet = allDoublets[otherDoubletId];
-      if (ok[j]) {
+      if (ok[j]>=1) {
         otherDoublet.tagAsOuterNeighbor(doubletId);
-        allDoublets[doubletId].tagAsInnerNeighbor(otherDoubletId);
+        if (ok[j]==2) { allDoublets[doubletId].tagAsInnerNeighbor(otherDoubletId); }
       }
     }
   };
@@ -59,6 +61,8 @@ int HGCDoublet::areAligned(double xi,
                            double zo,
                            float minCosTheta,
                            float minCosPointing,
+			   float minCosThetaOutIn,
+                           float minCosPointingOutIn,
                            bool debug) const {
   auto dx1 = xo - xi;
   auto dy1 = yo - yi;
@@ -94,7 +98,15 @@ int HGCDoublet::areAligned(double xi,
                            << " isWithinLimits: " << (cosTheta_pointing < minCosPointing) << std::endl;
   }
 
-  return (cosTheta > minCosTheta) && (cosTheta_pointing > minCosPointing);
+  int result_ = 0;
+  bool passInOut_ = false;
+  bool passOutIn_ = false;
+  if ( (cosTheta > minCosTheta) && (cosTheta_pointing > minCosPointing) ) { passInOut_ = true; }
+  if ( (cosTheta > minCosThetaOutIn) && (cosTheta_pointing > minCosPointingOutIn) ) { passOutIn_ = true; }
+  if (passInOut_) { result_ = 1; }
+  if (passInOut_ && passOutIn_ ) { result_ = 2; }
+  
+  return result_;
 }
 
 void HGCDoublet::findNtuplets(std::vector<HGCDoublet> &allDoublets, HGCntuplet &tmpNtuplet, const bool outInDFS) {

@@ -14,6 +14,8 @@ PatternRecognitionbyCA::PatternRecognitionbyCA(const edm::ParameterSet &conf) : 
   theGraph_ = std::make_unique<HGCGraph>();
   min_cos_theta_ = conf.getParameter<double>("min_cos_theta");
   min_cos_pointing_ = conf.getParameter<double>("min_cos_pointing");
+  min_cos_theta_outin_ = conf.getParameter<double>("min_cos_theta_outin");
+  min_cos_pointing_outin_ = conf.getParameter<double>("min_cos_pointing_outin");
   missing_layers_ = conf.getParameter<int>("missing_layers");
   min_clusters_per_ntuplet_ = conf.getParameter<int>("min_clusters_per_ntuplet");
   max_delta_time_ = conf.getParameter<double>("max_delta_time");
@@ -47,6 +49,8 @@ void PatternRecognitionbyCA::makeTracksters(const edm::Event &ev,
                                     2,
                                     min_cos_theta_,
                                     min_cos_pointing_,
+				    min_cos_theta_outin_,
+                                    min_cos_pointing_outin_,
                                     missing_layers_,
                                     rhtools_.lastLayerFH(),
                                     max_delta_time_);

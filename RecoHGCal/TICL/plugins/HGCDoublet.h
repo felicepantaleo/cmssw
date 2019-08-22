@@ -57,7 +57,7 @@ public:
   void tagAsInnerNeighbor(unsigned int otherDoublet) { innerNeighbors_.push_back(otherDoublet); }
 
   bool checkCompatibilityAndTag(
-      std::vector<HGCDoublet> &, const std::vector<int> &, float, float minCosPointing = 1., bool debug = false);
+				std::vector<HGCDoublet> &, const std::vector<int> &, float, float minCosPointing = 1., float minCosThetaOutIn =1., float minCosPointingOutIn =1., bool debug = false);
 
   int areAligned(double xi,
                  double yi,
@@ -67,6 +67,8 @@ public:
                  double zo,
                  float minCosTheta,
                  float minCosPointing,
+                 float minCosThetaOutIn,
+                 float minCosPointingOutIn,
                  bool debug = false) const;
 
   void findNtuplets(std::vector<HGCDoublet> &, HGCntuplet &, const bool );

@@ -17,6 +17,8 @@ void HGCGraph::makeAndConnectDoublets(const TICLLayerTiles &histo,
                                       int deltaIPhi,
                                       float minCosTheta,
                                       float minCosPointing,
+				      float minCosThetaOutIn,
+                                      float minCosPointingOutIn,
                                       int missing_layers,
                                       int maxNumberOfLayers,
                                       float maxDeltaTime) {
@@ -76,7 +78,7 @@ void HGCGraph::makeAndConnectDoublets(const TICLLayerTiles &histo,
                           << std::endl;
                     }
                     bool isRootDoublet = thisDoublet.checkCompatibilityAndTag(
-                        allDoublets_, neigDoublets, minCosTheta, minCosPointing, verbosity_ > Advanced);
+					 allDoublets_, neigDoublets, minCosTheta, minCosPointing, minCosThetaOutIn, minCosPointingOutIn, verbosity_ > Advanced);
                     if (isRootDoublet)
                       theRootDoublets_.push_back(doubletId);
                   }

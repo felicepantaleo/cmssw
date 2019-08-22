@@ -34,7 +34,10 @@ def TICL_iterations_withReco(process):
       missing_layers = 3,
       min_clusters_per_ntuplet = 15,
       min_cos_theta = 0.99, # ~10 degrees
-      min_cos_pointing = 0.9
+      min_cos_pointing = 0.9,
+      min_cos_theta_outin = 1.,
+      min_cos_pointing_outin = 1.,
+      out_in_dfs = False
   )
 
   process.MultiClustersFromTrackstersMIP = multiClustersFromTrackstersProducer.clone(
@@ -57,11 +60,30 @@ def TICL_iterations_withReco(process):
       min_clusters_per_ntuplet = 10,
       min_cos_theta = 0.94, # ~20 degrees
       min_cos_pointing = 0.7,
+      min_cos_theta_outin = 0.94,
+      min_cos_pointing_outin = 0.7,
       out_in_dfs = True
   )
 
   process.MultiClustersFromTracksters = multiClustersFromTrackstersProducer.clone(
       Tracksters = "Tracksters"
+  )
+
+
+  process.TrackstersHAD = trackstersProducer.clone(
+#      original_mask = "TrackstersMIP",
+      filtered_mask = cms.InputTag("FilteredLayerClusters", "algo8"),
+      missing_layers = 2,
+      min_clusters_per_ntuplet = 10,
+      min_cos_theta = 0.8, # ~20 degrees
+      min_cos_pointing = 0.7,
+      min_cos_theta_outin = 0.8,
+      min_cos_pointing_outin = 0.7,
+      out_in_dfs = True
+  )
+
+  process.MultiClustersFromTrackstersHAD = multiClustersFromTrackstersProducer.clone(
+      Tracksters = "TrackstersHAD"
   )
 
   process.hgcalMultiClusters = hgcalMultiClusters
@@ -72,7 +94,9 @@ def TICL_iterations_withReco(process):
       process.MultiClustersFromTrackstersMIP,
       process.FilteredLayerClusters,
       process.Tracksters,
-      process.MultiClustersFromTracksters)
+      process.MultiClustersFromTracksters,
+      process.TrackstersHAD,
+      process.MultiClustersFromTrackstersHAD)
   process.schedule.associate(process.TICL_Task)
   return process
 
@@ -92,7 +116,9 @@ def TICL_iterations(process):
       filtered_mask = cms.InputTag("FilteredLayerClustersMIP", "MIP"),
       missing_layers = 3,
       min_clusters_per_ntuplet = 15,
-      min_cos_theta = 0.985 # ~10 degrees
+      min_cos_theta = 0.985, # ~10 degrees
+      min_cos_theta_outin = 1.,
+      min_cos_pointing_outin = 1.
   )
 
   process.MultiClustersFromTrackstersMIP = multiClustersFromTrackstersProducer.clone(
@@ -113,7 +139,9 @@ def TICL_iterations(process):
       missing_layers = 2,
       min_clusters_per_ntuplet = 15,
       min_cos_theta = 0.94, # ~20 degrees
-      min_cos_pointing = 0.7
+      min_cos_pointing = 0.7,
+      min_cos_theta_outin = 0.97,
+      min_cos_pointing_outin = 0.9
   )
 
   process.MultiClustersFromTracksters = multiClustersFromTrackstersProducer.clone(

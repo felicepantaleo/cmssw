@@ -28,6 +28,8 @@ namespace ticl {
     std::unique_ptr<HGCGraph> theGraph_;
     float min_cos_theta_;
     float min_cos_pointing_;
+    float min_cos_theta_outin_;
+    float min_cos_pointing_outin_;
     int missing_layers_;
     int min_clusters_per_ntuplet_;
     float max_delta_time_;
