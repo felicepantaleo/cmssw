@@ -10,7 +10,8 @@
 
 using namespace ticl;
 
-PatternRecognitionbyCA::PatternRecognitionbyCA(const edm::ParameterSet &conf) : PatternRecognitionAlgoBase(conf), out_in_dfs_(conf.getParameter<bool>("out_in_dfs")) {
+PatternRecognitionbyCA::PatternRecognitionbyCA(const edm::ParameterSet &conf)
+    : PatternRecognitionAlgoBase(conf), out_in_dfs_(conf.getParameter<bool>("out_in_dfs")) {
   theGraph_ = std::make_unique<HGCGraph>();
   min_cos_theta_ = conf.getParameter<double>("min_cos_theta");
   min_cos_pointing_ = conf.getParameter<double>("min_cos_pointing");
@@ -49,7 +50,7 @@ void PatternRecognitionbyCA::makeTracksters(const edm::Event &ev,
                                     2,
                                     min_cos_theta_,
                                     min_cos_pointing_,
-				    min_cos_theta_outin_,
+                                    min_cos_theta_outin_,
                                     min_cos_pointing_outin_,
                                     missing_layers_,
                                     rhtools_.lastLayerFH(),

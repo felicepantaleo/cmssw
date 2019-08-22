@@ -21,7 +21,7 @@ public:
                               int deltaIPhi,
                               float minCosThetai,
                               float maxCosPointing,
-			      float minCosThetaOutIn,
+                              float minCosThetaOutIn,
                               float maxCosPointingOutIn,
                               int missing_layers,
                               int maxNumberOfLayers,
@@ -30,7 +30,9 @@ public:
   bool areTimeCompatible(int innerIdx, int outerIdx, const edm::ValueMap<float> &layerClustersTime, float maxDeltaTime);
 
   std::vector<HGCDoublet> &getAllDoublets() { return allDoublets_; }
-  void findNtuplets(std::vector<HGCDoublet::HGCntuplet> &foundNtuplets, const unsigned int minClustersPerNtuplet, const bool outInDFS);
+  void findNtuplets(std::vector<HGCDoublet::HGCntuplet> &foundNtuplets,
+                    const unsigned int minClustersPerNtuplet,
+                    const bool outInDFS);
   void clear() {
     allDoublets_.clear();
     theRootDoublets_.clear();

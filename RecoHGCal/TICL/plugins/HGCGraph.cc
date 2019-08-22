@@ -17,7 +17,7 @@ void HGCGraph::makeAndConnectDoublets(const TICLLayerTiles &histo,
                                       int deltaIPhi,
                                       float minCosTheta,
                                       float minCosPointing,
-				      float minCosThetaOutIn,
+                                      float minCosThetaOutIn,
                                       float minCosPointingOutIn,
                                       int missing_layers,
                                       int maxNumberOfLayers,
@@ -77,8 +77,13 @@ void HGCGraph::makeAndConnectDoublets(const TICLLayerTiles &histo,
                           << " with all possible inners doublets link by the innerClusterId: " << innerClusterId
                           << std::endl;
                     }
-                    bool isRootDoublet = thisDoublet.checkCompatibilityAndTag(
-					 allDoublets_, neigDoublets, minCosTheta, minCosPointing, minCosThetaOutIn, minCosPointingOutIn, verbosity_ > Advanced);
+                    bool isRootDoublet = thisDoublet.checkCompatibilityAndTag(allDoublets_,
+                                                                              neigDoublets,
+                                                                              minCosTheta,
+                                                                              minCosPointing,
+                                                                              minCosThetaOutIn,
+                                                                              minCosPointingOutIn,
+                                                                              verbosity_ > Advanced);
                     if (isRootDoublet)
                       theRootDoublets_.push_back(doubletId);
                   }
@@ -109,19 +114,17 @@ bool HGCGraph::areTimeCompatible(int innerIdx,
 }
 
 void HGCGraph::findNtuplets(std::vector<HGCDoublet::HGCntuplet> &foundNtuplets,
-                            const unsigned int minClustersPerNtuplet, const bool out_in_dfs) {
+                            const unsigned int minClustersPerNtuplet,
+                            const bool out_in_dfs) {
   HGCDoublet::HGCntuplet tmpNtuplet;
   tmpNtuplet.reserve(minClustersPerNtuplet);
   for (auto rootDoublet : theRootDoublets_) {
     tmpNtuplet.clear();
-    allDoublets_[rootDoublet].findNtuplets(allDoublets_, tmpNtuplet, out_in_dfs );
+    allDoublets_[rootDoublet].findNtuplets(allDoublets_, tmpNtuplet, out_in_dfs);
     if (tmpNtuplet.size() > minClustersPerNtuplet) {
       foundNtuplets.push_back(tmpNtuplet);
-    } 
-    else 
-    {
-      for(auto doubletId : tmpNtuplet)
-      {
+    } else {
+      for (auto doubletId : tmpNtuplet) {
         allDoublets_[doubletId].setVisited(false);
       }
     }
