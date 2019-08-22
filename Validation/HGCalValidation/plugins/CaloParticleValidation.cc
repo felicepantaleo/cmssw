@@ -174,7 +174,6 @@ void CaloParticleValidation::dqmAnalyze(edm::Event const& iEvent,
       histo.eta_.fill(caloParticle.eta());
       histo.pt_.fill(caloParticle.pt());
       histo.energy_.fill(caloParticle.energy());
-      std::cout << "CaloParticle MC Energy: " << caloParticle.energy() << std::endl;
       histo.nSimClusters_.fill(caloParticle.simClusters().size());
       // Find the corresponding vertex.
       histo.eta_Zorigin_map_.fill(simVertices.at(caloParticle.g4Tracks()[0].vertIndex()).position().z(),
@@ -191,10 +190,7 @@ void CaloParticleValidation::dqmAnalyze(edm::Event const& iEvent,
             sc_energy += hitmap[h_and_f.first]->energy() * h_and_f.second;
           }
         }
-        std::cout << "sim cluster energy: " << sc_energy << std::endl;
       }
-
-      std::cout << "CaloParticle Reconstructable Energy: " << energy << std::endl;
 
       histo.nHitInSimClusters_.fill((float)simHits);
       histo.selfEnergy_.fill(energy);

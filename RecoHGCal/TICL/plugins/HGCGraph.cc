@@ -112,18 +112,9 @@ void HGCGraph::findNtuplets(std::vector<HGCDoublet::HGCntuplet> &foundNtuplets,
   tmpNtuplet.reserve(minClustersPerNtuplet);
   for (auto rootDoublet : theRootDoublets_) {
     tmpNtuplet.clear();
-    #ifdef FP_DEBUG
-    std::cout << "---------------------------------------" << std::endl;
-    std::cout << "new trackster" << std::endl;
-    #endif
     allDoublets_[rootDoublet].findNtuplets(allDoublets_, tmpNtuplet, out_in_dfs );
     if (tmpNtuplet.size() > minClustersPerNtuplet) {
       foundNtuplets.push_back(tmpNtuplet);
-      #ifdef FP_DEBUG
-
-      std::cout << "Trackster passed filter" << std::endl;
-      #endif
-
     } 
     else 
     {

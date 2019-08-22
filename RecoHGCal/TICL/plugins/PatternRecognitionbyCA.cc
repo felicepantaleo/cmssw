@@ -82,7 +82,6 @@ void PatternRecognitionbyCA::makeTracksters(const edm::Event &ev,
     result.push_back(tmp);
     tracksterId++;
   }
-  std::cout << result.size() << std::endl;
   for (auto &trackster : result) {
     assert(trackster.vertices.size() <= trackster.vertex_multiplicity.size());
     for (size_t i = 0; i < trackster.vertices.size(); ++i) {
