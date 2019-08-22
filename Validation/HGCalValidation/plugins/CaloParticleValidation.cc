@@ -181,17 +181,12 @@ void CaloParticleValidation::dqmAnalyze(edm::Event const& iEvent,
       int simHits = 0;
       float energy = 0.;
       for (auto const sc : caloParticle.simClusters()) {
-        float sc_energy = 0.f;
         simHits += sc->hits_and_fractions().size();
         for (auto const h_and_f : sc->hits_and_fractions()) {
           if (hitmap.count(h_and_f.first))
-          {
             energy += hitmap[h_and_f.first]->energy() * h_and_f.second;
-            sc_energy += hitmap[h_and_f.first]->energy() * h_and_f.second;
-          }
         }
       }
-
       histo.nHitInSimClusters_.fill((float)simHits);
       histo.selfEnergy_.fill(energy);
       histo.energyDifference_.fill(1. - energy / caloParticle.energy());
