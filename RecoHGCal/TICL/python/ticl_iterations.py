@@ -50,11 +50,11 @@ def TICL_iterations_withReco(process):
       min_cluster_size = 2,
       algo_number = 8,
       iteration_label = "algo8",
- #     LayerClustersInputMask = "TrackstersMIP"
+      LayerClustersInputMask = "TrackstersMIP"
   )
 
-  process.Tracksters = trackstersProducer.clone(
-#      original_mask = "TrackstersMIP",
+  process.TrackstersEM = trackstersProducer.clone(
+      original_mask = "TrackstersMIP",
       filtered_mask = cms.InputTag("FilteredLayerClusters", "algo8"),
       missing_layers = 2,
       min_clusters_per_ntuplet = 10,
@@ -65,8 +65,8 @@ def TICL_iterations_withReco(process):
       out_in_dfs = True
   )
 
-  process.MultiClustersFromTracksters = multiClustersFromTrackstersProducer.clone(
-      Tracksters = "Tracksters"
+  process.MultiClustersFromTrackstersEM = multiClustersFromTrackstersProducer.clone(
+      Tracksters = "TrackstersEM"
   )
 
 
@@ -93,8 +93,8 @@ def TICL_iterations_withReco(process):
       process.TrackstersMIP,
       process.MultiClustersFromTrackstersMIP,
       process.FilteredLayerClusters,
-      process.Tracksters,
-      process.MultiClustersFromTracksters,
+      process.TrackstersEM,
+      process.MultiClustersFromTrackstersEM,
       process.TrackstersHAD,
       process.MultiClustersFromTrackstersHAD)
   process.schedule.associate(process.TICL_Task)
