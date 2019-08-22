@@ -26,9 +26,11 @@ namespace ticl {
                                                    std::vector<float>& layerClustersMask) const override {
       auto filteredLayerClusters = std::make_unique<HgcalClusterFilterMask>();
       for (auto const& cl : availableLayerClusters) {
+        
         if (layerClusters[cl.first].algo() == algo_number_ and
             layerClusters[cl.first].hitsAndFractions().size() <= max_cluster_size_ and
-            layerClusters[cl.first].hitsAndFractions().size() >= min_cluster_size_) {
+            (layerClusters[cl.first].hitsAndFractions().size() >= min_cluster_size_ or 
+            (std::abs(layerClusters[cl.first].z())>430 )))  {
           filteredLayerClusters->emplace_back(cl);
         } else {
           layerClustersMask[cl.first] = 0.;
