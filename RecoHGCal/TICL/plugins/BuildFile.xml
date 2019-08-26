@@ -4,6 +4,9 @@
 <use   name="FWCore/Framework"/>
 <use   name="FWCore/ParameterSet"/>
 <use   name="FWCore/PluginManager"/>
+<use   name="DataFormats/Candidate"/>
+<use   name="DataFormats/CaloRecHit"/>
+<use   name="DataFormats/ParticleFlowCandidate"/>
 <use   name="DataFormats/HGCDigi"/>
 <use   name="DataFormats/HGCRecHit"/>
 <use   name="DataFormats/HGCalReco"/>
@@ -11,6 +14,11 @@
 <use   name="FWCore/MessageLogger"/>
 <use   name="FWCore/MessageService"/>
 <use   name="Geometry/HGCalGeometry"/>
+<use   name="RecoHGCal/TICL"/>
+<use   name="PhysicsTools/TensorFlow"/>
+<use   name="DataFormats/TrackReco"/>
+<use   name="TrackingTools/Records"/>
+<use   name="Geometry/Records"/>
 
 <library   file="*.cc" name="RecoHGCalTICLPlugins">
   <flags   EDM_PLUGIN="1"/>

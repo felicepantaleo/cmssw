@@ -1,6 +1,8 @@
 
 <lcgdict>
-  <class name="ticl::Trackster" ClassVersion="3">
+  <class name="ticl::Trackster" ClassVersion="5">
+   <version ClassVersion="5" checksum="2455265975"/>
+   <version ClassVersion="4" checksum="522492601"/>
    <version ClassVersion="3" checksum="3878166595"/>
   </class>
   <class name="std::vector<ticl::Trackster>" />
@@ -14,4 +16,18 @@
     <field name="tiles_" transient="true"/>
   </class>
   <class name="edm::Wrapper<TICLLayerTiles> " />
+
+  <class name="ticl::TICLCandidate" ClassVersion="3">
+   <version ClassVersion="3" checksum="3131603709"/>
+  </class>
+  <class name="std::vector<ticl::TICLCandidate>" />
+  <class name="edm::Wrapper<ticl::TICLCandidate>" />
+  <class name="edm::Wrapper<std::vector<ticl::TICLCandidate> >" />
+  
+  <class name="TICLSeedingRegion" ClassVersion="3">
+    <version ClassVersion="3" checksum="2409655320"/>
+  </class>
+  <class name="std::vector<TICLSeedingRegion>" />
+  <class name="edm::Wrapper<TICLSeedingRegion>" />
+  <class name="edm::Wrapper<std::vector<TICLSeedingRegion> >" />
 </lcgdict>
