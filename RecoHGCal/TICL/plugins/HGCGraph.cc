@@ -140,7 +140,7 @@ bool HGCGraph::areTimeCompatible(int innerIdx,
 //also return a vector of seedIndex for the reconstructed tracksters
 void HGCGraph::findNtuplets(std::vector<HGCDoublet::HGCntuplet> &foundNtuplets,
                             std::vector<int> &seedIndices,
-                            const unsigned int minClustersPerNtuplet,
+                            const unsigned int minClustersPerNtuplet, const bool out_in_dfs) {
   HGCDoublet::HGCntuplet tmpNtuplet;
   tmpNtuplet.reserve(minClustersPerNtuplet);
   for (auto rootDoublet : theRootDoublets_) {
