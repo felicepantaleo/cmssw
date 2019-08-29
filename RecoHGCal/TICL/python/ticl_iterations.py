@@ -84,7 +84,7 @@ def TICL_iterations_withReco(process):
       LayerClustersInputMask = "trackstersMIP"
   )
 
-  process.tracksters = trackstersProducer.clone(
+  process.trackstersEM = trackstersProducer.clone(
       original_mask = "trackstersMIP",
       filtered_mask = cms.InputTag("filteredLayerClusters", "algo8"),
       seeding_regions = "ticlSeedingGlobal",
@@ -97,12 +97,12 @@ def TICL_iterations_withReco(process):
       out_in_dfs = True
   )
 
-  process.MultiClustersFromTrackstersEM = multiClustersFromTrackstersProducer.clone(
+  process.multiClustersFromTrackstersEM = multiClustersFromTrackstersProducer.clone(
       Tracksters = "trackstersEM"
   )
 
 
-  process.TrackstersHAD = trackstersProducer.clone(
+  process.trackstersHAD = trackstersProducer.clone(
 #      original_mask = "TrackstersMIP",
       filtered_mask = cms.InputTag("FilteredLayerClusters", "algo8"),
       missing_layers = 2,
@@ -114,7 +114,7 @@ def TICL_iterations_withReco(process):
       out_in_dfs = True
   )
 
-  process.MultiClustersFromTrackstersHAD = multiClustersFromTrackstersProducer.clone(
+  process.multiClustersFromTrackstersHAD = multiClustersFromTrackstersProducer.clone(
       Tracksters = "trackstersHAD"
   )
 
@@ -131,7 +131,7 @@ def TICL_iterations_withReco(process):
       process.multiClustersFromTrackstersMIP,
       process.filteredLayerClusters,
       process.trackstersEM,
-      process.MultiClustersFromTrackstersEM,
+      process.multiClustersFromTrackstersEM,
       process.trackstersHAD,
       process.multiClustersFromTrackstersHAD)
   process.schedule.associate(process.TICL_Task)
