@@ -66,6 +66,8 @@ public:
                                 const GlobalVector &refDir,
                                 float minCosTheta,
                                 float minCosPointing = 1.,
+                                float minCosThetaOutIn = 1.,
+                                float minCosPointingOutIn = 1.,
                                 bool debug = false);
 
   int areAligned(double xi,
@@ -76,10 +78,12 @@ public:
                  double zo,
                  float minCosTheta,
                  float minCosPointing,
+                 float minCosThetaOutIn,
+                 float minCosPointingOutIn,
                  const GlobalVector &refDir,
                  bool debug = false) const;
 
-  void findNtuplets(std::vector<HGCDoublet> &allDoublets, HGCntuplet &tmpNtuplet, int seedIndex);
+  void findNtuplets(std::vector<HGCDoublet> &allDoublets, HGCntuplet &tmpNtuplet, int seedIndex, const bool);
 
 private:
   const std::vector<reco::CaloCluster> *layerClusters_;

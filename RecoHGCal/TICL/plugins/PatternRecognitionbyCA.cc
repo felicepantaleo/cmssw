@@ -10,10 +10,13 @@
 
 using namespace ticl;
 
-PatternRecognitionbyCA::PatternRecognitionbyCA(const edm::ParameterSet &conf) : PatternRecognitionAlgoBase(conf) {
+PatternRecognitionbyCA::PatternRecognitionbyCA(const edm::ParameterSet &conf)
+    : PatternRecognitionAlgoBase(conf), out_in_dfs_(conf.getParameter<bool>("out_in_dfs")) {
   theGraph_ = std::make_unique<HGCGraph>();
   min_cos_theta_ = conf.getParameter<double>("min_cos_theta");
   min_cos_pointing_ = conf.getParameter<double>("min_cos_pointing");
+  min_cos_theta_outin_ = conf.getParameter<double>("min_cos_theta_outin");
+  min_cos_pointing_outin_ = conf.getParameter<double>("min_cos_pointing_outin");
   missing_layers_ = conf.getParameter<int>("missing_layers");
   min_clusters_per_ntuplet_ = conf.getParameter<int>("min_clusters_per_ntuplet");
   max_delta_time_ = conf.getParameter<double>("max_delta_time");
@@ -44,11 +47,13 @@ void PatternRecognitionbyCA::makeTracksters(const PatternRecognitionAlgoBase::In
                                     1,
                                     min_cos_theta_,
                                     min_cos_pointing_,
+                                    min_cos_theta_outin_,
+                                    min_cos_pointing_outin_,
                                     missing_layers_,
                                     rhtools_.lastLayerFH(),
                                     max_delta_time_);
 
-  theGraph_->findNtuplets(foundNtuplets, seedIndices, min_clusters_per_ntuplet_);
+  theGraph_->findNtuplets(foundNtuplets, seedIndices, min_clusters_per_ntuplet_, out_in_dfs_);
   //#ifdef FP_DEBUG
   const auto &doublets = theGraph_->getAllDoublets();
   int tracksterId = 0;
