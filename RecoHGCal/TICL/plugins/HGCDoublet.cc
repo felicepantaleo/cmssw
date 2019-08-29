@@ -132,8 +132,10 @@ int HGCDoublet::areAligned(double xi,
   return result_;
 }
 
-void HGCDoublet::findNtuplets(std::vector<HGCDoublet> &allDoublets, HGCntuplet &tmpNtuplet, int seedIndex, const bool outInDFS) {
+void HGCDoublet::findNtuplets(std::vector<HGCDoublet> &allDoublets, HGCntuplet &tmpNtuplet, int seedIndex, const bool outInDFS, unsigned int out_in_hops, std::queue<std::pair<unsigned int, unsigned int > >& out_in_queue) {
   if (!alreadyVisited_ && seedIndex == seedIndex_) {
+    if (out_in_hops > 3)
+      std::cout << out_in_hops << " hops from initial root cell" << std::endl;
     alreadyVisited_ = true;
     tmpNtuplet.push_back(theDoubletId_);
     unsigned int numberOfOuterNeighbors = outerNeighbors_.size();
@@ -154,12 +156,12 @@ void HGCDoublet::findNtuplets(std::vector<HGCDoublet> &allDoublets, HGCntuplet &
 #endif
 
     for (unsigned int i = 0; i < numberOfOuterNeighbors; ++i) {
-      allDoublets[outerNeighbors_[i]].findNtuplets(allDoublets, tmpNtuplet, seedIndex, outInDFS);
+      allDoublets[outerNeighbors_[i]].findNtuplets(allDoublets, tmpNtuplet, seedIndex, outInDFS, out_in_hops, out_in_queue);
     }
-    if (outInDFS) {
+    if (outInDFS && out_in_hops < 10) {
       unsigned int numberOfInnerNeighbors = innerNeighbors_.size();
       for (unsigned int i = 0; i < numberOfInnerNeighbors; ++i) {
-        allDoublets[innerNeighbors_[i]].findNtuplets(allDoublets, tmpNtuplet, seedIndex, outInDFS);
+        out_in_queue.emplace(innerNeighbors_[i],out_in_hops+1); 
       }
     }
   }

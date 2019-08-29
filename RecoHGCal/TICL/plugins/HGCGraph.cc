@@ -1,11 +1,14 @@
 // Author: Felice Pantaleo - felice.pantaleo@cern.ch
 // Date: 11/2018
+
+#include <queue>
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
 #include "DataFormats/HGCalReco/interface/Common.h"
 #include "PatternRecognitionbyCA.h"
 #include "HGCDoublet.h"
 #include "HGCGraph.h"
 #include "DataFormats/Common/interface/ValueMap.h"
+
 
 void HGCGraph::makeAndConnectDoublets(const TICLLayerTiles &histo,
                                       const std::vector<TICLSeedingRegion> &regions,
@@ -146,7 +149,14 @@ void HGCGraph::findNtuplets(std::vector<HGCDoublet::HGCntuplet> &foundNtuplets,
   for (auto rootDoublet : theRootDoublets_) {
     tmpNtuplet.clear();
     int seedIndex = allDoublets_[rootDoublet].seedIndex();
-    allDoublets_[rootDoublet].findNtuplets(allDoublets_, tmpNtuplet, seedIndex, out_in_dfs);
+    int out_in_hops = 0; 
+    std::queue<std::pair<unsigned int, unsigned int > > out_in_queue;
+    allDoublets_[rootDoublet].findNtuplets(allDoublets_, tmpNtuplet, seedIndex, out_in_dfs, out_in_hops, out_in_queue);
+    while(!out_in_queue.empty())
+    {
+      allDoublets_[out_in_queue.front().first].findNtuplets(allDoublets_, tmpNtuplet, seedIndex, out_in_dfs, out_in_queue.front().second, out_in_queue);
+      out_in_queue.pop();
+    }
     if (tmpNtuplet.size() > minClustersPerNtuplet) {
       foundNtuplets.push_back(tmpNtuplet);
       seedIndices.push_back(seedIndex);

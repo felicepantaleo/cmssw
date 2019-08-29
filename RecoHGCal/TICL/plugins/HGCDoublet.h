@@ -6,7 +6,7 @@
 
 #include <cmath>
 #include <vector>
-
+#include <queue>
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
 #include "DataFormats/CaloRecHit/interface/CaloCluster.h"
 #include "DataFormats/HGCalReco/interface/TICLSeedingRegion.h"
@@ -83,7 +83,7 @@ public:
                  const GlobalVector &refDir,
                  bool debug = false) const;
 
-  void findNtuplets(std::vector<HGCDoublet> &allDoublets, HGCntuplet &tmpNtuplet, int seedIndex, const bool);
+  void findNtuplets(std::vector<HGCDoublet> &allDoublets, HGCntuplet &tmpNtuplet, int seedIndex, const bool, unsigned int out_in_hops, std::queue<std::pair<unsigned int, unsigned int > >& out_in_queue);
 
 private:
   const std::vector<reco::CaloCluster> *layerClusters_;
