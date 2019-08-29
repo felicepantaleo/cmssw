@@ -6,16 +6,19 @@
 #include <memory>  // unique_ptr
 #include "RecoHGCal/TICL/interface/PatternRecognitionAlgoBase.h"
 #include "RecoLocalCalo/HGCalRecAlgos/interface/RecHitTools.h"
+#include "PhysicsTools/TensorFlow/interface/TensorFlow.h"
 
 class HGCGraph;
 
 namespace ticl {
   class PatternRecognitionbyCA final : public PatternRecognitionAlgoBase {
   public:
-    PatternRecognitionbyCA(const edm::ParameterSet& conf);
+    PatternRecognitionbyCA(const edm::ParameterSet& conf, const CacheBase* cache);
     ~PatternRecognitionbyCA() override;
 
     void makeTracksters(const PatternRecognitionAlgoBase::Inputs& input, std::vector<Trackster>& result) override;
+
+    void energyRegressionAndID(const std::vector<reco::CaloCluster>& layerClusters, std::vector<Trackster>& result);
 
   private:
     hgcal::RecHitTools rhtools_;
@@ -28,6 +31,15 @@ namespace ticl {
     int min_clusters_per_ntuplet_;
     float max_delta_time_;
     const bool out_in_dfs_ = false;
+    tensorflow::Session* eidSession_;
+    std::string eidInputName_;
+    std::string eidOutputNameEnergy_;
+    std::string eidOutputNameId_;
+    float eidMinClusterEnergy_;
+    int eidNLayers_;
+    int eidNClusters_;
+
+    static const int eidNFeatures_ = 3;
   };
 }  // namespace ticl
 #endif
