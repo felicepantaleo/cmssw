@@ -24,6 +24,8 @@ public:
                               int deltaIPhi,
                               float minCosThetai,
                               float maxCosPointing,
+                              float minCosThetaOutIn,
+                              float maxCosPointingOutIn,
                               int missing_layers,
                               int maxNumberOfLayers,
                               float maxDeltaTime);
@@ -33,7 +35,9 @@ public:
   std::vector<HGCDoublet> &getAllDoublets() { return allDoublets_; }
   void findNtuplets(std::vector<HGCDoublet::HGCntuplet> &foundNtuplets,
                     std::vector<int> &seedIndices,
-                    const unsigned int minClustersPerNtuplet);
+                    const unsigned int minClustersPerNtuplet,
+                    const bool outInDFS);
+
   void clear() {
     allDoublets_.clear();
     theRootDoublets_.clear();

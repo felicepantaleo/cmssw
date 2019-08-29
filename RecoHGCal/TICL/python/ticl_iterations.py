@@ -65,7 +65,10 @@ def TICL_iterations_withReco(process):
       missing_layers = 3,
       min_clusters_per_ntuplet = 15,
       min_cos_theta = 0.99, # ~10 degrees
-      min_cos_pointing = 0.9
+      min_cos_pointing = 0.9,
+      min_cos_theta_outin = 1.,
+      min_cos_pointing_outin = 1.,
+      out_in_dfs = False
   )
 
   process.multiClustersFromTrackstersMIP = multiClustersFromTrackstersProducer.clone(
@@ -86,13 +89,33 @@ def TICL_iterations_withReco(process):
       filtered_mask = cms.InputTag("filteredLayerClusters", "algo8"),
       seeding_regions = "ticlSeedingGlobal",
       missing_layers = 2,
-      min_clusters_per_ntuplet = 15,
+      min_clusters_per_ntuplet = 10,
       min_cos_theta = 0.94, # ~20 degrees
-      min_cos_pointing = 0.7
+      min_cos_pointing = 0.7,
+      min_cos_theta_outin = 0.94,
+      min_cos_pointing_outin = 0.7,
+      out_in_dfs = True
   )
 
-  process.multiClustersFromTracksters = multiClustersFromTrackstersProducer.clone(
-      Tracksters = "tracksters"
+  process.MultiClustersFromTrackstersEM = multiClustersFromTrackstersProducer.clone(
+      Tracksters = "trackstersEM"
+  )
+
+
+  process.TrackstersHAD = trackstersProducer.clone(
+#      original_mask = "TrackstersMIP",
+      filtered_mask = cms.InputTag("FilteredLayerClusters", "algo8"),
+      missing_layers = 2,
+      min_clusters_per_ntuplet = 10,
+      min_cos_theta = 0.8, # ~20 degrees
+      min_cos_pointing = 0.7,
+      min_cos_theta_outin = 0.8,
+      min_cos_pointing_outin = 0.7,
+      out_in_dfs = True
+  )
+
+  process.MultiClustersFromTrackstersHAD = multiClustersFromTrackstersProducer.clone(
+      Tracksters = "trackstersHAD"
   )
 
   process.hgcalMultiClusters = hgcalMultiClusters
@@ -107,8 +130,10 @@ def TICL_iterations_withReco(process):
       process.trackstersMIP,
       process.multiClustersFromTrackstersMIP,
       process.filteredLayerClusters,
-      process.tracksters,
-      process.multiClustersFromTracksters)
+      process.trackstersEM,
+      process.MultiClustersFromTrackstersEM,
+      process.trackstersHAD,
+      process.multiClustersFromTrackstersHAD)
   process.schedule.associate(process.TICL_Task)
   return process
 
@@ -136,7 +161,9 @@ def TICL_iterations(process):
       seeding_regions = "ticlSeedingGlobal",
       missing_layers = 3,
       min_clusters_per_ntuplet = 15,
-      min_cos_theta = 0.99 # ~10 degrees
+      min_cos_theta = 0.985, # ~10 degrees
+      min_cos_theta_outin = 1.,
+      min_cos_pointing_outin = 1.
   )
 
   process.multiClustersFromTrackstersMIP = multiClustersFromTrackstersProducer.clone(
@@ -158,7 +185,9 @@ def TICL_iterations(process):
       missing_layers = 2,
       min_clusters_per_ntuplet = 15,
       min_cos_theta = 0.94, # ~20 degrees
-      min_cos_pointing = 0.7
+      min_cos_pointing = 0.7,
+      min_cos_theta_outin = 0.97,
+      min_cos_pointing_outin = 0.9
   )
 
   process.multiClustersFromTracksters = multiClustersFromTrackstersProducer.clone(

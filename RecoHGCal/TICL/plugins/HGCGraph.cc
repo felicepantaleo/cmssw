@@ -18,6 +18,8 @@ void HGCGraph::makeAndConnectDoublets(const TICLLayerTiles &histo,
                                       int deltaIPhi,
                                       float minCosTheta,
                                       float minCosPointing,
+                                      float minCosThetaOutIn,
+                                      float minCosPointingOutIn,
                                       int missing_layers,
                                       int maxNumberOfLayers,
                                       float maxDeltaTime) {
@@ -103,6 +105,8 @@ void HGCGraph::makeAndConnectDoublets(const TICLLayerTiles &histo,
                                                                               r.directionAtOrigin,
                                                                               minCosTheta,
                                                                               minCosPointing,
+                                                                              minCosThetaOutIn,
+                                                                              minCosPointingOutIn,
                                                                               verbosity_ > Advanced);
                     if (isRootDoublet)
                       theRootDoublets_.push_back(doubletId);
@@ -136,13 +140,13 @@ bool HGCGraph::areTimeCompatible(int innerIdx,
 //also return a vector of seedIndex for the reconstructed tracksters
 void HGCGraph::findNtuplets(std::vector<HGCDoublet::HGCntuplet> &foundNtuplets,
                             std::vector<int> &seedIndices,
-                            const unsigned int minClustersPerNtuplet) {
+                            const unsigned int minClustersPerNtuplet, const bool out_in_dfs) {
   HGCDoublet::HGCntuplet tmpNtuplet;
   tmpNtuplet.reserve(minClustersPerNtuplet);
   for (auto rootDoublet : theRootDoublets_) {
     tmpNtuplet.clear();
     int seedIndex = allDoublets_[rootDoublet].seedIndex();
-    allDoublets_[rootDoublet].findNtuplets(allDoublets_, tmpNtuplet, seedIndex);
+    allDoublets_[rootDoublet].findNtuplets(allDoublets_, tmpNtuplet, seedIndex, out_in_dfs);
     if (tmpNtuplet.size() > minClustersPerNtuplet) {
       foundNtuplets.push_back(tmpNtuplet);
       seedIndices.push_back(seedIndex);

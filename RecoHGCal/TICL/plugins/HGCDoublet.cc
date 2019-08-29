@@ -5,6 +5,8 @@ bool HGCDoublet::checkCompatibilityAndTag(std::vector<HGCDoublet> &allDoublets,
                                           const GlobalVector &refDir,
                                           float minCosTheta,
                                           float minCosPointing,
+                                          float minCosThetaOutIn,
+                                          float minCosPointingOutIn,
                                           bool debug) {
   int nDoublets = innerDoublets.size();
   int constexpr VSIZE = 4;
@@ -32,7 +34,7 @@ bool HGCDoublet::checkCompatibilityAndTag(std::vector<HGCDoublet> &allDoublets,
         ok[j] = 0;
         continue;
       }
-      ok[j] = areAligned(xi[j], yi[j], zi[j], xo, yo, zo, minCosTheta, minCosPointing, refDir, debug);
+      ok[j] = areAligned(xi[j], yi[j], zi[j], xo, yo, zo, minCosTheta, minCosPointing, minCosThetaOutIn, minCosPointingOutIn, refDir, debug);
       if (debug) {
         LogDebug("HGCDoublet") << "Are aligned for InnerDoubletId: " << i + j << " is " << ok[j] << std::endl;
       }
@@ -40,9 +42,11 @@ bool HGCDoublet::checkCompatibilityAndTag(std::vector<HGCDoublet> &allDoublets,
     for (int j = 0; j < vs; ++j) {
       auto otherDoubletId = innerDoublets[i + j];
       auto &otherDoublet = allDoublets[otherDoubletId];
-      if (ok[j]) {
+      if (ok[j] >= 1) {
         otherDoublet.tagAsOuterNeighbor(doubletId);
-        allDoublets[doubletId].tagAsInnerNeighbor(otherDoubletId);
+        if (ok[j] == 2) {
+          allDoublets[doubletId].tagAsInnerNeighbor(otherDoubletId);
+        }
       }
     }
   };
@@ -66,6 +70,8 @@ int HGCDoublet::areAligned(double xi,
                            double zo,
                            float minCosTheta,
                            float minCosPointing,
+                           float minCosThetaOutIn,
+                           float minCosPointingOutIn,
                            const GlobalVector &refDir,
                            bool debug) const {
   auto dx1 = xo - xi;
@@ -107,16 +113,54 @@ int HGCDoublet::areAligned(double xi,
                            << " isWithinLimits: " << (cosTheta_pointing < minCosPointing) << std::endl;
   }
 
-  return (cosTheta > minCosTheta) && (cosTheta_pointing > minCosPointing);
+  int result_ = 0;
+  bool passInOut_ = false;
+  bool passOutIn_ = false;
+  if ((cosTheta > minCosTheta) && (cosTheta_pointing > minCosPointing)) {
+    passInOut_ = true;
+  }
+  if ((cosTheta > minCosThetaOutIn) && (cosTheta_pointing > minCosPointingOutIn)) {
+    passOutIn_ = true;
+  }
+  if (passInOut_) {
+    result_ = 1;
+  }
+  if (passInOut_ && passOutIn_) {
+    result_ = 2;
+  }
+
+  return result_;
 }
 
-void HGCDoublet::findNtuplets(std::vector<HGCDoublet> &allDoublets, HGCntuplet &tmpNtuplet, int seedIndex) {
+void HGCDoublet::findNtuplets(std::vector<HGCDoublet> &allDoublets, HGCntuplet &tmpNtuplet, int seedIndex, const bool outInDFS) {
   if (!alreadyVisited_ && seedIndex == seedIndex_) {
     alreadyVisited_ = true;
     tmpNtuplet.push_back(theDoubletId_);
     unsigned int numberOfOuterNeighbors = outerNeighbors_.size();
+#ifdef FP_DEBUG
+
+    std::cout << "- - - - - - - - - - " << std::endl;
+    std::cout << "visiting doublet: " << theDoubletId_ << " innerlc : " << innerClusterId_
+              << " outerlc: " << outerClusterId_ << " visited: " << alreadyVisited_ << " oneighbors "
+              << outerNeighbors_.size() << " ineighbors " << innerNeighbors_.size() << std::endl;
+    std::cout << "outer neighbors: " << std::endl;
     for (unsigned int i = 0; i < numberOfOuterNeighbors; ++i) {
-      allDoublets[outerNeighbors_[i]].findNtuplets(allDoublets, tmpNtuplet, seedIndex);
+      std::cout << i << "    " << outerNeighbors_[i] << std::endl;
+    }
+    std::cout << "\n inner neighbors: " << std::endl;
+    for (unsigned int i = 0; i < innerNeighbors_.size(); ++i) {
+      std::cout << i << "    " << innerNeighbors_[i] << std::endl;
+    }
+#endif
+
+    for (unsigned int i = 0; i < numberOfOuterNeighbors; ++i) {
+      allDoublets[outerNeighbors_[i]].findNtuplets(allDoublets, tmpNtuplet, seedIndex, outInDFS);
+    }
+    if (outInDFS) {
+      unsigned int numberOfInnerNeighbors = innerNeighbors_.size();
+      for (unsigned int i = 0; i < numberOfInnerNeighbors; ++i) {
+        allDoublets[innerNeighbors_[i]].findNtuplets(allDoublets, tmpNtuplet, seedIndex, outInDFS);
+      }
     }
   }
 }
