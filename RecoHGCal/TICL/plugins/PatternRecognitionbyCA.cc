@@ -110,7 +110,7 @@ void PatternRecognitionbyCA::makeTracksters(const PatternRecognitionAlgoBase::In
 
   // energy regression and ID when a session is created
   if (eidSession_ != nullptr) {
-    energyRegressionAndID(layerClusters, result);
+    energyRegressionAndID(input.layerClusters, result);
   }
 }
 
