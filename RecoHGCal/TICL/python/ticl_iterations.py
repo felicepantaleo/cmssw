@@ -105,6 +105,7 @@ def TICL_iterations_withReco(process):
   process.trackstersHAD = trackstersProducer.clone(
 #      original_mask = "TrackstersMIP",
       filtered_mask = cms.InputTag("filteredLayerClusters", "algo8"),
+      seeding_regions = "ticlSeedingGlobal",
       missing_layers = 2,
       min_clusters_per_ntuplet = 10,
       min_cos_theta = 0.8, # ~20 degrees
