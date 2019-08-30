@@ -16,7 +16,7 @@ namespace ticl {
     PatternRecognitionbyCA(const edm::ParameterSet& conf, const CacheBase* cache);
     ~PatternRecognitionbyCA() override;
 
-    void makeTracksters(const PatternRecognitionAlgoBase::Inputs& input) override;
+    void makeTracksters(const PatternRecognitionAlgoBase::Inputs& input, std::vector<Trackster>& result) override;
 
     void energyRegressionAndID(const std::vector<reco::CaloCluster>& layerClusters, std::vector<Trackster>& result);
 
