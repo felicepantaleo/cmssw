@@ -47,11 +47,16 @@ namespace ticl {
     // trackster ID probabilities
     std::array<float, 8> id_probabilities;
 
+
     // convenience method to return the ID probability for a certain particle type
     inline float id_probability(ParticleType type) {
       // probabilities are stored in the same order as defined in the ParticleType enum
       return id_probabilities[(int)type];
     }
+
+    inline float unknown_probability() { return id_probabilities[6]; };
+
+
   };
 }  // namespace ticl
 #endif
