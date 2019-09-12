@@ -117,7 +117,7 @@ def TICL_iterations_withReco(process):
   process.multiClustersFromTrackstersHAD = multiClustersFromTrackstersProducer.clone(
       Tracksters = "trackstersHAD"
   )
-
+  process.ticlCandidateFromTrackstersProducer = ticlCandidateFromTrackstersProducer.clone()
   process.pfTICLProducer = pfTICLProducer.clone()
 
   process.hgcalMultiClusters = hgcalMultiClusters
