@@ -73,7 +73,7 @@ void TICLCandidateFromTrackstersProducer::fillDescriptions(edm::ConfigurationDes
   edm::ParameterSetDescription desc;
 
   std::vector<edm::InputTag> source_vector{
-      edm::InputTag("trackstersTrk"), edm::InputTag("trackstersMIP"), edm::InputTag("tracksters")};
+      edm::InputTag("trackstersTrk"), edm::InputTag("trackstersMIP"), edm::InputTag("trackstersEM"), edm::InputTag("trackstersHAD")};
   desc.add<std::vector<edm::InputTag>>("tracksterCollections", source_vector);
 
   edm::ParameterSetDescription desc_momentum;
