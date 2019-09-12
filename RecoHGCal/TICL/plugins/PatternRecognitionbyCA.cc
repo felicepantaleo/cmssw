@@ -10,7 +10,7 @@
 
 using namespace ticl;
 
-PatternRecognitionbyCA::PatternRecognitionbyCA(const edm::ParameterSet &conf)
+PatternRecognitionbyCA::PatternRecognitionbyCA(const edm::ParameterSet &conf,  const CacheBase* cache)
     : PatternRecognitionAlgoBase(conf, cache), eidSession_(nullptr),
       out_in_dfs_(conf.getParameter<bool>("out_in_dfs")),
       max_out_in_hops_(conf.getParameter<int>("max_out_in_hops")) {

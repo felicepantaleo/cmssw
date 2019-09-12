@@ -23,8 +23,6 @@ namespace ticl {
   private:
     hgcal::RecHitTools rhtools_;
     std::unique_ptr<HGCGraph> theGraph_;
-    const bool out_in_dfs_ = false;
-    const unsigned int max_out_in_hops_ = 99999;
     float min_cos_theta_;
     float min_cos_pointing_;
     int missing_layers_;
@@ -39,6 +37,9 @@ namespace ticl {
     int eidNClusters_;
 
     static const int eidNFeatures_ = 3;
+    const bool out_in_dfs_ = false;
+    const unsigned int max_out_in_hops_ = 99999;
+    
   };
 }  // namespace ticl
 #endif
