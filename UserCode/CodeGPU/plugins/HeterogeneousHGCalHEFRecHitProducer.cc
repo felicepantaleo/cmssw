@@ -3,12 +3,6 @@
 HeterogeneousHGCalHEFRecHitProducer::HeterogeneousHGCalHEFRecHitProducer(const edm::ParameterSet& ps):
   token_(consumes<HGCUncalibratedRecHitCollection>(ps.getParameter<edm::InputTag>("HGCHEFUncalibRecHitsTok")))
 {
-  //histogram drawing for debugging: to be removed at a later stage
-  histo1_ = fs->make<TH1F>( "energy"  , "E", 100,  0., .2 );
-  histo2_ = fs->make<TH1F>( "time"  , "t", 100,  0., 10. );
-  histo3_ = fs->make<TH1F>( "timeError"  , "time_error", 100,  0., 10. );
-  histo4_ = fs->make<TH1I>( "son"  , "son", 32,  0., 31. );
-
   nhitsmax_                 = ps.getParameter<uint32_t>("nhitsmax");
   cdata_.hgcHEF_keV2DIGI_   = ps.getParameter<double>("HGCHEF_keV2DIGI");
   cdata_.xmin_              = ps.getParameter<double>("minValSiPar"); //float
@@ -67,17 +61,14 @@ void HeterogeneousHGCalHEFRecHitProducer::acquire(edm::Event const& event, edm::
   const auto &hits_hef = *handle_hef_;
 
   unsigned int nhits = hits_hef.size();
-  std::cout << "HEF hits: " << nhits << std::endl;
   convert_collection_data_to_soa_(hits_hef, old_soa_, nhits);
 
   kmdata_ = new KernelModifiableData<HGCUncalibratedRecHitSoA, HGCRecHitSoA>(nhitsmax_, stride_, old_soa_, d_oldhits_, d_newhits_, d_newhits_final_, h_newhits_);
   KernelManagerHGCalRecHit kernel_manager(kmdata_);
   kernel_manager.run_kernels(h_kcdata_, d_kcdata_);
   new_soa_ = kernel_manager.get_output();
-  
-  //print_to_histograms(kmdata_->h_out, histo1_, histo2_, histo3_, histo4_, nhits);
-  
-  rechits_ = std::make_unique< HGCRecHitCollection >();
+
+  rechits_ = std::make_unique<HGCRecHitCollection>();
   convert_soa_data_to_collection_(*rechits_, new_soa_, nhits);
 }
 
