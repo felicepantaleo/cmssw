@@ -34,7 +34,7 @@
 
 #include "HeterogeneousHGCalProducerMemoryWrapper.h"
 #include "KernelManager.h"
-
+#include "Utils.h"
 
 class HeterogeneousHGCalHEFRecHitProducer: public edm::stream::EDProducer<edm::ExternalWork> 
 {
