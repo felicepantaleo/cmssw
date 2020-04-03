@@ -5,12 +5,12 @@
 
 class HGCConstantVectorData {
  public:
-  std::vector<double> fCPerMIP;
-  std::vector<double> cce;
-  std::vector<double> noise_fC;
-  std::vector<double> rcorr;
-  std::vector<double> weights;
-  std::vector<int> waferTypeL;
+  std::vector<double> fCPerMIP_;
+  std::vector<double> cce_;
+  std::vector<double> noise_fC_;
+  std::vector<double> rcorr_;
+  std::vector<double> weights_;
+  std::vector<int> waferTypeL_;
 };
 
 class HGCeeUncalibratedRecHitConstantData {
@@ -30,12 +30,12 @@ class HGCeeUncalibratedRecHitConstantData {
   uint32_t rangeMatch_;
   uint32_t rangeMask_;
   bool hgcEE_isSiFE_;
-  int nbytes;
-  int ndelem;
-  int nfelem;
-  int nuelem;
-  int nielem;
-  int nbelem;
+  int nbytes_;
+  int ndelem_;
+  int nfelem_;
+  int nuelem_;
+  int nielem_;
+  int nbelem_;
   int s_hgcEE_fCPerMIP_;
   int s_hgcEE_cce_;
   int s_hgcEE_noise_fC_;
@@ -62,12 +62,12 @@ class HGChefUncalibratedRecHitConstantData {
   uint32_t rangeMask_;
   uint32_t fhOffset_;
   bool hgcHEF_isSiFE_;
-  int nbytes;
-  int ndelem;
-  int nfelem;
-  int nuelem;
-  int nielem;
-  int nbelem;
+  int nbytes_;
+  int ndelem_;
+  int nfelem_;
+  int nuelem_;
+  int nielem_;
+  int nbelem_;
   int s_hgcHEF_fCPerMIP_;
   int s_hgcHEF_cce_;
   int s_hgcHEF_noise_fC_;
@@ -86,12 +86,12 @@ class HGChebUncalibratedRecHitConstantData {
   uint32_t rangeMask_;
   uint32_t fhOffset_;
   bool hgcHEB_isSiFE_;
-  int nbytes;
-  int ndelem;
-  int nfelem;
-  int nuelem;
-  int nielem;
-  int nbelem;
+  int nbytes_;
+  int ndelem_;
+  int nfelem_;
+  int nuelem_;
+  int nielem_;
+  int nbelem_;
   int s_weights_;
 };
 
