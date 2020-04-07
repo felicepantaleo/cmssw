@@ -21,7 +21,7 @@ process.load('SimCalorimetry.HGCalSimProducers.hgcalDigitizer_cfi')
 process.maxEvents = cms.untracked.PSet(
     input = cms.untracked.int32( 10 ))
 
-fNames = ['file:/afs/cern.ch/user/b/bfontana/CMSSW_11_0_0_pre11_Patatrack/src/UserCode/Samples/20495.0_CloseByParticleGun_CE_E_Front_200um+CE_E_Front_200um_2026D41_GenSimHLBeamSpotFull+DigiFullTrigger_2026D41+RecoFullGlobal_2026D41+HARVESTFullGlobal_2026D41/step3.root']
+fNames = ['file:/afs/cern.ch/work/b/bfontana/public/ntuple_selection_1000.root']
 keep = 'keep *'
 drop = 'drop CSCDetIdCSCALCTPreTriggerDigiMuonDigiCollection_simCscTriggerPrimitiveDigis__HLT'
 process.source = cms.Source("PoolSource",
