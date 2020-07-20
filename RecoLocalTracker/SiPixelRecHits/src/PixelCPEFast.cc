@@ -112,7 +112,8 @@ void PixelCPEFast::fillParamsForGpu() {
   m_commonParamsGPU.thePitchX = m_DetParams[0].thePitchX;
   m_commonParamsGPU.thePitchY = m_DetParams[0].thePitchY;
 
-  // std::cout << "pitch & thickness " <<  m_commonParamsGPU.thePitchX << ' ' << m_commonParamsGPU.thePitchY << "  " << m_commonParamsGPU.theThicknessB << ' ' << m_commonParamsGPU.theThicknessE << std::endl;
+  // std::cout << "pitch & thickness " << m_commonParamsGPU.thePitchX << ' ' << m_commonParamsGPU.thePitchY << "  "
+  //          << m_commonParamsGPU.theThicknessB << ' ' << m_commonParamsGPU.theThicknessE << std::endl;
 
   // zero average geometry
   memset(&m_averageGeometry, 0, sizeof(pixelCPEforGPU::AverageGeometry));
@@ -184,7 +185,84 @@ void PixelCPEFast::fillParamsForGpu() {
     pl += vv.phi();  // (not obvious)
 
     // errors .....
+
     ClusterParamGeneric cp;
+
+    cp.with_track_angle = false;
+
+    auto lape = p.theDet->localAlignmentError();
+    if (lape.invalid())
+      lape = LocalError();  // zero....
+    auto apeX = lape.xx();
+    auto apeY = lape.yy();
+
+    auto toMicronX = [&](float x) {
+      x = std::sqrt(x * x + apeX);
+      return std::min(511, int(x * 1.e4f + 0.5f));
+    };
+    auto toMicronY = [&](float x) {
+      x = std::sqrt(x * x + apeY);
+      return std::min(511, int(x * 1.e4f + 0.5f));
+    };
+
+    {
+      // average angle
+      auto gvx = p.theOrigin.x() + 40.f * m_commonParamsGPU.thePitchX;
+      auto gvy = p.theOrigin.y();
+      auto gvz = 1.f / p.theOrigin.z();
+      cp.cotalpha = gvx * gvz;
+      cp.cotbeta = gvy * gvz;
+      errorFromTemplates(p, cp, 20000.);
+    }
+#ifdef DUMP_ERRORS
+    auto m = 10000.f;
+    std::cout << i << ' ' << (g.isBarrel ? 'B' : 'E') << " ape " << m * std::sqrt(lape.xx()) << ' '
+              << m * std::sqrt(lape.yy()) << std::endl;
+    std::cout << i << ' ' << g.rawId << ' ' << cp.cotalpha << ' ' << 20000 << ' ' << cp.qBin_ << ' ' << cp.pixmx << ' '
+              << m * cp.sigmax << ' ' << m * cp.sx1 << ' ' << m * cp.sx2 << ' ' << m * cp.sigmay << ' ' << m * cp.sy1
+              << ' ' << m * cp.sy2 << std::endl;
+#endif
+
+    g.pixmx = std::max(0, cp.pixmx);
+    g.sx2 = toMicronX(cp.sx2);
+    g.sy1 = toMicronY(cp.sy1);
+    g.sy2 = std::max(55,toMicronY(cp.sy2));
+
+    // sample xerr as function of position
+    auto xoff = -81.f * m_commonParamsGPU.thePitchX;
+
+    for (int ix = 0; ix < 16; ++ix) {
+      auto x = xoff + (0.5f + float(ix)) * 162.f * m_commonParamsGPU.thePitchX / 16.f;
+      auto gvx = p.theOrigin.x() - x;
+      auto gvy = p.theOrigin.y();
+      auto gvz = 1.f / p.theOrigin.z();
+      cp.cotbeta = gvy * gvz;
+      cp.cotalpha = gvx * gvz;
+      errorFromTemplates(p, cp, 20000.f);
+      g.sigmax[ix] = toMicronX(cp.sigmax);
+      g.sigmax1[ix] = toMicronX(cp.sx1);
+#ifdef DUMP_ERRORS
+      std::cout << "sigmax vs x " << i << ' ' << x << ' ' << cp.cotalpha << ' ' << int(g.sigmax[ix]) << ' '
+                << int(g.sigmax1[ix]) << ' ' << 10000.f * cp.sigmay << std::endl;
+#endif
+    }
+
+#ifdef DUMP_ERRORS
+    // sample yerr as function of position
+    auto yoff = -54 * 4.f * m_commonParamsGPU.thePitchY;
+    for (int ix = 0; ix < 16; ++ix) {
+      auto y = yoff + (0.5f + float(ix)) * 432.f * m_commonParamsGPU.thePitchY / 16.f;
+      auto gvx = p.theOrigin.x() + 40.f * m_commonParamsGPU.thePitchY;
+      auto gvy = p.theOrigin.y() - y;
+      auto gvz = 1.f / p.theOrigin.z();
+      cp.cotbeta = gvy * gvz;
+      cp.cotalpha = gvx * gvz;
+      errorFromTemplates(p, cp, 20000.f);
+      std::cout << "sigmay vs y " << i << ' ' << y << ' ' << cp.cotbeta << ' ' << 10000.f * cp.sigmay << std::endl;
+    }
+#endif
+
+    // average angle
     auto gvx = p.theOrigin.x() + 40.f * m_commonParamsGPU.thePitchX;
     auto gvy = p.theOrigin.y();
     auto gvz = 1.f / p.theOrigin.z();
@@ -193,68 +271,57 @@ void PixelCPEFast::fillParamsForGpu() {
     // calculate angles
     cp.cotalpha = gvx * gvz;
     cp.cotbeta = gvy * gvz;
+    auto aveCB = cp.cotbeta;
 
-    cp.with_track_angle = false;
-
-    auto lape = p.theDet->localAlignmentError();
-    if (lape.invalid())
-      lape = LocalError();  // zero....
-
-#ifdef DUMP_ERRORS
-    auto m = 10000.f;
-    for (float qclus = 15000; qclus < 35000; qclus += 15000) {
+    // sample x by charge
+    int qbin = 5;  // low charge
+    int k = 0;
+    for (int qclus = 1000; qclus < 200000; qclus += 1000) {
       errorFromTemplates(p, cp, qclus);
-
-      std::cout << i << ' ' << qclus << ' ' << cp.pixmx << ' ' << m * cp.sigmax << ' ' << m * cp.sx1 << ' '
-                << m * cp.sx2 << ' ' << m * cp.sigmay << ' ' << m * cp.sy1 << ' ' << m * cp.sy2 << std::endl;
-    }
-    std::cout << i << ' ' << m * std::sqrt(lape.xx()) << ' ' << m * std::sqrt(lape.yy()) << std::endl;
+      if (cp.qBin_ == qbin)
+        continue;
+      qbin = cp.qBin_;
+      g.xfact[k] = cp.sigmax;
+      g.yfact[k] = cp.sigmay;
+      g.minCh[k++] = qclus;
+#ifdef DUMP_ERRORS
+      std::cout << i << ' ' << g.rawId << ' ' << cp.cotalpha << ' ' << qclus << ' ' << cp.qBin_ << ' ' << cp.pixmx
+                << ' ' << m * cp.sigmax << ' ' << m * cp.sx1 << ' ' << m * cp.sx2 << ' ' << m * cp.sigmay << ' '
+                << m * cp.sy1 << ' ' << m * cp.sy2 << std::endl;
 #endif
-
-    errorFromTemplates(p, cp, 20000.f);
-    g.pixmx = std::max(0, cp.pixmx);
-    g.sx[0] = cp.sigmax;
-    g.sx[1] = cp.sx1;
-    g.sx[2] = cp.sx2;
-
-    g.sy[0] = cp.sigmay;
-    g.sy[1] = cp.sy1;
-    g.sy[2] = cp.sy2;
-
-    /*
-    // from run1??
-    if (i<96) {
-      g.sx[0] = 0.00120;
-      g.sx[1] = 0.00115;
-      g.sx[2] = 0.0050;
-
-      g.sy[0] = 0.00210;
-      g.sy[1] = 0.00375;
-      g.sy[2] = 0.0085;
-    } else if (g.isBarrel) {
-      g.sx[0] = 0.00120;
-      g.sx[1] = 0.00115;
-      g.sx[2] = 0.0050;
-
-      g.sy[0] = 0.00210;
-      g.sy[1] = 0.00375;
-      g.sy[2] = 0.0085;
-   } else {
-      g.sx[0] = 0.0020;
-      g.sx[1] = 0.0020;
-      g.sx[2] = 0.0050;
-
-      g.sy[0] = 0.0021;
-      g.sy[1] = 0.0021;
-      g.sy[2] = 0.0085;
-   }
-   */
-
-    for (int i = 0; i < 3; ++i) {
-      g.sx[i] = std::sqrt(g.sx[i] * g.sx[i] + lape.xx());
-      g.sy[i] = std::sqrt(g.sy[i] * g.sy[i] + lape.yy());
     }
-  }
+    assert(k <= 5);
+    // fill the rest  (sometimes bin 4 is missing)
+    for (int kk = k; kk < 5; ++kk) {
+      g.xfact[kk] = g.xfact[k - 1];
+      g.yfact[kk] = g.yfact[k - 1];
+      g.minCh[kk] = g.minCh[k - 1];
+    }
+    auto detx = 1.f / g.xfact[0];
+    auto dety = 1.f / g.yfact[0];
+    for (int kk = 0; kk < 5; ++kk) {
+      g.xfact[kk] *= detx;
+      g.yfact[kk] *= dety;
+    }
+
+    // sample y in angle
+    float ys = 8.f - 4.f;  // apperent bias of half pixel (see plot)
+    // sample yerr as function of "size"
+    for (int iy = 0; iy < 16; ++iy) {
+      ys += 1.f;  // first bin 0 is for size 9  (and size is in fixed point 2^3)
+      if (15 == iy)
+        ys += 8.f;  // last bin for "overflow"
+      // cp.cotalpha = ys*100.f/(8.f*285.f);
+      cp.cotbeta = std::copysign(ys * 150.f / (8.f * 285.f), aveCB);
+      errorFromTemplates(p, cp, 20000.f);
+      g.sigmay[iy] = toMicronY(cp.sigmay);
+#ifdef DUMP_ERRORS
+      std::cout << "sigmax/sigmay " << i << ' ' << (ys + 4.f) / 8.f << ' ' << cp.cotalpha << '/' << cp.cotbeta << ' '
+                << 10000.f * cp.sigmax << '/' << int(g.sigmay[iy]) << std::endl;
+#endif
+    }
+
+  }  // loop over det
 
   // compute ladder baricenter (only in global z) for the barrel
   auto& aveGeom = m_averageGeometry;
@@ -405,13 +472,20 @@ LocalPoint PixelCPEFast::localPosition(DetParam const& theDetParam, ClusterParam
   cp.Q_f_Y[0] = Q_f_Y;
   cp.Q_l_Y[0] = Q_l_Y;
 
+  cp.charge[0] = theClusterParam.theCluster->charge();
+
   auto ind = theDetParam.theDet->index();
   pixelCPEforGPU::position(m_commonParamsGPU, m_detParamsGPU[ind], cp, 0);
   auto xPos = cp.xpos[0];
   auto yPos = cp.ypos[0];
 
-  //  std::cout<<" in PixelCPEFast:localPosition - pos = "<<xPos<<" "<<yPos
-  //           << " size "<< cp.maxRow[0]-cp.minRow[0] << ' ' << cp.maxCol[0]-cp.minCol[0] << std::endl; //dk
+  // set the error  (mind ape....)
+  pixelCPEforGPU::errorFromDB(m_commonParamsGPU, m_detParamsGPU[ind], cp, 0);
+  theClusterParam.sigmax = cp.xerr[0];
+  theClusterParam.sigmay = cp.yerr[0];
+
+  // std::cout<<" in PixelCPEFast:localPosition - pos = "<<xPos<<" "<<yPos
+  //         << " size "<< cp.maxRow[0]-cp.minRow[0] << ' ' << cp.maxCol[0]-cp.minCol[0] << ' ' << cp.charge[0] << std::endl; //dk
 
   //--- Now put the two together
   LocalPoint pos_in_local(xPos, yPos);
@@ -473,116 +547,10 @@ void PixelCPEFast::collect_edge_charges(ClusterParam& theClusterParamBase,  //!<
 LocalError PixelCPEFast::localError(DetParam const& theDetParam, ClusterParam& theClusterParamBase) const {
   ClusterParamGeneric& theClusterParam = static_cast<ClusterParamGeneric&>(theClusterParamBase);
 
-  // Default errors are the maximum error used for edge clusters.
-  // These are determined by looking at residuals for edge clusters
-  float xerr = EdgeClusterErrorX_ * micronsToCm;
-  float yerr = EdgeClusterErrorY_ * micronsToCm;
+  auto xerr = theClusterParam.sigmax;
+  auto yerr = theClusterParam.sigmay;
 
-  // Find if cluster is at the module edge.
-  int maxPixelCol = theClusterParam.theCluster->maxPixelCol();
-  int maxPixelRow = theClusterParam.theCluster->maxPixelRow();
-  int minPixelCol = theClusterParam.theCluster->minPixelCol();
-  int minPixelRow = theClusterParam.theCluster->minPixelRow();
-
-  bool edgex = phase1PixelTopology::isEdgeX(minPixelRow) | phase1PixelTopology::isEdgeX(maxPixelRow);
-  bool edgey = phase1PixelTopology::isEdgeY(minPixelCol) | phase1PixelTopology::isEdgeY(maxPixelCol);
-
-  unsigned int sizex = theClusterParam.theCluster->sizeX();
-  unsigned int sizey = theClusterParam.theCluster->sizeY();
-
-  // Find if cluster contains double (big) pixels.
-  bool bigInX = theDetParam.theRecTopol->containsBigPixelInX(minPixelRow, maxPixelRow);
-  bool bigInY = theDetParam.theRecTopol->containsBigPixelInY(minPixelCol, maxPixelCol);
-
-  if (UseErrorsFromTemplates_) {
-    //
-    // Use template errors
-
-    if (!edgex) {  // Only use this for non-edge clusters
-      if (sizex == 1) {
-        if (!bigInX) {
-          xerr = theClusterParam.sx1;
-        } else {
-          xerr = theClusterParam.sx2;
-        }
-      } else {
-        xerr = theClusterParam.sigmax;
-      }
-    }
-
-    if (!edgey) {  // Only use for non-edge clusters
-      if (sizey == 1) {
-        if (!bigInY) {
-          yerr = theClusterParam.sy1;
-        } else {
-          yerr = theClusterParam.sy2;
-        }
-      } else {
-        yerr = theClusterParam.sigmay;
-      }
-    }
-
-  } else {  // simple errors
-
-    // This are the simple errors, hardcoded in the code
-    //cout << "Track angles are not known " << endl;
-    //cout << "Default angle estimation which assumes track from PV (0,0,0) does not work." << endl;
-
-    if (GeomDetEnumerators::isTrackerPixel(theDetParam.thePart)) {
-      if (GeomDetEnumerators::isBarrel(theDetParam.thePart)) {
-        DetId id = (theDetParam.theDet->geographicalId());
-        int layer = ttopo_.layer(id);
-        if (layer == 1) {
-          if (!edgex) {
-            if (sizex <= xerr_barrel_l1_.size())
-              xerr = xerr_barrel_l1_[sizex - 1];
-            else
-              xerr = xerr_barrel_l1_def_;
-          }
-
-          if (!edgey) {
-            if (sizey <= yerr_barrel_l1_.size())
-              yerr = yerr_barrel_l1_[sizey - 1];
-            else
-              yerr = yerr_barrel_l1_def_;
-          }
-        } else {  // layer 2,3
-          if (!edgex) {
-            if (sizex <= xerr_barrel_ln_.size())
-              xerr = xerr_barrel_ln_[sizex - 1];
-            else
-              xerr = xerr_barrel_ln_def_;
-          }
-
-          if (!edgey) {
-            if (sizey <= yerr_barrel_ln_.size())
-              yerr = yerr_barrel_ln_[sizey - 1];
-            else
-              yerr = yerr_barrel_ln_def_;
-          }
-        }
-
-      } else {  // EndCap
-
-        if (!edgex) {
-          if (sizex <= xerr_endcap_.size())
-            xerr = xerr_endcap_[sizex - 1];
-          else
-            xerr = xerr_endcap_def_;
-        }
-
-        if (!edgey) {
-          if (sizey <= yerr_endcap_.size())
-            yerr = yerr_endcap_[sizey - 1];
-          else
-            yerr = yerr_endcap_def_;
-        }
-      }  // end endcap
-    }
-
-  }  // end
-
-  //   std::cout<<" errors  "<<xerr<<" "<<yerr<<std::endl;  //dk
+  // std::cout<<" errors  "<<xerr<<" "<<yerr<<std::endl;  //dk
 
   auto xerr_sq = xerr * xerr;
   auto yerr_sq = yerr * yerr;

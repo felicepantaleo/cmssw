@@ -375,16 +375,13 @@ __global__ void kernel_classifyTracks(HitContainer const *__restrict__ tuples,
     }
 
     // compute a pT-dependent chi2 cut
-    // default parameters:
-    //   - chi2MaxPt = 10 GeV
-    //   - chi2Coeff = { 0.68177776, 0.74609577, -0.08035491, 0.00315399 }
-    //   - chi2Scale = 30 for broken line fit, 45 for Riemann fit
+    // at the moment just a flat cut...
     // (see CAHitNtupletGeneratorGPU.cc)
-    float pt = std::min<float>(tracks->pt(it), cuts.chi2MaxPt);
-    float chi2Cut = cuts.chi2Scale *
-                    (cuts.chi2Coeff[0] + pt * (cuts.chi2Coeff[1] + pt * (cuts.chi2Coeff[2] + pt * cuts.chi2Coeff[3])));
-    // above number were for Quads not normalized so for the time being just multiple by ndof for Quads  (triplets to be understood)
-    if (3.f * tracks->chi2(it) >= chi2Cut) {
+    // float pt = std::min<float>(tracks->pt(it), cuts.chi2MaxPt);
+    // float chi2Cut = cuts.chi2Scale *
+    //                (cuts.chi2Coeff[0] + pt * (cuts.chi2Coeff[1] + pt * (cuts.chi2Coeff[2] + pt * cuts.chi2Coeff[3])));
+    float chi2Cut = cuts.chi2Scale;
+    if (tracks->chi2(it) >= chi2Cut) {
 #ifdef NTUPLE_DEBUG
       printf("Bad fit %d size %d pt %f eta %f chi2 %f\n",
              it,
