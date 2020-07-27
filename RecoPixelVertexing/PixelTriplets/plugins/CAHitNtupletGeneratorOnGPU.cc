@@ -141,11 +141,11 @@ void CAHitNtupletGeneratorOnGPU::fillDescriptions(edm::ParameterSetDescription& 
 
   edm::ParameterSetDescription trackQualityCuts;
   trackQualityCuts.add<double>("chi2MaxPt", 10.)->setComment("max pT used to determine the pT-dependent chi2 cut");
-  trackQualityCuts.add<std::vector<double>>("chi2Coeff", {0.68177776, 0.74609577, -0.08035491, 0.00315399})
+  trackQualityCuts.add<std::vector<double>>("chi2Coeff", {1., 0., 0., 0.})
       ->setComment("Polynomial coefficients to derive the pT-dependent chi2 cut");
-  trackQualityCuts.add<double>("chi2Scale", 30.)
+  trackQualityCuts.add<double>("chi2Scale", 25.)
       ->setComment(
-          "Factor to multiply the pT-dependent chi2 cut (currently: 30 for the broken line fit, 45 for the Riemann "
+          "Factor to multiply the pT-dependent chi2 cut (currently: 16 for the broken line fit, ?? for the Riemann "
           "fit)");
   trackQualityCuts.add<double>("tripletMinPt", 0.5)->setComment("Min pT for triplets, in GeV");
   trackQualityCuts.add<double>("tripletMaxTip", 0.3)->setComment("Max |Tip| for triplets, in cm");
@@ -168,14 +168,15 @@ PixelTrackHeterogeneous CAHitNtupletGeneratorOnGPU::makeTuplesAsync(TrackingRecH
 
   CAHitNtupletGeneratorKernelsGPU kernels(m_params);
   kernels.counters_ = m_counters;
-  HelixFitOnGPU fitter(bfield, m_params.fit5as4_);
 
   kernels.allocateOnGPU(stream);
-  fitter.allocateOnGPU(&(soa->hitIndices), kernels.tupleMultiplicity(), soa);
 
   kernels.buildDoublets(hits_d, stream);
   kernels.launchKernels(hits_d, soa, stream);
   kernels.fillHitDetIndices(hits_d.view(), soa, stream);  // in principle needed only if Hits not "available"
+
+  HelixFitOnGPU fitter(bfield, m_params.fit5as4_);
+  fitter.allocateOnGPU(&(soa->hitIndices), kernels.tupleMultiplicity(), soa);
   if (m_params.useRiemannFit_) {
     fitter.launchRiemannKernels(hits_d.view(), hits_d.nHits(), CAConstants::maxNumberOfQuadruplets(), stream);
   } else {
