@@ -972,6 +972,7 @@ void MultiTrackValidator::dqmAnalyze(const edm::Event& event,
         int nSimLayers = nLayers_tPCeff[tpr];
         int nSimPixelLayers = nPixelLayers_tPCeff[tpr];
         int nSimStripMonoAndStereoLayers = nStripMonoAndStereoLayers_tPCeff[tpr];
+        if (nSimPixelLayers < 3) continue; 
         histoProducerAlgo_->fill_recoAssociated_simTrack_histos(histograms.histoProducerAlgo,
                                                                 w,
                                                                 tp,
