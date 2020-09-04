@@ -26,6 +26,7 @@ void HGCGraphT<TILES>::makeAndConnectDoublets(const TILES &histo,
   isOuterClusterOfDoublets_.clear();
   isOuterClusterOfDoublets_.resize(layerClusters.size());
   allDoublets_.clear();
+  allDoublets_.reserve(layerClusters.size()*2);
   theRootDoublets_.clear();
   for (const auto &r : regions) {
     bool isGlobal = (r.index == -1);
@@ -182,6 +183,7 @@ void HGCGraphT<TILES>::makeAndConnectDoublets(const TILES &histo,
       }
     }
   }
+  allDoublets_.shrink_to_fit();
   // #ifdef FP_DEBUG
   if (verbosity_ > None) {
     LogDebug("HGCGraph") << "number of Root doublets " << theRootDoublets_.size() << " over a total number of doublets "
