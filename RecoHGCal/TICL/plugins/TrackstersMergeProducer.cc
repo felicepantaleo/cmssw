@@ -1,5 +1,5 @@
 #include <memory>  // unique_ptr
-
+#include <cmath>   // cosh
 #include "FWCore/Framework/interface/stream/EDProducer.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/ParameterSet/interface/ConfigurationDescriptions.h"
@@ -15,6 +15,7 @@
 #include "RecoLocalCalo/HGCalRecAlgos/interface/RecHitTools.h"
 #include "RecoHGCal/TICL/plugins/GlobalCache.h"
 #include "PhysicsTools/TensorFlow/interface/TensorFlow.h"
+#include "DataFormats/HGCalReco/interface/TICLCandidate.h"
 
 #include "TrackstersPCA.h"
 
@@ -33,7 +34,7 @@ public:
   static void globalEndJob(TrackstersCache *);
 
 private:
-  enum TracksterIterIndex { EM = 0, TRK, HAD, SEED };
+  enum TracksterIterIndex { TRKEM = 0, EM, TRK, HAD };
 
   void fillTile(TICLTracksterTiles &, const std::vector<Trackster> &, TracksterIterIndex);
 
@@ -53,6 +54,8 @@ private:
   const int phi_bin_window_;
   const double pt_sigma_high_;
   const double pt_sigma_low_;
+  const double halo_max_distance2_;
+  const double mergeTRK_max_dR_; 
   const double cosangle_align_;
   const double e_over_h_threshold_;
   const double pt_neutral_threshold_;
@@ -86,6 +89,8 @@ TrackstersMergeProducer::TrackstersMergeProducer(const edm::ParameterSet &ps, co
       phi_bin_window_(ps.getParameter<int>("phi_bin_window")),
       pt_sigma_high_(ps.getParameter<double>("pt_sigma_high")),
       pt_sigma_low_(ps.getParameter<double>("pt_sigma_low")),
+      halo_max_distance2_(ps.getParameter<double>("halo_max_distance2")),
+      mergeTRK_max_dR_(ps.getParameter<double>("mergeTRK_max_dR")),
       cosangle_align_(ps.getParameter<double>("cosangle_align")),
       e_over_h_threshold_(ps.getParameter<double>("e_over_h_threshold")),
       pt_neutral_threshold_(ps.getParameter<double>("pt_neutral_threshold")),
@@ -108,6 +113,7 @@ TrackstersMergeProducer::TrackstersMergeProducer(const edm::ParameterSet &ps, co
   eidSession_ = tensorflow::createSession(trackstersCache->eidGraphDef);
 
   produces<std::vector<Trackster>>();
+  produces<std::vector<TICLCandidate>>();
 }
 
 void TrackstersMergeProducer::fillTile(TICLTracksterTiles &tracksterTile,
@@ -150,16 +156,20 @@ void TrackstersMergeProducer::dumpTrackster(const Trackster &t) const {
 void TrackstersMergeProducer::produce(edm::Event &evt, const edm::EventSetup &es) {
   edm::ESHandle<CaloGeometry> geom = es.getHandle(geometry_token_);
   rhtools_.setGeometry(*geom);
-  auto result = std::make_unique<std::vector<Trackster>>();
-  auto mergedTrackstersTRK = std::make_unique<std::vector<Trackster>>();
+  auto resultTrackstersMerged = std::make_unique<std::vector<Trackster>>();
+  auto resultCandidates = std::make_unique<std::vector<TICLCandidate>>();
 
   TICLTracksterTiles tracksterTile;
-  std::vector<bool> usedTrackstersEM;
-  std::vector<bool> usedTrackstersTRKEM;
-  std::vector<bool> usedTrackstersTRK;
-  std::vector<bool> usedTrackstersHAD;
+  std::vector<bool> usedTrackstersMerged;
+  std::vector<int> indexInMergedCollTRKEM;
+  std::vector<int> indexInMergedCollEM;
+  std::vector<int> indexInMergedCollTRK;
+  std::vector<int> indexInMergedCollHAD;
   std::vector<bool> usedSeeds;
 
+  // associating seed to the index of the trackster in the merged collection and the iteration that found it
+  std::map<int, std::vector<std::pair<int, TracksterIterIndex>>> seedToTracksterAssociator;
+  std::vector<TracksterIterIndex> iterMergedTracksters;
   edm::Handle<std::vector<reco::Track>> track_h;
   evt.getByToken(tracks_token_, track_h);
   const auto &tracks = *track_h;
@@ -171,205 +181,630 @@ void TrackstersMergeProducer::produce(edm::Event &evt, const edm::EventSetup &es
   edm::Handle<std::vector<Trackster>> trackstersem_h;
   evt.getByToken(trackstersem_token_, trackstersem_h);
   const auto &trackstersEM = *trackstersem_h;
-  usedTrackstersEM.resize(trackstersEM.size(), false);
 
   edm::Handle<std::vector<Trackster>> tracksterstrkem_h;
   evt.getByToken(tracksterstrkem_token_, tracksterstrkem_h);
   const auto &trackstersTRKEM = *tracksterstrkem_h;
-  usedTrackstersTRKEM.resize(trackstersTRKEM.size(), false);
 
   edm::Handle<std::vector<Trackster>> tracksterstrk_h;
   evt.getByToken(tracksterstrk_token_, tracksterstrk_h);
   const auto &trackstersTRK = *tracksterstrk_h;
-  usedTrackstersTRK.resize(trackstersTRK.size(), false);
 
   edm::Handle<std::vector<Trackster>> trackstershad_h;
   evt.getByToken(trackstershad_token_, trackstershad_h);
   const auto &trackstersHAD = *trackstershad_h;
-  usedTrackstersHAD.resize(trackstersHAD.size(), false);
 
   edm::Handle<std::vector<TICLSeedingRegion>> seedingTrk_h;
   evt.getByToken(seedingTrk_token_, seedingTrk_h);
   const auto &seedingTrk = *seedingTrk_h;
-  usedSeeds.resize(seedingTrk.size(), false);
+  usedSeeds.resize(tracks.size(), false);
 
+  fillTile(tracksterTile, trackstersTRKEM, TracksterIterIndex::TRKEM);
   fillTile(tracksterTile, trackstersEM, TracksterIterIndex::EM);
   fillTile(tracksterTile, trackstersTRK, TracksterIterIndex::TRK);
   fillTile(tracksterTile, trackstersHAD, TracksterIterIndex::HAD);
 
-  auto seedId = 0;
-  for (auto const &s : seedingTrk) {
-    tracksterTile.fill(TracksterIterIndex::SEED, s.origin.eta(), s.origin.phi(), seedId++);
-
-    if (debug_) {
-      LogDebug("TrackstersMergeProducer")
-          << "Seed index: " << seedId << " internal index: " << s.index << " origin: " << s.origin
-          << " mom: " << s.directionAtOrigin << " pt: " << std::sqrt(s.directionAtOrigin.perp2())
-          << " zSide: " << s.zSide << " collectionID: " << s.collectionID << " track pt " << tracks[s.index].pt()
-          << std::endl;
-    }
-  }
+  auto totalNumberOfTracksters =
+      trackstersTRKEM.size() + trackstersTRK.size() + trackstersEM.size() + trackstersHAD.size();
+  resultTrackstersMerged->reserve(totalNumberOfTracksters);
+  iterMergedTracksters.reserve(totalNumberOfTracksters);
+  usedTrackstersMerged.resize(totalNumberOfTracksters, false);
+  indexInMergedCollTRKEM.reserve(trackstersTRKEM.size());
+  indexInMergedCollEM.reserve(trackstersEM.size());
+  indexInMergedCollTRK.reserve(trackstersTRK.size());
+  indexInMergedCollHAD.reserve(trackstersHAD.size());
 
   if (debug_) {
-    printTrackstersDebug(trackstersTRK, "tracksterTRK");
+    printTrackstersDebug(trackstersTRKEM, "tracksterTRKEM");
     printTrackstersDebug(trackstersEM, "tracksterEM");
+    printTrackstersDebug(trackstersTRK, "tracksterTRK");
     printTrackstersDebug(trackstersHAD, "tracksterHAD");
   }
 
-  int tracksterTRK_idx = 0;
-  int tracksterHAD_idx = 0;
-  if (optimiseAcrossTracksters_) {
-    for (auto const &t : trackstersTRK) {
-      if (debug_) {
-        int entryEtaBin = tracksterTile[TracksterIterIndex::TRK].etaBin(t.barycenter().eta());
-        int entryPhiBin = tracksterTile[TracksterIterIndex::TRK].phiBin(t.barycenter().phi());
-        int bin = tracksterTile[TracksterIterIndex::TRK].globalBin(t.barycenter().eta(), t.barycenter().phi());
-        LogDebug("TrackstersMergeProducer")
-            << "TrackstersMergeProducer Tracking obj: " << t.barycenter() << " in bin " << bin << " etaBin "
-            << entryEtaBin << " phiBin " << entryPhiBin << std::endl;
-        dumpTrackster(t);
-      }
-      auto const &track = tracks[t.seedIndex()];
-      auto trk_pt = (float)track.pt();
-      auto diff_pt = t.raw_pt() - trk_pt;
-      auto pt_err = trk_pt * resol_calo_scale_ + resol_calo_offset_;
-      auto w_cal = 1. / (pt_err * pt_err);
-      auto w_trk = 1. / (track.ptError() * track.ptError());
-      auto diff_pt_sigmas = diff_pt / pt_err;
-      auto e_over_h = (t.raw_em_pt() / ((t.raw_pt() - t.raw_em_pt()) != 0. ? (t.raw_pt() - t.raw_em_pt()) : 1.));
-      LogDebug("TrackstersMergeProducer")
-          << "trackster_pt: " << t.raw_pt() << std::endl
-          << "track pt   (inner): " << track.pt() << std::endl
-          << "track eta  (inner): " << track.eta() << std::endl
-          << "track _phi (inner): " << track.phi() << std::endl
-          << "track pt   (outer): " << std::sqrt(track.outerMomentum().perp2()) << std::endl
-          << "track eta  (outer): " << track.outerMomentum().eta() << std::endl
-          << "track _phi (outer): " << track.outerMomentum().phi() << std::endl
-          << "pt_err_track: " << track.ptError() << std::endl
-          << "diff_pt: " << diff_pt << std::endl
-          << "pt_err: " << pt_err << std::endl
-          << "diff_pt_sigmas: " << diff_pt_sigmas << std::endl
-          << "w_cal: " << w_cal << std::endl
-          << "w_trk: " << w_trk << std::endl
-          << "average_pt: " << (t.raw_pt() * w_cal + trk_pt * w_trk) / (w_cal + w_trk) << std::endl
-          << "e_over_h: " << e_over_h << std::endl;
+  for (auto const &t : trackstersTRKEM) {
+    indexInMergedCollTRKEM.push_back(resultTrackstersMerged->size());
+    seedToTracksterAssociator[t.seedIndex()].emplace_back(resultTrackstersMerged->size(), TracksterIterIndex::TRKEM);
+    resultTrackstersMerged->push_back(t);
+    iterMergedTracksters.push_back(TracksterIterIndex::TRKEM);
+  }
 
-      // If the energy is unbalanced and higher in Calo ==> balance it by
-      // emitting gammas/neutrals
-      if (diff_pt_sigmas > pt_sigma_high_) {
-        if (e_over_h > e_over_h_threshold_) {
-          auto gamma_pt = std::min(diff_pt, t.raw_em_pt());
-          // Create gamma with calo direction
-          LogDebug("TrackstersMergeProducer")
-              << " Creating a photon from TRK Trackster with energy " << gamma_pt << " and direction "
-              << t.eigenvectors(0).eta() << ", " << t.eigenvectors(0).phi() << std::endl;
-          diff_pt -= gamma_pt;
-          if (diff_pt > pt_neutral_threshold_) {
-            // Create also a neutral on top, with calo direction and diff_pt as energy
-            LogDebug("TrackstersMergeProducer")
-                << " Adding also a neutral hadron from TRK Trackster with energy " << diff_pt << " and direction "
-                << t.eigenvectors(0).eta() << ", " << t.eigenvectors(0).phi() << std::endl;
+  for (auto const &t : trackstersEM) {
+    indexInMergedCollEM.push_back(resultTrackstersMerged->size());
+    resultTrackstersMerged->push_back(t);
+    iterMergedTracksters.push_back(TracksterIterIndex::EM);
+  }
+
+  for (auto const &t : trackstersTRK) {
+    indexInMergedCollTRK.push_back(resultTrackstersMerged->size());
+    seedToTracksterAssociator[t.seedIndex()].emplace_back(resultTrackstersMerged->size(), TracksterIterIndex::TRK);
+    resultTrackstersMerged->push_back(t);
+    iterMergedTracksters.push_back(TracksterIterIndex::TRK);
+  }
+
+  for (auto const &t : trackstersHAD) {
+    indexInMergedCollHAD.push_back(resultTrackstersMerged->size());
+    resultTrackstersMerged->push_back(t);
+    iterMergedTracksters.push_back(TracksterIterIndex::HAD);
+  }
+
+  assignPCAtoTracksters(*resultTrackstersMerged, layerClusters, rhtools_.getPositionLayer(rhtools_.lastLayerEE()).z());
+  energyRegressionAndID(layerClusters, *resultTrackstersMerged);
+
+  printTrackstersDebug(*resultTrackstersMerged, "TrackstersMergeProducer");
+
+  auto trackstersMergedHandle = evt.put(std::move(resultTrackstersMerged));
+
+  // TICL Candidate creation
+  // We start from neutrals first
+
+  // Photons
+  for (unsigned i = 0; i < trackstersEM.size(); ++i) {
+    auto mergedIdx = indexInMergedCollEM[i];
+    usedTrackstersMerged[mergedIdx] = true;
+    auto &t = trackstersEM[i];  //trackster
+    TICLCandidate tmpCandidate;
+    tmpCandidate.addTrackster(edm::Ptr<ticl::Trackster>(trackstersMergedHandle, mergedIdx));
+    tmpCandidate.setCharge(0);
+    tmpCandidate.setPdgId(22);
+    tmpCandidate.setRawEnergy(t.raw_energy());
+    math::XYZTLorentzVector p4(t.raw_energy() * t.barycenter().unit().x(),
+                               t.raw_energy() * t.barycenter().unit().y(),
+                               t.raw_energy() * t.barycenter().unit().z(),
+                               t.raw_energy());
+    tmpCandidate.setP4(p4);
+    resultCandidates->push_back(tmpCandidate);
+  }
+
+  // Neutral Hadrons
+  constexpr float mpion2 = 0.13957f * 0.13957f;
+  for (unsigned i = 0; i < trackstersHAD.size(); ++i) {
+    auto mergedIdx = indexInMergedCollHAD[i];
+    usedTrackstersMerged[mergedIdx] = true;
+    auto &t = trackstersHAD[i];  //trackster
+    TICLCandidate tmpCandidate;
+    tmpCandidate.addTrackster(edm::Ptr<ticl::Trackster>(trackstersMergedHandle, mergedIdx));
+    tmpCandidate.setCharge(0);
+    tmpCandidate.setPdgId(130);
+    tmpCandidate.setRawEnergy(t.raw_energy());
+    float momentum = std::sqrt(t.raw_energy() * t.raw_energy() - mpion2);
+    math::XYZTLorentzVector p4(momentum * t.barycenter().unit().x(),
+                               momentum * t.barycenter().unit().y(),
+                               momentum * t.barycenter().unit().z(),
+                               t.raw_energy());
+    tmpCandidate.setP4(p4);
+    resultCandidates->push_back(tmpCandidate);
+  }
+
+  // Charged Particles
+  for (unsigned i = 0; i < trackstersTRKEM.size(); ++i) {
+    auto mergedIdx = indexInMergedCollTRKEM[i];
+    if (!usedTrackstersMerged[mergedIdx]) {
+      auto &t = trackstersTRKEM[i];  //trackster
+      auto trackIdx = t.seedIndex();
+      auto const &track = tracks[trackIdx];
+      if (!usedSeeds[trackIdx]) {
+        usedSeeds[trackIdx] = true;
+        usedTrackstersMerged[mergedIdx] = true;
+
+        TICLCandidate tmpCandidate;
+        tmpCandidate.addTrackster(edm::Ptr<ticl::Trackster>(trackstersMergedHandle, mergedIdx));
+        tmpCandidate.setCharge(track.charge());
+        tmpCandidate.setTrackPtr(edm::Ptr<reco::Track>(track_h, trackIdx));
+        std::vector<int> trackstersTRKwithSameSeed;
+        std::vector<int> trackstersTRKEMwithSameSeed;
+
+        for (const auto &tracksterIterationPair : seedToTracksterAssociator[trackIdx]) {
+          if (tracksterIterationPair.first != mergedIdx and !usedTrackstersMerged[tracksterIterationPair.first]) {
+            if (tracksterIterationPair.second == TracksterIterIndex::TRKEM) {
+              trackstersTRKEMwithSameSeed.push_back(tracksterIterationPair.first);
+            } else if (tracksterIterationPair.second == TracksterIterIndex::TRK) {
+              trackstersTRKwithSameSeed.push_back(tracksterIterationPair.first);
+            }
+          }
+        }
+        //check if there is 1-to-1 relationship
+        if (trackstersTRKEMwithSameSeed.empty()) {
+          float tracksterTotalRawPt = t.raw_pt();
+          std::vector<int> haloTrackstersTRKIdx;
+          std::vector<int> nonHaloTrackstersTRKIdx;
+          for (auto otherTracksterIdx : trackstersTRKwithSameSeed) {
+            // Check the X,Y,Z barycenter and merge if they are very close (halo)
+            if ((t.barycenter() - trackstersMergedHandle->at(otherTracksterIdx).barycenter()).mag2() <
+                halo_max_distance2_) {
+              tracksterTotalRawPt += trackstersMergedHandle->at(otherTracksterIdx).raw_pt();
+              haloTrackstersTRKIdx.push_back(otherTracksterIdx);
+            } else {
+              nonHaloTrackstersTRKIdx.push_back(otherTracksterIdx);
+            }
+          }
+          //check if the trackster pt and track pt are compatible
+
+          float trk_pt = track.pt();
+          float pt_err = trk_pt * resol_calo_scale_ + resol_calo_offset_;
+          float w_cal = 1.f / (pt_err * pt_err);
+          float w_trk = 1.f / (track.ptError() * track.ptError());
+          float diff_pt = tracksterTotalRawPt - trk_pt;
+          float diff_pt_sigmas = diff_pt / pt_err;
+
+          // if they are compatible create electron
+          if (diff_pt_sigmas < pt_sigma_high_ and diff_pt_sigmas > -pt_sigma_low_) {
+            for (auto otherTracksterIdx : haloTrackstersTRKIdx) {
+              tmpCandidate.addTrackster(edm::Ptr<ticl::Trackster>(trackstersMergedHandle, otherTracksterIdx));
+              usedTrackstersMerged[otherTracksterIdx];
+            }
+            float average_pt = (w_cal * tracksterTotalRawPt + trk_pt * w_trk) / (w_cal + w_trk);
+            float p = average_pt * cosh(t.barycenter().eta());
+            tmpCandidate.setPdgId(11 * track.charge());
+            tmpCandidate.setRawEnergy(p);
+            math::XYZTLorentzVector p4(
+                p * track.momentum().unit().x(), p * track.momentum().unit().y(), p * track.momentum().unit().z(), p);
+            tmpCandidate.setP4(p4);
+            resultCandidates->push_back(tmpCandidate);
+
+          } else  //otherwise search for an aligned TRK trackster and check compatibility with track
+              if (diff_pt_sigmas <= -pt_sigma_low_) {
+            bool foundCompatibleTRK = false;
+            for (auto otherTracksterIdx : nonHaloTrackstersTRKIdx) {
+              if (!foundCompatibleTRK) {
+                auto tmpDiffPt = diff_pt + trackstersMergedHandle->at(otherTracksterIdx).raw_pt();
+                auto tmpDiffPtSigmas = tmpDiffPt / pt_err;
+                // if now this is compatible create charge hadron
+                if (tmpDiffPtSigmas < pt_sigma_high_ and tmpDiffPtSigmas > -pt_sigma_low_) {
+                  usedTrackstersMerged[otherTracksterIdx];
+                  tracksterTotalRawPt += trackstersMergedHandle->at(otherTracksterIdx).raw_pt();
+                  tmpCandidate.addTrackster(edm::Ptr<ticl::Trackster>(trackstersMergedHandle, otherTracksterIdx));
+
+                  float average_pt = (w_cal * tracksterTotalRawPt + trk_pt * w_trk) / (w_cal + w_trk);
+                  float p = average_pt * cosh(t.barycenter().eta());
+                  float energy = std::sqrt(p * p + mpion2);
+
+                  tmpCandidate.setPdgId(211 * track.charge());
+                  tmpCandidate.setRawEnergy(energy);
+                  math::XYZTLorentzVector p4(p * track.momentum().unit().x(),
+                                             p * track.momentum().unit().y(),
+                                             p * track.momentum().unit().z(),
+                                             energy);
+                  tmpCandidate.setP4(p4);
+                  resultCandidates->push_back(tmpCandidate);
+                  foundCompatibleTRK = true;
+                }
+              }
+            }
+            // if not found, create an electron with track momentum
+            if (!foundCompatibleTRK) {
+              tmpCandidate.setPdgId(11 * track.charge());
+              float energy = std::sqrt(track.momentum().mag2());
+              tmpCandidate.setRawEnergy(energy);
+              math::XYZTLorentzVector p4(track.momentum().x(), track.momentum().y(), track.momentum().z(), energy);
+              tmpCandidate.setP4(p4);
+              resultCandidates->push_back(tmpCandidate);
+            }
+          } else  //if instead the cluster is more energetic than the track,
+                  // produce an electron with the momentum of the track and a photon
+          {
+            auto gamma_pt = std::min(diff_pt, t.raw_em_pt());
+            TICLCandidate photonCandidate;
+            auto gammaEnergy = gamma_pt * cosh(t.barycenter().eta());
+            photonCandidate.setCharge(0);
+            photonCandidate.setPdgId(22);
+            photonCandidate.setRawEnergy(gammaEnergy);
+            math::XYZTLorentzVector gammaP4(gammaEnergy * t.barycenter().unit().x(),
+                                            gammaEnergy * t.barycenter().unit().y(),
+                                            gammaEnergy * t.barycenter().unit().z(),
+                                            gammaEnergy);
+            photonCandidate.setP4(gammaP4);
+            resultCandidates->push_back(photonCandidate);
+
+            tmpCandidate.setPdgId(11 * track.charge());
+            float energy = std::sqrt(track.momentum().mag2());
+            tmpCandidate.setRawEnergy(energy);
+            math::XYZTLorentzVector p4(track.momentum().x(), track.momentum().y(), track.momentum().z(), energy);
+            tmpCandidate.setP4(p4);
+            resultCandidates->push_back(tmpCandidate);
           }
         } else {
-          // Create neutral with calo direction
-          LogDebug("TrackstersMergeProducer")
-              << " Creating a neutral hadron from TRK Trackster with energy " << diff_pt << " and direction "
-              << t.eigenvectors(0).eta() << ", " << t.eigenvectors(0).phi() << std::endl;
+          // if 1-to-many, check compatibility between the sum of all tracksters and track
+          float tracksterTotalRawPt = t.raw_pt();
+          for (auto otherTracksterIdx : trackstersTRKEMwithSameSeed) {
+            tracksterTotalRawPt += trackstersMergedHandle->at(otherTracksterIdx).raw_pt();
+          }
+
+          //check if the trackster pt and track pt are compatible
+
+          float trk_pt = track.pt();
+          float pt_err = trk_pt * resol_calo_scale_ + resol_calo_offset_;
+          float w_cal = 1.f / (pt_err * pt_err);
+          float w_trk = 1.f / (track.ptError() * track.ptError());
+          float diff_pt = t.raw_pt() - trk_pt;
+          float diff_pt_sigmas = diff_pt / pt_err;
+
+          // If they are compatible, use weighted average and create 1 electron with all subcomponents
+          if (diff_pt_sigmas < pt_sigma_high_ and diff_pt_sigmas > -pt_sigma_low_) {
+            for (auto otherTracksterIdx : trackstersTRKEMwithSameSeed) {
+              tmpCandidate.addTrackster(edm::Ptr<ticl::Trackster>(trackstersMergedHandle, otherTracksterIdx));
+              usedTrackstersMerged[otherTracksterIdx];
+            }
+            float average_pt = (w_cal * tracksterTotalRawPt + trk_pt * w_trk) / (w_cal + w_trk);
+            float p = average_pt * cosh(t.barycenter().eta());
+            tmpCandidate.setPdgId(11 * track.charge());
+            tmpCandidate.setRawEnergy(p);
+            math::XYZTLorentzVector p4(
+                p * track.momentum().unit().x(), p * track.momentum().unit().y(), p * track.momentum().unit().z(), p);
+            tmpCandidate.setP4(p4);
+            resultCandidates->push_back(tmpCandidate);
+
+          } else {
+            // If they are not compatible, promote all tracksters as photons with their energy.
+            for (auto otherTracksterIdx : trackstersTRKEMwithSameSeed) {
+              TICLCandidate photonCandidate;
+              auto &otherTrackster = trackstersTRK[otherTracksterIdx];
+              auto gammaEnergy = otherTrackster.raw_energy();
+              photonCandidate.setCharge(0);
+              photonCandidate.setPdgId(22);
+              photonCandidate.setRawEnergy(gammaEnergy);
+              math::XYZTLorentzVector gammaP4(gammaEnergy * otherTrackster.barycenter().unit().x(),
+                                              gammaEnergy * otherTrackster.barycenter().unit().y(),
+                                              gammaEnergy * otherTrackster.barycenter().unit().z(),
+                                              gammaEnergy);
+              photonCandidate.setP4(gammaP4);
+              photonCandidate.addTrackster(edm::Ptr<ticl::Trackster>(trackstersMergedHandle, otherTracksterIdx));
+              usedTrackstersMerged[otherTracksterIdx];
+              resultCandidates->push_back(photonCandidate);
+            }
+
+            bool isTrackUsedInTRK = false;
+            // Check if track is used by the TRK iteration
+            // if it's not used for halo, then do not mark the track as used
+            for (auto otherTracksterIdx : trackstersTRKwithSameSeed) {
+              if (trackstersMergedHandle->at(otherTracksterIdx).raw_energy() > 0 and
+                  (t.barycenter() - trackstersMergedHandle->at(otherTracksterIdx).barycenter()).mag2() >=
+                      halo_max_distance2_) {
+                isTrackUsedInTRK = true;
+              }
+            }
+            if (isTrackUsedInTRK) {
+              usedSeeds[trackIdx] = false;
+            } else {
+              tmpCandidate.setPdgId(11 * track.charge());
+              float energy = std::sqrt(track.momentum().mag2());
+              tmpCandidate.setRawEnergy(energy);
+              math::XYZTLorentzVector p4(track.momentum().x(), track.momentum().y(), track.momentum().z(), energy);
+              tmpCandidate.setP4(p4);
+              resultCandidates->push_back(tmpCandidate);
+            }
+          }
         }
       }
-      // If the energy is in the correct ball-park (this also covers the
-      // previous case after the neutral emission), use weighted averages
-      if (diff_pt_sigmas > -pt_sigma_low_) {
-        // Create either an electron or a charged hadron, using the weighted
-        // average information between the track and the cluster for the
-        // energy, the direction of the track at the vertex.  The PID is simply
-        // passed over to the final trackster, while the energy is changed.
-        auto average_pt = (w_cal * t.raw_pt() + trk_pt * w_trk) / (w_cal + w_trk);
-        LogDebug("TrackstersMergeProducer")
-            << " Creating electron/charged hadron from TRK Trackster with weighted p_t " << average_pt
-            << " and direction " << track.eta() << ", " << track.phi() << std::endl;
+    }
+  }  //end of loop over trackstersTRKEM
 
+  // Find all possible trackstersTRK that could be merged (delta eta-phi)
+
+  // for each trackster, mergedIntoMergedTracksterTRKIndex contains the index of the merged trackster
+  // it should stay -1 only for already used tracksters
+  std::vector<int> mergedIntoMergedTracksterTRKIndex(trackstersTRK.size(), -1);
+
+  // mergedTrackstersTRK contains the vectors of indices of the merged tracksters
+  std::vector<std::vector<unsigned>> mergedTrackstersTRK;
+
+  auto &TRKTiles = tracksterTile[TracksterIterIndex::TRK];
+  for (unsigned i = 0; i < trackstersTRK.size(); ++i) {
+    auto mergedIdx = indexInMergedCollTRK[i];
+    if (!usedTrackstersMerged[mergedIdx]) {
+      if (mergedIntoMergedTracksterTRKIndex[i] == -1) {
+        mergedIntoMergedTracksterTRKIndex[i] = mergedTrackstersTRK.size();
+        mergedTrackstersTRK.emplace_back((std::initializer_list<unsigned>){i});
       }
-      // If the energy of the calo is too low, just use track-only information
-      else {
-        // Create either an electron or a charged hadron, using the track
-        // information only.
-        LogDebug("TrackstersMergeProducer")
-            << " Creating electron/charged hadron from TRK Trackster with track p_t " << trk_pt << " and direction "
-            << track.eta() << ", " << track.phi() << std::endl;
+      auto &t = trackstersTRK[i];  //trackster
+      auto eta = t.barycenter().eta();
+      auto phi = t.barycenter().phi();
+      std::array<int, 4> search_box = TRKTiles.searchBoxEtaPhi(
+          eta - mergeTRK_max_dR_, eta + mergeTRK_max_dR_, phi - mergeTRK_max_dR_, phi + mergeTRK_max_dR_);
+      for (int etaBin = search_box[0]; etaBin < search_box[1] + 1; ++etaBin) {
+        for (int phiBin = search_box[2]; phiBin < search_box[3] + 1; ++phiBin) {
+          int binId = TRKTiles.globalBin(etaBin, phiBin);
+          size_t binSize = TRKTiles[binId].size();
+
+          for (unsigned int j = 0; j < binSize; j++) {
+            unsigned int otherId = TRKTiles[binId][j];
+            auto otherMergedIdx = indexInMergedCollTRK[otherId];
+            auto &otherTrackster = trackstersTRK[otherId];  //trackster
+            if (i != otherId and !usedTrackstersMerged[otherMergedIdx]) {
+              if (std::hypot(eta - otherTrackster.barycenter().eta(), phi - otherTrackster.barycenter().phi()) <
+                  mergeTRK_max_dR_) {
+                // if there is another trackster within merge distance, and this one has never been merged before, append its index to the merged index of our trackster
+                if (mergedIntoMergedTracksterTRKIndex[otherId] == -1) {
+                  mergedIntoMergedTracksterTRKIndex[otherId] = mergedIntoMergedTracksterTRKIndex[i];
+                  mergedTrackstersTRK[mergedIntoMergedTracksterTRKIndex[i]].push_back(otherId);
+                } else {
+                  auto oldMergedListIndex = mergedIntoMergedTracksterTRKIndex[i];
+                  // if the other trackster had been already merged before, append our trackster and merged ones to its merged list
+                  for (int oldMerged : mergedTrackstersTRK[oldMergedListIndex]) {
+                    mergedTrackstersTRK[mergedIntoMergedTracksterTRKIndex[otherId]].push_back(oldMerged);
+                    mergedIntoMergedTracksterTRKIndex[oldMerged] = mergedIntoMergedTracksterTRKIndex[otherId];
+                  }
+                  mergedTrackstersTRK[oldMergedListIndex].clear();
+                }
+              }
+            }
+          }
+        }
       }
-      result->push_back(t);
-      usedTrackstersTRK[tracksterTRK_idx] = true;
-      tracksterTRK_idx++;
     }
   }
 
-  tracksterTRK_idx = 0;
-  for (auto const &t : trackstersTRK) {
-    if (debug_) {
-      LogDebug("TrackstersMergeProducer") << " Considering trackster " << tracksterTRK_idx
-                                          << " as used: " << usedTrackstersTRK[tracksterTRK_idx] << std::endl;
+  for (unsigned i = 0; i < trackstersTRK.size(); ++i) {
+    auto mergedIdx = indexInMergedCollTRK[i];
+    if (!usedTrackstersMerged[mergedIdx]) {
+      auto &t = trackstersTRK[i];  //trackster
+      auto trackIdx = t.seedIndex();
+      auto const &track = tracks[trackIdx];
+      if (!usedSeeds[trackIdx]) {
+        std::vector<int> trackstersTRKwithSameSeed;
+
+        for (const auto &tracksterIterationPair : seedToTracksterAssociator[trackIdx]) {
+          if (tracksterIterationPair.first != mergedIdx and !usedTrackstersMerged[tracksterIterationPair.first]) {
+            if (tracksterIterationPair.second == TracksterIterIndex::TRK) {
+              trackstersTRKwithSameSeed.push_back(tracksterIterationPair.first);
+            }
+          }
+        }
+        //check if there is 1-to-1 relationship
+        if (trackstersTRKwithSameSeed.empty() and
+            mergedTrackstersTRK[mergedIntoMergedTracksterTRKIndex[i]].size() == 1) {
+          usedSeeds[trackIdx] = true;
+          usedTrackstersMerged[mergedIdx] = true;
+
+          float trk_pt = track.pt();
+          float pt_err = trk_pt * resol_calo_scale_ + resol_calo_offset_;
+          float w_cal = 1.f / (pt_err * pt_err);
+          float w_trk = 1.f / (track.ptError() * track.ptError());
+          float diff_pt = t.raw_pt() - trk_pt;
+          float diff_pt_sigmas = diff_pt / pt_err;
+
+          // if they are compatible create a charged hadron
+          if (diff_pt_sigmas < pt_sigma_high_ and diff_pt_sigmas > -pt_sigma_low_) {
+            float average_pt = (w_cal * t.raw_pt() + trk_pt * w_trk) / (w_cal + w_trk);
+            float p = average_pt * cosh(t.barycenter().eta());
+            float energy = std::sqrt(p * p + mpion2);
+            TICLCandidate tmpCandidate;
+            tmpCandidate.addTrackster(edm::Ptr<ticl::Trackster>(trackstersMergedHandle, mergedIdx));
+            tmpCandidate.setCharge(track.charge());
+            tmpCandidate.setTrackPtr(edm::Ptr<reco::Track>(track_h, trackIdx));
+            tmpCandidate.setPdgId(211 * track.charge());
+            tmpCandidate.setRawEnergy(energy);
+            math::XYZTLorentzVector p4(p * track.momentum().unit().x(),
+                                       p * track.momentum().unit().y(),
+                                       p * track.momentum().unit().z(),
+                                       energy);
+            tmpCandidate.setP4(p4);
+            resultCandidates->push_back(tmpCandidate);
+          } else if (diff_pt_sigmas >= pt_sigma_high_) {
+            //emit neutral hadron
+            auto neutral_pt = std::min(diff_pt, t.raw_pt());
+            TICLCandidate neutralCandidate;
+            neutralCandidate.addTrackster(edm::Ptr<ticl::Trackster>(trackstersMergedHandle, mergedIdx));
+            neutralCandidate.setCharge(0);
+            neutralCandidate.setPdgId(130);
+            float momentum = neutral_pt * cosh(t.barycenter().eta());
+            float energy = std::sqrt(momentum * momentum + mpion2);
+            neutralCandidate.setRawEnergy(energy);
+            math::XYZTLorentzVector neutralp4(momentum * t.barycenter().unit().x(),
+                                              momentum * t.barycenter().unit().y(),
+                                              momentum * t.barycenter().unit().z(),
+                                              energy);
+            neutralCandidate.setP4(neutralp4);
+            resultCandidates->push_back(neutralCandidate);
+
+            // emit a charged hadron
+            TICLCandidate tmpCandidate;
+            tmpCandidate.setCharge(track.charge());
+            tmpCandidate.addTrackster(edm::Ptr<ticl::Trackster>(trackstersMergedHandle, mergedIdx));
+            tmpCandidate.setTrackPtr(edm::Ptr<reco::Track>(track_h, trackIdx));
+            tmpCandidate.setPdgId(211 * track.charge());
+            energy = std::sqrt(track.momentum().mag2() + mpion2);
+            tmpCandidate.setRawEnergy(energy);
+            math::XYZTLorentzVector p4(track.momentum().x(), track.momentum().y(), track.momentum().z(), energy);
+            tmpCandidate.setP4(p4);
+            resultCandidates->push_back(tmpCandidate);
+          } else {
+            // emit a charged hadron with track momentum
+            TICLCandidate tmpCandidate;
+            tmpCandidate.setCharge(track.charge());
+            tmpCandidate.addTrackster(edm::Ptr<ticl::Trackster>(trackstersMergedHandle, mergedIdx));
+            tmpCandidate.setTrackPtr(edm::Ptr<reco::Track>(track_h, trackIdx));
+            tmpCandidate.setPdgId(211 * track.charge());
+            float energy = std::sqrt(track.momentum().mag2() + mpion2);
+            tmpCandidate.setRawEnergy(energy);
+            math::XYZTLorentzVector p4(track.momentum().x(), track.momentum().y(), track.momentum().z(), energy);
+            tmpCandidate.setP4(p4);
+            resultCandidates->push_back(tmpCandidate);
+          }
+        } else  // if instead the relationship is many-to-many
+        {
+          std::vector<int> trackIds;
+          std::vector<int> tracksterIds;
+
+          float totalTrackPt = 0.f;
+          float totalTrackPtError2 = 0.f;
+          float tracksterTotalRawPt = 0.f;
+
+          for (auto j : mergedTrackstersTRK[mergedIntoMergedTracksterTRKIndex[i]]) {
+            auto mergedOtherIdx = indexInMergedCollTRK[j];
+            auto &otherTrackster = trackstersTRK[j];  //trackster
+            auto otherTrackIdx = otherTrackster.seedIndex();
+            trackIds.push_back(otherTrackIdx);
+            tracksterIds.push_back(mergedOtherIdx);
+          }
+          std::sort(trackIds.begin(), trackIds.end());
+          trackIds.erase(std::unique(trackIds.begin(), trackIds.end()), trackIds.end());
+          std::sort(tracksterIds.begin(), tracksterIds.end());
+          tracksterIds.erase(std::unique(tracksterIds.begin(), tracksterIds.end()), tracksterIds.end());
+
+          for (auto tmpTrackId : trackIds) {
+            totalTrackPt += tracks[tmpTrackId].pt();
+            totalTrackPtError2 += tracks[tmpTrackId].ptError() * tracks[tmpTrackId].ptError();
+          }
+
+          for (auto tmpTracksterId : tracksterIds) {
+            tracksterTotalRawPt += trackstersMergedHandle->at(tmpTracksterId).raw_pt();
+          }
+
+          float pt_err = totalTrackPt * resol_calo_scale_ + resol_calo_offset_;
+          float diff_pt = tracksterTotalRawPt - totalTrackPt;
+          float diff_pt_sigmas = diff_pt / pt_err;
+
+          // if they are compatible create a charged hadron
+          if (diff_pt_sigmas < pt_sigma_high_ and diff_pt_sigmas > -pt_sigma_low_) {
+            for (auto tmpTrackId : trackIds) {
+              const auto &thisTrack = tracks[tmpTrackId];
+              TICLCandidate tmpCandidate;
+              tmpCandidate.setCharge(thisTrack.charge());
+              for (auto tmpTracksterId : tracksterIds) {
+                tmpCandidate.addTrackster(edm::Ptr<ticl::Trackster>(trackstersMergedHandle, tmpTracksterId));
+                usedTrackstersMerged[tmpTracksterId] = true;
+              }
+              tmpCandidate.setTrackPtr(edm::Ptr<reco::Track>(track_h, tmpTrackId));
+              tmpCandidate.setPdgId(211 * thisTrack.charge());
+              float energy = std::sqrt(thisTrack.momentum().mag2() + mpion2);
+              tmpCandidate.setRawEnergy(energy);
+              math::XYZTLorentzVector p4(
+                  thisTrack.momentum().x(), thisTrack.momentum().y(), thisTrack.momentum().z(), energy);
+              tmpCandidate.setP4(p4);
+              resultCandidates->push_back(tmpCandidate);
+
+              usedSeeds[tmpTrackId] = true;
+            }
+          } else if (diff_pt_sigmas >= pt_sigma_high_) {
+            //emit neutral hadron
+            auto neutral_pt = std::min(diff_pt, tracksterTotalRawPt);
+            TICLCandidate neutralCandidate;
+            for (auto tmpTracksterId : tracksterIds) {
+              neutralCandidate.addTrackster(edm::Ptr<ticl::Trackster>(trackstersMergedHandle, tmpTracksterId));
+            }
+            neutralCandidate.setCharge(0);
+            neutralCandidate.setPdgId(130);
+            float momentum = neutral_pt * cosh(t.barycenter().eta());
+            float energy = std::sqrt(momentum * momentum + mpion2);
+            neutralCandidate.setRawEnergy(energy);
+
+            math::XYZTLorentzVector neutralp4(momentum * t.barycenter().unit().x(),
+                                              momentum * t.barycenter().unit().y(),
+                                              momentum * t.barycenter().unit().z(),
+                                              energy);
+            neutralCandidate.setP4(neutralp4);
+            resultCandidates->push_back(neutralCandidate);
+
+            // emit charged hadrons
+            for (auto tmpTrackId : trackIds) {
+              const auto &thisTrack = tracks[tmpTrackId];
+              TICLCandidate tmpCandidate;
+              tmpCandidate.setCharge(thisTrack.charge());
+              for (auto tmpTracksterId : tracksterIds) {
+                tmpCandidate.addTrackster(edm::Ptr<ticl::Trackster>(trackstersMergedHandle, tmpTracksterId));
+                usedTrackstersMerged[tmpTracksterId] = true;
+              }
+              tmpCandidate.setTrackPtr(edm::Ptr<reco::Track>(track_h, tmpTrackId));
+              tmpCandidate.setPdgId(211 * thisTrack.charge());
+              float energy = std::sqrt(thisTrack.momentum().mag2() + mpion2);
+              tmpCandidate.setRawEnergy(energy);
+              math::XYZTLorentzVector p4(
+                  thisTrack.momentum().x(), thisTrack.momentum().y(), thisTrack.momentum().z(), energy);
+              tmpCandidate.setP4(p4);
+              resultCandidates->push_back(tmpCandidate);
+
+              usedSeeds[tmpTrackId] = true;
+            }
+          } else {
+            // emit charged hadrons
+            for (auto tmpTrackId : trackIds) {
+              const auto &thisTrack = tracks[tmpTrackId];
+              TICLCandidate tmpCandidate;
+              tmpCandidate.setCharge(thisTrack.charge());
+              for (auto tmpTracksterId : tracksterIds) {
+                tmpCandidate.addTrackster(edm::Ptr<ticl::Trackster>(trackstersMergedHandle, tmpTracksterId));
+                usedTrackstersMerged[tmpTracksterId] = true;
+              }
+              tmpCandidate.setTrackPtr(edm::Ptr<reco::Track>(track_h, tmpTrackId));
+              tmpCandidate.setPdgId(211 * thisTrack.charge());
+              float energy = std::sqrt(thisTrack.momentum().mag2() + mpion2);
+              tmpCandidate.setRawEnergy(energy);
+              math::XYZTLorentzVector p4(
+                  thisTrack.momentum().x(), thisTrack.momentum().y(), thisTrack.momentum().z(), energy);
+              tmpCandidate.setP4(p4);
+              resultCandidates->push_back(tmpCandidate);
+
+              usedSeeds[tmpTrackId] = true;
+            }
+          }
+        }
+      }
     }
-    if (!usedTrackstersTRK[tracksterTRK_idx]) {
-      LogDebug("TrackstersMergeProducer")
-          << " Creating a charge hadron from TRK Trackster with track energy " << t.raw_energy() << " and direction "
-          << t.eigenvectors(0).eta() << ", " << t.eigenvectors(0).phi() << std::endl;
-      result->push_back(t);
+  }
+  // For all seeds that have 0-energy tracksters whose track is not marked as used, create a charged hadron with the track information.
+  for (auto const &s : seedingTrk) {
+    if (usedSeeds[s.index] == false) {
+      float tracksterEnergy = 0.f;
+      for (auto &tracksterIterationPair : seedToTracksterAssociator[s.index]) {
+        auto tracksterId = tracksterIterationPair.first;
+        auto &t = trackstersMergedHandle->at(tracksterId);
+        tracksterEnergy += t.raw_energy();
+      }
+      if (tracksterEnergy == 0.f) {
+        auto const &track = tracks[s.index];
+        // emit a charged hadron
+        TICLCandidate tmpCandidate;
+        tmpCandidate.setCharge(track.charge());
+        tmpCandidate.setTrackPtr(edm::Ptr<reco::Track>(track_h, s.index));
+        tmpCandidate.setPdgId(211 * track.charge());
+        float energy = std::sqrt(track.pt() * track.pt() + mpion2);
+        tmpCandidate.setRawEnergy(energy);
+        math::XYZTLorentzVector p4(track.momentum().x(), track.momentum().y(), track.momentum().z(), energy);
+        tmpCandidate.setP4(p4);
+        resultCandidates->push_back(tmpCandidate);
+        usedSeeds[s.index] = true;
+      }
     }
-    tracksterTRK_idx++;
+  }
+  // for all general tracks (high purity, pt > 1), check if they have been used: if not, promote them as charged hadrons
+  for (unsigned i = 0; i < tracks.size(); ++i) {
+    auto const &track = tracks[i];
+    if (track.pt() > 1.f and track.quality(reco::TrackBase::highPurity) and usedSeeds[i] == false) {
+      // emit a charged hadron
+      TICLCandidate tmpCandidate;
+      tmpCandidate.setCharge(track.charge());
+      tmpCandidate.setTrackPtr(edm::Ptr<reco::Track>(track_h, i));
+      tmpCandidate.setPdgId(211 * track.charge());
+      float energy = std::sqrt(track.pt() * track.pt() + mpion2);
+      tmpCandidate.setRawEnergy(energy);
+      math::XYZTLorentzVector p4(track.momentum().x(), track.momentum().y(), track.momentum().z(), energy);
+      tmpCandidate.setP4(p4);
+      resultCandidates->push_back(tmpCandidate);
+      usedSeeds[i] = true;
+    }
   }
 
-  auto tracksterEM_idx = 0;
-  for (auto const &t : trackstersEM) {
-    if (debug_) {
-      LogDebug("TrackstersMergeProducer") << " Considering trackster " << tracksterEM_idx
-                                          << " as used: " << usedTrackstersEM[tracksterEM_idx] << std::endl;
-    }
-    if (!usedTrackstersEM[tracksterEM_idx]) {
-      LogDebug("TrackstersMergeProducer")
-          << " Creating a photon from EM Trackster with track energy " << t.raw_energy() << " and direction "
-          << t.eigenvectors(0).eta() << ", " << t.eigenvectors(0).phi() << std::endl;
-      result->push_back(t);
-    }
-    tracksterEM_idx++;
-  }
-
-  tracksterHAD_idx = 0;
-  for (auto const &t : trackstersHAD) {
-    if (debug_) {
-      LogDebug("TrackstersMergeProducer") << " Considering trackster " << tracksterHAD_idx
-                                          << " as used: " << usedTrackstersHAD[tracksterHAD_idx] << std::endl;
-    }
-    if (!usedTrackstersHAD[tracksterHAD_idx]) {
-      LogDebug("TrackstersMergeProducer")
-          << " Creating a neutral hadron from HAD Trackster with track energy " << t.raw_energy() << " and direction "
-          << t.eigenvectors(0).eta() << ", " << t.eigenvectors(0).phi() << std::endl;
-      result->push_back(t);
-    }
-    tracksterHAD_idx++;
-  }
-
-  auto tracksterTRKEM_idx = 0;
-  for (auto const &t : trackstersTRKEM) {
-    if (debug_) {
-      LogDebug("TrackstersMergeProducer") << " Considering trackster " << tracksterTRKEM_idx
-                                          << " as used: " << usedTrackstersTRKEM[tracksterTRKEM_idx] << std::endl;
-    }
-    if (!usedTrackstersTRKEM[tracksterTRKEM_idx]) {
-      LogDebug("TrackstersMergeProducer")
-          << " Creating a photon from EM Trackster with track energy " << t.raw_energy() << " and direction "
-          << t.eigenvectors(0).eta() << ", " << t.eigenvectors(0).phi() << std::endl;
-      result->push_back(t);
-    }
-    tracksterTRKEM_idx++;
-  }
-
-  assignPCAtoTracksters(*result, layerClusters, rhtools_.getPositionLayer(rhtools_.lastLayerEE()).z());
-  energyRegressionAndID(layerClusters, *result);
-
-  printTrackstersDebug(*result, "TrackstersMergeProducer");
-
-  evt.put(std::move(result));
+  evt.put(std::move(resultCandidates));
 }
 
 void TrackstersMergeProducer::energyRegressionAndID(const std::vector<reco::CaloCluster> &layerClusters,
@@ -573,6 +1008,8 @@ void TrackstersMergeProducer::fillDescriptions(edm::ConfigurationDescriptions &d
   desc.add<int>("phi_bin_window", 1);
   desc.add<double>("pt_sigma_high", 2.);
   desc.add<double>("pt_sigma_low", 2.);
+  desc.add<double>("halo_max_distance2", 4.);
+  desc.add<double>("mergeTRK_max_dR", 0.03);
   desc.add<double>("cosangle_align", 0.9945);
   desc.add<double>("e_over_h_threshold", 1.);
   desc.add<double>("pt_neutral_threshold", 2.);
