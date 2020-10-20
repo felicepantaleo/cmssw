@@ -59,8 +59,10 @@ private:
   const double cosangle_align_;
   const double e_over_h_threshold_;
   const double pt_neutral_threshold_;
-  const double resol_calo_offset_;
-  const double resol_calo_scale_;
+  const double resol_calo_offset_had_;
+  const double resol_calo_scale_had_;
+  const double resol_calo_offset_em_;
+  const double resol_calo_scale_em_;  
   const bool debug_;
   const std::string eidInputName_;
   const std::string eidOutputNameEnergy_;
@@ -94,8 +96,10 @@ TrackstersMergeProducer::TrackstersMergeProducer(const edm::ParameterSet &ps, co
       cosangle_align_(ps.getParameter<double>("cosangle_align")),
       e_over_h_threshold_(ps.getParameter<double>("e_over_h_threshold")),
       pt_neutral_threshold_(ps.getParameter<double>("pt_neutral_threshold")),
-      resol_calo_offset_(ps.getParameter<double>("resol_calo_offset")),
-      resol_calo_scale_(ps.getParameter<double>("resol_calo_scale")),
+      resol_calo_offset_had_(ps.getParameter<double>("resol_calo_offset_had")),
+      resol_calo_scale_had_(ps.getParameter<double>("resol_calo_scale_had")),
+      resol_calo_offset_em_(ps.getParameter<double>("resol_calo_offset_em")),
+      resol_calo_scale_em_(ps.getParameter<double>("resol_calo_scale_em")),
       debug_(ps.getParameter<bool>("debug")),
       eidInputName_(ps.getParameter<std::string>("eid_input_name")),
       eidOutputNameEnergy_(ps.getParameter<std::string>("eid_output_name_energy")),
@@ -340,7 +344,7 @@ void TrackstersMergeProducer::produce(edm::Event &evt, const edm::EventSetup &es
           //check if the trackster pt and track pt are compatible
 
           float trk_pt = track.pt();
-          float pt_err = trk_pt * resol_calo_scale_ + resol_calo_offset_;
+          float pt_err = trk_pt * resol_calo_scale_em_ + resol_calo_offset_em_;
           float w_cal = 1.f / (pt_err * pt_err);
           float w_trk = 1.f / (track.ptError() * track.ptError());
           float diff_pt = tracksterTotalRawPt - trk_pt;
@@ -432,7 +436,7 @@ void TrackstersMergeProducer::produce(edm::Event &evt, const edm::EventSetup &es
           //check if the trackster pt and track pt are compatible
 
           float trk_pt = track.pt();
-          float pt_err = trk_pt * resol_calo_scale_ + resol_calo_offset_;
+          float pt_err = trk_pt * resol_calo_scale_em_ + resol_calo_offset_em_;
           float w_cal = 1.f / (pt_err * pt_err);
           float w_trk = 1.f / (track.ptError() * track.ptError());
           float diff_pt = t.raw_pt() - trk_pt;
@@ -578,7 +582,7 @@ void TrackstersMergeProducer::produce(edm::Event &evt, const edm::EventSetup &es
           usedTrackstersMerged[mergedIdx] = true;
 
           float trk_pt = track.pt();
-          float pt_err = trk_pt * resol_calo_scale_ + resol_calo_offset_;
+          float pt_err = trk_pt * resol_calo_scale_had_ + resol_calo_offset_had_;
           float w_cal = 1.f / (pt_err * pt_err);
           float w_trk = 1.f / (track.ptError() * track.ptError());
           float diff_pt = t.raw_pt() - trk_pt;
@@ -672,7 +676,7 @@ void TrackstersMergeProducer::produce(edm::Event &evt, const edm::EventSetup &es
             tracksterTotalRawPt += trackstersMergedHandle->at(tmpTracksterId).raw_pt();
           }
 
-          float pt_err = totalTrackPt * resol_calo_scale_ + resol_calo_offset_;
+          float pt_err = totalTrackPt * resol_calo_scale_had_ + resol_calo_offset_had_;
           float diff_pt = tracksterTotalRawPt - totalTrackPt;
           float diff_pt_sigmas = diff_pt / pt_err;
 
@@ -1016,8 +1020,10 @@ void TrackstersMergeProducer::fillDescriptions(edm::ConfigurationDescriptions &d
   desc.add<double>("cosangle_align", 0.9945);
   desc.add<double>("e_over_h_threshold", 1.);
   desc.add<double>("pt_neutral_threshold", 2.);
-  desc.add<double>("resol_calo_offset", 1.5);
-  desc.add<double>("resol_calo_scale", 0.15);
+  desc.add<double>("resol_calo_offset_had", 1.5);
+  desc.add<double>("resol_calo_scale_had", 0.15);
+  desc.add<double>("resol_calo_offset_em", 1.5);
+  desc.add<double>("resol_calo_scale_em", 0.15);
   desc.add<bool>("debug", true);
   desc.add<std::string>("eid_graph_path", "RecoHGCal/TICL/data/tf_models/energy_id_v0.pb");
   desc.add<std::string>("eid_input_name", "input");
