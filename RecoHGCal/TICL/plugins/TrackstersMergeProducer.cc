@@ -302,7 +302,7 @@ void TrackstersMergeProducer::produce(edm::Event &evt, const edm::EventSetup &es
       auto &t = trackstersTRKEM[i];  //trackster
       auto trackIdx = t.seedIndex();
       auto const &track = tracks[trackIdx];
-      if (!usedSeeds[trackIdx]) {
+      if (!usedSeeds[trackIdx] and t.raw_energy()>0) {
         usedSeeds[trackIdx] = true;
         usedTrackstersMerged[mergedIdx] = true;
 
@@ -314,7 +314,7 @@ void TrackstersMergeProducer::produce(edm::Event &evt, const edm::EventSetup &es
         std::vector<int> trackstersTRKEMwithSameSeed;
 
         for (const auto &tracksterIterationPair : seedToTracksterAssociator[trackIdx]) {
-          if (tracksterIterationPair.first != mergedIdx and !usedTrackstersMerged[tracksterIterationPair.first]) {
+          if (tracksterIterationPair.first != mergedIdx and !usedTrackstersMerged[tracksterIterationPair.first] and trackstersMergedHandle->at(tracksterIterationPair.first).raw_energy()>0.) {
             if (tracksterIterationPair.second == TracksterIterIndex::TRKEM) {
               trackstersTRKEMwithSameSeed.push_back(tracksterIterationPair.first);
             } else if (tracksterIterationPair.second == TracksterIterIndex::TRK) {
@@ -510,12 +510,13 @@ void TrackstersMergeProducer::produce(edm::Event &evt, const edm::EventSetup &es
   auto &TRKTiles = tracksterTile[TracksterIterIndex::TRK];
   for (unsigned i = 0; i < trackstersTRK.size(); ++i) {
     auto mergedIdx = indexInMergedCollTRK[i];
-    if (!usedTrackstersMerged[mergedIdx]) {
+    auto &t = trackstersTRK[i];  //trackster
+
+    if (!usedTrackstersMerged[mergedIdx] and t.raw_energy()>0.) {
       if (mergedIntoMergedTracksterTRKIndex[i] == -1) {
         mergedIntoMergedTracksterTRKIndex[i] = mergedTrackstersTRK.size();
         mergedTrackstersTRK.emplace_back((std::initializer_list<unsigned>){i});
       }
-      auto &t = trackstersTRK[i];  //trackster
       auto eta = t.barycenter().eta();
       auto phi = t.barycenter().phi();
       std::array<int, 4> search_box = TRKTiles.searchBoxEtaPhi(
@@ -529,7 +530,7 @@ void TrackstersMergeProducer::produce(edm::Event &evt, const edm::EventSetup &es
             unsigned int otherId = TRKTiles[binId][j];
             auto otherMergedIdx = indexInMergedCollTRK[otherId];
             auto &otherTrackster = trackstersTRK[otherId];  //trackster
-            if (i != otherId and !usedTrackstersMerged[otherMergedIdx]) {
+            if (i != otherId and !usedTrackstersMerged[otherMergedIdx] and otherTrackster.raw_energy()>0.f) {
               if (std::hypot(eta - otherTrackster.barycenter().eta(), phi - otherTrackster.barycenter().phi()) <
                   mergeTRK_max_dR_) {
                 // if there is another trackster within merge distance, and this one has never been merged before, append its index to the merged index of our trackster
@@ -555,15 +556,16 @@ void TrackstersMergeProducer::produce(edm::Event &evt, const edm::EventSetup &es
 
   for (unsigned i = 0; i < trackstersTRK.size(); ++i) {
     auto mergedIdx = indexInMergedCollTRK[i];
-    if (!usedTrackstersMerged[mergedIdx]) {
-      auto &t = trackstersTRK[i];  //trackster
+    auto &t = trackstersTRK[i];  //trackster
+
+    if (!usedTrackstersMerged[mergedIdx] and t.raw_energy()>0) {
       auto trackIdx = t.seedIndex();
       auto const &track = tracks[trackIdx];
       if (!usedSeeds[trackIdx]) {
         std::vector<int> trackstersTRKwithSameSeed;
 
         for (const auto &tracksterIterationPair : seedToTracksterAssociator[trackIdx]) {
-          if (tracksterIterationPair.first != mergedIdx and !usedTrackstersMerged[tracksterIterationPair.first]) {
+          if (tracksterIterationPair.first != mergedIdx and !usedTrackstersMerged[tracksterIterationPair.first] and trackstersMergedHandle->at(tracksterIterationPair.first).raw_energy()>0.) {
             if (tracksterIterationPair.second == TracksterIterIndex::TRK) {
               trackstersTRKwithSameSeed.push_back(tracksterIterationPair.first);
             }
