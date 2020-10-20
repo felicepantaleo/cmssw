@@ -792,7 +792,7 @@ void TrackstersMergeProducer::produce(edm::Event &evt, const edm::EventSetup &es
   for (unsigned i = 0; i < tracks.size(); ++i) {
     auto const &track = tracks[i];
     if (track.pt() > 1.f and track.quality(reco::TrackBase::highPurity)  
-        and track.missingOuterHits() < 5 and track.outerEta() > 1.46 and track.outerEta() < 3.16 and usedSeeds[i] == false) {
+        and track.missingOuterHits() < 5 and std::abs(track.outerEta()) > 1.46 and std::abs(track.outerEta()) < 3.16 and usedSeeds[i] == false) {
       // emit a charged hadron
       TICLCandidate tmpCandidate;
       tmpCandidate.setCharge(track.charge());
