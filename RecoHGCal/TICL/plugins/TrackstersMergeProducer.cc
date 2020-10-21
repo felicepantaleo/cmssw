@@ -461,7 +461,7 @@ void TrackstersMergeProducer::produce(edm::Event &evt, const edm::EventSetup &es
             // If they are not compatible, promote all tracksters as photons with their energy.
             for (auto otherTracksterIdx : trackstersTRKEMwithSameSeed) {
               TICLCandidate photonCandidate;
-              auto &otherTrackster = trackstersTRK[otherTracksterIdx];
+              auto &otherTrackster = trackstersMergedHandle->at(otherTracksterIdx);
               auto gammaEnergy = otherTrackster.raw_energy();
               photonCandidate.setCharge(0);
               photonCandidate.setPdgId(22);
