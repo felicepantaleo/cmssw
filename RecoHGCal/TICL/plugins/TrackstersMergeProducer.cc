@@ -329,7 +329,7 @@ void TrackstersMergeProducer::produce(edm::Event &evt, const edm::EventSetup &es
         bool foundCompatibleTRK = false;
 
         for (auto otherTracksterIdx : trackstersTRKwithSameSeed) {
-          usedTrackstersMerged[otherTracksterIdx];
+          usedTrackstersMerged[otherTracksterIdx] = true;
           tracksterTotalRawPt += trackstersMergedHandle->at(otherTracksterIdx).raw_pt();
 
           // Check the X,Y,Z barycenter and merge if they are very close (halo)
@@ -451,7 +451,7 @@ void TrackstersMergeProducer::produce(edm::Event &evt, const edm::EventSetup &es
                                             gammaEnergy);
             photonCandidate.setP4(gammaP4);
             photonCandidate.addTrackster(edm::Ptr<ticl::Trackster>(trackstersMergedHandle, tmpIndex));
-            usedTrackstersMerged[tmpIndex];
+            usedTrackstersMerged[tmpIndex] = true;
             resultCandidates->push_back(photonCandidate);
           }
         }
