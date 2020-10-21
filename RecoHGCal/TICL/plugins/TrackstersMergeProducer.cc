@@ -392,6 +392,8 @@ void TrackstersMergeProducer::produce(edm::Event &evt, const edm::EventSetup &es
           for (auto otherTracksterIdx : trackstersTRKEMwithSameSeed) {
             auto thisPt = tracksterTotalRawPt + trackstersMergedHandle->at(otherTracksterIdx).raw_pt() - t.raw_pt();
             closestTrackster= std::abs(thisPt - track.pt()) < minPtDiff ? otherTracksterIdx : closestTrackster;
+            usedTrackstersMerged[otherTracksterIdx] = true;
+
           }
           tracksterTotalRawPt+= trackstersMergedHandle->at(closestTrackster).raw_pt() - t.raw_pt();
 
@@ -449,7 +451,6 @@ void TrackstersMergeProducer::produce(edm::Event &evt, const edm::EventSetup &es
                                             gammaEnergy);
             photonCandidate.setP4(gammaP4);
             photonCandidate.addTrackster(edm::Ptr<ticl::Trackster>(trackstersMergedHandle, tmpIndex));
-            usedTrackstersMerged[tmpIndex] = true;
             resultCandidates->push_back(photonCandidate);
           }
         }
