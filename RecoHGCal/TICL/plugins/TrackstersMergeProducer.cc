@@ -491,26 +491,18 @@ void TrackstersMergeProducer::produce(edm::Event &evt, const edm::EventSetup &es
   // For all seeds that have 0-energy tracksters whose track is not marked as used, create a charged hadron with the track information.
   for (auto const &s : seedingTrk) {
     if (usedSeeds[s.index] == false) {
-      float tracksterEnergy = 0.f;
-      for (auto &tracksterIterationPair : seedToTracksterAssociator[s.index]) {
-        auto tracksterId = tracksterIterationPair.first;
-        auto &t = trackstersMergedHandle->at(tracksterId);
-        tracksterEnergy += t.raw_energy();
-      }
-      if (tracksterEnergy == 0.f) {
-        auto const &track = tracks[s.index];
-        // emit a charged hadron
-        TICLCandidate tmpCandidate;
-        tmpCandidate.setCharge(track.charge());
-        tmpCandidate.setTrackPtr(edm::Ptr<reco::Track>(track_h, s.index));
-        tmpCandidate.setPdgId(211 * track.charge());
-        float energy = std::sqrt(track.pt() * track.pt() + mpion2);
-        tmpCandidate.setRawEnergy(energy);
-        math::XYZTLorentzVector p4(track.momentum().x(), track.momentum().y(), track.momentum().z(), energy);
-        tmpCandidate.setP4(p4);
-        resultCandidates->push_back(tmpCandidate);
-        usedSeeds[s.index] = true;
-      }
+      auto const &track = tracks[s.index];
+      // emit a charged hadron
+      TICLCandidate tmpCandidate;
+      tmpCandidate.setCharge(track.charge());
+      tmpCandidate.setTrackPtr(edm::Ptr<reco::Track>(track_h, s.index));
+      tmpCandidate.setPdgId(211 * track.charge());
+      float energy = std::sqrt(track.pt() * track.pt() + mpion2);
+      tmpCandidate.setRawEnergy(energy);
+      math::XYZTLorentzVector p4(track.momentum().x(), track.momentum().y(), track.momentum().z(), energy);
+      tmpCandidate.setP4(p4);
+      resultCandidates->push_back(tmpCandidate);
+      usedSeeds[s.index] = true;
     }
   }
   // for all general tracks (high purity, pt > 1), check if they have been used: if not, promote them as charged hadrons
