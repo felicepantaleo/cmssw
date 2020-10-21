@@ -375,7 +375,7 @@ void TrackstersMergeProducer::produce(edm::Event &evt, const edm::EventSetup &es
               }
               tmpCandidate.setPdgId(11 * track.charge());
               float p = tracksterTotalRawPt * cosh(t.barycenter().eta());
-              tmpCandidate.setRawEnergy(energy);
+              tmpCandidate.setRawEnergy(p);
               math::XYZTLorentzVector p4(p * track.momentum().unit().x(),
                                        p * track.momentum().unit().y(),
                                        p * track.momentum().unit().z(),
