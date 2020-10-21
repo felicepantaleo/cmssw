@@ -375,12 +375,11 @@ void TrackstersMergeProducer::produce(edm::Event &evt, const edm::EventSetup &es
               }
               tmpCandidate.setPdgId(11 * track.charge());
               float p = tracksterTotalRawPt * cosh(t.barycenter().eta());
-              float energy = std::sqrt(p * p + mpion2);
               tmpCandidate.setRawEnergy(energy);
               math::XYZTLorentzVector p4(p * track.momentum().unit().x(),
                                        p * track.momentum().unit().y(),
                                        p * track.momentum().unit().z(),
-                                       energy);
+                                       p);
               tmpCandidate.setP4(p4);
               resultCandidates->push_back(tmpCandidate);
           }
@@ -427,12 +426,11 @@ void TrackstersMergeProducer::produce(edm::Event &evt, const edm::EventSetup &es
             }
             tmpCandidate.setPdgId(11 * track.charge());
             float p = tracksterTotalRawPt * cosh(t.barycenter().eta());
-            float energy = std::sqrt(p * p + mpion2);
-            tmpCandidate.setRawEnergy(energy);
+            tmpCandidate.setRawEnergy(p);
             math::XYZTLorentzVector p4(p * track.momentum().unit().x(),
                                       p * track.momentum().unit().y(),
                                       p * track.momentum().unit().z(),
-                                      energy);
+                                      p);
             tmpCandidate.setP4(p4);
             resultCandidates->push_back(tmpCandidate);
           }
