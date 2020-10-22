@@ -65,7 +65,7 @@ ticlTrackstersHFNoseEM = ticlTrackstersEM.clone(
     filtered_mask = "filteredLayerClustersHFNoseEM:EMn",
     seeding_regions = "ticlSeedingGlobalHFNose",
     time_layerclusters = "hgcalLayerClustersHFNose:timeLayerCluster",
-    min_clusters_per_ntuplet = 6
+    min_layers_per_trackster = 6
 )
 
 ticlHFNoseEMStepTask = cms.Task(ticlSeedingGlobalHFNose
