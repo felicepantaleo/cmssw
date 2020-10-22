@@ -1,6 +1,7 @@
 import FWCore.ParameterSet.Config as cms
 
 from RecoHGCal.TICL.MIPStep_cff import *
+from RecoHGCal.TICL.TrkEMStep_cff import *
 from RecoHGCal.TICL.TrkStep_cff import *
 from RecoHGCal.TICL.EMStep_cff import *
 from RecoHGCal.TICL.HADStep_cff import *
@@ -18,18 +19,14 @@ ticlMultiClustersFromTrackstersMerge = _multiClustersFromTrackstersProducer.clon
 )
 ticlTracksterMergeTask = cms.Task(ticlTrackstersMerge, ticlMultiClustersFromTrackstersMerge)
 
-ticlCandidateFromTracksters = _ticlCandidateFromTrackstersProducer.clone(
-      tracksterCollections = ["ticlTrackstersMerge"],
-      # A possible alternative for momentum computation:
-      # momentumPlugin = dict(plugin="TracksterP4FromTrackAndPCA")
-    )
+
 pfTICL = _pfTICLProducer.clone()
-ticlPFTask = cms.Task(ticlCandidateFromTracksters, pfTICL)
+ticlPFTask = cms.Task(pfTICL)
 
 iterTICLTask = cms.Task(ticlLayerTileTask
-    ,ticlMIPStepTask
-    ,ticlTrkStepTask
+    ,ticlTrkEMStepTask
     ,ticlEMStepTask
+    ,ticlTrkStepTask
     ,ticlHADStepTask
     ,ticlTracksterMergeTask
     ,ticlPFTask
