@@ -20,13 +20,30 @@ public:
   TICLCandidate() : LeafCandidate(), time_(0.f), timeError_(-1.f), rawEnergy_(0.f), idProbabilities_{} {}
 
   TICLCandidate(const edm::Ptr<ticl::Trackster>& trackster)
-      : LeafCandidate(), time_(0.f), timeError_(-1.f), rawEnergy_(0.f), tracksters_({trackster}), idProbabilities_{} {}
+      : LeafCandidate(),
+        time_(trackster->time()),
+        timeError_(trackster->timeError()),
+        rawEnergy_(0.f),
+        tracksters_({trackster}),
+        idProbabilities_{} {}
 
   inline float time() const { return time_; }
   inline float timeError() const { return timeError_; }
 
   void setTime(float time) { time_ = time; };
   void setTimeError(float timeError) { timeError_ = timeError; }
+  void computeTime() {
+    auto time = 0;
+    auto timeErr = 0;
+    for (const auto tr : tracksters_) {
+      time += tr->time() / pow(tr->timeError(), 2);
+      timeErr += pow(tr->timeError(), -2);
+    }
+    timeErr = sqrt(1 / timeErr);
+
+    setTime(time * pow(timeErr, 2));
+    setTimeError(timeErr);
+  }
 
   inline const edm::Ptr<reco::Track> trackPtr() const { return trackPtr_; }
   void setTrackPtr(const edm::Ptr<reco::Track>& trackPtr) { trackPtr_ = trackPtr; }
