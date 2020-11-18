@@ -377,8 +377,10 @@ void PatternRecognitionbyCA<TILES>::energyRegressionAndID(const std::vector<reco
     // note: after the loop, sumClusterEnergy might be just above the threshold which is enough to
     // decide whether to run inference for the trackster or not
     float sumClusterEnergy = 0.;
+    unsigned vertexId = 0;
     for (const unsigned int &vertex : tracksters[i].vertices()) {
-      sumClusterEnergy += (float)layerClusters[vertex].energy();
+      sumClusterEnergy += (float)layerClusters[vertex].energy() / tracksters[i].vertex_multiplicity(vertexId);
+      vertexId++;
       // there might be many clusters, so try to stop early
       if (sumClusterEnergy >= eidMinClusterEnergy_) {
         // set default values (1)
@@ -422,7 +424,8 @@ void PatternRecognitionbyCA<TILES>::energyRegressionAndID(const std::vector<reco
       clusterIndices[k] = k;
     }
     sort(clusterIndices.begin(), clusterIndices.end(), [&layerClusters, &trackster](const int &a, const int &b) {
-      return layerClusters[trackster.vertices(a)].energy() > layerClusters[trackster.vertices(b)].energy();
+      return layerClusters[trackster.vertices(a)].energy() * trackster.vertex_multiplicity(b) >
+             layerClusters[trackster.vertices(b)].energy() * trackster.vertex_multiplicity(a);
     });
 
     // keep track of the number of seen clusters per layer
