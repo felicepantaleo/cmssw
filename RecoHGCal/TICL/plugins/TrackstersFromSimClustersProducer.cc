@@ -19,6 +19,7 @@
 #include "DataFormats/HGCalReco/interface/Trackster.h"
 #include "DataFormats/HGCalReco/interface/TICLLayerTile.h"
 
+#include "DataFormats/Common/interface/ValueMap.h"
 
 
 using namespace ticl;
