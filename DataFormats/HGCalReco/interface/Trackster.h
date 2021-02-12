@@ -111,7 +111,7 @@ namespace ticl {
         p = *(probs++);
       }
     }
-    inline void setIdProbability(ParticleType type, float value) { id_probabilities_[int(type)] = 1.f; }
+    inline void setIdProbability(ParticleType type, float value) { id_probabilities_[int(type)] = value; }
 
     inline const std::vector<unsigned int> &vertices() const { return vertices_; }
     inline const unsigned int vertices(int index) const { return vertices_[index]; }
