@@ -39,7 +39,8 @@ postProcessorHGCALsimclusters= DQMEDHarvester('DQMGenericClient',
         'HGCAL/HGCalValidator/simClusters/ticlTrackstersEM',
         'HGCAL/HGCalValidator/simClusters/ticlTrackstersTrk',
         'HGCAL/HGCalValidator/simClusters/ticlTrackstersHAD',
-        'HGCAL/HGCalValidator/simClusters/ticlTrackstersMerge'
+        'HGCAL/HGCalValidator/simClusters/ticlTrackstersMerge',
+        'HGCAL/HGCalValidator/simClusters/ticlSimTracksters'
     ),
     efficiency = cms.vstring(eff_simclusters),
     resolution = cms.vstring(),
@@ -60,6 +61,7 @@ eff_multiclusters.extend(["merge_phi 'MultiCluster Merge Rate vs #phi' NumMerge_
 subdirs = ['HGCAL/HGCalValidator/hgcalMultiClusters/']
 iterations = ['TrkEM','EM','Trk','HAD','Merge']
 subdirs.extend('HGCAL/HGCalValidator/ticlMultiClustersFromTracksters'+iteration+'/' for iteration in iterations)
+subdirs.extend('HGCAL/HGCalValidator/ticlMultiClustersFromSimTracksters/')
 
 postProcessorHGCALmulticlusters = DQMEDHarvester('DQMGenericClient',
   subDirs = cms.untracked.vstring(subdirs),
