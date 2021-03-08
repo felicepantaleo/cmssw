@@ -39,7 +39,8 @@ postProcessorHGCALsimclusters= DQMEDHarvester('DQMGenericClient',
         'HGCAL/HGCalValidator/simClusters/ticlTrackstersEM',
         'HGCAL/HGCalValidator/simClusters/ticlTrackstersTrk',
         'HGCAL/HGCalValidator/simClusters/ticlTrackstersHAD',
-        'HGCAL/HGCalValidator/simClusters/ticlTrackstersMerge'
+        'HGCAL/HGCalValidator/simClusters/ticlTrackstersMerge',
+        'HGCAL/HGCalValidator/simClusters/ticlSimTracksters'
     ),
     efficiency = cms.vstring(eff_simclusters),
     resolution = cms.vstring(),
@@ -64,6 +65,7 @@ subDirs = cms.untracked.vstring(
   'HGCAL/HGCalValidator/ticlMultiClustersFromTrackstersEM/',
   'HGCAL/HGCalValidator/ticlMultiClustersFromTrackstersHAD/',
   'HGCAL/HGCalValidator/ticlMultiClustersFromTrackstersMerge/',
+  'HGCAL/HGCalValidator/ticlMultiClustersFromSimTracksters/',
   ),
 
 efficiency = cms.vstring(eff_multiclusters),

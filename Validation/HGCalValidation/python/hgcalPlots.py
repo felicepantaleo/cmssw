@@ -2405,6 +2405,7 @@ sc_ticltracksters = [
 hgcalSimClustersPlotter = Plotter()
 
 def append_hgcalSimClustersPlots(collection, name_collection):
+  print(_hgcalsimClustersFolders(collection))
   if collection == "ClusterLevel":
       hgcalSimClustersPlotter.append(collection, [
                   _hgcalsimClustersFolders(collection)

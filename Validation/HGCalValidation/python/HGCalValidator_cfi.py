@@ -18,10 +18,13 @@ hgcalValidator = DQMEDAnalyzer(
     #2dlayerclusters, pfclusters, multiclusters
     label_lcl = layerClusterCaloParticleAssociation.label_lc,
     label_mcl = cms.VInputTag(
+      cms.InputTag("ticlMultiClustersFromTrackstersTrkEM"),
       cms.InputTag("ticlMultiClustersFromTrackstersTrk"),
       cms.InputTag("ticlMultiClustersFromTrackstersEM"),
       cms.InputTag("ticlMultiClustersFromTrackstersHAD"),
-      cms.InputTag("ticlMultiClustersFromTrackstersMerge")),
+      cms.InputTag("ticlMultiClustersFromTrackstersMerge"),
+      cms.InputTag("ticlMultiClustersFromSimTracksters")),
+
 
     associator = cms.untracked.InputTag("layerClusterCaloParticleAssociationProducer"),
 
@@ -57,7 +60,8 @@ hgcalValidator = DQMEDAnalyzer(
         cms.InputTag("ticlTrackstersTrkEM"),
         cms.InputTag("ticlTrackstersEM"),
         cms.InputTag("ticlTrackstersTrk"),
-        cms.InputTag("ticlTrackstersHAD")
+        cms.InputTag("ticlTrackstersHAD"),
+        cms.InputTag("ticlSimTracksters")
     ),
 
     #Total number of layers of HGCal that we want to monitor
