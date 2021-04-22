@@ -113,6 +113,7 @@ void PatternRecognitionbyCA<TILES>::makeTracksters(
   // container for holding tracksters before selection
   std::vector<Trackster> tmpTracksters;
   tmpTracksters.reserve(foundNtuplets.size());
+  // std::cout << __LINE__ << "found ntuplets: " << foundNtuplets.size() << std::endl;
 
   for (auto const &ntuplet : foundNtuplets) {
     tracksterId++;
@@ -173,7 +174,7 @@ void PatternRecognitionbyCA<TILES>::makeTracksters(
         j++;
       }
     }
-
+    // std::cout << "... numberOfLayersInTrackster " << numberOfLayersInTrackster << " number of LCs "<< effective_cluster_idx.size() <<  " showerMinLayerId " << showerMinLayerId << std::endl;
     if ((numberOfLayersInTrackster >= min_layers_per_trackster_) and (showerMinLayerId <= shower_start_max_layer_)) {
       // Put back indices, in the form of a Trackster, into the results vector
       Trackster tmp;
@@ -184,9 +185,18 @@ void PatternRecognitionbyCA<TILES>::makeTracksters(
       tmp.setSeed(input.regions[0].collectionID, seedIndices[tracksterId]);
 
       std::copy(std::begin(effective_cluster_idx), std::end(effective_cluster_idx), std::back_inserter(tmp.vertices()));
+      // Propagate the correct graph connections
+      tmp.edges().reserve(ntuplet.size());
+      for (auto const &t : ntuplet) {
+        std::array<unsigned int, 2> edge = {
+            {(unsigned int)doublets[t].innerClusterId(), (unsigned int)doublets[t].outerClusterId()}};
+        tmp.edges().push_back(edge);
+      }
       tmpTracksters.push_back(tmp);
     }
   }
+
+  std::cout << __LINE__ << "found tracksters: " << tmpTracksters.size() << std::endl;
   ticl::assignPCAtoTracksters(tmpTracksters,
                               input.layerClusters,
                               input.layerClustersTime,
@@ -217,7 +227,7 @@ void PatternRecognitionbyCA<TILES>::makeTracksters(
   }
 
   result.reserve(selectedTrackstersIds.size());
-
+  // std::cout << __LINE__ << "selected tracksters: " << selectedTrackstersIds.size() << "\n\n" << std::endl;
   for (unsigned i = 0; i < selectedTrackstersIds.size(); ++i) {
     const auto &t = tmpTracksters[selectedTrackstersIds[i]];
     for (auto const lcId : t.vertices()) {

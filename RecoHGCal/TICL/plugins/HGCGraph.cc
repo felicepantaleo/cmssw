@@ -156,7 +156,20 @@ void HGCGraphT<TILES>::makeAndConnectDoublets(const TILES &histo,
                         LogDebug("HGCGraph") << "Rejecting doublets due to timing!" << std::endl;
                       continue;
                     }
-                    allDoublets_.emplace_back(innerClusterId, outerClusterId, doubletId, &layerClusters, r.index);
+                    if (currentOuterLayerId - currentInnerLayerId == 1)
+                    {
+                      if(areOverlappingOnSiblingLayers(innerClusterId,outerClusterId, layerClusters,0.0002f))
+                      {
+                        allDoublets_.emplace_back(innerClusterId, outerClusterId, doubletId, &layerClusters, r.index, true);  
+                      } 
+                      else 
+                      {
+                        continue;
+                      }
+                    } else 
+                    {
+                      allDoublets_.emplace_back(innerClusterId, outerClusterId, doubletId, &layerClusters, r.index,false);
+                    }
                     if (verbosity_ > Advanced) {
                       LogDebug("HGCGraph")
                           << "Creating doubletsId: " << doubletId << " layerLink in-out: [" << currentInnerLayerId
@@ -218,6 +231,18 @@ bool HGCGraphT<TILES>::areTimeCompatible(int innerIdx,
 
   return (timeIn == -99. || timeOut == -99. ||
           std::abs(timeIn - timeOut) < maxDeltaTime * sqrt(timeInE * timeInE + timeOutE * timeOutE));
+}
+
+template <typename TILES>
+bool HGCGraphT<TILES>::areOverlappingOnSiblingLayers(int innerIdx,
+                                         int outerIdx,
+                                         const std::vector<reco::CaloCluster> &layerClusters,
+                                         float maxRSquared) {
+
+  float etaDiff = layerClusters[outerIdx].eta() - layerClusters[innerIdx].eta();
+  float phiDiff = layerClusters[outerIdx].phi() - layerClusters[innerIdx].phi();
+
+  return etaDiff*etaDiff + phiDiff*phiDiff < maxRSquared;
 }
 
 //also return a vector of seedIndex for the reconstructed tracksters
