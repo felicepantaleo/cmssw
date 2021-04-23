@@ -87,6 +87,7 @@ void HGCGraphT<TILES>::makeAndConnectDoublets(const TILES &histo,
         int currentOuterLayerId = currentInnerLayerId + 1 + outer_layer;
         auto const &outerLayerHisto = histo[currentOuterLayerId];
         auto const &innerLayerHisto = histo[currentInnerLayerId];
+        float deltaZ = 0.f; 
         const int etaLimitIncreaseWindowBin = innerLayerHisto.etaBin(etaLimitIncreaseWindow);
         if (verbosity_ > Advanced) {
           LogDebug("HGCGraph") << "Limit of Eta for increase: " << etaLimitIncreaseWindow
@@ -158,7 +159,11 @@ void HGCGraphT<TILES>::makeAndConnectDoublets(const TILES &histo,
                     }
                     if (currentOuterLayerId - currentInnerLayerId == 1)
                     {
-                      if(areOverlappingOnSiblingLayers(innerClusterId,outerClusterId, layerClusters,0.0002f))
+                      if(deltaZ == 0)
+                      {
+                        deltaZ = layerClusters[outerClusterId].z() - layerClusters[innerClusterId].z();
+                      }
+                      if(areOverlappingOnSiblingLayers(innerClusterId,outerClusterId, layerClusters,2.e-4f*deltaZ))
                       {
                         allDoublets_.emplace_back(innerClusterId, outerClusterId, doubletId, &layerClusters, r.index, true);  
                       } 
