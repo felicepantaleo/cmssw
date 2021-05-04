@@ -125,6 +125,8 @@ void TrackstersFromSimClustersProducer::produce(edm::Event& evt, const edm::Even
   auto num_simclusters = simclusters.size();
   result->reserve(num_simclusters);
   for (const auto& [key, values] : simToRecoColl) {
+    if (values.empty())
+      continue;
     auto const& sc = *(key);
     auto simClusterIndex = &sc - &simclusters[0];
     Trackster tmpTrackster;
@@ -137,13 +139,14 @@ void TrackstersFromSimClustersProducer::produce(edm::Event& evt, const edm::Even
         tmpTrackster.vertices().push_back(lc.index());
         double fraction = energyScorePair.first / lc->energy();
         (*output_mask)[lc.index()] -= fraction;
-        tmpTrackster.vertex_multiplicity().push_back(static_cast<uint8_t>(std::clamp(1. / fraction, 0., 255.)));
+        tmpTrackster.vertex_multiplicity().push_back(static_cast<uint8_t>(std::clamp(1. / fraction, 1., 255.)));
       }
     }
     tmpTrackster.setIdProbability(tracksterParticleTypeFromPdgId(sc.pdgId(), sc.charge()), 1.f);
     tmpTrackster.setSeed(key.id(), simClusterIndex);
     result->emplace_back(tmpTrackster);
   }
+  result->shrink_to_fit();
   ticl::assignPCAtoTracksters(
       *result, layerClusters, layerClustersTimes, rhtools_.getPositionLayer(rhtools_.lastLayerEE(doNose_)).z());
   evt.put(std::move(result));
