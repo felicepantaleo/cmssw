@@ -19,7 +19,8 @@ public:
              const int outerClusterId,
              const int doubletId,
              const std::vector<reco::CaloCluster> *layerClusters,
-             const int seedIndex, bool areSiblingClusters = false)
+             const int seedIndex,
+             bool areSiblingClusters = false)
       : layerClusters_(layerClusters),
         theDoubletId_(doubletId),
         innerClusterId_(innerClusterId),

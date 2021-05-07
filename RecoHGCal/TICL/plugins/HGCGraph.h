@@ -35,7 +35,7 @@ public:
                          int outerIdx,
                          const edm::ValueMap<std::pair<float, float>> &layerClustersTime,
                          float maxDeltaTime);
-                         
+
   bool areOverlappingOnSiblingLayers(int innerIdx,
                                      int outerIdx,
                                      const std::vector<reco::CaloCluster> &layerClusters,

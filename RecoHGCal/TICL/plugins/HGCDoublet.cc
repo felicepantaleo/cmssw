@@ -38,8 +38,7 @@ bool HGCDoublet::checkCompatibilityAndTag(std::vector<HGCDoublet> &allDoublets,
         ok[j] = 0;
         continue;
       }
-      if(areSiblingClusters_ and siblingsClusters[j]) 
-      {
+      if (areSiblingClusters_ and siblingsClusters[j]) {
         ok[j] = 1;
         continue;
       }
