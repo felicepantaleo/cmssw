@@ -4,8 +4,8 @@ import FWCore.ParameterSet.Config as cms
 # Define once the BeamSpotOnline record name,
 # will be used both in BeamMonitor setup and in payload creation/upload
 BSOnlineRecordName = 'BeamSpotOnlineHLTObjectsRcd'
-BSOnlineTag = 'BeamSpotOnlineTestHLT'
-BSOnlineJobName = 'BeamSpotOnlineTestHLT'
+BSOnlineTag = 'BeamSpotOnlineHLT'
+BSOnlineJobName = 'BeamSpotOnlineHLT'
 BSOnlineOmsServiceUrl = 'http://cmsoms-services.cms:9949/urn:xdaq-application:lid=100/getRunAndLumiSection'
 useLockRecords = True
 
@@ -166,7 +166,7 @@ if (process.runType.getRunType() == process.runType.pp_run or
         "HLT_PAZeroBias_v", "HLT_ZeroBias_", "HLT_QuadJet",
         "HLT_HI")
 
-    process.dqmBeamMonitor.hltResults = cms.InputTag("TriggerResults","","HLT")
+    process.dqmBeamMonitor.hltResults = "TriggerResults::HLT"
 
     #---------
     # Upload BeamSpotOnlineObject (HLTRcd) to CondDB

@@ -11,6 +11,7 @@
 #include "Geometry/Records/interface/HcalParametersRcd.h"
 #include "CondFormats/GeometryObjects/interface/CaloSimulationParameters.h"
 #include "FWCore/Framework/interface/ESHandle.h"
+#include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/Utilities/interface/Exception.h"
 
 #include "G4EventManager.hh"
@@ -33,13 +34,12 @@
 //#define EDM_ML_DEBUG
 
 CaloSD::CaloSD(const std::string& name,
-               const edm::EventSetup& es,
                const SensitiveDetectorCatalog& clg,
                edm::ParameterSet const& p,
                const SimTrackManager* manager,
                float timeSliceUnit,
                bool ignoreTkID)
-    : SensitiveCaloDetector(name, es, clg, p),
+    : SensitiveCaloDetector(name, clg),
       G4VGFlashSensitiveDetector(),
       eminHit(0.),
       currentHit(nullptr),
@@ -115,7 +115,7 @@ CaloSD::CaloSD(const std::string& name,
                               << " ns and if energy is above " << eminHit / CLHEP::MeV << " MeV (for depth 0) or "
                               << eminHitD / CLHEP::MeV << " MeV (for nonzero depths);\n        Time Slice Unit "
                               << timeSlice << "\nIgnore TrackID Flag " << ignoreTrackID << " doFineCalo flag "
-                              << doFineCalo_;
+                              << doFineCalo_ << "\nBeam Position " << beamZ / CLHEP::cm << " cm";
 
   // Treat fine calorimeters
   edm::LogVerbatim("CaloSim") << "CaloSD: Have a possibility of " << fineNames.size() << " fine calorimeters of which "

@@ -18,7 +18,7 @@ import sqlalchemy.ext.declarative
 import enum
 from sqlalchemy import Enum
 
-schema_name = 'CMS_CONDITIONS'
+schema_name = 'cms_conditions'
 dbuser_name = 'cms_conditions'
 dbreader_user_name = 'cms_cond_general_r'
 dbwriter_user_name = 'cms_cond_general_w'
@@ -337,7 +337,7 @@ class Connection(object):
                 self.engine.execute('pragma foreign_keys = on')
 
         else:
-            self.engine = sqlalchemy.create_engine(url)
+            self.engine = sqlalchemy.create_engine(url, max_identifier_length=30)
 
         self._session = sqlalchemy.orm.scoped_session(sqlalchemy.orm.sessionmaker(bind=self.engine))
 
@@ -571,7 +571,7 @@ def connect(url, authPath=None, verbose=0, as_admin=False):
                     else:
                         explicit_auth =True
                 else:
-                    import pluginCondDBPyBind11Interface as auth
+                    import libCondDBPyBind11Interface as auth
                     role_code = auth.reader_role
                     if url.username == dbwriter_user_name:
                         role_code = auth.writer_role

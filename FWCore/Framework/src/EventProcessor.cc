@@ -1,5 +1,4 @@
 #include "FWCore/Framework/interface/EventProcessor.h"
-
 #include "DataFormats/Provenance/interface/BranchIDListHelper.h"
 #include "DataFormats/Provenance/interface/ModuleDescription.h"
 #include "DataFormats/Provenance/interface/ParameterSetID.h"
@@ -112,6 +111,16 @@ namespace {
     edm::ActivityRegistry* reg_;  // We do not use propagate_const because the registry itself is mutable.
   };
 
+  template <typename F>
+  void runIfNoException(edm::WaitingTaskHolder iHolder, std::exception_ptr const* iPtr, F&& iFunc) {
+    if (iPtr) {
+      iHolder.doneWaiting(*iPtr);
+    } else {
+      CMS_SA_ALLOW try { iFunc(); } catch (...) {
+        iHolder.doneWaiting(std::current_exception());
+      }
+    }
+  }
 }  // namespace
 
 namespace edm {
@@ -209,20 +218,14 @@ namespace edm {
 
   std::shared_ptr<EDLooperBase> fillLooper(eventsetup::EventSetupsController& esController,
                                            eventsetup::EventSetupProvider& cp,
-                                           ParameterSet& params) {
+                                           ParameterSet& params,
+                                           std::vector<std::string> const& loopers) {
     std::shared_ptr<EDLooperBase> vLooper;
-
-    std::vector<std::string> loopers = params.getParameter<std::vector<std::string>>("@all_loopers");
-
-    if (loopers.empty()) {
-      return vLooper;
-    }
 
     assert(1 == loopers.size());
 
-    for (std::vector<std::string>::iterator itName = loopers.begin(), itNameEnd = loopers.end(); itName != itNameEnd;
-         ++itName) {
-      ParameterSet* providerPSet = params.getPSetForUpdate(*itName);
+    for (auto const& looperName : loopers) {
+      ParameterSet* providerPSet = params.getPSetForUpdate(looperName);
       validateLooper(*providerPSet);
       providerPSet->registerIt();
       vLooper = eventsetup::LooperFactory::get()->addTo(esController, cp, *providerPSet);
@@ -386,9 +389,6 @@ namespace edm {
     if (nStreams == 0) {
       nStreams = nThreads;
     }
-    if (nThreads > 1 or nStreams > 1) {
-      edm::LogInfo("ThreadStreamSetup") << "setting # threads " << nThreads << "\nsetting # streams " << nStreams;
-    }
     unsigned int nConcurrentRuns = optionsPset.getUntrackedParameter<unsigned int>("numberOfConcurrentRuns");
     if (nConcurrentRuns != 1) {
       throw Exception(errors::Configuration, "Illegal value nConcurrentRuns : ")
@@ -397,8 +397,35 @@ namespace edm {
     unsigned int nConcurrentLumis =
         optionsPset.getUntrackedParameter<unsigned int>("numberOfConcurrentLuminosityBlocks");
     if (nConcurrentLumis == 0) {
-      nConcurrentLumis = nConcurrentRuns;
+      nConcurrentLumis = 2;
     }
+    if (nConcurrentLumis > nStreams) {
+      nConcurrentLumis = nStreams;
+    }
+    std::vector<std::string> loopers = parameterSet->getParameter<std::vector<std::string>>("@all_loopers");
+    if (!loopers.empty()) {
+      //For now loopers make us run only 1 transition at a time
+      if (nStreams != 1 || nConcurrentLumis != 1 || nConcurrentRuns != 1) {
+        edm::LogWarning("ThreadStreamSetup") << "There is a looper, so the number of streams, the number "
+                                                "of concurrent runs, and the number of concurrent lumis "
+                                                "are all being reset to 1. Loopers cannot currently support "
+                                                "values greater than 1.";
+        nStreams = 1;
+        nConcurrentLumis = 1;
+        nConcurrentRuns = 1;
+      }
+    }
+    bool dumpOptions = optionsPset.getUntrackedParameter<bool>("dumpOptions");
+    if (dumpOptions) {
+      dumpOptionsToLogFile(nThreads, nStreams, nConcurrentLumis, nConcurrentRuns);
+    } else {
+      if (nThreads > 1 or nStreams > 1) {
+        edm::LogInfo("ThreadStreamSetup") << "setting # threads " << nThreads << "\nsetting # streams " << nStreams;
+      }
+    }
+    // The number of concurrent IOVs is configured individually for each record in
+    // the class NumberOfConcurrentIOVs to values less than or equal to this.
+    unsigned int maxConcurrentIOVs = nConcurrentLumis;
 
     //Check that relationships between threading parameters makes sense
     /*
@@ -439,22 +466,18 @@ namespace edm {
 
     // intialize the event setup provider
     ParameterSet const& eventSetupPset(optionsPset.getUntrackedParameterSet("eventSetup"));
-    esp_ = espController_->makeProvider(*parameterSet, items.actReg_.get(), &eventSetupPset);
+    esp_ = espController_->makeProvider(
+        *parameterSet, items.actReg_.get(), &eventSetupPset, maxConcurrentIOVs, dumpOptions);
 
     // initialize the looper, if any
-    looper_ = fillLooper(*espController_, *esp_, *parameterSet);
-    if (looper_) {
+    if (!loopers.empty()) {
+      looper_ = fillLooper(*espController_, *esp_, *parameterSet, loopers);
       looper_->setActionTable(items.act_table_.get());
       looper_->attachTo(*items.actReg_);
 
-      //For now loopers make us run only 1 transition at a time
-      nStreams = 1;
-      nConcurrentLumis = 1;
-      nConcurrentRuns = 1;
       // in presence of looper do not delete modules
       deleteNonConsumedUnscheduledModules_ = false;
     }
-    espController_->setMaxConcurrentIOVs(nStreams, nConcurrentLumis);
 
     preallocations_ = PreallocationConfiguration{nThreads, nStreams, nConcurrentLumis, nConcurrentRuns};
 
@@ -1071,27 +1094,55 @@ namespace edm {
     auto const& es = esp_->eventSetupImpl();
     if (looper_ && looperBeginJobRun_ == false) {
       looper_->copyInfo(ScheduleInfo(schedule_.get()));
-      looper_->beginOfJob(es);
-      looperBeginJobRun_ = true;
-      looper_->doStartingNewLoop();
+
+      FinalWaitingTask waitTask;
+      auto task = make_waiting_task(
+          [this, &es, taskH = WaitingTaskHolder(taskGroup_, &waitTask)](std::exception_ptr const* iPtr) mutable {
+            runIfNoException(std::move(taskH), iPtr, [&]() {
+              looper_->beginOfJob(es);
+              looperBeginJobRun_ = true;
+              looper_->doStartingNewLoop();
+            });
+          });
+
+      looper_->esPrefetchAsync(WaitingTaskHolder(taskGroup_, task), es, Transition::BeginRun, serviceToken_);
+      do {
+        taskGroup_.wait();
+      } while (not waitTask.done());
+      if (waitTask.exceptionPtr() != nullptr) {
+        std::rethrow_exception(*(waitTask.exceptionPtr()));
+      }
     }
     {
       using Traits = OccurrenceTraits<RunPrincipal, BranchActionGlobalBegin>;
       FinalWaitingTask globalWaitTask;
+
+      auto endGlobalTask = make_waiting_task(
+          [this, run, &runPrincipal, &es, taskH = WaitingTaskHolder(taskGroup_, &globalWaitTask), &globalBeginSucceeded](
+              std::exception_ptr const* iPtr) mutable {
+            runIfNoException(taskH, iPtr, [&]() {
+              globalBeginSucceeded = true;
+              FDEBUG(1) << "\tbeginRun " << run << "\n";
+              if (looper_) {
+                auto looperTask =
+                    make_waiting_task([this, &runPrincipal, &es, taskH](std::exception_ptr const* iPtr) mutable {
+                      runIfNoException(
+                          std::move(taskH), iPtr, [&]() { looper_->doBeginRun(runPrincipal, es, &processContext_); });
+                    });
+                looper_->prefetchAsync(
+                    WaitingTaskHolder(taskGroup_, looperTask), serviceToken_, Transition::BeginRun, runPrincipal, es);
+              }
+            });
+          });
       RunTransitionInfo transitionInfo(runPrincipal, es);
       beginGlobalTransitionAsync<Traits>(
-          WaitingTaskHolder(taskGroup_, &globalWaitTask), *schedule_, transitionInfo, serviceToken_, subProcesses_);
+          WaitingTaskHolder(taskGroup_, endGlobalTask), *schedule_, transitionInfo, serviceToken_, subProcesses_);
       do {
         taskGroup_.wait();
       } while (not globalWaitTask.done());
       if (globalWaitTask.exceptionPtr() != nullptr) {
         std::rethrow_exception(*(globalWaitTask.exceptionPtr()));
       }
-    }
-    globalBeginSucceeded = true;
-    FDEBUG(1) << "\tbeginRun " << run << "\n";
-    if (looper_) {
-      looper_->doBeginRun(runPrincipal, es, &processContext_);
     }
     {
       //To wait, the ref count has to be 1+#streams
@@ -1190,9 +1241,23 @@ namespace edm {
     {
       FinalWaitingTask globalWaitTask;
 
+      WaitingTask* nextTask = &globalWaitTask;
+      if (looper_) {
+        nextTask = make_waiting_task([this, &runPrincipal, &es, taskH = WaitingTaskHolder(taskGroup_, &globalWaitTask)](
+                                         std::exception_ptr const* iPtr) mutable {
+          runIfNoException(taskH, iPtr, [&]() {
+            auto looperTask = make_waiting_task([this, &runPrincipal, &es, taskH](std::exception_ptr const* iPtr) {
+              runIfNoException(taskH, iPtr, [&]() { looper_->doEndRun(runPrincipal, es, &processContext_); });
+            });
+            looper_->prefetchAsync(
+                WaitingTaskHolder(taskGroup_, looperTask), serviceToken_, Transition::EndRun, runPrincipal, es);
+          });
+        });
+      }
+
       RunTransitionInfo transitionInfo(runPrincipal, es);
       using Traits = OccurrenceTraits<RunPrincipal, BranchActionGlobalEnd>;
-      endGlobalTransitionAsync<Traits>(WaitingTaskHolder(taskGroup_, &globalWaitTask),
+      endGlobalTransitionAsync<Traits>(WaitingTaskHolder(taskGroup_, nextTask),
                                        *schedule_,
                                        transitionInfo,
                                        serviceToken_,
@@ -1206,9 +1271,6 @@ namespace edm {
       }
     }
     FDEBUG(1) << "\tendRun " << run << "\n";
-    if (looper_) {
-      looper_->doEndRun(runPrincipal, es, &processContext_);
-    }
   }
 
   InputSource::ItemType EventProcessor::processLumis(std::shared_ptr<void> const& iRunResource) {
@@ -1288,21 +1350,10 @@ namespace edm {
                       status->resetResources();
                       holder.doneWaiting(*iPtr);
                     } else {
-                      status->globalBeginDidSucceed();
-                      EventSetupImpl const& es = status->eventSetupImpl(esp_->subProcessIndex());
-
-                      if (looper_) {
-                        // Caught exception is propagated via WaitingTaskHolder
-                        CMS_SA_ALLOW try {
-                          //make the services available
-                          ServiceRegistry::Operate operateLooper(serviceToken_);
-                          looper_->doBeginLuminosityBlock(*(status->lumiPrincipal()), es, &processContext_);
-                        } catch (...) {
-                          status->resetResources();
-                          holder.doneWaiting(std::current_exception());
-                          return;
-                        }
+                      if (not looper_) {
+                        status->globalBeginDidSucceed();
                       }
+                      EventSetupImpl const& es = status->eventSetupImpl(esp_->subProcessIndex());
                       using Traits = OccurrenceTraits<LuminosityBlockPrincipal, BranchActionStreamBegin>;
 
                       for (unsigned int i = 0; i < preallocations_.numberOfStreams(); ++i) {
@@ -1341,8 +1392,33 @@ namespace edm {
                     }
                   });  // beginStreamTask
 
+              WaitingTask* postGlobalBeginLumiTask = beginStreamsTask;
+              if (looper_) {
+                EventSetupImpl const& es = status->eventSetupImpl(esp_->subProcessIndex());
+                auto nextTask = make_waiting_task(
+                    [this, &es, status, taskH = WaitingTaskHolder(*iHolder.group(), beginStreamsTask)](
+                        std::exception_ptr const* iPtr) {
+                      runIfNoException(taskH, iPtr, [&]() {
+                        auto looperTask = make_waiting_task([this, &es, status, taskH](std::exception_ptr const* iPtr) {
+                          runIfNoException(taskH, iPtr, [&]() {
+                            status->globalBeginDidSucceed();
+                            //make the services available
+                            ServiceRegistry::Operate operateLooper(serviceToken_);
+                            looper_->doBeginLuminosityBlock(*(status->lumiPrincipal()), es, &processContext_);
+                          });
+                        });
+                        looper_->prefetchAsync(WaitingTaskHolder(taskGroup_, looperTask),
+                                               serviceToken_,
+                                               Transition::BeginLuminosityBlock,
+                                               *(status->lumiPrincipal()),
+                                               es);
+                      });
+                    });
+                postGlobalBeginLumiTask = nextTask;
+              }
+
               //task to start the global begin lumi
-              WaitingTaskHolder beginStreamsHolder{*iHolder.group(), beginStreamsTask};
+              WaitingTaskHolder beginStreamsHolder{*iHolder.group(), postGlobalBeginLumiTask};
 
               EventSetupImpl const& es = status->eventSetupImpl(esp_->subProcessIndex());
               {
@@ -1451,23 +1527,11 @@ namespace edm {
 
     // group is used later in this function, and lives outside of iTask
     tbb::task_group& taskGroup = *iTask.group();
-    auto finalTaskForThisLumi = edm::make_waiting_task(
+    edm::WaitingTask* finalTaskForThisLumi = edm::make_waiting_task(
         [status = std::move(iLumiStatus), iTask = std::move(iTask), this](std::exception_ptr const* iPtr) mutable {
           std::exception_ptr ptr;
           if (iPtr) {
             handleEndLumiExceptions(iPtr, iTask);
-          } else {
-            // Caught exception is passed to handleEndLumiExceptions()
-            CMS_SA_ALLOW try {
-              ServiceRegistry::Operate operate(serviceToken_);
-              if (looper_) {
-                auto& lumiPrincipal = *(status->lumiPrincipal());
-                EventSetupImpl const& eventSetupImpl = status->eventSetupImpl(esp_->subProcessIndex());
-                looper_->doEndLuminosityBlock(lumiPrincipal, eventSetupImpl, &processContext_);
-              }
-            } catch (...) {
-              ptr = std::current_exception();
-            }
           }
           ServiceRegistry::Operate operate(serviceToken_);
 
@@ -1507,6 +1571,34 @@ namespace edm {
           }
         });
 
+    if (looper_) {
+      auto prefetchLooperTask =
+          edm::make_waiting_task([this, nextTask = WaitingTaskHolder(taskGroup, finalTaskForThisLumi), &lp, &es](
+                                     std::exception_ptr const* iPtr) mutable {
+            if (iPtr) {
+              handleEndLumiExceptions(iPtr, nextTask);
+            } else {
+              auto looperTask = edm::make_waiting_task(
+                  [this, nextTask = std::move(nextTask), &lp, &es](std::exception_ptr const* iPtr) mutable {
+                    if (iPtr) {
+                      handleEndLumiExceptions(iPtr, nextTask);
+                    } else {
+                      // Caught exception is passed to handleEndLumiExceptions()
+                      CMS_SA_ALLOW try {
+                        ServiceRegistry::Operate operate(serviceToken_);
+                        looper_->doEndLuminosityBlock(lp, es, &processContext_);
+                      } catch (...) {
+                        auto exp = std::current_exception();
+                        handleEndLumiExceptions(&exp, nextTask);
+                      }
+                    }
+                  });
+              looper_->prefetchAsync(
+                  WaitingTaskHolder(taskGroup_, looperTask), serviceToken_, Transition::EndLuminosityBlock, lp, es);
+            }
+          });
+      finalTaskForThisLumi = prefetchLooperTask;
+    }
     auto writeT = edm::make_waiting_task(
         [this, didGlobalBeginSucceed, &lumiPrincipal = lp, task = WaitingTaskHolder(taskGroup, finalTaskForThisLumi)](
             std::exception_ptr const* iExcept) mutable {
@@ -1888,22 +1980,29 @@ namespace edm {
       rng->postEventRead(ev);
     }
 
-    WaitingTaskHolder finalizeEventTask(
-        *iHolder.group(), make_waiting_task([this, pep, iHolder, iStreamIndex](std::exception_ptr const* iPtr) mutable {
-          //NOTE: If we have a looper we only have one Stream
-          if (looper_) {
-            ServiceRegistry::Operate operateLooper(serviceToken_);
-            processEventWithLooper(*pep, iStreamIndex);
-          }
-
-          FDEBUG(1) << "\tprocessEvent\n";
-          pep->clearEventPrincipal();
-          if (iPtr) {
-            iHolder.doneWaiting(*iPtr);
-          } else {
-            iHolder.doneWaiting(std::exception_ptr());
-          }
-        }));
+    WaitingTaskHolder finalizeEventTask(*iHolder.group(),
+                                        make_waiting_task([pep, iHolder](std::exception_ptr const* iPtr) mutable {
+                                          FDEBUG(1) << "\tprocessEvent\n";
+                                          pep->clearEventPrincipal();
+                                          if (iPtr) {
+                                            iHolder.doneWaiting(*iPtr);
+                                          } else {
+                                            iHolder.doneWaiting(std::exception_ptr());
+                                          }
+                                        }));
+    if (looper_) {
+      //NOTE: If we have a looper we only have one Stream
+      auto tmp = std::move(finalizeEventTask);
+      finalizeEventTask = WaitingTaskHolder(*iHolder.group(),
+                                            make_waiting_task([this, iStreamIndex, pep, nextTask = std::move(tmp)](
+                                                                  std::exception_ptr const* iPtr) mutable {
+                                              ServiceRegistry::Operate operateLooper(serviceToken_);
+                                              processEventWithLooper(*pep, iStreamIndex);
+                                              if (iPtr) {
+                                                nextTask.doneWaiting(*iPtr);
+                                              }
+                                            }));
+    }
     WaitingTaskHolder afterProcessTask;
     if (subProcesses_.empty()) {
       afterProcessTask = std::move(finalizeEventTask);

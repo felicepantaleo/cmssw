@@ -141,7 +141,7 @@ trackerDict = {
             'Geometry/TrackerSimData/data/trackerProdCutsBEAM.xml',
         ],
         "sim" : [
-            'from Geometry.TrackerNumberingBuilder.trackerNumberingGeometry_cfi import *',
+            'from Geometry.TrackerNumberingBuilder.trackerNumberingGeometry_cff import *',
         ],
         "reco" : [
             'from Geometry.CommonTopologies.globalTrackingGeometry_cfi import *',
@@ -176,7 +176,7 @@ trackerDict = {
             'Geometry/TrackerSimData/data/trackerProdCutsBEAM.xml',
         ],
         "sim" : [
-            'from Geometry.TrackerNumberingBuilder.trackerNumberingGeometry_cfi import *',
+            'from Geometry.TrackerNumberingBuilder.trackerNumberingGeometry_cff import *',
         ],
         "reco" : [
             'from Geometry.CommonTopologies.globalTrackingGeometry_cfi import *',
@@ -211,7 +211,7 @@ trackerDict = {
             'Geometry/TrackerSimData/data/trackerProdCutsBEAM.xml',
         ],
         "sim" : [
-            'from Geometry.TrackerNumberingBuilder.trackerNumberingGeometry_cfi import *',
+            'from Geometry.TrackerNumberingBuilder.trackerNumberingGeometry_cff import *',
         ],
         "reco" : [
             'from Geometry.CommonTopologies.globalTrackingGeometry_cfi import *',
@@ -245,7 +245,7 @@ trackerDict = {
             'Geometry/TrackerSimData/data/trackerProdCutsBEAM.xml',
         ],
         "sim" : [
-            'from Geometry.TrackerNumberingBuilder.trackerNumberingGeometry_cfi import *',
+            'from Geometry.TrackerNumberingBuilder.trackerNumberingGeometry_cff import *',
         ],
         "reco" : [
             'from Geometry.CommonTopologies.globalTrackingGeometry_cfi import *',
@@ -280,7 +280,7 @@ trackerDict = {
             'Geometry/TrackerSimData/data/trackerProdCutsBEAM.xml',
         ],
         "sim" : [
-            'from Geometry.TrackerNumberingBuilder.trackerNumberingGeometry_cfi import *',
+            'from Geometry.TrackerNumberingBuilder.trackerNumberingGeometry_cff import *',
         ],
         "reco" : [
             'from Geometry.CommonTopologies.globalTrackingGeometry_cfi import *',
@@ -314,7 +314,7 @@ trackerDict = {
             'Geometry/TrackerSimData/data/trackerProdCutsBEAM.xml',
         ],
         "sim" : [
-            'from Geometry.TrackerNumberingBuilder.trackerNumberingGeometry_cfi import *',
+            'from Geometry.TrackerNumberingBuilder.trackerNumberingGeometry_cff import *',
         ],
         "reco" : [
             'from Geometry.CommonTopologies.globalTrackingGeometry_cfi import *',
@@ -348,7 +348,7 @@ trackerDict = {
             'Geometry/TrackerSimData/data/trackerProdCutsBEAM.xml',
         ],
         "sim" : [
-            'from Geometry.TrackerNumberingBuilder.trackerNumberingGeometry_cfi import *',
+            'from Geometry.TrackerNumberingBuilder.trackerNumberingGeometry_cff import *',
         ],
         "reco" : [
             'from Geometry.CommonTopologies.globalTrackingGeometry_cfi import *',
@@ -978,7 +978,7 @@ muonDict = {
             'Geometry/MuonCommonData/data/me0/TDR_Dev/v3/me0.xml',
         ],
         2 : [
-            'Geometry/MuonCommonData/data/muonNumbering/TDR_DeV/v1/muonNumbering.xml',
+            'Geometry/MuonCommonData/data/muonNumbering/TDR_DeV/v4/muonNumbering.xml',
         ],
         3 : [
             'Geometry/MuonSimData/data/PhaseII/ME0EtaPart/muonSens.xml',
@@ -1025,7 +1025,7 @@ muonDict = {
             'Geometry/MuonCommonData/data/me0/TDR_Dev/v3/me0.xml',
         ],
         2 : [
-            'Geometry/MuonCommonData/data/muonNumbering/TDR_DeV/v1/muonNumbering.xml',
+            'Geometry/MuonCommonData/data/muonNumbering/TDR_DeV/v4/muonNumbering.xml',
         ],
         3 : [
             'Geometry/MuonSimData/data/PhaseII/ME0EtaPart/muonSens.xml',
@@ -1072,7 +1072,7 @@ muonDict = {
             'Geometry/MuonCommonData/data/ge0/TDR_Dev/v3/ge0.xml',
         ],
         2 : [
-            'Geometry/MuonCommonData/data/muonNumbering/TDR_DeV/v3/muonNumbering.xml',
+            'Geometry/MuonCommonData/data/muonNumbering/TDR_DeV/v5/muonNumbering.xml',
         ],
         3 : [
             'Geometry/MuonSimData/data/PhaseII/v2/muonSens.xml',

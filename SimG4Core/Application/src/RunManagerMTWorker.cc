@@ -47,6 +47,8 @@
 #include "SimG4Core/SensitiveDetector/interface/AttachSD.h"
 #include "SimG4Core/SensitiveDetector/interface/SensitiveTkDetector.h"
 #include "SimG4Core/SensitiveDetector/interface/SensitiveCaloDetector.h"
+#include "SimG4Core/SensitiveDetector/interface/SensitiveDetectorMakerBase.h"
+#include "SimG4Core/SensitiveDetector/interface/sensitiveDetectorMakers.h"
 
 #include "G4Timer.hh"
 #include "G4Event.hh"
@@ -84,13 +86,13 @@ namespace {
 
   void createWatchers(const edm::ParameterSet& iP,
                       SimActivityRegistry* iReg,
-                      std::vector<std::shared_ptr<SimWatcher> >& oWatchers,
-                      std::vector<std::shared_ptr<SimProducer> >& oProds) {
+                      std::vector<std::shared_ptr<SimWatcher>>& oWatchers,
+                      std::vector<std::shared_ptr<SimProducer>>& oProds) {
     if (!iP.exists("Watchers")) {
       return;
     }
 
-    std::vector<edm::ParameterSet> watchers = iP.getParameter<std::vector<edm::ParameterSet> >("Watchers");
+    std::vector<edm::ParameterSet> watchers = iP.getParameter<std::vector<edm::ParameterSet>>("Watchers");
 
     for (auto& watcher : watchers) {
       std::unique_ptr<SimWatcherMakerBase> maker(
@@ -122,8 +124,8 @@ struct RunManagerMTWorker::TLSData {
   std::unique_ptr<SimTrackManager> trackManager;
   std::vector<SensitiveTkDetector*> sensTkDets;
   std::vector<SensitiveCaloDetector*> sensCaloDets;
-  std::vector<std::shared_ptr<SimWatcher> > watchers;
-  std::vector<std::shared_ptr<SimProducer> > producers;
+  std::vector<std::shared_ptr<SimWatcher>> watchers;
+  std::vector<std::shared_ptr<SimProducer>> producers;
   //G4Run can only be deleted if there is a G4RunManager
   // on the thread where the G4Run is being deleted,
   // else it causes a segmentation fault
@@ -165,7 +167,9 @@ RunManagerMTWorker::RunManagerMTWorker(const edm::ParameterSet& iConfig, edm::Co
       m_p(iConfig),
       m_simEvent(nullptr),
       m_sVerbose(nullptr) {
-  std::vector<edm::ParameterSet> watchers = iConfig.getParameter<std::vector<edm::ParameterSet> >("Watchers");
+  std::vector<std::string> onlySDs = iConfig.getParameter<std::vector<std::string>>("OnlySDs");
+  m_sdMakers = sim::sensitiveDetectorMakers(m_p, iC, onlySDs);
+  std::vector<edm::ParameterSet> watchers = iConfig.getParameter<std::vector<edm::ParameterSet>>("Watchers");
   m_hasWatchers = !watchers.empty();
   initializeTLS();
   int thisID = getThreadIndex();
@@ -173,6 +177,12 @@ RunManagerMTWorker::RunManagerMTWorker(const edm::ParameterSet& iConfig, edm::Co
     m_LHCToken = iC.consumes<edm::HepMCProduct>(edm::InputTag("LHCTransport"));
   }
   edm::LogVerbatim("SimG4CoreApplication") << "RunManagerMTWorker is constructed for the thread " << thisID;
+  unsigned int k = 0;
+  for (std::unordered_map<std::string, std::unique_ptr<SensitiveDetectorMakerBase>>::const_iterator itr =
+           m_sdMakers.begin();
+       itr != m_sdMakers.end();
+       ++itr, ++k)
+    edm::LogVerbatim("SimG4CoreApplication") << "SD[" << k << "] " << itr->first;
 }
 
 RunManagerMTWorker::~RunManagerMTWorker() {
@@ -215,6 +225,12 @@ void RunManagerMTWorker::resetTLS() {
     }
   }
   --n_tls_shutdown_task;
+}
+
+void RunManagerMTWorker::beginRun(edm::EventSetup const& es) {
+  for (auto& maker : m_sdMakers) {
+    maker.second->beginRun(es);
+  }
 }
 
 void RunManagerMTWorker::endRun() {
@@ -320,9 +336,8 @@ void RunManagerMTWorker::initializeG4(RunManagerMT* runManagerMaster, const edm:
   }
 
   // attach sensitive detector
-  AttachSD attach;
-  auto sensDets =
-      attach.create(es, runManagerMaster->catalog(), m_p, m_tls->trackManager.get(), *(m_tls->registry.get()));
+  auto sensDets = sim::attachSD(
+      m_sdMakers, es, runManagerMaster->catalog(), m_p, m_tls->trackManager.get(), *(m_tls->registry.get()));
 
   m_tls->sensTkDets.swap(sensDets.first);
   m_tls->sensCaloDets.swap(sensDets.second);
@@ -362,9 +377,9 @@ void RunManagerMTWorker::initializeG4(RunManagerMT* runManagerMaster, const edm:
 
   G4int sv = m_p.getUntrackedParameter<int>("SteppingVerbosity", 0);
   G4double elim = m_p.getUntrackedParameter<double>("StepVerboseThreshold", 0.1) * CLHEP::GeV;
-  std::vector<int> ve = m_p.getUntrackedParameter<std::vector<int> >("VerboseEvents");
-  std::vector<int> vn = m_p.getUntrackedParameter<std::vector<int> >("VertexNumber");
-  std::vector<int> vt = m_p.getUntrackedParameter<std::vector<int> >("VerboseTracks");
+  std::vector<int> ve = m_p.getUntrackedParameter<std::vector<int>>("VerboseEvents");
+  std::vector<int> vn = m_p.getUntrackedParameter<std::vector<int>>("VertexNumber");
+  std::vector<int> vt = m_p.getUntrackedParameter<std::vector<int>>("VerboseTracks");
 
   if (sv > 0) {
     m_sVerbose = std::make_unique<CMSSteppingVerbose>(sv, elim, ve, vn, vt);
@@ -436,7 +451,7 @@ std::vector<SensitiveCaloDetector*>& RunManagerMTWorker::sensCaloDetectors() {
   initializeTLS();
   return m_tls->sensCaloDets;
 }
-std::vector<std::shared_ptr<SimProducer> >& RunManagerMTWorker::producers() {
+std::vector<std::shared_ptr<SimProducer>>& RunManagerMTWorker::producers() {
   initializeTLS();
   return m_tls->producers;
 }

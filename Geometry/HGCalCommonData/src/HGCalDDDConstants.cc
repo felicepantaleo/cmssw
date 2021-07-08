@@ -435,6 +435,21 @@ int HGCalDDDConstants::getTypeHex(int layer, int waferU, int waferV) const {
   }
 }
 
+std::pair<double, double> HGCalDDDConstants::getXY(int layer, double x, double y, bool forwd) const {
+  int ll = layer - hgpar_->firstLayer_;
+  double x0(x), y0(y);
+  if (ll < static_cast<int>(hgpar_->layerRotV_.size())) {
+    if (forwd) {
+      x0 = x * hgpar_->layerRotV_[ll].first + y * hgpar_->layerRotV_[ll].second;
+      y0 = y * hgpar_->layerRotV_[ll].first - x * hgpar_->layerRotV_[ll].second;
+    } else {
+      x0 = x * hgpar_->layerRotV_[ll].first - y * hgpar_->layerRotV_[ll].second;
+      y0 = y * hgpar_->layerRotV_[ll].first + x * hgpar_->layerRotV_[ll].second;
+    }
+  }
+  return std::make_pair(x0, y0);
+}
+
 bool HGCalDDDConstants::isHalfCell(int waferType, int cell) const {
   if (waferType < 1 || cell < 0)
     return false;
@@ -1598,9 +1613,11 @@ bool HGCalDDDConstants::isValidCell8(int lay, int waferU, int waferV, int cellU,
     int N = (type == 0) ? hgpar_->nCellsFine_ : hgpar_->nCellsCoarse_;
     auto partn = waferTypeRotation(lay, waferU, waferV, false, false);
     result = HGCalWaferMask::goodCell(cellU, cellV, N, partn.first, partn.second);
+#ifdef EDM_ML_DEBUG
     edm::LogVerbatim("HGCalGeom") << "Input " << lay << ":" << waferU << ":" << waferV << ":" << cellU << ":" << cellV
                                   << " N " << N << " part " << partn.first << ":" << partn.second << " Result "
                                   << result;
+#endif
   }
   return result;
 }

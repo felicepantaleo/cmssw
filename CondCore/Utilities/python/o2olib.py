@@ -127,7 +127,7 @@ class O2OJobMgr(object):
             url = sqlalchemy_tpl %(username,pwd,db_service)
         session = None
         try:
-            self.eng = sqlalchemy.create_engine( url )
+            self.eng = sqlalchemy.create_engine( url, max_identifier_length=30)
             session = sqlalchemy.orm.scoped_session( sqlalchemy.orm.sessionmaker(bind=self.eng))
         except sqlalchemy.exc.SQLAlchemyError as dberror:
             self.logger.error( str(dberror) )
@@ -204,9 +204,9 @@ class O2OJobMgr(object):
             self.session.merge(job)
             self.session.commit()
             if fr_val==1:
-                self.logger.info( "Job '%s' set 'frequent'")
+                self.logger.info( "Job '%s' set 'frequent'" %job_name)
             else:
-                self.logger.info( "Job '%s' unset 'frequent'")
+                self.logger.info( "Job '%s' unset 'frequent'" %job_name)
 
     def setConfig( self, job_name, config_filename ):
         res = self.session.query(O2OJob.enabled).filter_by(name=job_name)
@@ -401,7 +401,7 @@ class O2ORunMgr(object):
             pipe = subprocess.Popen( command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT )
             out = ''
             for line in iter(pipe.stdout.readline, ''):
-                if args.verbose>=1:
+                if args.verbose is not None and args.verbose>=1:
                     sys.stdout.write(line)
                     sys.stdout.flush()
                 out += line

@@ -5,8 +5,8 @@ import time
 # Define here the BeamSpotOnline record name,
 # it will be used both in FakeBeamMonitor setup and in payload creation/upload
 BSOnlineRecordName = 'BeamSpotOnlineLegacyObjectsRcd'
-BSOnlineTag = 'BeamSpotOnlineTestLegacy'
-BSOnlineJobName = 'BeamSpotOnlineTestLegacy'
+BSOnlineTag = 'BeamSpotOnlineLegacy'
+BSOnlineJobName = 'BeamSpotOnlineLegacy'
 BSOnlineOmsServiceUrl = 'http://cmsoms-services.cms:9949/urn:xdaq-application:lid=100/getRunAndLumiSection'
 useLockRecords = True
 import sys
@@ -112,9 +112,9 @@ process = customise(process)
 #------------------------
 # Set rawDataRepacker (HI and live) or rawDataCollector (for all the rest)
 if (process.runType.getRunType() == process.runType.hi_run and live):
-    rawDataInputTag = cms.InputTag("rawDataRepacker")
+    rawDataInputTag = "rawDataRepacker"
 else:
-    rawDataInputTag = cms.InputTag("rawDataCollector")
+    rawDataInputTag = "rawDataCollector"
 
 """ process.castorDigis.InputLabel           = rawDataInputTag
 process.csctfDigis.producer              = rawDataInputTag 

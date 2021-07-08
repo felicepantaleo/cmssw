@@ -370,10 +370,11 @@ void MuonTrackValidator::analyze(const edm::Event& event, const edm::EventSetup&
   int PU_NumInteractions(-1);
 
   edm::ESHandle<ParametersDefinerForTP> Lhc_parametersDefinerTP;
+  edm::ESHandle<CosmicParametersDefinerForTP> _Cosmic_parametersDefinerTP;
   std::unique_ptr<ParametersDefinerForTP> Cosmic_parametersDefinerTP;
 
   if (parametersDefiner == "LhcParametersDefinerForTP") {
-    setup.get<TrackAssociatorRecord>().get(parametersDefiner, Lhc_parametersDefinerTP);
+    Lhc_parametersDefinerTP = setup.getHandle(tpDefinerEsToken);
 
     // PileupSummaryInfo is contained only in collision events
     event.getByToken(pileupinfo_Token, puinfoH);
@@ -386,8 +387,8 @@ void MuonTrackValidator::analyze(const edm::Event& event, const edm::EventSetup&
     }
 
   } else if (parametersDefiner == "CosmicParametersDefinerForTP") {
-    edm::ESHandle<CosmicParametersDefinerForTP> _Cosmic_parametersDefinerTP;
-    setup.get<TrackAssociatorRecord>().get(parametersDefiner, _Cosmic_parametersDefinerTP);
+    //setup.get<TrackAssociatorRecord>().get(parametersDefiner, _Cosmic_parametersDefinerTP);
+    _Cosmic_parametersDefinerTP = setup.getHandle(cosmictpDefinerEsToken);
 
     //Since we modify the object, we must clone it
     Cosmic_parametersDefinerTP = _Cosmic_parametersDefinerTP->clone();
@@ -421,8 +422,11 @@ void MuonTrackValidator::analyze(const edm::Event& event, const edm::EventSetup&
   TrackingParticleRefVector const& tPC = *ptr_TPrefV;
 
   edm::Handle<reco::BeamSpot> recoBeamSpotHandle;
-  event.getByToken(bsSrc_Token, recoBeamSpotHandle);
-  reco::BeamSpot bs = *recoBeamSpotHandle;
+  bool bs_Available = event.getByToken(bsSrc_Token, recoBeamSpotHandle);
+  reco::BeamSpot bs;
+  if (bs_Available)
+    bs = *recoBeamSpotHandle;
+  edm::LogVerbatim("MuonTrackValidator") << bs;
 
   std::vector<const reco::TrackToTrackingParticleAssociator*> associator;
   if (UseAssociators) {

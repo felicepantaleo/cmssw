@@ -27,15 +27,6 @@ CSCUpgradeMotherboard::CSCUpgradeMotherboard(unsigned endcap,
 
   theParity = theChamber % 2 == 0 ? Parity::Even : Parity::Odd;
 
-  // enable the upgrade processors
-  if (runPhase2_ and theRing == 1) {
-    clctProc = std::make_unique<CSCUpgradeCathodeLCTProcessor>(endcap, station, sector, subsector, chamber, conf);
-    if (enableAlctPhase2_) {
-      alctProc = std::make_unique<CSCUpgradeAnodeLCTProcessor>(endcap, station, sector, subsector, chamber, conf);
-    }
-  }
-
-  match_earliest_alct_only = tmbParams_.getParameter<bool>("matchEarliestAlctOnly");
   match_earliest_clct_only = tmbParams_.getParameter<bool>("matchEarliestClctOnly");
   drop_used_clcts = tmbParams_.getParameter<bool>("tmbDropUsedClcts");
   tmb_cross_bx_algo = tmbParams_.getParameter<unsigned int>("tmbCrossBxAlgorithm");
@@ -46,8 +37,7 @@ CSCUpgradeMotherboard::CSCUpgradeMotherboard(unsigned endcap,
 
   // ignore unphysical ALCT-CLCT matches
   ignoreAlctCrossClct = tmbParams_.getParameter<bool>("ignoreAlctCrossClct");
-  const edm::ParameterSet me11luts(conf.getParameter<edm::ParameterSet>("wgCrossHsME11Params"));
-  cscOverlap_ = std::make_unique<CSCALCTCrossCLCT>(endcap, station, theRing, gangedME1a_, me11luts);
+  cscOverlap_ = std::make_unique<CSCALCTCrossCLCT>(endcap, station, theRing, ignoreAlctCrossClct, conf);
 }
 
 void CSCUpgradeMotherboard::run(const CSCWireDigiCollection* wiredc, const CSCComparatorDigiCollection* compdc) {
@@ -240,7 +230,7 @@ void CSCUpgradeMotherboard::correlateLCTs(const CSCALCTDigi& bALCT,
 }
 
 bool CSCUpgradeMotherboard::doesALCTCrossCLCT(const CSCALCTDigi& a, const CSCCLCTDigi& c) const {
-  return cscOverlap_->doesALCTCrossCLCT(a, c, ignoreAlctCrossClct);
+  return cscOverlap_->doesALCTCrossCLCT(a, c);
 }
 
 //readout LCTs

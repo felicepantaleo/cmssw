@@ -17,7 +17,6 @@
 #include "FWCore/Framework/interface/Frameworkfwd.h"
 #include "FWCore/Framework/interface/stream/EDProducer.h"
 #include "FWCore/Framework/interface/Event.h"
-#include "FWCore/Framework/interface/ESHandle.h"
 #include "FWCore/Framework/interface/EventSetup.h"
 #include "FWCore/Framework/interface/MakerMacros.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
@@ -62,6 +61,8 @@ private:
   // ----------member data ---------------------------
 
   const EDGetTokenT<vector<TTTrack<Ref_Phase2TrackerDigi_> > > trackToken_;
+  edm::ESGetToken<TrackerTopology, TrackerTopologyRcd> tTopoToken_;
+
   vector<Ptr<L1TTTrackType> > L1TrkPtrs_;
   vector<int> zBinCount_;
   vector<int> ttrk_;
@@ -100,7 +101,8 @@ private:
 
 L1TrackJetProducer::L1TrackJetProducer(const ParameterSet &iConfig)
     : trackToken_(
-          consumes<vector<TTTrack<Ref_Phase2TrackerDigi_> > >(iConfig.getParameter<InputTag>("L1TrackInputTag"))) {
+          consumes<vector<TTTrack<Ref_Phase2TrackerDigi_> > >(iConfig.getParameter<InputTag>("L1TrackInputTag"))),
+      tTopoToken_(esConsumes<TrackerTopology, TrackerTopologyRcd>(edm::ESInputTag("", ""))) {
   trkZMax_ = (float)iConfig.getParameter<double>("trk_zMax");
   trkPtMax_ = (float)iConfig.getParameter<double>("trk_ptMax");
   trkPtMin_ = (float)iConfig.getParameter<double>("trk_ptMin");
@@ -144,11 +146,7 @@ void L1TrackJetProducer::produce(Event &iEvent, const EventSetup &iSetup) {
   unique_ptr<TkJetCollection> L1L1TrackJetProducer(new TkJetCollection);
 
   // For TTStubs
-  ESHandle<TrackerTopology> tTopoHandle;
-  iSetup.get<TrackerTopologyRcd>().get(tTopoHandle);
-  ESHandle<TrackerGeometry> tGeomHandle;
-  iSetup.get<TrackerDigiGeometryRecord>().get(tGeomHandle);
-  const TrackerTopology *const tTopo = tTopoHandle.product();
+  const TrackerTopology &tTopo = iSetup.getData(tTopoToken_);
 
   edm::Handle<vector<TTTrack<Ref_Phase2TrackerDigi_> > > TTTrackHandle;
   iEvent.getByToken(trackToken_, TTTrackHandle);
@@ -174,8 +172,8 @@ void L1TrackJetProducer::produce(Event &iEvent, const EventSetup &iSetup) {
     for (int istub = 0; istub < trk_nstubs; istub++) {  // loop over the stubs
       DetId detId(trkPtr->getStubRefs().at(istub)->getDetId());
       if (detId.det() == DetId::Detector::Tracker) {
-        if ((detId.subdetId() == StripSubdetector::TOB && tTopo->tobLayer(detId) <= 3) ||
-            (detId.subdetId() == StripSubdetector::TID && tTopo->tidRing(detId) <= 9))
+        if ((detId.subdetId() == StripSubdetector::TOB && tTopo.tobLayer(detId) <= 3) ||
+            (detId.subdetId() == StripSubdetector::TID && tTopo.tidRing(detId) <= 9))
           trk_nPS++;
       }
     }
@@ -345,8 +343,10 @@ void L1TrackJetProducer::L2_cluster(
 
     for (int phislice = 0; phislice < phiBins_; ++phislice) {
       L1clusters[phislice] = L1_cluster(epbins[phislice]);
-      for (int ind = 0; L1clusters[phislice][ind].pTtot != 0; ++ind) {
-        L1clusters[phislice][ind].used = false;
+      if (L1clusters[phislice] != nullptr) {
+        for (int ind = 0; L1clusters[phislice][ind].pTtot != 0; ++ind) {
+          L1clusters[phislice][ind].used = false;
+        }
       }
     }
 
@@ -595,19 +595,23 @@ EtaPhiBin *L1TrackJetProducer::L1_cluster(EtaPhiBin *phislice) {
     clusters[nclust] = phislice[etabin];
     phislice[etabin].used = true;
     if (left_pt > 0) {
-      clusters[nclust].pTtot += left_pt;
-      clusters[nclust].numtracks += phislice[etabin - 1].numtracks;
-      clusters[nclust].numttrks += phislice[etabin - 1].numttrks;
-      clusters[nclust].numtdtrks += phislice[etabin - 1].numtdtrks;
-      clusters[nclust].numttdtrks += phislice[etabin - 1].numttdtrks;
+      if (clusters != nullptr) {
+        clusters[nclust].pTtot += left_pt;
+        clusters[nclust].numtracks += phislice[etabin - 1].numtracks;
+        clusters[nclust].numttrks += phislice[etabin - 1].numttrks;
+        clusters[nclust].numtdtrks += phislice[etabin - 1].numtdtrks;
+        clusters[nclust].numttdtrks += phislice[etabin - 1].numttdtrks;
+      }
     }
     if (my_pt >= right2pt && right_pt > 0) {
-      clusters[nclust].pTtot += right_pt;
-      clusters[nclust].numtracks += phislice[etabin + 1].numtracks;
-      clusters[nclust].numttrks += phislice[etabin + 1].numttrks;
-      clusters[nclust].numtdtrks += phislice[etabin + 1].numtdtrks;
-      clusters[nclust].numttdtrks += phislice[etabin + 1].numttdtrks;
-      phislice[etabin + 1].used = true;
+      if (clusters != nullptr) {
+        clusters[nclust].pTtot += right_pt;
+        clusters[nclust].numtracks += phislice[etabin + 1].numtracks;
+        clusters[nclust].numttrks += phislice[etabin + 1].numttrks;
+        clusters[nclust].numtdtrks += phislice[etabin + 1].numtdtrks;
+        clusters[nclust].numttdtrks += phislice[etabin + 1].numttdtrks;
+        phislice[etabin + 1].used = true;
+      }
     }
     nclust++;
   }  // for each etabin

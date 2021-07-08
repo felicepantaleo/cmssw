@@ -35,7 +35,7 @@ workflows.addOverride(1303.17,overridesEv5)
 workflows[1302.18] = ['', ['ProdTTbar_13UP18','DIGIUP18PROD1','RECOPRODUP18','MINIAODMCUP18','NANOPRODUP18']]
 #workflows[1303.18] = ['', ['ProdQCD_Pt_3000_3500_13UP18','DIGIUP18PROD1','RECOPRODUP18']]
 workflows[1304.18] = ['', ['ProdZEE_13UP18','DIGIUP18PROD1','RECOPRODUP18','MINIAODMCUP18','NANOPRODUP18']]
-workflows[1304.182] = ['', ['ProdZEE_13UP18','DIGIUP18PROD1','RECOPRODUP18bParking','MINIAODMCUP18bParking']]
+workflows[1304.182] = ['', ['ProdZEE_13UP18','DIGIUP18PROD1bParking','RECOPRODUP18bParking','MINIAODMCUP18bParking']]
 #workflows.addOverride(1303.17,overridesEv5)
 
 #####Prod2018 with concurrentlumi
@@ -429,7 +429,7 @@ workflows[136.888521] = ['',['RunJetHT2018D','HLTDR2_2018','RECODR2_2018reHLT_HC
 workflows[137.8] = ['',['RunEGamma2018C','HLTDR2_2018','RECODR2_2018reHLT_skimEGamma_Offline_L1TEgDQM',
                         'RunEGamma2018D','HLTDR2_2018','RECODR2_2018reHLT_skimEGamma_Prompt_L1TEgDQM','HARVEST2018_L1TEgDQM_MULTIRUN']]
 ### LS2 - MWGR ###
-workflows[138.1] = ['',['RunCosmics2020','RECOCOSDRUN3','ALCACOSDRUN3','HARVESTDCRUN3']]
+workflows[138.1] = ['',['RunCosmics2020','RECOCOSDPROMPTRUN3','ALCACOSDRUN3','HARVESTDCRUN3']]
 workflows[138.2] = ['',['RunCosmics2020','RECOCOSDEXPRUN3','ALCACOSDEXPRUN3','HARVESTDCEXPRUN3']]
 
 #### Test of lumi section boundary crossing with run2 2018D ####
