@@ -145,12 +145,13 @@ void PatternRecognitionbyCLUE3D<TILES>::dumpClusters(const std::vector<std::pair
 template <typename TILES>
 void PatternRecognitionbyCLUE3D<TILES>::makeTracksters(
     const typename PatternRecognitionAlgoBaseT<TILES>::Inputs &input,
-    std::vector<Trackster> &result,
+    typename PatternRecognitionAlgoBaseT<TILES>::Outputs &output,
     std::unordered_map<int, std::vector<int>> &seedToTracksterAssociation) {
   // Protect from events with no seeding regions
   if (input.regions.empty())
     return;
-
+  std::vector<Trackster> &result = output.result;
+  std::vector<int> &tracksterSeeds = output.tracksterSeeds;
   const int eventNumber = input.ev.eventAuxiliary().event();
   if (PatternRecognitionAlgoBaseT<TILES>::algo_verbosity_ > PatternRecognitionAlgoBaseT<TILES>::Advanced) {
     edm::LogVerbatim("PatternRecogntionbyCLUE3D") << "New Event";
@@ -238,7 +239,7 @@ void PatternRecognitionbyCLUE3D<TILES>::makeTracksters(
 
   // Build Trackster
   result.resize(nTracksters);
-
+  tracksterSeeds.reserve(nTracksters);
   for (unsigned int layer = 0; layer < clusters_.size(); ++layer) {
     const auto &thisLayer = clusters_[layer];
     if (PatternRecognitionAlgoBaseT<TILES>::algo_verbosity_ > PatternRecognitionAlgoBaseT<TILES>::Advanced) {
@@ -251,6 +252,9 @@ void PatternRecognitionbyCLUE3D<TILES>::makeTracksters(
       if (thisLayer.clusterIndex[lc] >= 0) {
         if (PatternRecognitionAlgoBaseT<TILES>::algo_verbosity_ > PatternRecognitionAlgoBaseT<TILES>::Advanced) {
           edm::LogVerbatim("PatternRecogntionbyCLUE3D") << " adding lcIdx: " << thisLayer.layerClusterOriginalIdx[lc];
+        }
+        if (thisLayer.isSeed[lc]) {
+          tracksterSeeds.emplace_back(thisLayer.layerClusterOriginalIdx[lc]);
         }
         result[thisLayer.clusterIndex[lc]].vertices().push_back(thisLayer.layerClusterOriginalIdx[lc]);
         result[thisLayer.clusterIndex[lc]].vertex_multiplicity().push_back(1);

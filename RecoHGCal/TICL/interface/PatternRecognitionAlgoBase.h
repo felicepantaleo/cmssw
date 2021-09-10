@@ -47,8 +47,15 @@ namespace ticl {
           : ev(eV), es(eS), layerClusters(lC), mask(mS), layerClustersTime(lT), tiles(tL), regions(rG) {}
     };
 
+    struct Outputs {
+      std::vector<Trackster>& result;
+      std::vector<int>& tracksterSeeds;
+
+      Outputs(std::vector<Trackster>& r, std::vector<int>& s) : result(r), tracksterSeeds(s) {}
+    };
+
     virtual void makeTracksters(const Inputs& input,
-                                std::vector<Trackster>& result,
+                                Outputs& output,
                                 std::unordered_map<int, std::vector<int>>& seedToTracksterAssociation) = 0;
 
     enum VerbosityLevel { None = 0, Basic, Advanced, Expert, Guru };

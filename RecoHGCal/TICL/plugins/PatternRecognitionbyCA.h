@@ -17,7 +17,7 @@ namespace ticl {
     ~PatternRecognitionbyCA() override;
 
     void makeTracksters(const typename PatternRecognitionAlgoBaseT<TILES>::Inputs& input,
-                        std::vector<Trackster>& result,
+                        typename PatternRecognitionAlgoBaseT<TILES>::Outputs& output,
                         std::unordered_map<int, std::vector<int>>& seedToTracksterAssociation) override;
 
     void energyRegressionAndID(const std::vector<reco::CaloCluster>& layerClusters, std::vector<Trackster>& result);
