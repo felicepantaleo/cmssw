@@ -50,8 +50,9 @@ namespace ticl {
     struct Outputs {
       std::vector<Trackster>& result;
       std::vector<int>& tracksterSeeds;
+      std::vector<std::vector<int>>& tracksterSeedsDoublets;
 
-      Outputs(std::vector<Trackster>& r, std::vector<int>& s) : result(r), tracksterSeeds(s) {}
+      Outputs(std::vector<Trackster>& r, std::vector<int>& s, std::vector<std::vector<int>>& sd) : result(r), tracksterSeeds(s), tracksterSeedsDoublets(sd) {}
     };
 
     virtual void makeTracksters(const Inputs& input,

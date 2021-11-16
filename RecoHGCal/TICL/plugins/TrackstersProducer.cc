@@ -115,6 +115,8 @@ TrackstersProducer::TrackstersProducer(const edm::ParameterSet& ps, const Tracks
 
   produces<std::vector<Trackster>>();
   produces<std::vector<int>>("tracksterSeeds");
+  produces<std::vector<std::vector<int>>>("tracksterSeedsDoublets");
+
   produces<std::vector<float>>();  // Mask to be applied at the next iteration
 }
 
@@ -149,6 +151,8 @@ void TrackstersProducer::fillDescriptions(edm::ConfigurationDescriptions& descri
 void TrackstersProducer::produce(edm::Event& evt, const edm::EventSetup& es) {
   auto result = std::make_unique<std::vector<Trackster>>();
   auto tracksterSeeds = std::make_unique<std::vector<int>>();
+  auto tracksterSeedsDoublets = std::make_unique<std::vector<std::vector<int>>>();
+
 
   auto output_mask = std::make_unique<std::vector<float>>();
 
@@ -172,7 +176,7 @@ void TrackstersProducer::produce(edm::Event& evt, const edm::EventSetup& es) {
     const typename PatternRecognitionAlgoBaseT<TICLLayerTilesHFNose>::Inputs inputHFNose(
         evt, es, layerClusters, inputClusterMask, layerClustersTimes, layer_clusters_hfnose_tiles, seeding_regions);
 
-    typename PatternRecognitionAlgoBaseT<TICLLayerTilesHFNose>::Outputs output(*result, *tracksterSeeds);
+    typename PatternRecognitionAlgoBaseT<TICLLayerTilesHFNose>::Outputs output(*result, *tracksterSeeds, *tracksterSeedsDoublets);
     myAlgoHFNose_->makeTracksters(inputHFNose, output, seedToTrackstersAssociation);
 
   } else {
@@ -180,7 +184,7 @@ void TrackstersProducer::produce(edm::Event& evt, const edm::EventSetup& es) {
     const typename PatternRecognitionAlgoBaseT<TICLLayerTiles>::Inputs input(
         evt, es, layerClusters, inputClusterMask, layerClustersTimes, layer_clusters_tiles, seeding_regions);
 
-    typename PatternRecognitionAlgoBaseT<TICLLayerTiles>::Outputs output(*result, *tracksterSeeds);
+    typename PatternRecognitionAlgoBaseT<TICLLayerTiles>::Outputs output(*result, *tracksterSeeds, *tracksterSeedsDoublets);
     myAlgo_->makeTracksters(input, output, seedToTrackstersAssociation);
   }
   // Now update the global mask and put it into the event
@@ -199,7 +203,9 @@ void TrackstersProducer::produce(edm::Event& evt, const edm::EventSetup& es) {
     }
   }
 
-  evt.put(std::move(tracksterSeeds), "tracksterSeeds");
+  evt.put(std::move(tracksterSeeds));
+  evt.put(std::move(tracksterSeedsDoublets));
+
   evt.put(std::move(result));
   evt.put(std::move(output_mask));
 }
