@@ -411,7 +411,10 @@ void TrackstersMergeProducer::produce(edm::Event &evt, const edm::EventSetup &es
 
   resultTrackstersMerged->push_back(outTrackster);
   }
-
+  assignPCAtoTracksters(*resultTrackstersMerged,
+                        layerClusters,
+                        layerClustersTimes,
+                        rhtools_.getPositionLayer(rhtools_.lastLayerEE()).z());
 
   // Compute timing
   assignTimeToCandidates(*resultCandidates);
