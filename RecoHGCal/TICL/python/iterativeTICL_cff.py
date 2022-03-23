@@ -3,9 +3,6 @@ import FWCore.ParameterSet.Config as cms
 from RecoHGCal.TICL.FastJetStep_cff import *
 from RecoHGCal.TICL.CLUE3DHighStep_cff import *
 from RecoHGCal.TICL.CLUE3DLowStep_cff import *
-from RecoHGCal.TICL.MIPStep_cff import *
-from RecoHGCal.TICL.TrkEMStep_cff import *
-from RecoHGCal.TICL.TrkStep_cff import *
 from RecoHGCal.TICL.EMStep_cff import *
 from RecoHGCal.TICL.HADStep_cff import *
 
@@ -17,16 +14,13 @@ from RecoHGCal.TICL.tracksterSelectionTf_cfi import *
 ticlLayerTileTask = cms.Task(ticlLayerTileProducer)
 
 ticlTrackstersMerge = _trackstersMergeProducer.clone()
-ticlTracksterMergeTask = cms.Task(ticlTrackstersMerge)
 
 
 pfTICL = _pfTICLProducer.clone()
 ticlPFTask = cms.Task(pfTICL)
 
 ticlIterationsTask = cms.Task(
-    ticlTrkEMStepTask
-    ,ticlEMStepTask
-    ,ticlTrkStepTask
+    ticlEMStepTask
     ,ticlHADStepTask
 )
 
@@ -36,7 +30,13 @@ clue3D.toModify(ticlIterationsTask, func=lambda x : x.add(ticlCLUE3DHighStepTask
 from Configuration.ProcessModifiers.fastJetTICL_cff import fastJetTICL
 fastJetTICL.toModify(ticlIterationsTask, func=lambda x : x.add(ticlFastJetStepTask))
 
+from Configuration.ProcessModifiers.ticl_v4_cff import ticl_v4
+ticl_v4.toModify(ticlIterationsTask, func=lambda x : x.add(ticlCLUE3DHighStepTask))
+ticl_v4.toModify(ticlTrackstersMerge, TICLV4 = cms.bool(True))
+
 ticlIterLabels = [_step.itername.value() for _iteration in ticlIterationsTask for _step in _iteration if (_step._TypedParameterizable__type == "TrackstersProducer")]
+
+ticlTracksterMergeTask = cms.Task(ticlTrackstersMerge)
 
 iterTICLTask = cms.Task(ticlLayerTileTask
     ,ticlIterationsTask
@@ -52,9 +52,6 @@ ticlLayerTileHFNose = ticlLayerTileProducer.clone(
 ticlLayerTileHFNoseTask = cms.Task(ticlLayerTileHFNose)
 
 iterHFNoseTICLTask = cms.Task(ticlLayerTileHFNoseTask
-    ,ticlHFNoseTrkEMStepTask
     ,ticlHFNoseEMStepTask
-    ,ticlHFNoseTrkStepTask
     ,ticlHFNoseHADStepTask
-    ,ticlHFNoseMIPStepTask
 )
