@@ -1,9 +1,17 @@
 #include <memory>  // unique_ptr
+#include <ostream>
+
 #include "FWCore/Framework/interface/stream/EDProducer.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/ParameterSet/interface/ConfigurationDescriptions.h"
+#include "FWCore/ParameterSet/interface/PluginDescription.h"
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
 #include "FWCore/Utilities/interface/ESGetToken.h"
+#include "FWCore/Framework/interface/ESHandle.h"
+#include "FWCore/Framework/interface/Frameworkfwd.h"
+#include "FWCore/Framework/interface/MakerMacros.h"
+#include "FWCore/ParameterSet/interface/ParameterSetDescription.h"
+#include "FWCore/Framework/interface/ConsumesCollector.h"
 
 #include "DataFormats/CaloRecHit/interface/CaloCluster.h"
 #include "DataFormats/HGCalReco/interface/Common.h"
@@ -11,16 +19,44 @@
 #include "DataFormats/HGCalReco/interface/Trackster.h"
 #include "DataFormats/HGCalReco/interface/TICLSeedingRegion.h"
 #include "DataFormats/TrackReco/interface/Track.h"
-#include "RecoLocalCalo/HGCalRecAlgos/interface/RecHitTools.h"
+#include "DataFormats/GeometrySurface/interface/BoundDisk.h"
+#include "DataFormats/HGCalReco/interface/TICLCandidate.h"
+#include "DataFormats/TrackReco/interface/TrackFwd.h"
+#include "DataFormats/Math/interface/Vector3D.h"
+
 #include "RecoHGCal/TICL/interface/GlobalCache.h"
 
 #include "TrackingTools/Records/interface/TfGraphRecord.h"
-#include "PhysicsTools/TensorFlow/interface/TensorFlow.h"
 #include "RecoTracker/FinalTrackSelectors/interface/TfGraphDefWrapper.h"
 
-#include "DataFormats/HGCalReco/interface/TICLCandidate.h"
+#include "RecoHGCal/TICL/plugins/SeedingRegionAlgoBase.h"
+#include "RecoHGCal/TICL/plugins/LinkingAlgoBase.h"
+#include "RecoHGCal/TICL/plugins/LinkingAlgoFactory.h"
+#include "RecoHGCal/TICL/plugins/LinkingAlgoByPCAGeometric.h"
+
+#include "RecoLocalCalo/HGCalRecAlgos/interface/RecHitTools.h"
+#include "PhysicsTools/TensorFlow/interface/TensorFlow.h"
+#include "CommonTools/Utils/interface/StringCutObjectSelector.h"
+
+#include "TrackingTools/TrajectoryState/interface/TrajectoryStateTransform.h"
+#include "TrackingTools/GeomPropagators/interface/Propagator.h"
+#include "TrackingTools/Records/interface/TrackingComponentsRecord.h"
+
+#include "MagneticField/Engine/interface/MagneticField.h"
+#include "MagneticField/Records/interface/IdealMagneticFieldRecord.h"
+
+#include "Geometry/HGCalCommonData/interface/HGCalDDDConstants.h"
+#include "Geometry/Records/interface/IdealGeometryRecord.h"
+#include "Geometry/CommonDetUnit/interface/GeomDet.h"
+
+#include "FWCore/ServiceRegistry/interface/Service.h"
+#include "CommonTools/UtilAlgos/interface/TFileService.h"
+
+#include "TTree.h"
+#include "TH2D.h"
 
 #include "TrackstersPCA.h"
+#include "SeedingRegionByTracks.h"
 
 using namespace ticl;
 
@@ -31,8 +67,18 @@ public:
   void produce(edm::Event &, const edm::EventSetup &) override;
   static void fillDescriptions(edm::ConfigurationDescriptions &descriptions);
 
+  // static methods for handling the global cache
+  static std::unique_ptr<TrackstersCache> initializeGlobalCache(const edm::ParameterSet &);
+  static void globalEndJob(TrackstersCache *);
+
+  void beginJob();
+  void endJob();
+
+  void beginRun(edm::Run const &iEvent, edm::EventSetup const &es) override;
+
 private:
   typedef ticl::Trackster::IterationIndex TracksterIterIndex;
+  typedef math::XYZVector Vector;
 
   void fillTile(TICLTracksterTiles &, const std::vector<Trackster> &, TracksterIterIndex);
 
@@ -43,20 +89,29 @@ private:
   void assignTimeToCandidates(std::vector<TICLCandidate> &resultCandidates) const;
   void dumpTrackster(const Trackster &) const;
 
+  std::unique_ptr<LinkingAlgoBase> linkingAlgo_;
+
   const edm::EDGetTokenT<std::vector<Trackster>> tracksterstrkem_token_;
   const edm::EDGetTokenT<std::vector<Trackster>> trackstersem_token_;
   const edm::EDGetTokenT<std::vector<Trackster>> tracksterstrk_token_;
   const edm::EDGetTokenT<std::vector<Trackster>> trackstershad_token_;
+  const edm::EDGetTokenT<std::vector<Trackster>> tracksters_clue3d_token_;
   const edm::EDGetTokenT<std::vector<TICLSeedingRegion>> seedingTrk_token_;
   const edm::EDGetTokenT<std::vector<reco::CaloCluster>> clusters_token_;
   const edm::EDGetTokenT<edm::ValueMap<std::pair<float, float>>> clustersTime_token_;
   const edm::EDGetTokenT<std::vector<reco::Track>> tracks_token_;
-  const edm::ESGetToken<CaloGeometry, CaloGeometryRecord> geometry_token_;
   const std::string tfDnnLabel_;
   const edm::ESGetToken<TfGraphDefWrapper, TfGraphRecord> tfDnnToken_;
   const tensorflow::Session *tfSession_;
 
+  const edm::ESGetToken<CaloGeometry, CaloGeometryRecord> geometry_token_;
+  const std::string detector_;
+  const std::string propName_;
+
+  const edm::ESGetToken<MagneticField, IdealMagneticFieldRecord> bfield_token_;
+  const edm::ESGetToken<Propagator, TrackingComponentsRecord> propagator_token_;
   const bool optimiseAcrossTracksters_;
+  const bool ticlv4_;
   const int eta_bin_window_;
   const int phi_bin_window_;
   const double pt_sigma_high_;
@@ -80,11 +135,22 @@ private:
   const float eidMinClusterEnergy_;
   const int eidNLayers_;
   const int eidNClusters_;
+  std::once_flag initializeGeometry_;
+
+  const HGCalDDDConstants *hgcons_;
+  const StringCutObjectSelector<reco::Track> cutTk_;
+
+  std::unique_ptr<GeomDet> firstDisk_[2];
 
   tensorflow::Session *eidSession_;
   hgcal::RecHitTools rhtools_;
 
   static constexpr int eidNFeatures_ = 3;
+
+  edm::ESGetToken<HGCalDDDConstants, IdealGeometryRecord> hdc_token_;
+
+  TTree *tree_;
+  TH1F *h_allLCEnergy;
 };
 
 TrackstersMergeProducer::TrackstersMergeProducer(const edm::ParameterSet &ps)
@@ -92,16 +158,23 @@ TrackstersMergeProducer::TrackstersMergeProducer(const edm::ParameterSet &ps)
       trackstersem_token_(consumes<std::vector<Trackster>>(ps.getParameter<edm::InputTag>("trackstersem"))),
       tracksterstrk_token_(consumes<std::vector<Trackster>>(ps.getParameter<edm::InputTag>("tracksterstrk"))),
       trackstershad_token_(consumes<std::vector<Trackster>>(ps.getParameter<edm::InputTag>("trackstershad"))),
+      tracksters_clue3d_token_(consumes<std::vector<Trackster>>(ps.getParameter<edm::InputTag>("trackstersclue3d"))),
       seedingTrk_token_(consumes<std::vector<TICLSeedingRegion>>(ps.getParameter<edm::InputTag>("seedingTrk"))),
       clusters_token_(consumes<std::vector<reco::CaloCluster>>(ps.getParameter<edm::InputTag>("layer_clusters"))),
       clustersTime_token_(
           consumes<edm::ValueMap<std::pair<float, float>>>(ps.getParameter<edm::InputTag>("layer_clustersTime"))),
       tracks_token_(consumes<std::vector<reco::Track>>(ps.getParameter<edm::InputTag>("tracks"))),
-      geometry_token_(esConsumes<CaloGeometry, CaloGeometryRecord>()),
       tfDnnLabel_(ps.getParameter<std::string>("tfDnnLabel")),
       tfDnnToken_(esConsumes(edm::ESInputTag("", tfDnnLabel_))),
       tfSession_(nullptr),
+      geometry_token_(esConsumes<CaloGeometry, CaloGeometryRecord, edm::Transition::BeginRun>()),
+      detector_(ps.getParameter<std::string>("detector")),
+      propName_(ps.getParameter<std::string>("propagator")),
+      bfield_token_(esConsumes<MagneticField, IdealMagneticFieldRecord, edm::Transition::BeginRun>()),
+      propagator_token_(
+          esConsumes<Propagator, TrackingComponentsRecord, edm::Transition::BeginRun>(edm::ESInputTag("", propName_))),
       optimiseAcrossTracksters_(ps.getParameter<bool>("optimiseAcrossTracksters")),
+      ticlv4_(ps.getParameter<bool>("TICLV4")),
       eta_bin_window_(ps.getParameter<int>("eta_bin_window")),
       phi_bin_window_(ps.getParameter<int>("phi_bin_window")),
       pt_sigma_high_(ps.getParameter<double>("pt_sigma_high")),
@@ -125,10 +198,36 @@ TrackstersMergeProducer::TrackstersMergeProducer(const edm::ParameterSet &ps)
       eidMinClusterEnergy_(ps.getParameter<double>("eid_min_cluster_energy")),
       eidNLayers_(ps.getParameter<int>("eid_n_layers")),
       eidNClusters_(ps.getParameter<int>("eid_n_clusters")),
+      cutTk_(ps.getParameter<std::string>("cutTk")),
       eidSession_(nullptr) {
   produces<std::vector<Trackster>>();
   produces<std::vector<TICLCandidate>>();
+
+  std::string detectorName_ = (detector_ == "HFNose") ? "HGCalHFNoseSensitive" : "HGCalEESensitive";
+  hdc_token_ =
+      esConsumes<HGCalDDDConstants, IdealGeometryRecord, edm::Transition::BeginRun>(edm::ESInputTag("", detectorName_));
+
+  auto linkingPSet = ps.getParameter<edm::ParameterSet>("linkingPSet");
+  auto algoType = linkingPSet.getParameter<std::string>("type");
+  linkingAlgo_ = LinkingAlgoFactory::get()->create(algoType, linkingPSet);
 }
+
+void TrackstersMergeProducer::beginJob() {}
+
+void TrackstersMergeProducer::endJob(){};
+
+void TrackstersMergeProducer::beginRun(edm::Run const &iEvent, edm::EventSetup const &es) {
+  edm::ESHandle<HGCalDDDConstants> hdc = es.getHandle(hdc_token_);
+  hgcons_ = hdc.product();
+
+  edm::ESHandle<CaloGeometry> geom = es.getHandle(geometry_token_);
+  rhtools_.setGeometry(*geom);
+
+  edm::ESHandle<MagneticField> bfield = es.getHandle(bfield_token_);
+  edm::ESHandle<Propagator> propagator = es.getHandle(propagator_token_);
+
+  linkingAlgo_->initialize(hgcons_, rhtools_, bfield, propagator);
+};
 
 void TrackstersMergeProducer::fillTile(TICLTracksterTiles &tracksterTile,
                                        const std::vector<Trackster> &tracksters,
@@ -168,8 +267,6 @@ void TrackstersMergeProducer::dumpTrackster(const Trackster &t) const {
 }
 
 void TrackstersMergeProducer::produce(edm::Event &evt, const edm::EventSetup &es) {
-  edm::ESHandle<CaloGeometry> geom = es.getHandle(geometry_token_);
-  rhtools_.setGeometry(*geom);
   auto resultTrackstersMerged = std::make_unique<std::vector<Trackster>>();
   auto resultCandidates = std::make_unique<std::vector<TICLCandidate>>();
 
@@ -203,25 +300,33 @@ void TrackstersMergeProducer::produce(edm::Event &evt, const edm::EventSetup &es
 
   edm::Handle<std::vector<Trackster>> tracksterstrkem_h;
   evt.getByToken(tracksterstrkem_token_, tracksterstrkem_h);
-  const auto &trackstersTRKEM = *tracksterstrkem_h;
+
+  std::vector<Trackster> trackstersTRKEM;
+  if (tracksterstrkem_h.isValid())
+    trackstersTRKEM = *tracksterstrkem_h;
 
   edm::Handle<std::vector<Trackster>> tracksterstrk_h;
   evt.getByToken(tracksterstrk_token_, tracksterstrk_h);
-  const auto &trackstersTRK = *tracksterstrk_h;
+
+  std::vector<Trackster> trackstersTRK;
+  if (tracksterstrk_h.isValid())
+    trackstersTRK = *tracksterstrk_h;
 
   edm::Handle<std::vector<Trackster>> trackstershad_h;
   evt.getByToken(trackstershad_token_, trackstershad_h);
   const auto &trackstersHAD = *trackstershad_h;
 
+  edm::Handle<std::vector<Trackster>> trackstersclue3d_h;
+  evt.getByToken(tracksters_clue3d_token_, trackstersclue3d_h);
+
   edm::Handle<std::vector<TICLSeedingRegion>> seedingTrk_h;
   evt.getByToken(seedingTrk_token_, seedingTrk_h);
-  const auto &seedingTrk = *seedingTrk_h;
+
+  std::vector<TICLSeedingRegion> seedingTrk;
+  if (seedingTrk_h.isValid())
+    seedingTrk = *seedingTrk_h;
   usedSeeds.resize(tracks.size(), false);
 
-  fillTile(tracksterTile, trackstersTRKEM, TracksterIterIndex::TRKEM);
-  fillTile(tracksterTile, trackstersEM, TracksterIterIndex::EM);
-  fillTile(tracksterTile, trackstersTRK, TracksterIterIndex::TRKHAD);
-  fillTile(tracksterTile, trackstersHAD, TracksterIterIndex::HAD);
 
   auto totalNumberOfTracksters =
       trackstersTRKEM.size() + trackstersTRK.size() + trackstersEM.size() + trackstersHAD.size();
@@ -270,6 +375,43 @@ void TrackstersMergeProducer::produce(edm::Event &evt, const edm::EventSetup &es
   printTrackstersDebug(*resultTrackstersMerged, "TrackstersMergeProducer");
 
   auto trackstersMergedHandle = evt.put(std::move(resultTrackstersMerged));
+
+  if (ticlv4_) {
+  // Linking
+  auto resultTrackstersLinked = std::make_unique<std::vector<TICLCandidate>>();
+  linkingAlgo_->linkTracksters(track_h,
+                               cutTk_,
+                               trackstersclue3d_h,
+                               *resultTrackstersLinked);
+  
+  // Print debug info
+  std::cout << "No. of Tracks : " << tracks.size() << std::endl;
+  std::cout << "No. of Tracksters : " << (*trackstersclue3d_h).size() << std::endl;
+  std::vector<TICLCandidate> &tracksterLinkingDebug = *resultTrackstersLinked;
+  for (auto cand : tracksterLinkingDebug) {
+    auto track_ptr = cand.trackPtr();
+    auto trackster_ptrs = cand.tracksters();
+    auto track_idx = track_ptr.get() - (edm::Ptr<reco::Track>(track_h, 0)).get();
+    track_idx = (track_ptr.isNull()) ? -1 : track_idx;
+    std::cout << "track id (p) : " << track_idx << " (" << (track_ptr.isNull() ? -1 : track_ptr->p()) << ") " << " trackster ids (E) : ";
+    for (auto ts_ptr : trackster_ptrs) {
+      auto ts_idx = ts_ptr.get() - (edm::Ptr<ticl::Trackster>(trackstersclue3d_h, 0)).get();
+      std::cout << ts_idx << " (" << ts_ptr->raw_energy() << ")";
+    }
+    std::cout << std::endl;
+  }
+
+  // Compute timing
+  assignTimeToCandidates(*resultCandidates);
+
+  evt.put(std::move(resultTrackstersLinked));
+  }
+
+  else {
+  fillTile(tracksterTile, trackstersTRKEM, TracksterIterIndex::TRKEM);
+  fillTile(tracksterTile, trackstersEM, TracksterIterIndex::EM);
+  fillTile(tracksterTile, trackstersTRK, TracksterIterIndex::TRKHAD);
+  fillTile(tracksterTile, trackstersHAD, TracksterIterIndex::HAD);
 
   // TICL Candidate creation
   // We start from neutrals first
@@ -540,6 +682,7 @@ void TrackstersMergeProducer::produce(edm::Event &evt, const edm::EventSetup &es
   assignTimeToCandidates(*resultCandidates);
 
   evt.put(std::move(resultCandidates));
+  }
 }
 
 void TrackstersMergeProducer::energyRegressionAndID(const std::vector<reco::CaloCluster> &layerClusters,
@@ -735,15 +878,27 @@ void TrackstersMergeProducer::printTrackstersDebug(const std::vector<Trackster> 
 
 void TrackstersMergeProducer::fillDescriptions(edm::ConfigurationDescriptions &descriptions) {
   edm::ParameterSetDescription desc;
+
+  edm::ParameterSetDescription linkingDesc;
+  linkingDesc.addNode(edm::PluginDescription<LinkingAlgoFactory>("type", "LinkingAlgoByPCAGeometric", true));
+  desc.add<edm::ParameterSetDescription>("linkingPSet", linkingDesc);
+
   desc.add<edm::InputTag>("tracksterstrkem", edm::InputTag("ticlTrackstersTrkEM"));
   desc.add<edm::InputTag>("trackstersem", edm::InputTag("ticlTrackstersEM"));
   desc.add<edm::InputTag>("tracksterstrk", edm::InputTag("ticlTrackstersTrk"));
   desc.add<edm::InputTag>("trackstershad", edm::InputTag("ticlTrackstersHAD"));
+  desc.add<edm::InputTag>("trackstersclue3d", edm::InputTag("ticlTrackstersCLUE3DHigh"));
   desc.add<edm::InputTag>("seedingTrk", edm::InputTag("ticlSeedingTrk"));
   desc.add<edm::InputTag>("layer_clusters", edm::InputTag("hgcalLayerClusters"));
   desc.add<edm::InputTag>("layer_clustersTime", edm::InputTag("hgcalLayerClusters", "timeLayerCluster"));
   desc.add<edm::InputTag>("tracks", edm::InputTag("generalTracks"));
+  desc.add<std::string>("detector", "HGCAL");
+  desc.add<std::string>("propagator", "PropagatorWithMaterial");
+  desc.add<std::string>("cutTk",
+                        "1.48 < abs(eta) < 3.0 && pt > 1. && quality(\"highPurity\") && "
+                        "hitPattern().numberOfLostHits(\"MISSING_OUTER_HITS\") < 5");
   desc.add<bool>("optimiseAcrossTracksters", true);
+  desc.add<bool>("TICLV4", true);
   desc.add<int>("eta_bin_window", 1);
   desc.add<int>("phi_bin_window", 1);
   desc.add<double>("pt_sigma_high", 2.);
