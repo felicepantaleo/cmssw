@@ -316,8 +316,6 @@ void TrackstersMergeProducer::produce(edm::Event &evt, const edm::EventSetup &es
   evt.getByToken(trackstershad_token_, trackstershad_h);
   const auto &trackstersHAD = *trackstershad_h;
 
-  edm::Handle<std::vector<Trackster>> trackstersclue3d_h;
-  evt.getByToken(tracksters_clue3d_token_, trackstersclue3d_h);
 
   edm::Handle<std::vector<TICLSeedingRegion>> seedingTrk_h;
   evt.getByToken(seedingTrk_token_, seedingTrk_h);
@@ -330,6 +328,9 @@ void TrackstersMergeProducer::produce(edm::Event &evt, const edm::EventSetup &es
   
 
   if (ticlv4_) {
+  
+  edm::Handle<std::vector<Trackster>> trackstersclue3d_h;
+  evt.getByToken(tracksters_clue3d_token_, trackstersclue3d_h);
   // Linking
   auto resultTrackstersLinked = std::make_unique<std::vector<TICLCandidate>>();
   linkingAlgo_->linkTracksters(track_h,
