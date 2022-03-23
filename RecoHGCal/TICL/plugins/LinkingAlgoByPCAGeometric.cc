@@ -27,11 +27,13 @@ void LinkingAlgoByPCAGeometric::initialize(const HGCalDDDConstants *hgcons,
   propagator_ = propH;
 }
 
-math::XYZVector LinkingAlgoByPCAGeometric::propagateTrackster(
-    const Trackster &t, const unsigned idx, float zVal, std::array<TICLLayerTile, 2>& tracksterTiles) {
+math::XYZVector LinkingAlgoByPCAGeometric::propagateTrackster(const Trackster &t,
+                                                              const unsigned idx,
+                                                              float zVal,
+                                                              std::array<TICLLayerTile, 2> &tracksterTiles) {
   // any energy or caloparticle based selection has to be handled outside
   // need to only provide the positive Z co-ordinate of the surface to propagate to
-  // the correct sign is calculated inside according to the barycenter of trackster 
+  // the correct sign is calculated inside according to the barycenter of trackster
   Vector baryc = t.barycenter();
   Vector directnv = t.eigenvectors(0);
 
@@ -39,7 +41,7 @@ math::XYZVector LinkingAlgoByPCAGeometric::propagateTrackster(
   // propagation still done to get the cartesian coords
   // which are anyway converted to eta, phi in linking
   // -> can be simplified later
-  if (t.eigenvalues()[0]/t.eigenvalues()[1] < 20)
+  if (t.eigenvalues()[0] / t.eigenvalues()[1] < 20)
     directnv = baryc.unit();
 
   assert(abs(directnv.Z()) > 0.00001);
@@ -76,11 +78,11 @@ void LinkingAlgoByPCAGeometric::buildLayers() {
                                       .get());
 
     zSide = (iSide == 0) ? (-1. * zVal_interface) : zVal_interface;
-    interfaceDisk_[iSide] = 
-        std::make_unique<GeomDet>(Disk::build(Disk::PositionType(0, 0, zSide),
-                                              Disk::RotationType(),
-                                              SimpleDiskBounds(rMinMax_interface.first, rMinMax_interface.second, zSide - 0.5, zSide + 0.5))
-                                      .get());
+    interfaceDisk_[iSide] = std::make_unique<GeomDet>(
+        Disk::build(Disk::PositionType(0, 0, zSide),
+                    Disk::RotationType(),
+                    SimpleDiskBounds(rMinMax_interface.first, rMinMax_interface.second, zSide - 0.5, zSide + 0.5))
+            .get());
   }
 }
 
@@ -91,13 +93,13 @@ void LinkingAlgoByPCAGeometric::linkTracksters(const edm::Handle<std::vector<rec
   // Selections based on CaloParticles or energy have to be implemented outside
 
   constexpr double mpion = 0.13957;
-  constexpr float mpion2 = mpion * mpion; 
+  constexpr float mpion2 = mpion * mpion;
 
   // search box deltas in eta-phi
-  const double delta3 = 0.02;  // track -> trackster, at layer 1
-  const double delta4 = 0.03; // track -> trackster, at interface
-  const double del_ts = 0.03;  // trackster CE-E -> CE-H
-  const double del_tsHad = 0.03; // CE-H -> CE-H 
+  const double delta3 = 0.02;     // track -> trackster, at layer 1
+  const double delta4 = 0.03;     // track -> trackster, at interface
+  const double del_ts = 0.03;     // trackster CE-E -> CE-H
+  const double del_tsHad = 0.03;  // CE-H -> CE-H
 
   const auto &tracks = *tkH;
   const auto &tracksters = *tsH;
@@ -107,15 +109,15 @@ void LinkingAlgoByPCAGeometric::linkTracksters(const edm::Handle<std::vector<rec
   // propagated point collections
   // elements in the propagated points collecions are used
   // to look for potential linkages in the appropriate tiles
-  std::vector<std::pair<Vector, unsigned>> trackPColl;  // propagated track points and index of track in collection
-  std::vector<std::pair<Vector, unsigned>> tkPropIntColl; // tracks propagated to lastLayerEE
-  std::vector<std::pair<Vector, unsigned>> tsPropIntColl; // Tracksters in CE-E, propagated to lastLayerEE
-  std::vector<std::pair<Vector, unsigned>> tsHadPropIntColl; // Tracksters in CE-H, propagated to lastLayerEE
+  std::vector<std::pair<Vector, unsigned>> trackPColl;     // propagated track points and index of track in collection
+  std::vector<std::pair<Vector, unsigned>> tkPropIntColl;  // tracks propagated to lastLayerEE
+  std::vector<std::pair<Vector, unsigned>> tsPropIntColl;  // Tracksters in CE-E, propagated to lastLayerEE
+  std::vector<std::pair<Vector, unsigned>> tsHadPropIntColl;  // Tracksters in CE-H, propagated to lastLayerEE
 
   // tiles, layer 0 is bw, 1 is fw
-  std::array<TICLLayerTile, 2> tracksterPropTiles = {}; // all Tracksters, propagated to layer 1
-  std::array<TICLLayerTile, 2> tsPropIntTiles = {}; // all Tracksters, propagated to lastLayerEE
-  std::array<TICLLayerTile, 2> tsHadPropIntTiles = {}; // Tracksters in CE-H, propagated to lastLayerEE
+  std::array<TICLLayerTile, 2> tracksterPropTiles = {};  // all Tracksters, propagated to layer 1
+  std::array<TICLLayerTile, 2> tsPropIntTiles = {};      // all Tracksters, propagated to lastLayerEE
+  std::array<TICLLayerTile, 2> tsHadPropIntTiles = {};   // Tracksters in CE-H, propagated to lastLayerEE
 
   // filters (true for) anything but EM
   auto isHadron = [](const Trackster &t) -> bool {
@@ -127,9 +129,8 @@ void LinkingAlgoByPCAGeometric::linkTracksters(const edm::Handle<std::vector<rec
       cumulative_prob += t.id_probabilities(index);
     }
     return ((cumulative_prob <= pid_threshold_) and (t.raw_em_energy() == t.raw_energy())) or
-          (t.raw_em_energy() < energy_em_over_total_threshold_ * t.raw_energy());
+           (t.raw_em_energy() < energy_em_over_total_threshold_ * t.raw_energy());
   };
-
 
   // Propagate tracks
   for (unsigned i = 0; i < tracks.size(); ++i) {
@@ -138,7 +139,8 @@ void LinkingAlgoByPCAGeometric::linkTracksters(const edm::Handle<std::vector<rec
       continue;
     }
     // don't consider tracks below 2 GeV for linking
-    if (std::sqrt(tk.p() * tk.p() + mpion2) < 2.0) continue;
+    if (std::sqrt(tk.p() * tk.p() + mpion2) < 2.0)
+      continue;
 
     FreeTrajectoryState fts = trajectoryStateTransform::outerFreeState((tk), bFieldProd);
     int iSide = int(tk.eta() > 0);
@@ -175,17 +177,18 @@ void LinkingAlgoByPCAGeometric::linkTracksters(const edm::Handle<std::vector<rec
     zVal = rhtools_.getPositionLayer(rhtools_.lastLayerEE()).z();
     tsP = propagateTrackster(t, i, zVal, tsPropIntTiles);
 
-    if (!isHadron(t)) // EM tracksters
+    if (!isHadron(t))  // EM tracksters
       tsPropIntColl.emplace_back(tsP, i);
-    else { // HAD
-      tsHadPropIntTiles[(t.barycenter().Z() > 0) ? 1:0].fill(tsP.Eta(), tsP.Phi(), i);
+    else {  // HAD
+      tsHadPropIntTiles[(t.barycenter().Z() > 0) ? 1 : 0].fill(tsP.Eta(), tsP.Phi(), i);
       tsHadPropIntColl.emplace_back(tsP, i);
     }
   }  // TS
 
   // Track-Trackster linking
   // step 3: linking tracks -> all tracksters, at layer 1
-  std::vector<unsigned> tracksters_near[tracks.size()] = {}; // i-th element: vector of indices of tracksters 'linked' to track i
+  std::vector<unsigned> tracksters_near[tracks.size()] =
+      {};  // i-th element: vector of indices of tracksters 'linked' to track i
 
   for (auto i : trackPColl) {
     auto trackP = i.first;
@@ -218,7 +221,8 @@ void LinkingAlgoByPCAGeometric::linkTracksters(const edm::Handle<std::vector<rec
       double eta_min = std::max(abs(tk_eta) - delta3, 0.);
 
       const TICLLayerTile &tile = tracksterPropTiles[0];
-      std::array<int, 4> search_box = tile.searchBoxEtaPhi(eta_min, abs(tk_eta) + delta3, tk_phi - delta3, tk_phi + delta3);
+      std::array<int, 4> search_box =
+          tile.searchBoxEtaPhi(eta_min, abs(tk_eta) + delta3, tk_phi - delta3, tk_phi + delta3);
       if (search_box[2] > search_box[3]) {
         double temp = search_box[3];
         search_box[3] = search_box[2];
@@ -270,7 +274,8 @@ void LinkingAlgoByPCAGeometric::linkTracksters(const edm::Handle<std::vector<rec
       double eta_min = std::max(abs(tk_eta) - delta4, 0.);
 
       const TICLLayerTile &tile = tsPropIntTiles[0];
-      std::array<int, 4> search_box = tile.searchBoxEtaPhi(eta_min, abs(tk_eta) + delta4, tk_phi - delta4, tk_phi + delta4);
+      std::array<int, 4> search_box =
+          tile.searchBoxEtaPhi(eta_min, abs(tk_eta) + delta4, tk_phi - delta4, tk_phi + delta4);
       if (search_box[2] > search_box[3]) {
         double temp = search_box[3];
         search_box[3] = search_box[2];
@@ -317,12 +322,13 @@ void LinkingAlgoByPCAGeometric::linkTracksters(const edm::Handle<std::vector<rec
           }
           //tsNearAtInt[tsId].insert(std::end(tsNearAtInt[tsId]), std::begin(tracksters_in_box), std::end(tracksters_in_box));
         }
-      } // TS
-    } // forward
+      }  // TS
+    }    // forward
     if (ts_eta < 0) {
       double eta_min = std::max(abs(ts_eta) - del_ts, 0.);
       const TICLLayerTile &tile = tsHadPropIntTiles[0];
-      std::array<int, 4> search_box = tile.searchBoxEtaPhi(eta_min, abs(ts_eta) + del_ts, ts_phi - del_ts, ts_phi + del_ts);
+      std::array<int, 4> search_box =
+          tile.searchBoxEtaPhi(eta_min, abs(ts_eta) + del_ts, ts_phi - del_ts, ts_phi + del_ts);
       if (search_box[2] > search_box[3]) {
         int temp = search_box[3];
         search_box[3] = search_box[2];
@@ -339,10 +345,10 @@ void LinkingAlgoByPCAGeometric::linkTracksters(const edm::Handle<std::vector<rec
           }
           //tsNearAtInt[tsId].insert(std::end(tsNearAtInt[tsId]), std::begin(tracksters_in_box), std::end(tracksters_in_box));
         }
-      } // TS
-    } // backward
+      }  // TS
+    }    // backward
 
-  } // tsPropIntColl
+  }  // tsPropIntColl
 
   // step 1: Linking Tracksters HAD -> HAD, at lastLayerEE
   std::vector<unsigned> tsHadNearAtInt[tracksters.size()] = {};
@@ -356,7 +362,8 @@ void LinkingAlgoByPCAGeometric::linkTracksters(const edm::Handle<std::vector<rec
     if (ts_eta > 0) {
       double eta_min = std::max(ts_eta - del_tsHad, 0.);
       const TICLLayerTile &tile = tsHadPropIntTiles[1];
-      std::array<int, 4> search_box = tile.searchBoxEtaPhi(eta_min, ts_eta + del_tsHad, ts_phi - del_tsHad, ts_phi + del_tsHad);
+      std::array<int, 4> search_box =
+          tile.searchBoxEtaPhi(eta_min, ts_eta + del_tsHad, ts_phi - del_tsHad, ts_phi + del_tsHad);
       if (search_box[2] > search_box[3]) {
         int temp = search_box[3];
         search_box[3] = search_box[2];
@@ -372,12 +379,13 @@ void LinkingAlgoByPCAGeometric::linkTracksters(const edm::Handle<std::vector<rec
             }
           }
         }
-      } // TS
-    } // forward
+      }  // TS
+    }    // forward
     if (ts_eta < 0) {
       double eta_min = std::max(abs(ts_eta) - del_tsHad, 0.);
       const TICLLayerTile &tile = tsHadPropIntTiles[0];
-      std::array<int, 4> search_box = tile.searchBoxEtaPhi(eta_min, abs(ts_eta) + del_tsHad, ts_phi - del_tsHad, ts_phi + del_tsHad);
+      std::array<int, 4> search_box =
+          tile.searchBoxEtaPhi(eta_min, abs(ts_eta) + del_tsHad, ts_phi - del_tsHad, ts_phi + del_tsHad);
       if (search_box[2] > search_box[3]) {
         int temp = search_box[3];
         search_box[3] = search_box[2];
@@ -393,9 +401,9 @@ void LinkingAlgoByPCAGeometric::linkTracksters(const edm::Handle<std::vector<rec
             }
           }
         }
-      } // TS
-    } // backward
-  } // tsHadPropIntColl
+      }  // TS
+    }    // backward
+  }      // tsHadPropIntColl
 
   // make final collections
 
@@ -403,9 +411,9 @@ void LinkingAlgoByPCAGeometric::linkTracksters(const edm::Handle<std::vector<rec
   std::vector<TICLCandidate> chargedHadronsFromTk;
   int chargedMask[tracksters.size()] = {0};
   for (unsigned i = 0; i < tracks.size(); ++i) {
-    if (tracksters_near[i].empty() && tsNearTkAtInt[i].empty()) { // nothing linked to track, make charged hadrons
+    if (tracksters_near[i].empty() && tsNearTkAtInt[i].empty()) {  // nothing linked to track, make charged hadrons
       TICLCandidate chargedHad;
-      const auto& tk = tracks[i];
+      const auto &tk = tracks[i];
       chargedHad.setCharge(tk.charge());
       chargedHad.setPdgId(211 * tk.charge());
       chargedHad.setTrackPtr(edm::Ptr<reco::Track>(tkH, i));
@@ -418,24 +426,24 @@ void LinkingAlgoByPCAGeometric::linkTracksters(const edm::Handle<std::vector<rec
     }
 
     TICLCandidate chargedCandidate;
-    for (const unsigned ts3_idx : tracksters_near[i]) { // tk -> ts
+    for (const unsigned ts3_idx : tracksters_near[i]) {  // tk -> ts
       if (!chargedMask[ts3_idx]) {
         chargedCandidate.addTrackster(edm::Ptr<Trackster>(tsH, ts3_idx));
         chargedMask[ts3_idx] = 1;
       }
-      for (const unsigned ts2_idx : tsNearAtInt[ts3_idx]) { // ts_EM -> ts_HAD
+      for (const unsigned ts2_idx : tsNearAtInt[ts3_idx]) {  // ts_EM -> ts_HAD
         if (!chargedMask[ts2_idx]) {
           chargedCandidate.addTrackster(edm::Ptr<Trackster>(tsH, ts2_idx));
           chargedMask[ts2_idx] = 1;
         }
-        for (const unsigned ts1_idx : tsHadNearAtInt[ts2_idx]) { // ts_HAD -> ts_HAD
+        for (const unsigned ts1_idx : tsHadNearAtInt[ts2_idx]) {  // ts_HAD -> ts_HAD
           if (!chargedMask[ts1_idx]) {
             chargedCandidate.addTrackster(edm::Ptr<Trackster>(tsH, ts1_idx));
             chargedMask[ts1_idx] = 1;
           }
         }
       }
-      for (const unsigned ts1_idx : tsHadNearAtInt[ts3_idx]) { // ts_HAD -> ts_HAD
+      for (const unsigned ts1_idx : tsHadNearAtInt[ts3_idx]) {  // ts_HAD -> ts_HAD
         if (!chargedMask[ts1_idx]) {
           chargedCandidate.addTrackster(edm::Ptr<Trackster>(tsH, ts1_idx));
           chargedMask[ts1_idx] = 1;
@@ -443,7 +451,7 @@ void LinkingAlgoByPCAGeometric::linkTracksters(const edm::Handle<std::vector<rec
       }
     }
 
-    for (const unsigned ts4_idx : tsNearTkAtInt[i]) { // do the same for tk -> ts links at the interface
+    for (const unsigned ts4_idx : tsNearTkAtInt[i]) {  // do the same for tk -> ts links at the interface
       if (!chargedMask[ts4_idx]) {
         chargedCandidate.addTrackster(edm::Ptr<Trackster>(tsH, ts4_idx));
         chargedMask[ts4_idx] = 1;
@@ -473,10 +481,9 @@ void LinkingAlgoByPCAGeometric::linkTracksters(const edm::Handle<std::vector<rec
     if (chargedCandidate.tracksters().size() > 0) {
       chargedCandidate.setTrackPtr(edm::Ptr<reco::Track>(tkH, i));
       chargedCandidates.push_back(chargedCandidate);
-    }
-    else { // create charged hadron 
+    } else {  // create charged hadron
       TICLCandidate chargedHad;
-      const auto& tk = tracks[i];
+      const auto &tk = tracks[i];
       chargedHad.setCharge(tk.charge());
       chargedHad.setPdgId(211 * tk.charge());
       chargedHad.setTrackPtr(edm::Ptr<reco::Track>(tkH, i));
@@ -491,123 +498,124 @@ void LinkingAlgoByPCAGeometric::linkTracksters(const edm::Handle<std::vector<rec
   std::vector<TICLCandidate> neutralCandidates;
   int neutralMask[tracksters.size()] = {0};
   for (unsigned i = 0; i < tracksters.size(); ++i) {
-    if (chargedMask[i]) continue;
+    if (chargedMask[i])
+      continue;
 
     TICLCandidate neutralCandidate;
-    if (tsNearAtInt[i].empty() && tsHadNearAtInt[i].empty()) { // nothing linked to this ts
+    if (tsNearAtInt[i].empty() && tsHadNearAtInt[i].empty()) {  // nothing linked to this ts
       if (!neutralMask[i]) {
         TICLCandidate neutralNoLinks;
         neutralNoLinks.addTrackster(edm::Ptr<Trackster>(tsH, i));
         neutralMask[i] = 1;
         neutralCandidates.push_back(neutralNoLinks);
       }
-    }
-    else { // at least one other trackster linked to this
-    if (!neutralMask[i]) {
-      neutralCandidate.addTrackster(edm::Ptr<Trackster>(tsH, i));
-      neutralMask[i] = 1;
-    }
-    for (const unsigned ts2_idx : tsNearAtInt[i]) {
-      if (chargedMask[ts2_idx]) continue;
-      if (!neutralMask[ts2_idx]) {
-        neutralCandidate.addTrackster(edm::Ptr<Trackster>(tsH, ts2_idx));
-        neutralMask[ts2_idx] = 1;
+    } else {  // at least one other trackster linked to this
+      if (!neutralMask[i]) {
+        neutralCandidate.addTrackster(edm::Ptr<Trackster>(tsH, i));
+        neutralMask[i] = 1;
       }
-      for (const unsigned ts1_idx : tsHadNearAtInt[ts2_idx]) {
-        if (chargedMask[ts1_idx]) continue;
+      for (const unsigned ts2_idx : tsNearAtInt[i]) {
+        if (chargedMask[ts2_idx])
+          continue;
+        if (!neutralMask[ts2_idx]) {
+          neutralCandidate.addTrackster(edm::Ptr<Trackster>(tsH, ts2_idx));
+          neutralMask[ts2_idx] = 1;
+        }
+        for (const unsigned ts1_idx : tsHadNearAtInt[ts2_idx]) {
+          if (chargedMask[ts1_idx])
+            continue;
+          if (!neutralMask[ts1_idx]) {
+            neutralCandidate.addTrackster(edm::Ptr<Trackster>(tsH, ts1_idx));
+            neutralMask[ts1_idx] = 1;
+          }
+        }
+      }
+      for (const unsigned ts1_idx : tsHadNearAtInt[i]) {
+        if (chargedMask[ts1_idx])
+          continue;
         if (!neutralMask[ts1_idx]) {
           neutralCandidate.addTrackster(edm::Ptr<Trackster>(tsH, ts1_idx));
           neutralMask[ts1_idx] = 1;
         }
       }
-    }
-    for (const unsigned ts1_idx : tsHadNearAtInt[i]) {
-      if (chargedMask[ts1_idx]) continue;
-      if (!neutralMask[ts1_idx]) {
-        neutralCandidate.addTrackster(edm::Ptr<Trackster>(tsH, ts1_idx));
-        neutralMask[ts1_idx] = 1;
+      // filter empty candidates
+      if (neutralCandidate.tracksters().size() > 0) {
+        neutralCandidates.push_back(neutralCandidate);
       }
     }
-    // filter empty candidates
-    if (neutralCandidate.tracksters().size() > 0) {
-      neutralCandidates.push_back(neutralCandidate);
+  }
+
+  // set other attributes of created candidates
+  for (auto &cand : chargedCandidates) {
+    bool isHAD = false;
+    double rawE = 0.;
+    const auto track = cand.trackPtr();
+    for (const auto ts : cand.tracksters()) {
+      // isHAD if atleast one trackster is not EM
+      if (isHadron(*ts))
+        isHAD = true;
+      rawE += ts->raw_energy();
     }
+
+    if (isHAD) {  // charged hadron
+      cand.setCharge(track->charge());
+      cand.setPdgId(211 * track->charge());
+      cand.setRawEnergy(rawE);
+      math::XYZTLorentzVector p4(rawE * track->momentum().unit().x(),
+                                 rawE * track->momentum().unit().y(),
+                                 rawE * track->momentum().unit().z(),
+                                 rawE);
+      cand.setP4(p4);
+    } else {  // electron
+      cand.setCharge(track->charge());
+      cand.setPdgId(11 * track->charge());
+      cand.setRawEnergy(rawE);
+      math::XYZTLorentzVector p4(rawE * track->momentum().unit().x(),
+                                 rawE * track->momentum().unit().y(),
+                                 rawE * track->momentum().unit().z(),
+                                 rawE);
+      cand.setP4(p4);
     }
   }
-  
-// set other attributes of created candidates
-for (auto &cand : chargedCandidates) {
-  bool isHAD = false;
-  double rawE = 0.;
-  const auto track = cand.trackPtr();
-  for (const auto ts : cand.tracksters()) {
-    // isHAD if atleast one trackster is not EM
-    if (isHadron(*ts)) isHAD = true;
-    rawE += ts->raw_energy();
-  }
-  
-  if (isHAD) { // charged hadron
-    cand.setCharge(track->charge());
-    cand.setPdgId(211 * track->charge());
-    cand.setRawEnergy(rawE);
-    math::XYZTLorentzVector p4(rawE * track->momentum().unit().x(),
-                               rawE * track->momentum().unit().y(),
-                               rawE * track->momentum().unit().z(),
-                               rawE);
-    cand.setP4(p4);
-  }
-  else { // electron
-    cand.setCharge(track->charge());
-    cand.setPdgId(11 * track->charge());
-    cand.setRawEnergy(rawE);
-    math::XYZTLorentzVector p4(rawE * track->momentum().unit().x(),
-                               rawE * track->momentum().unit().y(),
-                               rawE * track->momentum().unit().z(),
-                               rawE);
-    cand.setP4(p4);
-  }
-}
 
-for (auto &cand : neutralCandidates) {
-  bool isHAD = false;
-  double rawE = 0.;
-  const auto track = cand.trackPtr();
-  double wtSum_baryc[3] = {0};
-  for (const auto ts : cand.tracksters()) {
-    if (isHadron(*ts)) isHAD = true;
-    rawE += ts->raw_energy();
-    wtSum_baryc[0] += (ts->raw_energy())*(ts->barycenter().x());
-    wtSum_baryc[1] += (ts->raw_energy())*(ts->barycenter().y());
-    wtSum_baryc[2] += (ts->raw_energy())*(ts->barycenter().z());
+  for (auto &cand : neutralCandidates) {
+    bool isHAD = false;
+    double rawE = 0.;
+    const auto track = cand.trackPtr();
+    double wtSum_baryc[3] = {0};
+    for (const auto ts : cand.tracksters()) {
+      if (isHadron(*ts))
+        isHAD = true;
+      rawE += ts->raw_energy();
+      wtSum_baryc[0] += (ts->raw_energy()) * (ts->barycenter().x());
+      wtSum_baryc[1] += (ts->raw_energy()) * (ts->barycenter().y());
+      wtSum_baryc[2] += (ts->raw_energy()) * (ts->barycenter().z());
+    }
+    Vector combined_baryc(wtSum_baryc[0] / rawE, wtSum_baryc[1] / rawE, wtSum_baryc[2] / rawE);
+
+    if (isHAD) {  // neutral hadron
+      cand.setCharge(0);
+      cand.setPdgId(130);
+      cand.setRawEnergy(rawE);
+      float momentum = std::sqrt(rawE * rawE - mpion2);
+      math::XYZTLorentzVector p4(momentum * combined_baryc.unit().x(),
+                                 momentum * combined_baryc.unit().y(),
+                                 momentum * combined_baryc.unit().z(),
+                                 rawE);
+      cand.setP4(p4);
+    } else {  // photon
+      cand.setCharge(0);
+      cand.setPdgId(22);
+      cand.setRawEnergy(rawE);
+      math::XYZTLorentzVector p4(
+          rawE * combined_baryc.unit().x(), rawE * combined_baryc.unit().y(), rawE * combined_baryc.unit().z(), rawE);
+      cand.setP4(p4);
+    }
   }
-  Vector combined_baryc(wtSum_baryc[0]/rawE, wtSum_baryc[1]/rawE, wtSum_baryc[2]/rawE);
 
-if (isHAD) { // neutral hadron
-  cand.setCharge(0);
-  cand.setPdgId(130);
-  cand.setRawEnergy(rawE);
-  float momentum = std::sqrt(rawE * rawE - mpion2);
-  math::XYZTLorentzVector p4(momentum * combined_baryc.unit().x(),
-                             momentum * combined_baryc.unit().y(),
-                             momentum * combined_baryc.unit().z(),
-                             rawE);
-  cand.setP4(p4);
-}
-else { // photon
-  cand.setCharge(0);
-  cand.setPdgId(22);
-  cand.setRawEnergy(rawE);
-  math::XYZTLorentzVector p4(rawE * combined_baryc.unit().x(),
-                             rawE * combined_baryc.unit().y(),
-                             rawE * combined_baryc.unit().z(),
-                             rawE);
-  cand.setP4(p4);
-}
-}
-
-resultLinked.insert(std::end(resultLinked), std::begin(neutralCandidates), std::end(neutralCandidates));
-resultLinked.insert(std::end(resultLinked), std::begin(chargedCandidates), std::end(chargedCandidates));
-resultLinked.insert(std::end(resultLinked), std::begin(chargedHadronsFromTk), std::end(chargedHadronsFromTk));
+  resultLinked.insert(std::end(resultLinked), std::begin(neutralCandidates), std::end(neutralCandidates));
+  resultLinked.insert(std::end(resultLinked), std::begin(chargedCandidates), std::end(chargedCandidates));
+  resultLinked.insert(std::end(resultLinked), std::begin(chargedHadronsFromTk), std::end(chargedHadronsFromTk));
 
 }  // linkTracksters
 

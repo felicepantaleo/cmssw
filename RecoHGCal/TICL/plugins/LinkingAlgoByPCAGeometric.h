@@ -52,8 +52,10 @@ namespace ticl {
 
     void buildLayers();
 
-    math::XYZVector propagateTrackster(
-        const Trackster &t, const unsigned idx, float zVal, std::array<TICLLayerTile, 2>& tracksterTiles);
+    math::XYZVector propagateTrackster(const Trackster &t,
+                                       const unsigned idx,
+                                       float zVal,
+                                       std::array<TICLLayerTile, 2> &tracksterTiles);
 
     std::once_flag initializeGeometry_;
 
