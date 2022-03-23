@@ -401,8 +401,8 @@ void TrackstersMergeProducer::produce(edm::Event &evt, const edm::EventSetup &es
         else
           outTrackster.setIdProbability(ticl::Trackster::ParticleType::neutral_hadron, 1.f);
       }
-
-      resultTrackstersMerged->push_back(outTrackster);
+      if(!outTrackster.vertices().empty())
+        resultTrackstersMerged->push_back(outTrackster);
     }
     assignPCAtoTracksters(*resultTrackstersMerged,
                           layerClusters,
