@@ -327,7 +327,99 @@ void TrackstersMergeProducer::produce(edm::Event &evt, const edm::EventSetup &es
     seedingTrk = *seedingTrk_h;
   usedSeeds.resize(tracks.size(), false);
 
+  
 
+  if (ticlv4_) {
+  // Linking
+  auto resultTrackstersLinked = std::make_unique<std::vector<TICLCandidate>>();
+  linkingAlgo_->linkTracksters(track_h,
+                               cutTk_,
+                               trackstersclue3d_h,
+                               *resultTrackstersLinked);
+  
+  // Print debug info
+  if(debug_) {
+  std::cout << "No. of Tracks : " << tracks.size() << std::endl;
+  std::cout << "No. of Tracksters : " << (*trackstersclue3d_h).size() << std::endl;
+  }
+  std::vector<TICLCandidate> &tracksterLinkingDebug = *resultTrackstersLinked;
+  for (auto cand : tracksterLinkingDebug) {
+    auto track_ptr = cand.trackPtr();
+    auto trackster_ptrs = cand.tracksters();
+    if (debug_) {
+    auto track_idx = track_ptr.get() - (edm::Ptr<reco::Track>(track_h, 0)).get();
+    track_idx = (track_ptr.isNull()) ? -1 : track_idx;
+    std::cout << "track id (p) : " << track_idx << " (" << (track_ptr.isNull() ? -1 : track_ptr->p()) << ") " << " trackster ids (E) : ";
+    }
+    // merge included tracksters
+    ticl::Trackster outTrackster;
+    auto updated_size = 0;
+      for (auto ts_ptr : trackster_ptrs) {
+        if (debug_) {
+        auto ts_idx = ts_ptr.get() - (edm::Ptr<ticl::Trackster>(trackstersclue3d_h, 0)).get();
+        std::cout << ts_idx << " (" << ts_ptr->raw_energy() << ")";
+        }
+        auto &thisTrackster = *ts_ptr;
+        updated_size += thisTrackster.vertices().size();
+        outTrackster.vertices().reserve(updated_size);
+        outTrackster.vertex_multiplicity().reserve(updated_size);
+        std::copy(std::begin(thisTrackster.vertices()),
+                  std::end(thisTrackster.vertices()),
+                  std::back_inserter(outTrackster.vertices()));
+        std::copy(std::begin(thisTrackster.vertex_multiplicity()),
+                  std::end(thisTrackster.vertex_multiplicity()),
+                  std::back_inserter(outTrackster.vertex_multiplicity()));
+      }
+    if (debug_)  
+    std::cout << std::endl;
+    // Find duplicate LCs
+      auto &orig_vtx = outTrackster.vertices();
+      auto vtx_sorted{orig_vtx};
+      std::sort(std::begin(vtx_sorted), std::end(vtx_sorted));
+      for (unsigned int iLC = 1; iLC < vtx_sorted.size(); ++iLC) {
+        if (vtx_sorted[iLC] == vtx_sorted[iLC - 1]) {
+          // Clean up duplicate LCs
+          const auto lcIdx = vtx_sorted[iLC];
+          const auto firstEl = std::find(orig_vtx.begin(), orig_vtx.end(), lcIdx);
+          const auto firstPos = std::distance(std::begin(orig_vtx), firstEl);
+          auto iDup = std::find(std::next(firstEl), orig_vtx.end(), lcIdx);
+          while (iDup != orig_vtx.end()) {
+            orig_vtx.erase(iDup);
+            outTrackster.vertex_multiplicity().erase(outTrackster.vertex_multiplicity().begin() +
+                                                     std::distance(std::begin(orig_vtx), iDup));
+            outTrackster.vertex_multiplicity()[firstPos] -= 1;
+            iDup = std::find(std::next(firstEl), orig_vtx.end(), lcIdx);
+          };
+        }
+      }
+
+  outTrackster.zeroProbabilities();
+  if (!track_ptr.isNull()) {
+  outTrackster.setSeed(track_h.id(), track_ptr.get() - (edm::Ptr<reco::Track>(track_h, 0)).get());
+  if (std::abs(cand.pdgId()) == 11)
+  outTrackster.setIdProbability(ticl::Trackster::ParticleType::electron, 1.f);
+  else 
+  outTrackster.setIdProbability(ticl::Trackster::ParticleType::charged_hadron, 1.f);
+  }
+  else {
+    if (cand.pdgId() == 22)
+    outTrackster.setIdProbability(ticl::Trackster::ParticleType::photon, 1.f);
+    else 
+    outTrackster.setIdProbability(ticl::Trackster::ParticleType::neutral_hadron, 1.f);
+  }
+
+  resultTrackstersMerged->push_back(outTrackster);
+  }
+
+
+  // Compute timing
+  assignTimeToCandidates(*resultCandidates);
+
+  evt.put(std::move(resultTrackstersMerged));
+  evt.put(std::move(resultTrackstersLinked));
+  }
+
+  else {
   auto totalNumberOfTracksters =
       trackstersTRKEM.size() + trackstersTRK.size() + trackstersEM.size() + trackstersHAD.size();
   resultTrackstersMerged->reserve(totalNumberOfTracksters);
@@ -375,39 +467,6 @@ void TrackstersMergeProducer::produce(edm::Event &evt, const edm::EventSetup &es
   printTrackstersDebug(*resultTrackstersMerged, "TrackstersMergeProducer");
 
   auto trackstersMergedHandle = evt.put(std::move(resultTrackstersMerged));
-
-  if (ticlv4_) {
-  // Linking
-  auto resultTrackstersLinked = std::make_unique<std::vector<TICLCandidate>>();
-  linkingAlgo_->linkTracksters(track_h,
-                               cutTk_,
-                               trackstersclue3d_h,
-                               *resultTrackstersLinked);
-  
-  // Print debug info
-  std::cout << "No. of Tracks : " << tracks.size() << std::endl;
-  std::cout << "No. of Tracksters : " << (*trackstersclue3d_h).size() << std::endl;
-  std::vector<TICLCandidate> &tracksterLinkingDebug = *resultTrackstersLinked;
-  for (auto cand : tracksterLinkingDebug) {
-    auto track_ptr = cand.trackPtr();
-    auto trackster_ptrs = cand.tracksters();
-    auto track_idx = track_ptr.get() - (edm::Ptr<reco::Track>(track_h, 0)).get();
-    track_idx = (track_ptr.isNull()) ? -1 : track_idx;
-    std::cout << "track id (p) : " << track_idx << " (" << (track_ptr.isNull() ? -1 : track_ptr->p()) << ") " << " trackster ids (E) : ";
-    for (auto ts_ptr : trackster_ptrs) {
-      auto ts_idx = ts_ptr.get() - (edm::Ptr<ticl::Trackster>(trackstersclue3d_h, 0)).get();
-      std::cout << ts_idx << " (" << ts_ptr->raw_energy() << ")";
-    }
-    std::cout << std::endl;
-  }
-
-  // Compute timing
-  assignTimeToCandidates(*resultCandidates);
-
-  evt.put(std::move(resultTrackstersLinked));
-  }
-
-  else {
   fillTile(tracksterTile, trackstersTRKEM, TracksterIterIndex::TRKEM);
   fillTile(tracksterTile, trackstersEM, TracksterIterIndex::EM);
   fillTile(tracksterTile, trackstersTRK, TracksterIterIndex::TRKHAD);

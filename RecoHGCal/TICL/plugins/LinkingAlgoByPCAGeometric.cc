@@ -94,9 +94,10 @@ void LinkingAlgoByPCAGeometric::linkTracksters(const edm::Handle<std::vector<rec
   constexpr float mpion2 = mpion * mpion; 
 
   // search box deltas in eta-phi
-  const double delta = 0.02;  // track -> trackster
-  const double del_ts = 0.02;  // trackster CE-E -> CE-H
-  const double del_tsHad = 0.02; // CE-H -> CE-H 
+  const double delta3 = 0.02;  // track -> trackster, at layer 1
+  const double delta4 = 0.03; // track -> trackster, at interface
+  const double del_ts = 0.03;  // trackster CE-E -> CE-H
+  const double del_tsHad = 0.03; // CE-H -> CE-H 
 
   const auto &tracks = *tkH;
   const auto &tracksters = *tsH;
@@ -117,15 +118,15 @@ void LinkingAlgoByPCAGeometric::linkTracksters(const edm::Handle<std::vector<rec
   std::array<TICLLayerTile, 2> tsHadPropIntTiles = {}; // Tracksters in CE-H, propagated to lastLayerEE
 
   // filters (true for) anything but EM
-  std::vector<int> filter_on_categories_ = {0, 1};
-  double pid_threshold_ = 0.5;
-  double energy_em_over_total_threshold_ = 0.9;
-  auto filter_on_pids = [&](const Trackster &t) -> bool {
+  auto isHadron = [](const Trackster &t) -> bool {
+    std::vector<int> filter_on_categories_ = {0, 1};
+    double pid_threshold_ = 0.5;
+    double energy_em_over_total_threshold_ = 0.9;
     auto cumulative_prob = 0.;
     for (auto index : filter_on_categories_) {
       cumulative_prob += t.id_probabilities(index);
     }
-    return (cumulative_prob <= pid_threshold_) &&
+    return (cumulative_prob <= pid_threshold_) ||
           (t.raw_em_energy() < energy_em_over_total_threshold_ * t.raw_energy());
   };
 
@@ -174,7 +175,7 @@ void LinkingAlgoByPCAGeometric::linkTracksters(const edm::Handle<std::vector<rec
     zVal = rhtools_.getPositionLayer(rhtools_.lastLayerEE()).z();
     tsP = propagateTrackster(t, i, zVal, tsPropIntTiles);
 
-    if (!filter_on_pids(t)) // EM tracksters
+    if (!isHadron(t)) // EM tracksters
       tsPropIntColl.emplace_back(tsP, i);
     else { // HAD
       tsHadPropIntTiles[(t.barycenter().Z() > 0) ? 1:0].fill(tsP.Eta(), tsP.Phi(), i);
@@ -194,10 +195,10 @@ void LinkingAlgoByPCAGeometric::linkTracksters(const edm::Handle<std::vector<rec
     double tk_phi = trackP.Phi();
 
     if (tk_eta > 0) {
-      double eta_min = std::max(tk_eta - delta, 0.);
+      double eta_min = std::max(tk_eta - delta3, 0.);
 
       const TICLLayerTile &tile = tracksterPropTiles[1];
-      std::array<int, 4> search_box = tile.searchBoxEtaPhi(eta_min, tk_eta + delta, tk_phi - delta, tk_phi + delta);
+      std::array<int, 4> search_box = tile.searchBoxEtaPhi(eta_min, tk_eta + delta3, tk_phi - delta3, tk_phi + delta3);
       if (search_box[2] > search_box[3]) {
         double temp = search_box[3];
         search_box[3] = search_box[2];
@@ -214,10 +215,10 @@ void LinkingAlgoByPCAGeometric::linkTracksters(const edm::Handle<std::vector<rec
     }    // forward
 
     if (tk_eta < 0) {
-      double eta_min = std::max(abs(tk_eta) - delta, 0.);
+      double eta_min = std::max(abs(tk_eta) - delta3, 0.);
 
       const TICLLayerTile &tile = tracksterPropTiles[0];
-      std::array<int, 4> search_box = tile.searchBoxEtaPhi(eta_min, abs(tk_eta) + delta, tk_phi - delta, tk_phi + delta);
+      std::array<int, 4> search_box = tile.searchBoxEtaPhi(eta_min, abs(tk_eta) + delta3, tk_phi - delta3, tk_phi + delta3);
       if (search_box[2] > search_box[3]) {
         double temp = search_box[3];
         search_box[3] = search_box[2];
@@ -246,10 +247,10 @@ void LinkingAlgoByPCAGeometric::linkTracksters(const edm::Handle<std::vector<rec
     double tk_phi = trackP.Phi();
 
     if (tk_eta > 0) {
-      double eta_min = std::max(tk_eta - delta, 0.);
+      double eta_min = std::max(tk_eta - delta4, 0.);
 
       const TICLLayerTile &tile = tsPropIntTiles[1];
-      std::array<int, 4> search_box = tile.searchBoxEtaPhi(eta_min, tk_eta + delta, tk_phi - delta, tk_phi + delta);
+      std::array<int, 4> search_box = tile.searchBoxEtaPhi(eta_min, tk_eta + delta4, tk_phi - delta4, tk_phi + delta4);
       if (search_box[2] > search_box[3]) {
         double temp = search_box[3];
         search_box[3] = search_box[2];
@@ -266,10 +267,10 @@ void LinkingAlgoByPCAGeometric::linkTracksters(const edm::Handle<std::vector<rec
     }    // forward
 
     if (tk_eta < 0) {
-      double eta_min = std::max(abs(tk_eta) - delta, 0.);
+      double eta_min = std::max(abs(tk_eta) - delta4, 0.);
 
       const TICLLayerTile &tile = tsPropIntTiles[0];
-      std::array<int, 4> search_box = tile.searchBoxEtaPhi(eta_min, abs(tk_eta) + delta, tk_phi - delta, tk_phi + delta);
+      std::array<int, 4> search_box = tile.searchBoxEtaPhi(eta_min, abs(tk_eta) + delta4, tk_phi - delta4, tk_phi + delta4);
       if (search_box[2] > search_box[3]) {
         double temp = search_box[3];
         search_box[3] = search_box[2];
@@ -541,7 +542,7 @@ for (auto &cand : chargedCandidates) {
   const auto track = cand.trackPtr();
   for (const auto ts : cand.tracksters()) {
     // isHAD if atleast one trackster is not EM
-    if (filter_on_pids(*ts)) isHAD = true;
+    if (isHadron(*ts)) isHAD = true;
     rawE += ts->raw_energy();
   }
   
@@ -573,7 +574,7 @@ for (auto &cand : neutralCandidates) {
   const auto track = cand.trackPtr();
   double wtSum_baryc[3] = {0};
   for (const auto ts : cand.tracksters()) {
-    if (filter_on_pids(*ts)) isHAD = true;
+    if (isHadron(*ts)) isHAD = true;
     rawE += ts->raw_energy();
     wtSum_baryc[0] += (ts->raw_energy())*(ts->barycenter().x());
     wtSum_baryc[1] += (ts->raw_energy())*(ts->barycenter().y());
