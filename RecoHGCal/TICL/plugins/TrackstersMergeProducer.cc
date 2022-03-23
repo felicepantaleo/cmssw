@@ -958,7 +958,7 @@ void TrackstersMergeProducer::fillDescriptions(edm::ConfigurationDescriptions &d
                         "1.48 < abs(eta) < 3.0 && pt > 1. && quality(\"highPurity\") && "
                         "hitPattern().numberOfLostHits(\"MISSING_OUTER_HITS\") < 5");
   desc.add<bool>("optimiseAcrossTracksters", true);
-  desc.add<bool>("TICLV4", true);
+  desc.add<bool>("TICLV4", false);
   desc.add<int>("eta_bin_window", 1);
   desc.add<int>("phi_bin_window", 1);
   desc.add<double>("pt_sigma_high", 2.);
@@ -975,7 +975,7 @@ void TrackstersMergeProducer::fillDescriptions(edm::ConfigurationDescriptions &d
   desc.add<double>("resol_calo_scale_had", 0.15);
   desc.add<double>("resol_calo_offset_em", 1.5);
   desc.add<double>("resol_calo_scale_em", 0.15);
-  desc.add<bool>("debug", true);
+  desc.add<bool>("debug", false);
   desc.add<std::string>("tfDnnLabel", "tracksterSelectionTf");
   desc.add<std::string>("eid_input_name", "input");
   desc.add<std::string>("eid_output_name_energy", "output/regressed_energy");
