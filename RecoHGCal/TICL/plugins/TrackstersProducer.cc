@@ -47,8 +47,11 @@ private:
   std::string detector_;
   bool doNose_;
   const std::string tfDnnLabel_;
+  const std::string tfDnnLabelER_;
   const edm::ESGetToken<TfGraphDefWrapper, TfGraphRecord> tfDnnToken_;
+  const edm::ESGetToken<TfGraphDefWrapper, TfGraphRecord> tfDnnTokenER_;
   const tensorflow::Session* tfSession_;
+  const tensorflow::Session* tfSessionER_;
   std::unique_ptr<PatternRecognitionAlgoBaseT<TICLLayerTiles>> myAlgo_;
   std::unique_ptr<PatternRecognitionAlgoBaseT<TICLLayerTilesHFNose>> myAlgoHFNose_;
 
@@ -68,8 +71,11 @@ TrackstersProducer::TrackstersProducer(const edm::ParameterSet& ps)
     : detector_(ps.getParameter<std::string>("detector")),
       doNose_(detector_ == "HFNose"),
       tfDnnLabel_(ps.getParameter<std::string>("tfDnnLabel")),
+      tfDnnLabelER_(ps.getParameter<std::string>("tfDnnLabelER")),
       tfDnnToken_(esConsumes(edm::ESInputTag("", tfDnnLabel_))),
+      tfDnnTokenER_(esConsumes(edm::ESInputTag("", tfDnnLabelER_))),
       tfSession_(nullptr),
+      tfSessionER_(nullptr),
       clusters_token_(consumes<std::vector<reco::CaloCluster>>(ps.getParameter<edm::InputTag>("layer_clusters"))),
       filtered_layerclusters_mask_token_(consumes<std::vector<float>>(ps.getParameter<edm::InputTag>("filtered_mask"))),
       original_layerclusters_mask_token_(consumes<std::vector<float>>(ps.getParameter<edm::InputTag>("original_mask"))),
@@ -120,6 +126,7 @@ void TrackstersProducer::fillDescriptions(edm::ConfigurationDescriptions& descri
   desc.add<std::string>("patternRecognitionBy", "CA");
   desc.add<std::string>("itername", "unknown");
   desc.add<std::string>("tfDnnLabel", "tracksterSelectionTf");
+  desc.add<std::string>("tfDnnLabelER", "tracksterSelectionTfER");
 
   // CA Plugin
   edm::ParameterSetDescription pluginDesc;
@@ -150,6 +157,7 @@ void TrackstersProducer::produce(edm::Event& evt, const edm::EventSetup& es) {
   const auto& seeding_regions = evt.get(seeding_regions_token_);
 
   tfSession_ = es.getData(tfDnnToken_).getSession();
+  tfSessionER_ = es.getData(tfDnnTokenER_).getSession();
 
   std::unordered_map<int, std::vector<int>> seedToTrackstersAssociation;
   // if it's regional iteration and there are seeding regions
@@ -169,14 +177,22 @@ void TrackstersProducer::produce(edm::Event& evt, const edm::EventSetup& es) {
                                                                                          layerClustersTimes,
                                                                                          layer_clusters_hfnose_tiles,
                                                                                          seeding_regions,
-                                                                                         tfSession_);
+                                                                                         tfSession_,
+                                                                                         tfSessionER_);
 
     myAlgoHFNose_->makeTracksters(inputHFNose, *result, seedToTrackstersAssociation);
 
   } else {
     const auto& layer_clusters_tiles = evt.get(layer_clusters_tiles_token_);
-    const typename PatternRecognitionAlgoBaseT<TICLLayerTiles>::Inputs input(
-        evt, es, layerClusters, inputClusterMask, layerClustersTimes, layer_clusters_tiles, seeding_regions, tfSession_);
+    const typename PatternRecognitionAlgoBaseT<TICLLayerTiles>::Inputs input(evt,
+                                                                             es,
+                                                                             layerClusters,
+                                                                             inputClusterMask,
+                                                                             layerClustersTimes,
+                                                                             layer_clusters_tiles,
+                                                                             seeding_regions,
+                                                                             tfSession_,
+                                                                             tfSessionER_);
 
     myAlgo_->makeTracksters(input, *result, seedToTrackstersAssociation);
   }
