@@ -41,7 +41,9 @@ math::XYZVector LinkingAlgoByPCAGeometric::propagateTrackster(const Trackster &t
   // propagation still done to get the cartesian coords
   // which are anyway converted to eta, phi in linking
   // -> can be simplified later
-  if (t.eigenvalues()[0] / t.eigenvalues()[1] < 20)
+
+  //FP: disable PCA propagation for the moment and fallback to barycenter position
+  // if (t.eigenvalues()[0] / t.eigenvalues()[1] < 20)
     directnv = baryc.unit();
 
   assert(abs(directnv.Z()) > 0.00001);
