@@ -205,14 +205,12 @@ void LinkingAlgoByPCAGeometric::linkTracksters(const edm::Handle<std::vector<rec
       const TICLLayerTile &tile = tracksterPropTiles[1];
       std::array<int, 4> search_box = tile.searchBoxEtaPhi(eta_min, tk_eta + delta3, tk_phi - delta3, tk_phi + delta3);
       if (search_box[2] > search_box[3]) {
-        double temp = search_box[3];
-        search_box[3] = search_box[2];
-        search_box[2] = temp;
+        search_box[3] += TileConstants::nPhiBins;
       }
 
       for (int eta_i = search_box[0]; eta_i <= search_box[1]; ++eta_i) {
         for (int phi_i = search_box[2]; phi_i <= search_box[3]; ++phi_i) {
-          auto &tracksters_in_box = tile[tile.globalBin(eta_i, phi_i)];
+          auto &tracksters_in_box = tile[tile.globalBin(eta_i, (phi_i%TileConstants::nPhiBins))];
           tracksters_near[tkId].insert(
               std::end(tracksters_near[tkId]), std::begin(tracksters_in_box), std::end(tracksters_in_box));
         }
@@ -226,14 +224,12 @@ void LinkingAlgoByPCAGeometric::linkTracksters(const edm::Handle<std::vector<rec
       std::array<int, 4> search_box =
           tile.searchBoxEtaPhi(eta_min, abs(tk_eta) + delta3, tk_phi - delta3, tk_phi + delta3);
       if (search_box[2] > search_box[3]) {
-        double temp = search_box[3];
-        search_box[3] = search_box[2];
-        search_box[2] = temp;
+        search_box[3] += TileConstants::nPhiBins;
       }
 
       for (int eta_i = search_box[0]; eta_i <= search_box[1]; ++eta_i) {
         for (int phi_i = search_box[2]; phi_i <= search_box[3]; ++phi_i) {
-          auto &tracksters_in_box = tile[tile.globalBin(eta_i, phi_i)];
+          auto &tracksters_in_box = tile[tile.globalBin(eta_i, (phi_i%TileConstants::nPhiBins))];
           tracksters_near[tkId].insert(
               std::end(tracksters_near[tkId]), std::begin(tracksters_in_box), std::end(tracksters_in_box));
         }
@@ -258,14 +254,12 @@ void LinkingAlgoByPCAGeometric::linkTracksters(const edm::Handle<std::vector<rec
       const TICLLayerTile &tile = tsPropIntTiles[1];
       std::array<int, 4> search_box = tile.searchBoxEtaPhi(eta_min, tk_eta + delta4, tk_phi - delta4, tk_phi + delta4);
       if (search_box[2] > search_box[3]) {
-        double temp = search_box[3];
-        search_box[3] = search_box[2];
-        search_box[2] = temp;
+        search_box[3] += TileConstants::nPhiBins;
       }
 
       for (int eta_i = search_box[0]; eta_i <= search_box[1]; ++eta_i) {
         for (int phi_i = search_box[2]; phi_i <= search_box[3]; ++phi_i) {
-          auto &tracksters_in_box = tile[tile.globalBin(eta_i, phi_i)];
+          auto &tracksters_in_box = tile[tile.globalBin(eta_i, (phi_i%TileConstants::nPhiBins))];
           tsNearTkAtInt[tkId].insert(
               std::end(tsNearTkAtInt[tkId]), std::begin(tracksters_in_box), std::end(tracksters_in_box));
         }
@@ -279,14 +273,12 @@ void LinkingAlgoByPCAGeometric::linkTracksters(const edm::Handle<std::vector<rec
       std::array<int, 4> search_box =
           tile.searchBoxEtaPhi(eta_min, abs(tk_eta) + delta4, tk_phi - delta4, tk_phi + delta4);
       if (search_box[2] > search_box[3]) {
-        double temp = search_box[3];
-        search_box[3] = search_box[2];
-        search_box[2] = temp;
+        search_box[3] += TileConstants::nPhiBins;
       }
 
       for (int eta_i = search_box[0]; eta_i <= search_box[1]; ++eta_i) {
         for (int phi_i = search_box[2]; phi_i <= search_box[3]; ++phi_i) {
-          auto &tracksters_in_box = tile[tile.globalBin(eta_i, phi_i)];
+          auto &tracksters_in_box = tile[tile.globalBin(eta_i, (phi_i%TileConstants::nPhiBins))];
           tsNearTkAtInt[tkId].insert(
               std::end(tsNearTkAtInt[tkId]), std::begin(tracksters_in_box), std::end(tracksters_in_box));
         }
@@ -309,13 +301,11 @@ void LinkingAlgoByPCAGeometric::linkTracksters(const edm::Handle<std::vector<rec
       const TICLLayerTile &tile = tsHadPropIntTiles[1];
       std::array<int, 4> search_box = tile.searchBoxEtaPhi(eta_min, ts_eta + del_ts, ts_phi - del_ts, ts_phi + del_ts);
       if (search_box[2] > search_box[3]) {
-        int temp = search_box[3];
-        search_box[3] = search_box[2];
-        search_box[2] = temp;
+        search_box[3] += TileConstants::nPhiBins;
       }
       for (int eta_i = search_box[0]; eta_i <= search_box[1]; ++eta_i) {
         for (int phi_i = search_box[2]; phi_i <= search_box[3]; ++phi_i) {
-          const auto &tracksters_in_box = tile[tile.globalBin(eta_i, phi_i)];
+          const auto &tracksters_in_box = tile[tile.globalBin(eta_i, (phi_i%TileConstants::nPhiBins))];
           for (const unsigned t_i : tracksters_in_box) {
             if (!tsMask2[t_i]) {
               tsNearAtInt[tsId].push_back(t_i);
@@ -332,13 +322,11 @@ void LinkingAlgoByPCAGeometric::linkTracksters(const edm::Handle<std::vector<rec
       std::array<int, 4> search_box =
           tile.searchBoxEtaPhi(eta_min, abs(ts_eta) + del_ts, ts_phi - del_ts, ts_phi + del_ts);
       if (search_box[2] > search_box[3]) {
-        int temp = search_box[3];
-        search_box[3] = search_box[2];
-        search_box[2] = temp;
+        search_box[3] += TileConstants::nPhiBins;
       }
       for (int eta_i = search_box[0]; eta_i <= search_box[1]; ++eta_i) {
         for (int phi_i = search_box[2]; phi_i <= search_box[3]; ++phi_i) {
-          const auto &tracksters_in_box = tile[tile.globalBin(eta_i, phi_i)];
+          const auto &tracksters_in_box = tile[tile.globalBin(eta_i, (phi_i%TileConstants::nPhiBins))];
           for (const unsigned t_i : tracksters_in_box) {
             if (!tsMask2[t_i]) {
               tsNearAtInt[tsId].push_back(t_i);
@@ -367,13 +355,11 @@ void LinkingAlgoByPCAGeometric::linkTracksters(const edm::Handle<std::vector<rec
       std::array<int, 4> search_box =
           tile.searchBoxEtaPhi(eta_min, ts_eta + del_tsHad, ts_phi - del_tsHad, ts_phi + del_tsHad);
       if (search_box[2] > search_box[3]) {
-        int temp = search_box[3];
-        search_box[3] = search_box[2];
-        search_box[2] = temp;
+        search_box[3] += TileConstants::nPhiBins;
       }
       for (int eta_i = search_box[0]; eta_i <= search_box[1]; ++eta_i) {
         for (int phi_i = search_box[2]; phi_i <= search_box[3]; ++phi_i) {
-          const auto &tracksters_in_box = tile[tile.globalBin(eta_i, phi_i)];
+          const auto &tracksters_in_box = tile[tile.globalBin(eta_i, (phi_i%TileConstants::nPhiBins))];
           for (const unsigned t_i : tracksters_in_box) {
             if (!tsMask1[t_i]) {
               tsHadNearAtInt[tsId].push_back(t_i);
@@ -389,13 +375,11 @@ void LinkingAlgoByPCAGeometric::linkTracksters(const edm::Handle<std::vector<rec
       std::array<int, 4> search_box =
           tile.searchBoxEtaPhi(eta_min, abs(ts_eta) + del_tsHad, ts_phi - del_tsHad, ts_phi + del_tsHad);
       if (search_box[2] > search_box[3]) {
-        int temp = search_box[3];
-        search_box[3] = search_box[2];
-        search_box[2] = temp;
+        search_box[3] += TileConstants::nPhiBins;
       }
       for (int eta_i = search_box[0]; eta_i <= search_box[1]; ++eta_i) {
         for (int phi_i = search_box[2]; phi_i <= search_box[3]; ++phi_i) {
-          const auto &tracksters_in_box = tile[tile.globalBin(eta_i, phi_i)];
+          const auto &tracksters_in_box = tile[tile.globalBin(eta_i, (phi_i%TileConstants::nPhiBins))];
           for (const unsigned t_i : tracksters_in_box) {
             if (!tsMask1[t_i]) {
               tsHadNearAtInt[tsId].push_back(t_i);
