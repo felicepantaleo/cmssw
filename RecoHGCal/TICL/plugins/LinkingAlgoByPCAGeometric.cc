@@ -412,52 +412,69 @@ void LinkingAlgoByPCAGeometric::linkTracksters(const edm::Handle<std::vector<rec
     }
 
     TICLCandidate chargedCandidate;
+    double total_raw_pt = 0.;
     for (const unsigned ts3_idx : tracksters_near[i]) {  // tk -> ts
       if (!chargedMask[ts3_idx]) {
+        if ((total_raw_pt += tsH->at(ts3_idx).raw_pt()) > tracks[i].pt()) continue;
         chargedCandidate.addTrackster(edm::Ptr<Trackster>(tsH, ts3_idx));
         chargedMask[ts3_idx] = 1;
+        total_raw_pt += tsH->at(ts3_idx).raw_pt();
       }
       for (const unsigned ts2_idx : tsNearAtInt[ts3_idx]) {  // ts_EM -> ts_HAD
         if (!chargedMask[ts2_idx]) {
+          if ((total_raw_pt += tsH->at(ts2_idx).raw_pt()) > tracks[i].pt()) continue;
           chargedCandidate.addTrackster(edm::Ptr<Trackster>(tsH, ts2_idx));
           chargedMask[ts2_idx] = 1;
+          total_raw_pt += tsH->at(ts2_idx).raw_pt();
         }
         for (const unsigned ts1_idx : tsHadNearAtInt[ts2_idx]) {  // ts_HAD -> ts_HAD
           if (!chargedMask[ts1_idx]) {
+            if ((total_raw_pt += tsH->at(ts1_idx).raw_pt()) > tracks[i].pt()) continue;
             chargedCandidate.addTrackster(edm::Ptr<Trackster>(tsH, ts1_idx));
             chargedMask[ts1_idx] = 1;
+            total_raw_pt += tsH->at(ts1_idx).raw_pt();
           }
         }
       }
       for (const unsigned ts1_idx : tsHadNearAtInt[ts3_idx]) {  // ts_HAD -> ts_HAD
         if (!chargedMask[ts1_idx]) {
+          if ((total_raw_pt += tsH->at(ts1_idx).raw_pt()) > tracks[i].pt()) continue;
           chargedCandidate.addTrackster(edm::Ptr<Trackster>(tsH, ts1_idx));
           chargedMask[ts1_idx] = 1;
+          total_raw_pt += tsH->at(ts1_idx).raw_pt();
         }
       }
     }
 
     for (const unsigned ts4_idx : tsNearTkAtInt[i]) {  // do the same for tk -> ts links at the interface
       if (!chargedMask[ts4_idx]) {
+        if ((total_raw_pt += tsH->at(ts4_idx).raw_pt()) > tracks[i].pt()) continue;
         chargedCandidate.addTrackster(edm::Ptr<Trackster>(tsH, ts4_idx));
         chargedMask[ts4_idx] = 1;
+        total_raw_pt += tsH->at(ts4_idx).raw_pt();
       }
       for (const unsigned ts2_idx : tsNearAtInt[ts4_idx]) {
         if (!chargedMask[ts2_idx]) {
+          if ((total_raw_pt += tsH->at(ts2_idx).raw_pt()) > tracks[i].pt()) continue;
           chargedCandidate.addTrackster(edm::Ptr<Trackster>(tsH, ts2_idx));
           chargedMask[ts2_idx] = 1;
+          total_raw_pt += tsH->at(ts2_idx).raw_pt();
         }
         for (const unsigned ts1_idx : tsHadNearAtInt[ts2_idx]) {
           if (!chargedMask[ts1_idx]) {
+            if ((total_raw_pt += tsH->at(ts1_idx).raw_pt()) > tracks[i].pt()) continue;
             chargedCandidate.addTrackster(edm::Ptr<Trackster>(tsH, ts1_idx));
             chargedMask[ts1_idx] = 1;
+            total_raw_pt += tsH->at(ts1_idx).raw_pt();
           }
         }
       }
       for (const unsigned ts1_idx : tsHadNearAtInt[ts4_idx]) {
         if (!chargedMask[ts1_idx]) {
+          if ((total_raw_pt += tsH->at(ts1_idx).raw_pt()) > tracks[i].pt()) continue;
           chargedCandidate.addTrackster(edm::Ptr<Trackster>(tsH, ts1_idx));
           chargedMask[ts1_idx] = 1;
+          total_raw_pt += tsH->at(ts1_idx).raw_pt();
         }
       }
     }
