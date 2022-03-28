@@ -199,7 +199,7 @@ void LinkingAlgoByPCAGeometric::linkTracksters(const edm::Handle<std::vector<rec
     double tk_eta = trackP.Eta();
     double tk_phi = trackP.Phi();
 
-    if (tk_eta > 0) {
+    if (tk_eta >= 0) {
       double eta_min = std::max(tk_eta - delta3, 0.);
 
       const TICLLayerTile &tile = tracksterPropTiles[1];
