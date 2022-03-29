@@ -19,6 +19,7 @@
 #include "DataFormats/HGCalReco/interface/Trackster.h"
 #include "DataFormats/HGCalReco/interface/TICLSeedingRegion.h"
 #include "DataFormats/TrackReco/interface/Track.h"
+#include "DataFormats/MuonReco/interface/Muon.h"
 #include "DataFormats/GeometrySurface/interface/BoundDisk.h"
 #include "DataFormats/HGCalReco/interface/TICLCandidate.h"
 #include "DataFormats/TrackReco/interface/TrackFwd.h"
@@ -100,6 +101,7 @@ private:
   const edm::EDGetTokenT<std::vector<reco::CaloCluster>> clusters_token_;
   const edm::EDGetTokenT<edm::ValueMap<std::pair<float, float>>> clustersTime_token_;
   const edm::EDGetTokenT<std::vector<reco::Track>> tracks_token_;
+  const edm::EDGetTokenT<std::vector<reco::Muon>> muons_token_;
   const std::string tfDnnLabel_;
   const edm::ESGetToken<TfGraphDefWrapper, TfGraphRecord> tfDnnToken_;
   const tensorflow::Session *tfSession_;
@@ -164,6 +166,7 @@ TrackstersMergeProducer::TrackstersMergeProducer(const edm::ParameterSet &ps)
       clustersTime_token_(
           consumes<edm::ValueMap<std::pair<float, float>>>(ps.getParameter<edm::InputTag>("layer_clustersTime"))),
       tracks_token_(consumes<std::vector<reco::Track>>(ps.getParameter<edm::InputTag>("tracks"))),
+      muons_token_(consumes<std::vector<reco::Muon>>(ps.getParameter<edm::InputTag>("muons"))),
       tfDnnLabel_(ps.getParameter<std::string>("tfDnnLabel")),
       tfDnnToken_(esConsumes(edm::ESInputTag("", tfDnnLabel_))),
       tfSession_(nullptr),
@@ -327,9 +330,12 @@ void TrackstersMergeProducer::produce(edm::Event &evt, const edm::EventSetup &es
   if (ticlv4_) {
     edm::Handle<std::vector<Trackster>> trackstersclue3d_h;
     evt.getByToken(tracksters_clue3d_token_, trackstersclue3d_h);
+
+    edm::Handle<std::vector<reco::Muon>> muons_h;
+    evt.getByToken(muons_token_, muons_h);
     // Linking
     auto resultTrackstersLinked = std::make_unique<std::vector<TICLCandidate>>();
-    linkingAlgo_->linkTracksters(track_h, cutTk_, trackstersclue3d_h, *resultTrackstersLinked);
+    linkingAlgo_->linkTracksters(track_h, muons_h, cutTk_, trackstersclue3d_h, *resultTrackstersLinked);
 
     // Print debug info
     if (debug_) {
@@ -948,6 +954,7 @@ void TrackstersMergeProducer::fillDescriptions(edm::ConfigurationDescriptions &d
   desc.add<edm::InputTag>("layer_clusters", edm::InputTag("hgcalLayerClusters"));
   desc.add<edm::InputTag>("layer_clustersTime", edm::InputTag("hgcalLayerClusters", "timeLayerCluster"));
   desc.add<edm::InputTag>("tracks", edm::InputTag("generalTracks"));
+  desc.add<edm::InputTag>("muons", edm::InputTag("muons1stStep"));
   desc.add<std::string>("detector", "HGCAL");
   desc.add<std::string>("propagator", "PropagatorWithMaterial");
   desc.add<std::string>("cutTk",

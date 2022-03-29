@@ -15,6 +15,7 @@
 #include "SimDataFormats/CaloAnalysis/interface/CaloParticle.h"
 #include "DataFormats/TrackReco/interface/Track.h"
 #include "DataFormats/TrackReco/interface/TrackFwd.h"
+#include "DataFormats/MuonReco/interface/Muon.h"
 #include "CommonTools/Utils/interface/StringCutObjectSelector.h"
 #include "MagneticField/Engine/interface/MagneticField.h"
 #include "TrackingTools/GeomPropagators/interface/Propagator.h"
@@ -39,6 +40,7 @@ namespace ticl {
                             const edm::ESHandle<Propagator> propH) = 0;
 
     virtual void linkTracksters(const edm::Handle<std::vector<reco::Track>> tkH,
+                                const edm::Handle<std::vector<reco::Muon>> muH,
                                 const StringCutObjectSelector<reco::Track> cutTk,
                                 const edm::Handle<std::vector<Trackster>> tsH,
                                 std::vector<TICLCandidate>& resultTracksters) = 0;
