@@ -8,6 +8,8 @@
 
 #include "TrackingTools/TrajectoryState/interface/TrajectoryStateTransform.h"
 
+#include "RecoParticleFlow/PFProducer/interface/PFMuonAlgo.h"
+
 using namespace ticl;
 
 LinkingAlgoByPCAGeometric::LinkingAlgoByPCAGeometric(const edm::ParameterSet &conf) : LinkingAlgoBase(conf) {}
@@ -89,6 +91,7 @@ void LinkingAlgoByPCAGeometric::buildLayers() {
 }
 
 void LinkingAlgoByPCAGeometric::linkTracksters(const edm::Handle<std::vector<reco::Track>> tkH,
+                                               const edm::Handle<std::vector<reco::Muon>> muH,
                                                const StringCutObjectSelector<reco::Track> cutTk,
                                                const edm::Handle<std::vector<Trackster>> tsH,
                                                std::vector<TICLCandidate> &resultLinked) {
@@ -105,8 +108,11 @@ void LinkingAlgoByPCAGeometric::linkTracksters(const edm::Handle<std::vector<rec
 
   const auto &tracks = *tkH;
   const auto &tracksters = *tsH;
+  const auto &muons = *muH;
+  std::cout << "N mu: " << muons.size() << std::endl;
   auto bFieldProd = bfield_.product();
   const Propagator &prop = (*propagator_);
+
 
   // propagated point collections
   // elements in the propagated points collecions are used
@@ -137,7 +143,11 @@ void LinkingAlgoByPCAGeometric::linkTracksters(const edm::Handle<std::vector<rec
   // Propagate tracks
   for (unsigned i = 0; i < tracks.size(); ++i) {
     const auto tk = tracks[i];
-    if (!cutTk((tk))) {
+    reco::TrackRef trackref = reco::TrackRef(tkH, i);
+    // also veto tracks associated to muons
+    int muId = PFMuonAlgo::muAssocToTrack(trackref, muons);
+    std::cout << "track (eta)" << i << " (" << tk.eta() <<")" << "  muid " << muId << std::endl; 
+    if (!cutTk((tk)) or muId != -1) {
       continue;
     }
     // don't consider tracks below 2 GeV for linking
