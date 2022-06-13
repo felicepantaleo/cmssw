@@ -1,9 +1,7 @@
-#ifndef RecoHGCal_TICL_LinkingAlgoByPCAGeometric_H__
-#define RecoHGCal_TICL_LinkingAlgoByPCAGeometric_H__
+#ifndef RecoHGCal_TICL_LinkingAlgoByDirectionGeometric_H__
+#define RecoHGCal_TICL_LinkingAlgoByDirectionGeometric_H__
 
 #include <memory>
-#include <vector>
-#include <string>
 #include <array>
 #include "RecoHGCal/TICL/plugins/LinkingAlgoBase.h"
 
@@ -11,16 +9,14 @@
 #include "FWCore/Framework/interface/ESHandle.h"
 #include "FWCore/Framework/interface/MakerMacros.h"
 #include "FWCore/ParameterSet/interface/ConfigurationDescriptions.h"
-#include "FWCore/Utilities/interface/ESGetToken.h"
-
-#include "DataFormats/CaloRecHit/interface/CaloCluster.h"
-#include "DataFormats/ForwardDetId/interface/HGCalDetId.h"
 
 #include "DataFormats/Math/interface/Vector3D.h"
 #include "DataFormats/GeometrySurface/interface/BoundDisk.h"
 #include "DataFormats/HGCalReco/interface/TICLLayerTile.h"
 
 #include "TrackingTools/Records/interface/TrackingComponentsRecord.h"
+
+#include "CommonTools/Utils/interface/StringCutObjectSelector.h"
 
 #include "MagneticField/Records/interface/IdealMagneticFieldRecord.h"
 
@@ -30,10 +26,10 @@
 //#include "RecoHGCal/TICL/test/PCA_mod.h"
 
 namespace ticl {
-  class LinkingAlgoByPCAGeometric final : public LinkingAlgoBase {
+  class LinkingAlgoByDirectionGeometric final : public LinkingAlgoBase {
   public:
-    LinkingAlgoByPCAGeometric(const edm::ParameterSet &conf);
-    ~LinkingAlgoByPCAGeometric() override;
+    LinkingAlgoByDirectionGeometric(const edm::ParameterSet &conf);
+    ~LinkingAlgoByDirectionGeometric() override;
 
     void initialize(const HGCalDDDConstants *hgcons,
                     const hgcal::RecHitTools rhtools,
@@ -41,12 +37,10 @@ namespace ticl {
                     const edm::ESHandle<Propagator> propH) override;
 
     void linkTracksters(const edm::Handle<std::vector<reco::Track>>,
-                        const edm::ValueMap<float>&,
-                        const edm::ValueMap<float>&,
-                        const edm::ValueMap<float>&,
-                        const double,
-                        const std::vector<reco::Muon>&,
-                        const StringCutObjectSelector<reco::Track>,
+                        const edm::ValueMap<float> &,
+                        const edm::ValueMap<float> &,
+                        const edm::ValueMap<float> &,
+                        const std::vector<reco::Muon> &,
                         const edm::Handle<std::vector<Trackster>>,
                         std::vector<TICLCandidate> &) override;
 
@@ -62,6 +56,26 @@ namespace ticl {
                                        float zVal,
                                        std::array<TICLLayerTile, 2> &tracksterTiles);
 
+    void findTrackstersInWindow(const std::vector<std::pair<Vector, unsigned>> &seedingCollection,
+                                const std::array<TICLLayerTile, 2> &tracksterTiles,
+                                double delta,
+                                unsigned trackstersSize,
+                                std::vector<std::vector<unsigned>> &resultCollection,
+                                bool useMask);
+
+    void dumpLinksFound(std::vector<std::vector<unsigned>> &resultCollection, const char *label) const;
+
+    const double del_tk_ts_layer1_;
+    const double del_tk_ts_int_;
+    const double del_ts_em_had_;
+    const double del_ts_had_had_;
+
+    const double timing_quality_threshold_;
+    const double pid_threshold_;
+    const double energy_em_over_total_threshold_;
+    const std::vector<int> filter_on_categories_;
+
+    const StringCutObjectSelector<reco::Track> cutTk_;
     std::once_flag initializeGeometry_;
 
     const HGCalDDDConstants *hgcons_;
