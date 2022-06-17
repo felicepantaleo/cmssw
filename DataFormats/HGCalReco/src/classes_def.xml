@@ -54,4 +54,16 @@
   <class name="std::vector<TICLCandidate>" />
   <class name="edm::Wrapper<TICLCandidate>" />
   <class name="edm::Wrapper<std::vector<TICLCandidate> >" />
+
+  <class name="Node">
+  </class>
+  <class name="std::vector<Node>" />
+  <class name="edm::Wrapper<Node>" />
+  <class name="edm::Wrapper<std::vector<Node> >" />
+
+  <class name="TICLGraph">
+  </class>
+  <class name="std::vector<TICLGraph>" />
+  <class name="edm::Wrapper<TICLGraph>" />
+  <class name="edm::Wrapper<std::vector<TICLGraph> >" />
 </lcgdict>
