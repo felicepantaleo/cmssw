@@ -19,7 +19,8 @@ TICL_RECO = cms.PSet(
        'keep *_ticlTrackstersHFNoseMIP_*_*',
        'keep *_ticlTrackstersHFNoseHAD_*_*',
        'keep *_ticlTrackstersHFNoseMerge_*_*',] +
-      ['keep *_pfTICL_*_*']
+      ['keep *_pfTICL_*_*'] +
+      ['keep *_ticlGraph_*_*']
       )
     )
 TICL_RECO.outputCommands.extend(TICL_AOD.outputCommands)
