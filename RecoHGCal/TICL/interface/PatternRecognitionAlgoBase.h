@@ -38,6 +38,7 @@ namespace ticl {
       const TILES& tiles;
       const std::vector<TICLSeedingRegion>& regions;
       const tensorflow::Session* tfSession;
+      const tensorflow::Session* tfSessionER;
 
       Inputs(const edm::Event& eV,
              const edm::EventSetup& eS,
@@ -46,8 +47,9 @@ namespace ticl {
              const edm::ValueMap<std::pair<float, float>>& lT,
              const TILES& tL,
              const std::vector<TICLSeedingRegion>& rG,
-             const tensorflow::Session* tS)
-          : ev(eV), es(eS), layerClusters(lC), mask(mS), layerClustersTime(lT), tiles(tL), regions(rG), tfSession(tS) {}
+             const tensorflow::Session* tS,
+             const tensorflow::Session* tSER)
+          : ev(eV), es(eS), layerClusters(lC), mask(mS), layerClustersTime(lT), tiles(tL), regions(rG), tfSession(tS), tfSessionER(tSER) {}
     };
 
     virtual void makeTracksters(const Inputs& input,
