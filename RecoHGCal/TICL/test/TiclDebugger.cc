@@ -31,6 +31,9 @@
 
 #include "RecoLocalCalo/HGCalRecAlgos/interface/RecHitTools.h"
 #include "SimDataFormats/CaloAnalysis/interface/CaloParticle.h"
+
+#include "SimCalorimetry/HGCalAssociatorProducers/interface/AssociatorTools.h"
+#include "SimDataFormats/Associations/interface/LayerClusterToCaloParticleAssociator.h"
 //
 // class declaration
 //
@@ -53,12 +56,14 @@ private:
   const edm::InputTag tracks_;
   const edm::InputTag caloParticles_;
   const edm::InputTag layerClusters_;
+  const edm::InputTag associator_;
   hgcal::RecHitTools rhtools_;
   edm::ESGetToken<CaloGeometry, CaloGeometryRecord> caloGeometry_token_;
   edm::EDGetTokenT<std::vector<ticl::Trackster>> trackstersMergeToken_;
   edm::EDGetTokenT<std::vector<reco::Track>> tracksToken_;
   edm::EDGetTokenT<std::vector<CaloParticle>> caloParticlesToken_;
   edm::EDGetTokenT<std::vector<reco::CaloCluster>> layerClustersToken_;
+  edm::EDGetTokenT<hgcal::RecoToSimCollection> associatorMapRtS;
 };
 
 TiclDebugger::TiclDebugger(const edm::ParameterSet& iConfig)
@@ -66,12 +71,14 @@ TiclDebugger::TiclDebugger(const edm::ParameterSet& iConfig)
       tracks_(iConfig.getParameter<edm::InputTag>("tracks")),
       caloParticles_(iConfig.getParameter<edm::InputTag>("caloParticles")),
       layerClusters_(iConfig.getParameter<edm::InputTag>("layerClusters")),
+      associator_(iConfig.getParameter<edm::InputTag>("associator")),
       caloGeometry_token_(esConsumes<CaloGeometry, CaloGeometryRecord, edm::Transition::BeginRun>()) {
   edm::ConsumesCollector&& iC = consumesCollector();
   trackstersMergeToken_ = iC.consumes<std::vector<ticl::Trackster>>(trackstersMerge_);
   tracksToken_ = iC.consumes<std::vector<reco::Track>>(tracks_);
   caloParticlesToken_ = iC.consumes<std::vector<CaloParticle>>(caloParticles_);
   layerClustersToken_ = iC.consumes<std::vector<reco::CaloCluster>>(layerClusters_);
+  associatorMapRtS = consumes<hgcal::RecoToSimCollection>(associator_);
 }
 
 TiclDebugger::~TiclDebugger() {}
@@ -105,7 +112,27 @@ void TiclDebugger::analyze(const edm::Event& iEvent, const edm::EventSetup& iSet
   edm::Handle<std::vector<CaloParticle>> caloParticlesH;
   iEvent.getByToken(caloParticlesToken_, caloParticlesH);
   auto const& caloParticles = *caloParticlesH.product();
+
   std::vector<std::pair<int, float>> bestCPMatches;
+
+  std::cout << " in ticldebugger " << std::endl;
+  edm::Handle<hgcal::RecoToSimCollection> recotosimCollectionH;
+  iEvent.getByToken(associatorMapRtS, recotosimCollectionH);
+  auto recSimColl = *recotosimCollectionH;
+  for(size_t lcId = 0; lcId < layerClusters.size(); ++lcId){
+    const edm::Ref<reco::CaloClusterCollection> lcRef(layerClustersH, lcId);
+    const auto& cpsIt = recSimColl.find(lcRef);
+    if (cpsIt == recSimColl.end()){
+      std::cout << "Not found " << std::endl;
+      continue;
+    }
+    const auto& cps = cpsIt->val;
+    for (const auto& cpPair : cps){
+      std::cout << "LC ID " << lcId  << " SCORE " << cpPair.second << std::endl;
+    }
+  }
+  std::cout << " end ticldebugger " << std::endl;
+
 
   auto bestCaloParticleMatches = [&](const ticl::Trackster& t) -> void {
     bestCPMatches.clear();
@@ -226,6 +253,7 @@ void TiclDebugger::fillDescriptions(edm::ConfigurationDescriptions& descriptions
   desc.add<edm::InputTag>("tracks", edm::InputTag("generalTracks"));
   desc.add<edm::InputTag>("caloParticles", edm::InputTag("mix", "MergedCaloTruth"));
   desc.add<edm::InputTag>("layerClusters", edm::InputTag("hgcalLayerClusters"));
+  desc.add<edm::InputTag>("associator", edm::InputTag("layerClusterCaloParticleAssociationProducer"));
   descriptions.add("ticlDebugger", desc);
 }
 

@@ -62,7 +62,6 @@ LCToCPAssociatorEDProducer::~LCToCPAssociatorEDProducer() {}
 // ------------ method called to produce the data  ------------
 void LCToCPAssociatorEDProducer::produce(edm::StreamID, edm::Event &iEvent, const edm::EventSetup &iSetup) const {
   using namespace edm;
-
   edm::Handle<hgcal::LayerClusterToCaloParticleAssociator> theAssociator;
   iEvent.getByToken(associatorToken_, theAssociator);
 
