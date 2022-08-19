@@ -79,7 +79,6 @@ LCToSimTSAssociatorEDProducer::~LCToSimTSAssociatorEDProducer() {}
 // ------------ method called to produce the data  ------------
 void LCToSimTSAssociatorEDProducer::produce(edm::StreamID, edm::Event &iEvent, const edm::EventSetup &iSetup) const {
   using namespace edm;
-
   edm::Handle<hgcal::LayerClusterToSimTracksterAssociator> theAssociator;
   iEvent.getByToken(associatorToken_, theAssociator);
 

@@ -10,6 +10,9 @@ from RecoTracker.IterativeTracking.iterativeTk_cff import trackdnn_source
 
 # Automatic addition of the customisation function from RecoHGCal.Configuration.RecoHGCal_EventContent_cff
 from RecoHGCal.Configuration.RecoHGCal_EventContent_cff import customiseHGCalOnlyEventContent
+from SimCalorimetry.HGCalAssociatorProducers.simTracksterAssociatorByEnergyScore_cfi import simTracksterAssociatorByEnergyScore as simTsAssocByEnergyScoreProducer
+from SimCalorimetry.HGCalAssociatorProducers.TSToSimTSAssociation_cfi import tracksterSimTracksterAssociationLinking, tracksterSimTracksterAssociationPR,tracksterSimTracksterAssociationLinkingbyCLUE3D, tracksterSimTracksterAssociationPRbyCLUE3D
+
 
 
 
@@ -28,6 +31,7 @@ def customiseTICLFromReco(process):
                                                 process.layerClusterCaloParticleAssociationProducer,
                                                 process.scAssocByEnergyScoreProducer,
                                                 process.layerClusterSimClusterAssociationProducer,
+                                                process.simTsAssocByEnergyScoreProducer,  process.simTracksterHitLCAssociatorByEnergyScoreProducer, process.tracksterSimTracksterAssociationLinking, process.tracksterSimTracksterAssociationPR, process.tracksterSimTracksterAssociationLinkingbyCLUE3D, process.tracksterSimTracksterAssociationPRbyCLUE3D
                                                )
     process.TICL_Validator = cms.Task(process.hgcalValidator)
     process.TICL_Validation = cms.Path(process.TICL_ValidationProducers,
