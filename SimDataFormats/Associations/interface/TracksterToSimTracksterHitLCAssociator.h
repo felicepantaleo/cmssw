@@ -27,22 +27,20 @@ namespace hgcal {
 
     // ---------- const member functions ---------------------
 
-    hgcal::association_t makeConnections(
-        const edm::Handle<ticl::TracksterCollection>& tCH,
-        const edm::Handle<reco::CaloClusterCollection>& lCCH,
-        const edm::Handle<SimClusterCollection>& sCCH,
-        const edm::Handle<CaloParticleCollection>& cPCH,    
-        const edm::Handle<ticl::TracksterCollection>& sTCH) const {
-          return m_impl->makeConnections(tCH, lCCH, sCCH, cPCH, sTCH);
-        } 
+    hgcal::association_t makeConnections(const edm::Handle<ticl::TracksterCollection> &tCH,
+                                         const edm::Handle<reco::CaloClusterCollection> &lCCH,
+                                         const edm::Handle<SimClusterCollection> &sCCH,
+                                         const edm::Handle<CaloParticleCollection> &cPCH,
+                                         const edm::Handle<ticl::TracksterCollection> &sTCH) const {
+      return m_impl->makeConnections(tCH, lCCH, sCCH, cPCH, sTCH);
+    }
     /// Associate a Trackster to SimClusters
     hgcal::RecoToSimCollectionSimTracksters associateRecoToSim(
         const edm::Handle<ticl::TracksterCollection> &tCH,
         const edm::Handle<reco::CaloClusterCollection> &lCCH,
         const edm::Handle<SimClusterCollection> &sCCH,
         const edm::Handle<CaloParticleCollection> &cPCH,
-        const edm::Handle<ticl::TracksterCollection> &sTCH)
-        const {
+        const edm::Handle<ticl::TracksterCollection> &sTCH) const {
       return m_impl->associateRecoToSim(tCH, lCCH, sCCH, cPCH, sTCH);
     };
 
@@ -52,8 +50,7 @@ namespace hgcal {
         const edm::Handle<reco::CaloClusterCollection> &lCCH,
         const edm::Handle<SimClusterCollection> &sCCH,
         const edm::Handle<CaloParticleCollection> &cPCH,
-        const edm::Handle<ticl::TracksterCollection> &sTCH
-        ) const {
+        const edm::Handle<ticl::TracksterCollection> &sTCH) const {
       return m_impl->associateSimToReco(tCH, lCCH, sCCH, cPCH, sTCH);
     }
 

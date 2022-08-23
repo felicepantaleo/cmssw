@@ -17,13 +17,13 @@ namespace edm {
 namespace hgcal {
 
   struct detIdInfoInCluster {
-    bool operator==(const detIdInfoInCluster& o) const { return clusterId == o.clusterId; };
+    bool operator==(const detIdInfoInCluster &o) const { return clusterId == o.clusterId; };
     long unsigned int clusterId;
     float fraction;
   };
 
   struct detIdInfoInTrackster {
-    bool operator==(const detIdInfoInTrackster& o) const { return tracksterId == o.tracksterId; };
+    bool operator==(const detIdInfoInTrackster &o) const { return tracksterId == o.tracksterId; };
     unsigned int tracksterId;
     long unsigned int clusterId;
     float fraction;
@@ -45,31 +45,27 @@ namespace hgcal {
 class TSToSimTSHitLCAssociatorByEnergyScoreImpl : public hgcal::TracksterToSimTracksterHitLCAssociatorBaseImpl {
 public:
   explicit TSToSimTSHitLCAssociatorByEnergyScoreImpl(edm::EDProductGetter const &,
-                                                bool,
-                                                std::shared_ptr<hgcal::RecHitTools>,
-                                                const std::unordered_map<DetId, const HGCRecHit *> *);
+                                                     bool,
+                                                     std::shared_ptr<hgcal::RecHitTools>,
+                                                     const std::unordered_map<DetId, const HGCRecHit *> *);
 
   hgcal::association_t makeConnections(const edm::Handle<ticl::TracksterCollection> &tCH,
-                                     const edm::Handle<reco::CaloClusterCollection> &lCCH,
-                                     const edm::Handle<SimClusterCollection> &sCCH,
-                                     const edm::Handle<CaloParticleCollection> &cPCH,
-                                     const edm::Handle<ticl::TracksterCollection> &sTCH) const;
+                                       const edm::Handle<reco::CaloClusterCollection> &lCCH,
+                                       const edm::Handle<SimClusterCollection> &sCCH,
+                                       const edm::Handle<CaloParticleCollection> &cPCH,
+                                       const edm::Handle<ticl::TracksterCollection> &sTCH) const;
 
-  hgcal::RecoToSimCollectionSimTracksters associateRecoToSim(
-      const edm::Handle<ticl::TracksterCollection> &tCH,
-      const edm::Handle<reco::CaloClusterCollection> &lCCH,
-      const edm::Handle<SimClusterCollection> &sCCH,
-      const edm::Handle<CaloParticleCollection> &cPCH,
-      const edm::Handle<ticl::TracksterCollection> &sTCH
-      ) const;
+  hgcal::RecoToSimCollectionSimTracksters associateRecoToSim(const edm::Handle<ticl::TracksterCollection> &tCH,
+                                                             const edm::Handle<reco::CaloClusterCollection> &lCCH,
+                                                             const edm::Handle<SimClusterCollection> &sCCH,
+                                                             const edm::Handle<CaloParticleCollection> &cPCH,
+                                                             const edm::Handle<ticl::TracksterCollection> &sTCH) const;
 
-  hgcal::SimToRecoCollectionSimTracksters associateSimToReco(
-      const edm::Handle<ticl::TracksterCollection> &tCH,
-      const edm::Handle<reco::CaloClusterCollection> &lCCH,
-      const edm::Handle<SimClusterCollection> &sCCH,
-      const edm::Handle<CaloParticleCollection> &cPCH,
-      const edm::Handle<ticl::TracksterCollection> &sTCH
-      ) const;
+  hgcal::SimToRecoCollectionSimTracksters associateSimToReco(const edm::Handle<ticl::TracksterCollection> &tCH,
+                                                             const edm::Handle<reco::CaloClusterCollection> &lCCH,
+                                                             const edm::Handle<SimClusterCollection> &sCCH,
+                                                             const edm::Handle<CaloParticleCollection> &cPCH,
+                                                             const edm::Handle<ticl::TracksterCollection> &sTCH) const;
 
 private:
   const bool hardScatterOnly_;

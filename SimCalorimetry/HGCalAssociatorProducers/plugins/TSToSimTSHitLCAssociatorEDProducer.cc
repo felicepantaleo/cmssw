@@ -58,7 +58,8 @@ TSToSimTSHitLCAssociatorEDProducer::TSToSimTSHitLCAssociatorEDProducer(const edm
   LCCollectionToken_ = consumes<reco::CaloClusterCollection>(pset.getParameter<edm::InputTag>("label_lcl"));
   SCCollectionToken_ = consumes<SimClusterCollection>(pset.getParameter<edm::InputTag>("label_scl"));
   CPCollectionToken_ = consumes<CaloParticleCollection>(pset.getParameter<edm::InputTag>("label_cp"));
-  associatorToken_ = consumes<hgcal::TracksterToSimTracksterHitLCAssociator>(pset.getParameter<edm::InputTag>("associator"));
+  associatorToken_ =
+      consumes<hgcal::TracksterToSimTracksterHitLCAssociator>(pset.getParameter<edm::InputTag>("associator"));
 }
 
 TSToSimTSHitLCAssociatorEDProducer::~TSToSimTSHitLCAssociatorEDProducer() {}
@@ -68,7 +69,9 @@ TSToSimTSHitLCAssociatorEDProducer::~TSToSimTSHitLCAssociatorEDProducer() {}
 //
 
 // ------------ method called to produce the data  ------------
-void TSToSimTSHitLCAssociatorEDProducer::produce(edm::StreamID, edm::Event &iEvent, const edm::EventSetup &iSetup) const {
+void TSToSimTSHitLCAssociatorEDProducer::produce(edm::StreamID,
+                                                 edm::Event &iEvent,
+                                                 const edm::EventSetup &iSetup) const {
   // std::cout << "Produce " << std::endl;
   using namespace edm;
 
@@ -92,8 +95,8 @@ void TSToSimTSHitLCAssociatorEDProducer::produce(edm::StreamID, edm::Event &iEve
 
   // associate TS and SimTS
   LogTrace("AssociatorValidator") << "Calling associateRecoToSim method\n";
-//  const auto links = theAssociator->makeConnections(TSCollection, LCCollection, SCCollection, CPCollection, SimTSCollection);
-  
+  //  const auto links = theAssociator->makeConnections(TSCollection, LCCollection, SCCollection, CPCollection, SimTSCollection);
+
   hgcal::RecoToSimCollectionSimTracksters recSimColl =
       theAssociator->associateRecoToSim(TSCollection, LCCollection, SCCollection, CPCollection, SimTSCollection);
 
