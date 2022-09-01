@@ -355,6 +355,7 @@ void TrackstersMergeProducer::produce(edm::Event &evt, const edm::EventSetup &es
                         layerClusters,
                         layerClustersTimes,
                         rhtools_.getPositionLayer(rhtools_.lastLayerEE()).z());
+  energyRegressionAndID(layerClusters, tfSession_, *resultTrackstersMerged);
 
   // Compute timing
   assignTimeToCandidates(*resultCandidates);
