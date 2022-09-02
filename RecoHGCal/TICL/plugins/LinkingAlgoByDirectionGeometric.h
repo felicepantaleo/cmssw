@@ -38,6 +38,7 @@ namespace ticl {
                         const edm::ValueMap<float> &,
                         const std::vector<reco::Muon> &,
                         const edm::Handle<std::vector<Trackster>>,
+                        std::vector<TICLCandidate> &,
                         std::vector<TICLCandidate> &) override;
 
     static void fillPSetDescription(edm::ParameterSetDescription &desc);

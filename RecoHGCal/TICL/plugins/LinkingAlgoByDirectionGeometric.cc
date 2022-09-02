@@ -233,7 +233,8 @@ void LinkingAlgoByDirectionGeometric::linkTracksters(const edm::Handle<std::vect
                                                      const edm::ValueMap<float> &tkTimeQual,
                                                      const std::vector<reco::Muon> &muons,
                                                      const edm::Handle<std::vector<Trackster>> tsH,
-                                                     std::vector<TICLCandidate> &resultLinked) {
+                                                     std::vector<TICLCandidate> &resultLinked,
+                                                     std::vector<TICLCandidate> &chargedHadronsFromTk) {
   const auto &tracks = *tkH;
   const auto &tracksters = *tsH;
 
@@ -382,19 +383,11 @@ void LinkingAlgoByDirectionGeometric::linkTracksters(const edm::Handle<std::vect
   // make final collections
 
   std::vector<TICLCandidate> chargedCandidates;
-  std::vector<TICLCandidate> chargedHadronsFromTk;
   std::vector<unsigned int> chargedMask(tracksters.size(), 0);
   for (unsigned &i : candidateTrackIds) {
     if (tsNearTk[i].empty() && tsNearTkAtInt[i].empty()) {  // nothing linked to track, make charged hadrons
       TICLCandidate chargedHad;
-      const auto &tk = tracks[i];
-      chargedHad.setCharge(tk.charge());
-      chargedHad.setPdgId(211 * tk.charge());
       chargedHad.setTrackPtr(edm::Ptr<reco::Track>(tkH, i));
-      float energy = std::sqrt(tk.p() * tk.p() + ticl::mpion2);
-      chargedHad.setRawEnergy(energy);
-      math::PtEtaPhiMLorentzVector p4Polar(tk.pt(), tk.eta(), tk.phi(), ticl::mpion);
-      chargedHad.setP4(p4Polar);
       chargedHadronsFromTk.push_back(chargedHad);
       continue;
     }
@@ -463,14 +456,7 @@ void LinkingAlgoByDirectionGeometric::linkTracksters(const edm::Handle<std::vect
       chargedCandidates.push_back(chargedCandidate);
     } else {  // create charged hadron
       TICLCandidate chargedHad;
-      const auto &tk = tracks[i];
-      chargedHad.setCharge(tk.charge());
-      chargedHad.setPdgId(211 * tk.charge());
       chargedHad.setTrackPtr(edm::Ptr<reco::Track>(tkH, i));
-      float energy = std::sqrt(tk.p() * tk.p() + ticl::mpion2);
-      chargedHad.setRawEnergy(energy);
-      math::PtEtaPhiMLorentzVector p4Polar(tk.pt(), tk.eta(), tk.phi(), mpion);
-      chargedHad.setP4(p4Polar);
       chargedHadronsFromTk.push_back(chargedHad);
     }
   }
@@ -522,60 +508,8 @@ void LinkingAlgoByDirectionGeometric::linkTracksters(const edm::Handle<std::vect
     }
   }
 
-  // set other attributes of created candidates
-  for (auto &cand : chargedCandidates) {
-    bool isHAD = false;
-    double rawE = 0.;
-    const auto track = cand.trackPtr();
-    for (const auto &ts : cand.tracksters()) {
-      // isHAD if atleast one trackster is not EM
-      if (isHadron(*ts))
-        isHAD = true;
-      rawE += ts->raw_energy();
-    }
-    auto pdgID = isHAD ? 211 : 11;
-
-    cand.setCharge(track->charge());
-    cand.setPdgId(pdgID * track->charge());
-    cand.setRawEnergy(rawE);
-    math::XYZTLorentzVector p4(rawE * track->momentum().unit().x(),
-                               rawE * track->momentum().unit().y(),
-                               rawE * track->momentum().unit().z(),
-                               rawE);
-    cand.setP4(p4);
-  }
-
-  for (auto &cand : neutralCandidates) {
-    bool isHAD = false;
-    double rawE = 0.;
-    const auto track = cand.trackPtr();
-    double wtSum_baryc[3] = {0};
-    for (const auto &ts : cand.tracksters()) {
-      if (isHadron(*ts))
-        isHAD = true;
-      rawE += ts->raw_energy();
-      wtSum_baryc[0] += (ts->raw_energy()) * (ts->barycenter().x());
-      wtSum_baryc[1] += (ts->raw_energy()) * (ts->barycenter().y());
-      wtSum_baryc[2] += (ts->raw_energy()) * (ts->barycenter().z());
-    }
-    Vector combined_baryc(wtSum_baryc[0] / rawE, wtSum_baryc[1] / rawE, wtSum_baryc[2] / rawE);
-    auto pdgID = isHAD ? 130 : 22;
-    auto const &magnitude = isHAD ? std::sqrt(rawE * rawE - ticl::mpion2) : rawE;
-
-    cand.setCharge(0);
-    cand.setPdgId(pdgID);
-    cand.setRawEnergy(rawE);
-    math::XYZTLorentzVector p4(magnitude * combined_baryc.unit().x(),
-                               magnitude * combined_baryc.unit().y(),
-                               magnitude * combined_baryc.unit().z(),
-                               rawE);
-
-    cand.setP4(p4);
-  }
-
   resultLinked.insert(std::end(resultLinked), std::begin(neutralCandidates), std::end(neutralCandidates));
   resultLinked.insert(std::end(resultLinked), std::begin(chargedCandidates), std::end(chargedCandidates));
-  resultLinked.insert(std::end(resultLinked), std::begin(chargedHadronsFromTk), std::end(chargedHadronsFromTk));
 
 }  // linkTracksters
 
