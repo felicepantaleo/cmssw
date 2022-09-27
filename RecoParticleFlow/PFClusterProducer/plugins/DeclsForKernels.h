@@ -9,6 +9,11 @@
 #include "HeterogeneousCore/CUDAUtilities/interface/cudaCheck.h"
 #include "HeterogeneousCore/CUDAUtilities/interface/device_unique_ptr.h"
 #include "HeterogeneousCore/CUDAUtilities/interface/host_unique_ptr.h"
+#include "DataFormats/SoATemplate/interface/SoACommon.h"
+#include "DataFormats/SoATemplate/interface/SoALayout.h"
+#include "DataFormats/SoATemplate/interface/SoAView.h"
+#include "CUDADataFormats/Common/interface/PortableDeviceCollection.h"
+#include "CUDADataFormats/Common/interface/PortableHostCollection.h"
 
 namespace PFRecHit {
   namespace HCAL {
@@ -30,6 +35,25 @@ namespace PFRecHit {
         PFRecHits.pfrh_z = cms::cuda::make_device_unique<float[]>(Num_rechits, cudaStream);
       }
     };
+
+
+using int_8 = int[8];
+
+
+// SoA layout with x, y, z, id fields
+GENERATE_SOA_LAYOUT(TestSoALayout,
+                    // columns: one value per element
+                    SOA_COLUMN(float, rh_pos_x),
+                    SOA_COLUMN(float, rh_pos_y),
+                    SOA_COLUMN(float, rh_pos_z),
+                    SOA_COLUMN(uint32_t, rh_detId),
+                    SOA_COLUMN(PFRecHit::HCAL::int_8, rh_neighbours))
+
+using TestSoA = TestSoALayout<>;
+
+using TestDeviceCollection = cms::cuda::PortableDeviceCollection<TestSoA>;
+using TestHostCollection = cms::cuda::PortableHostCollection<TestSoA>;
+
 
     struct PersistentDataCPU {
       cms::cuda::host::unique_ptr<float3[]> rh_pos;

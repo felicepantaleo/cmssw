@@ -1,0 +1,5 @@
+#ifndef RecoParticleFlow_PFClusterProducer_interface_PFHBHERecHitPortableCollections_h
+#define RecoParticleFlow_PFClusterProducer_interface_PFHBHERecHitPortableCollections_h
+
+
+#endif

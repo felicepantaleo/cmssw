@@ -40,6 +40,7 @@
 #include "RecoCaloTools/Navigation/interface/CaloNavigator.h"
 #include "RecoParticleFlow/PFClusterProducer/interface/PFHCALDenseIdNavigator.h"
 #include "RecoParticleFlow/PFClusterProducer/interface/PFRecHitNavigatorBase.h"
+#include "RecoParticleFlow/PFClusterProducer/interface/PFHBHERecHitPortableCollections.h"
 
 #include "DeclsForKernels.h"
 #include "SimplePFGPUAlgos.h"
@@ -92,6 +93,9 @@ private:
   PFRecHit::HCAL::PersistentDataGPU persistentDataGPU;
   PFRecHit::HCAL::ScratchDataGPU scratchDataGPU;
   PFRecHit::HCAL::Constants cudaConstants;
+  PFRecHit::HCAL::TestDeviceCollection persistentDataGPU_SOA;
+  PFRecHit::HCAL::TestHostCollection persistentDataCPU_SOA;
+
 
   uint32_t nValidDetIds = 0;
   std::vector<std::vector<DetId>>* neighboursHcal_;
