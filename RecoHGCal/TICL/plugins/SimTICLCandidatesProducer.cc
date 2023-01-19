@@ -1,5 +1,5 @@
-// Author: Felice Pantaleo, Leonardo Cristella - felice.pantaleo@cern.ch, leonardo.cristella@cern.ch
-// Date: 09/2021
+// Author: Felice Pantaleo, Wahid Redjeb - felice.pantaleo@cern.ch, wahid.redjeb@cern.ch
+// Date: 01/2023
 
 // user include files
 
@@ -12,22 +12,14 @@
 #include "FWCore/ParameterSet/interface/ConfigurationDescriptions.h"
 #include "FWCore/ParameterSet/interface/ParameterSetDescription.h"
 
-#include "DataFormats/CaloRecHit/interface/CaloCluster.h"
-#include "DataFormats/ParticleFlowReco/interface/PFCluster.h"
-
 #include "DataFormats/HGCalReco/interface/Trackster.h"
 
-#include "DataFormats/Common/interface/ValueMap.h"
-#include "SimDataFormats/Associations/interface/LayerClusterToSimClusterAssociator.h"
-#include "SimDataFormats/Associations/interface/LayerClusterToCaloParticleAssociator.h"
-
+#include "SimDataFormats/Associations/interface/TrackToTrackingParticleAssociator.h"
 #include "SimDataFormats/CaloAnalysis/interface/CaloParticle.h"
 #include "SimDataFormats/CaloAnalysis/interface/SimCluster.h"
-#include "RecoLocalCalo/HGCalRecAlgos/interface/RecHitTools.h"
-
 #include "RecoHGCal/TICL/interface/commons.h"
 
-#include "TrackstersPCA.h"
+// #include "TrackstersPCA.h"
 #include <vector>
 #include <map>
 #include <iterator>
@@ -35,9 +27,9 @@
 
 using namespace ticl;
 
-class SimTrackstersProducer : public edm::stream::EDProducer<> {
+class SimTICLCandidatesProducer : public edm::stream::EDProducer<> {
 public:
-  explicit SimTrackstersProducer(const edm::ParameterSet&);
+  explicit SimTICLCandidatesProducer(const edm::ParameterSet&);
   static void fillDescriptions(edm::ConfigurationDescriptions& descriptions);
 
   void produce(edm::Event&, const edm::EventSetup&) override;
@@ -56,29 +48,20 @@ public:
 private:
   std::string detector_;
   const bool doNose_ = false;
-  const edm::EDGetTokenT<std::vector<reco::CaloCluster>> clusters_token_;
-  const edm::EDGetTokenT<edm::ValueMap<std::pair<float, float>>> clustersTime_token_;
-  const edm::EDGetTokenT<std::vector<float>> filtered_layerclusters_mask_token_;
 
   const edm::EDGetTokenT<std::vector<SimCluster>> simclusters_token_;
   const edm::EDGetTokenT<std::vector<CaloParticle>> caloparticles_token_;
-
-  const edm::EDGetTokenT<hgcal::SimToRecoCollectionWithSimClusters> associatorMapSimClusterToReco_token_;
-  const edm::EDGetTokenT<hgcal::SimToRecoCollection> associatorMapCaloParticleToReco_token_;
-  const edm::ESGetToken<CaloGeometry, CaloGeometryRecord> geom_token_;
-  hgcal::RecHitTools rhtools_;
-  const double fractionCut_;
+  const edm::EDGetTokenT<reco::SimToRecoCollection> associatormapStRsToken_;
+  const edm::EDGetTokenT<reco::RecoToSimCollection> associatormapRtSsToken_;
 };
-DEFINE_FWK_MODULE(SimTrackstersProducer);
+DEFINE_FWK_MODULE(SimTICLCandidatesProducer);
 
-SimTrackstersProducer::SimTrackstersProducer(const edm::ParameterSet& ps)
+SimTICLCandidatesProducer::SimTICLCandidatesProducer(const edm::ParameterSet& ps)
     : detector_(ps.getParameter<std::string>("detector")),
       doNose_(detector_ == "HFNose"),
-      clusters_token_(consumes(ps.getParameter<edm::InputTag>("layer_clusters"))),
-      clustersTime_token_(consumes(ps.getParameter<edm::InputTag>("time_layerclusters"))),
-      filtered_layerclusters_mask_token_(consumes(ps.getParameter<edm::InputTag>("filtered_mask"))),
       simclusters_token_(consumes(ps.getParameter<edm::InputTag>("simclusters"))),
       caloparticles_token_(consumes(ps.getParameter<edm::InputTag>("caloparticles"))),
+      associationSimTrackToTPToken_(consumes(iConfig.getParameter<edm::InputTag>("simTrackToTPMap"))),
       associatorMapSimClusterToReco_token_(
           consumes(ps.getParameter<edm::InputTag>("layerClusterSimClusterAssociator"))),
       associatorMapCaloParticleToReco_token_(
@@ -92,25 +75,21 @@ SimTrackstersProducer::SimTrackstersProducer(const edm::ParameterSet& ps)
   produces<std::map<uint, std::vector<uint>>>();
 }
 
-void SimTrackstersProducer::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
-  // hgcalMultiClusters
+void SimTICLCandidatesProducer::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
   edm::ParameterSetDescription desc;
   desc.add<std::string>("detector", "HGCAL");
-  desc.add<edm::InputTag>("layer_clusters", edm::InputTag("hgcalLayerClusters"));
-  desc.add<edm::InputTag>("time_layerclusters", edm::InputTag("hgcalLayerClusters", "timeLayerCluster"));
-  desc.add<edm::InputTag>("filtered_mask", edm::InputTag("filteredLayerClustersSimTracksters", "ticlSimTracksters"));
+  desc.add<edm::InputTag>("tracks", edm::InputTag("generalTracks"));
+  desc.add<std::string>("cutTk","1.48 < abs(eta) < 3.0 && pt > 1. && quality(\"highPurity\") && "
+                        "hitPattern().numberOfLostHits(\"MISSING_OUTER_HITS\") < 5");
+  desc.add<edm::InputTag>("tpToTrack", edm::InputTag("trackingParticleRecoTrackAsssociation"));
+  desc.add<edm::InputTag>("trackToTp", edm::InputTag("trackingParticleRecoTrackAsssociation"));
   desc.add<edm::InputTag>("simclusters", edm::InputTag("mix", "MergedCaloTruth"));
   desc.add<edm::InputTag>("caloparticles", edm::InputTag("mix", "MergedCaloTruth"));
-  desc.add<edm::InputTag>("layerClusterSimClusterAssociator",
-                          edm::InputTag("layerClusterSimClusterAssociationProducer"));
-  desc.add<edm::InputTag>("layerClusterCaloParticleAssociator",
-                          edm::InputTag("layerClusterCaloParticleAssociationProducer"));
-  desc.add<double>("fractionCut", 0.);
-
+  desc.add<edm::InputTag>("simTrackToTPMap", edm::InputTag("simHitTPAssocProducer", "simTrackToTP"));
   descriptions.addWithDefaultLabel(desc);
 }
 
-void SimTrackstersProducer::addTrackster(
+void SimTICLCandidatesProducer::addTrackster(
     const int& index,
     const std::vector<std::pair<edm::Ref<reco::CaloClusterCollection>, std::pair<float, float>>>& lcVec,
     const std::vector<float>& inputClusterMask,
@@ -147,7 +126,7 @@ void SimTrackstersProducer::addTrackster(
   result.emplace_back(tmpTrackster);
 }
 
-void SimTrackstersProducer::produce(edm::Event& evt, const edm::EventSetup& es) {
+void SimTICLCandidatesProducer::produce(edm::Event& evt, const edm::EventSetup& es) {
   auto result = std::make_unique<TracksterCollection>();
   auto output_mask = std::make_unique<std::vector<float>>();
   auto result_fromCP = std::make_unique<TracksterCollection>();
@@ -246,8 +225,7 @@ void SimTrackstersProducer::produce(edm::Event& evt, const edm::EventSetup& es) 
       (*cpToSc_SimTrackstersMap)[index] = scSimTracksterIdx;
     }
   }
-// TODO: remove time computation from PCA calculation and 
-//       store time from boundary position in simTracksters
+
   ticl::assignPCAtoTracksters(
       *result, layerClusters, layerClustersTimes, rhtools_.getPositionLayer(rhtools_.lastLayerEE(doNose_)).z());
   result->shrink_to_fit();

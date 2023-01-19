@@ -44,8 +44,6 @@ public:
   void setTracksters(const std::vector<edm::Ptr<ticl::Trackster> >& tracksters) { tracksters_ = tracksters; }
   void addTrackster(const edm::Ptr<ticl::Trackster>& trackster) {
     tracksters_.push_back(trackster);
-    time_ = trackster->time();
-    timeError_ = trackster->timeError();
   }
   // convenience method to return the ID probability for a certain particle type
   inline float id_probability(ParticleType type) const {
