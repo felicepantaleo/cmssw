@@ -246,8 +246,8 @@ void SimTrackstersProducer::produce(edm::Event& evt, const edm::EventSetup& es) 
       (*cpToSc_SimTrackstersMap)[index] = scSimTracksterIdx;
     }
   }
-// TODO: remove time computation from PCA calculation and 
-//       store time from boundary position in simTracksters
+  // TODO: remove time computation from PCA calculation and
+  //       store time from boundary position in simTracksters
   ticl::assignPCAtoTracksters(
       *result, layerClusters, layerClustersTimes, rhtools_.getPositionLayer(rhtools_.lastLayerEE(doNose_)).z());
   result->shrink_to_fit();

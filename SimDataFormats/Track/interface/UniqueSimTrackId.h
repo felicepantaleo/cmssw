@@ -14,7 +14,7 @@ struct UniqueSimTrackIdHash {
   }
 };
 
-struct SimTrackToTPMap{
+struct SimTrackToTPMap {
   std::unordered_map<UniqueSimTrackId, TrackingParticleRef, UniqueSimTrackIdHash> mapping;
 };
 #endif

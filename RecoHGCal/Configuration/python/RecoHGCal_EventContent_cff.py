@@ -28,6 +28,7 @@ TICL_RECO.outputCommands.extend(TICL_AOD.outputCommands)
 TICL_FEVT = cms.PSet(
     outputCommands = cms.untracked.vstring(
       'keep *_ticlSimTracksters_*_*',
+      'keep *_ticlSimTICLCandidates_*_*',
       'keep *_ticlSimTrackstersFromCP_*_*',
       )
     )

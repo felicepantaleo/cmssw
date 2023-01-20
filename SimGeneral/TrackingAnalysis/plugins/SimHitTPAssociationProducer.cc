@@ -45,7 +45,7 @@ void SimHitTPAssociationProducer::produce(edm::StreamID, edm::Event &iEvent, con
   iEvent.getByToken(_trackingParticleSrc, TPCollectionH);
 
   // prepare temporary map between SimTrackId and TrackingParticle index
-  auto simTrackToTPMap = std::make_unique<SimTrackToTPMap>();  
+  auto simTrackToTPMap = std::make_unique<SimTrackToTPMap>();
   auto const &tpColl = *TPCollectionH.product();
   for (TrackingParticleCollection::size_type itp = 0, size = tpColl.size(); itp < size; ++itp) {
     auto const &trackingParticle = tpColl[itp];
