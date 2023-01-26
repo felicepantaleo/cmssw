@@ -200,7 +200,7 @@ globalValidationHCALOnly = cms.Sequence(
 )
 
 globalValidationHGCal = cms.Sequence(hgcalValidation)
-globalPrevalidationHGCal = cms.Sequence(hgcalAssociators, ticlSimTrackstersTask, ticlSimTICLCandidatesTask)
+globalPrevalidationHGCal = cms.Sequence(hgcalAssociators, ticlSimTrackstersTask)
 
 globalValidationMTD = cms.Sequence()
 
