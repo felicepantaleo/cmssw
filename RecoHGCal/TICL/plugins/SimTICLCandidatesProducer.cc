@@ -25,7 +25,6 @@
 #include "SimDataFormats/Track/interface/UniqueSimTrackId.h"
 #include "SimDataFormats/TrackingAnalysis/interface/TrackingParticle.h"
 
-// #include "TrackstersPCA.h"
 #include <vector>
 #include <map>
 #include <iterator>
@@ -50,9 +49,7 @@ private:
   const edm::EDGetTokenT<std::vector<TrackingParticle>> trackingParticleToken_;
   const edm::EDGetTokenT<std::vector<reco::Track>> recoTracksToken_;
   const StringCutObjectSelector<reco::Track> cutTk_;
-
   const edm::EDGetTokenT<reco::SimToRecoCollection> associatormapStRsToken_;
-  const edm::EDGetTokenT<reco::RecoToSimCollection> associatormapRtSsToken_;
   const edm::EDGetTokenT<SimTrackToTPMap> associationSimTrackToTPToken_;
 };
 DEFINE_FWK_MODULE(SimTICLCandidatesProducer);
@@ -68,7 +65,6 @@ SimTICLCandidatesProducer::SimTICLCandidatesProducer(const edm::ParameterSet& ps
       recoTracksToken_(consumes<std::vector<reco::Track>>(ps.getParameter<edm::InputTag>("recoTracks"))),
       cutTk_(ps.getParameter<std::string>("cutTk")),
       associatormapStRsToken_(consumes(ps.getParameter<edm::InputTag>("tpToTrack"))),
-      associatormapRtSsToken_(consumes(ps.getParameter<edm::InputTag>("trackToTp"))),
       associationSimTrackToTPToken_(consumes(ps.getParameter<edm::InputTag>("simTrackToTPMap"))) {
   produces<std::vector<TICLCandidate>>();
 }
