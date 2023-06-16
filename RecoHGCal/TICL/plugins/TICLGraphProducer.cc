@@ -96,9 +96,6 @@ void TICLGraphProducer::produce(edm::Event &evt, const edm::EventSetup &es) {
   evt.getByToken(tracksters_clue3d_token_, trackstersclue3d_h);
   auto trackstersclue3d = *trackstersclue3d_h;
 
-  //std::vector<Trackster> trackstersclue3d_sorted(trackstersclue3d);
-  //std::sort(trackstersclue3d_sorted.begin(), trackstersclue3d_sorted.end(), [](Trackster& t1, Trackster& t2){return t1.barycenter().z() < t2.barycenter().z();});
-
   TICLLayerTile tracksterTilePos;
   TICLLayerTile tracksterTileNeg;
 

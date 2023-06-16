@@ -1,6 +1,7 @@
 # Reconstruction
 from RecoHGCal.TICL.iterativeTICL_cff import *
 from RecoLocalCalo.HGCalRecProducers.hgcalMergeLayerClusters_cff import hgcalMergeLayerClusters
+from RecoLocalCalo.HGCalRecProducers.hgcalLayerClusters_cff import hgcalLayerClusters
 from RecoHGCal.TICL.ticlDumper_cfi import ticlDumper
 # Validation
 from Validation.HGCalValidation.HGCalValidator_cfi import *
@@ -20,7 +21,8 @@ def customiseTICLFromReco(process):
 # TensorFlow ESSource
     process.TFESSource = cms.Task(process.trackdnn_source)
 # Reconstruction
-    process.TICL = cms.Path(process.hgcalMergeLayerClusters,
+
+    process.TICL = cms.Path(process.hgcalLayerClusters,
                             process.TFESSource,
                             process.ticlLayerTileTask,
                             process.ticlIterationsTask,
