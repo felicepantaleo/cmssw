@@ -19,7 +19,12 @@ TICL_RECO = cms.PSet(
        'keep *_ticlTrackstersHFNoseMIP_*_*',
        'keep *_ticlTrackstersHFNoseHAD_*_*',
        'keep *_ticlTrackstersHFNoseMerge_*_*',] +
-      ['keep *_pfTICL_*_*']
+      ['keep *_pfTICL_*_*'] +
+      ['keep *_tofPID_*_*', 'keep *_mtdTrackQualityMVA_*_*'] +
+      ['keep *_ticlGraph_*_*'] +
+      ['keep *_layerClusterSimClusterAssociationProducer_*_*','keep *_layerClusterCaloParticleAssociationProducer_*_*', 'keep *_layerClusterSimTracksterAssociationProducer_*_*'] + 
+      ['keep *_tracksterSimTracksterAssociationLinking_*_*' ,'keep *_tracksterSimTracksterAssociationPR_*_*'] +
+      ['keep *_tracksterSimTracksterAssociationLinkingbyCLUE3D_*_*', 'keep *_tracksterSimTracksterAssociationPRbyCLUE3D_*_*', 'keep *_muons1stStep_*_*']
       )
     )
 TICL_RECO.outputCommands.extend(TICL_AOD.outputCommands)
@@ -28,7 +33,11 @@ TICL_RECO.outputCommands.extend(TICL_AOD.outputCommands)
 TICL_FEVT = cms.PSet(
     outputCommands = cms.untracked.vstring(
       'keep *_ticlSimTracksters_*_*',
+      'keep *_ticlSimTICLCandidates_*_*',
       'keep *_ticlSimTrackstersFromCP_*_*',
+			'keep recoMuons_muons1stStep_*_*',
+      'keep *_ticlFineSimTracksters_*_*',
+      'keep *_ticlFineSimTrackstersFromCP_*_*',
       )
     )
 TICL_FEVT.outputCommands.extend(TICL_RECO.outputCommands)
@@ -44,10 +53,21 @@ def customiseHGCalOnlyEventContent(process):
                                             'keep recoTracks_generalTracks_*_*',
                                             'keep recoTrackExtras_generalTracks_*_*',
                                             'keep SimTracks_g4SimHits_*_*',
+                                            'keep *_muons1stStep_*_*',
                                             'keep SimVertexs_g4SimHits_*_*',
+                                            'keep *_tofPID_*_*',
+                                            'keep *_mtdTrackQualityMVA_*_*',
+																						'keep recoMuons_muons1stStep_*_*',
+                                            'keep *_ticlFineSimTracksters_*_*',
+                                            'keep *_ticlFineSimTrackstersFromCP_*_*',
                                             'keep *_layerClusterSimClusterAssociationProducer_*_*',
                                             'keep *_layerClusterCaloParticleAssociationProducer_*_*',
                                             'keep *_randomEngineStateProducer_*_*',
+                                            'keep *_layerClusterSimTracksterAssociationProducer_*_*',
+                                            'keep *_tracksterSimTracksterAssociationLinking_*_*',
+                                            'keep *_tracksterSimTracksterAssociationPR_*_*', 
+                                            'keep *_tracksterSimTracksterAssociationLinkingbyCLUE3D_*_*',
+                                            'keep *_tracksterSimTracksterAssociationPRbyCLUE3D_*_*', 
                                             ])
 
     if hasattr(process, 'FEVTDEBUGEventContent'):

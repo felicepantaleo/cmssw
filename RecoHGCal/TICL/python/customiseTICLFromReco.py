@@ -1,5 +1,6 @@
 # Reconstruction
 from RecoHGCal.TICL.iterativeTICL_cff import *
+from RecoHGCal.TICL.ticlDumper_cfi import ticlDumper
 from RecoLocalCalo.HGCalRecProducers.hgcalLayerClusters_cff import hgcalLayerClusters
 # Validation
 from Validation.HGCalValidation.HGCalValidator_cfi import *
@@ -10,6 +11,8 @@ from RecoTracker.IterativeTracking.iterativeTk_cff import trackdnn_source
 
 # Automatic addition of the customisation function from RecoHGCal.Configuration.RecoHGCal_EventContent_cff
 from RecoHGCal.Configuration.RecoHGCal_EventContent_cff import customiseHGCalOnlyEventContent
+from SimCalorimetry.HGCalAssociatorProducers.simTracksterAssociatorByEnergyScore_cfi import simTracksterAssociatorByEnergyScore as simTsAssocByEnergyScoreProducer
+from SimCalorimetry.HGCalAssociatorProducers.TSToSimTSAssociation_cfi import tracksterSimTracksterAssociationLinking, tracksterSimTracksterAssociationPR,tracksterSimTracksterAssociationLinkingbyCLUE3D, tracksterSimTracksterAssociationPRbyCLUE3D
 
 
 
@@ -17,6 +20,7 @@ def customiseTICLFromReco(process):
 # TensorFlow ESSource
     process.TFESSource = cms.Task(process.trackdnn_source)
 # Reconstruction
+
     process.TICL = cms.Path(process.hgcalLayerClusters,
                             process.TFESSource,
                             process.ticlLayerTileTask,
@@ -28,6 +32,7 @@ def customiseTICLFromReco(process):
                                                 process.layerClusterCaloParticleAssociationProducer,
                                                 process.scAssocByEnergyScoreProducer,
                                                 process.layerClusterSimClusterAssociationProducer,
+                                                process.simTsAssocByEnergyScoreProducer,  process.simTracksterHitLCAssociatorByEnergyScoreProducer, process.tracksterSimTracksterAssociationLinking, process.tracksterSimTracksterAssociationPR, process.tracksterSimTracksterAssociationLinkingbyCLUE3D, process.tracksterSimTracksterAssociationPRbyCLUE3D
                                                )
     process.TICL_Validator = cms.Task(process.hgcalValidator)
     process.TICL_Validation = cms.Path(process.TICL_ValidationProducers,
@@ -46,3 +51,12 @@ def customiseTICLFromReco(process):
     process = customiseHGCalOnlyEventContent(process)
 
     return process
+
+def customiseTICLForDumper(process):
+
+				process.ticlDumper = ticlDumper.clone()
+				process.TFileService = cms.Service("TFileService",
+												fileName = cms.string("histo.root")
+												)
+				process.FEVTDEBUGHLToutput_step = cms.EndPath(process.FEVTDEBUGHLToutput + process.ticlDumper)
+				return process

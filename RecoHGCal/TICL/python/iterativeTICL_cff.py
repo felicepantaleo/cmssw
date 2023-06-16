@@ -13,12 +13,15 @@ from RecoHGCal.TICL.ticlLayerTileProducer_cfi import ticlLayerTileProducer
 from RecoHGCal.TICL.pfTICLProducer_cfi import pfTICLProducer as _pfTICLProducer
 from RecoHGCal.TICL.trackstersMergeProducer_cfi import trackstersMergeProducer as _trackstersMergeProducer
 from RecoHGCal.TICL.trackstersMergeProducerV3_cfi import trackstersMergeProducerV3 as _trackstersMergeProducerV3
+from RecoHGCal.TICL.ticlGraphProducer_cfi import ticlGraphProducer as _ticlGraphProducer
 from RecoHGCal.TICL.tracksterSelectionTf_cfi import *
 
 ticlLayerTileTask = cms.Task(ticlLayerTileProducer)
 
 ticlTrackstersMerge = _trackstersMergeProducer.clone()
 ticlTrackstersMergeV3 = _trackstersMergeProducerV3.clone()
+ticlGraph = _ticlGraphProducer.clone()
+
 
 pfTICL = _pfTICLProducer.clone()
 ticlPFTask = cms.Task(pfTICL)
@@ -42,12 +45,15 @@ ticlIterLabels = [_step.itername.value() for _iteration in ticlIterationsTask fo
 
 ticlTracksterMergeTask = cms.Task(ticlTrackstersMerge)
 ticlTracksterMergeTaskV3 = cms.Task(ticlTrackstersMergeV3)
+ticlGraphTask = cms.Task(ticlGraph)
 
 ticl_v3.toModify(pfTICL, ticlCandidateSrc = "ticlTrackstersMergeV3")
 
 mergeTICLTask = cms.Task(ticlLayerTileTask
     ,ticlIterationsTask
     ,ticlTracksterMergeTask
+    ,ticlPFTask
+    ,ticlGraphTask
 )
 
 ticl_v3.toModify(mergeTICLTask, func=lambda x : x.add(ticlTracksterMergeTaskV3))
