@@ -13,4 +13,8 @@
   <class name="edm::RefProd<std::vector<SimTrack> >"/>
   <class name="edm::Ref<std::vector<SimTrack>,SimTrack,edm::refhelper::FindUsingAdvance<std::vector<SimTrack>,SimTrack> >"/>
   <class name="edm::RefVector<std::vector<SimTrack>,SimTrack,edm::refhelper::FindUsingAdvance<std::vector<SimTrack>,SimTrack> >"/>
+  <class name="std::unordered_map<UniqueSimTrackId, TrackingParticleRef, UniqueSimTrackIdHash>"/>
+  <class name="edm::Wrapper<std::unordered_map<UniqueSimTrackId, TrackingParticleRef, UniqueSimTrackIdHash>>"/>
+  <class name="SimTrackToTPMap"/>
+  <class name="edm::Wrapper<SimTrackToTPMap>"/>
 </lcgdict>
