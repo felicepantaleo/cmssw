@@ -19,8 +19,8 @@ namespace ticl {
     CE_H_120_F = 3,
     CE_H_200_F = 4,
     CE_H_300_F = 5,
-    CE_H_120_C = 6,
-    CE_H_200_C = 7,
+    CE_H_200_C = 6,
+    CE_H_300_C = 7,
     CE_H_SCINT_C = 8,
     EnumSize = 9
 
@@ -62,6 +62,9 @@ namespace ticl {
     auto isScintillator = rhtools_.isScintillator(lc_seed);
     auto isFine = (layer_number <= rhtools_.lastLayerEE(false) + 7);
 
+    if (isScintillator) {
+      return CE_H_SCINT_C;
+    }
     if (isEELayer) {
       if (thickness == 0) {
         return CE_E_120;
@@ -71,23 +74,19 @@ namespace ticl {
         return CE_E_300;
       }
     } else if (!isEELayer) {
-      if (isScintillator) {
-        return CE_H_SCINT_C;
+      if (isFine) {
+        if (thickness == 0) {
+          return CE_H_120_F;
+        } else if (thickness == 1) {
+          return CE_H_200_F;
+        } else if (thickness == 2) {
+          return CE_H_300_F;
+        }
       } else {
-        if (isFine) {
-          if (thickness == 0) {
-            return CE_H_120_F;
-          } else if (thickness == 1) {
-            return CE_H_200_F;
-          } else if (thickness == 2) {
-            return CE_H_300_F;
-          }
-        } else {
-          if (thickness == 0) {
-            return CE_H_120_C;
-          } else if (thickness == 1) {
-            return CE_H_200_C;
-          }
+        if (thickness == 1) {
+          return CE_H_200_C;
+        } else if (thickness == 2) {
+          return CE_H_300_C;
         }
       }
     }

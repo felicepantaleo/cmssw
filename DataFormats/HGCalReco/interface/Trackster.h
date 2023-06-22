@@ -150,7 +150,6 @@ namespace ticl {
     }
 
   private:
-
     Vector barycenter_;
     // regressed energy
     float regressed_energy_;
@@ -178,7 +177,6 @@ namespace ticl {
     std::array<float, 3> eigenvalues_;
     std::array<float, 3> sigmas_;
     std::array<float, 3> sigmasPCA_;
-
 
     // The edges connect two vertices together in a directed doublet
     // ATTENTION: order matters!

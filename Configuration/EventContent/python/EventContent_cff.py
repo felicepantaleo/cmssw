@@ -620,6 +620,10 @@ FEVTDEBUGEventContent.outputCommands.extend(SimTrackerFEVTDEBUG.outputCommands)
 FEVTDEBUGEventContent.outputCommands.extend(SimMuonFEVTDEBUG.outputCommands)
 FEVTDEBUGEventContent.outputCommands.extend(SimCalorimetryFEVTDEBUG.outputCommands)
 FEVTDEBUGEventContent.outputCommands.extend(SimFastTimingFEVTDEBUG.outputCommands)
+FEVTDEBUGEventContent.outputCommands.append('keep *_muons1stStep_*_*')
+FEVTDEBUGEventContent.outputCommands.append('keep *_tofPID_t0_*')
+FEVTDEBUGEventContent.outputCommands.append('keep *_tofPID_sigmat0_*')
+FEVTDEBUGEventContent.outputCommands.append('keep *_mtdTrackQualityMVA_*_*')
 approxSiStripClusters.toModify(FEVTDEBUGEventContent,
                               outputCommands = FEVTDEBUGEventContent.outputCommands+[
                                   'keep *_hltSiStripClusters2ApproxClusters_*_*'

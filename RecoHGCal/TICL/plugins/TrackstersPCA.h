@@ -15,5 +15,5 @@ namespace ticl {
                              const std::vector<reco::CaloCluster> &,
                              double,
                              bool energyWeight = true);
-}
+}  // namespace ticl
 #endif

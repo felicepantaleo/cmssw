@@ -1,7 +1,7 @@
 # Reconstruction
 from RecoHGCal.TICL.iterativeTICL_cff import *
-from RecoLocalCalo.HGCalRecProducers.hgcalMergeLayerClusters_cff import hgcalMergeLayerClusters
-from RecoLocalCalo.HGCalRecProducers.hgcalLayerClusters_cff import hgcalLayerClusters
+from RecoLocalCalo.HGCalRecProducers.hgcalMergeLayerClusters_cfi import hgcalMergeLayerClusters
+from RecoLocalCalo.HGCalRecProducers.hgcalLayerClusters_cff import hgcalLayerClustersEE, hgcalLayerClustersHSi, hgcalLayerClustersHSci
 from RecoHGCal.TICL.ticlDumper_cfi import ticlDumper
 # Validation
 from Validation.HGCalValidation.HGCalValidator_cfi import *
@@ -21,8 +21,13 @@ def customiseTICLFromReco(process):
 # TensorFlow ESSource
     process.TFESSource = cms.Task(process.trackdnn_source)
 # Reconstruction
+    process.hgcalLayerClustersTask = cms.Task(process.hgcalLayerClustersEE,
+                                              process.hgcalLayerClustersHSi,
+                                              process.hgcalLayerClustersHSci,
+                                              process.hgcalMergeLayerClusters)
 
-    process.TICL = cms.Path(process.hgcalLayerClusters,
+
+    process.TICL = cms.Path(process.hgcalLayerClustersTask,
                             process.TFESSource,
                             process.ticlLayerTileTask,
                             process.ticlIterationsTask,
@@ -35,6 +40,7 @@ def customiseTICLFromReco(process):
                                                 process.layerClusterSimClusterAssociationProducer,
                                                 process.simTsAssocByEnergyScoreProducer,  process.simTracksterHitLCAssociatorByEnergyScoreProducer, process.tracksterSimTracksterAssociationLinking, process.tracksterSimTracksterAssociationPR, process.tracksterSimTracksterAssociationLinkingbyCLUE3D, process.tracksterSimTracksterAssociationPRbyCLUE3D
                                                )
+
     process.TICL_Validator = cms.Task(process.hgcalValidator)
     process.TICL_Validation = cms.Path(process.TICL_ValidationProducers,
                                        process.TICL_Validator
