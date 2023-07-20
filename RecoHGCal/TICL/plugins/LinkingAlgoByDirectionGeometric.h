@@ -53,7 +53,7 @@ namespace ticl {
                                        float zVal,
                                        std::array<TICLLayerTile, 2> &tracksterTiles);
 
-    void findTrackstersInWindow(const std::vector<std::pair<Vector, unsigned>> &seedingCollection,
+    void findTrackstersInWindow(const std::vector<ticl::Trackster>& tracksters, const std::vector<std::pair<Vector, unsigned>> &seedingCollection,
                                 const std::array<TICLLayerTile, 2> &tracksterTiles,
                                 const std::vector<Vector> &tracksterPropPoints,
                                 float delta,
