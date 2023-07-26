@@ -1053,6 +1053,14 @@ void TICLDumper::beginJob() {
 
   tracks_tree_->Branch("track_ev", &track_ev);
   tracks_tree_->Branch("track_id", &track_id);
+
+
+  tracks_tree_->Branch("track_hgcal_x", &track_hgcal_x);
+  tracks_tree_->Branch("track_hgcal_y", &track_hgcal_y);
+  tracks_tree_->Branch("track_hgcal_z", &track_hgcal_z);
+  tracks_tree_->Branch("track_hgcal_eta", &track_hgcal_eta);
+  tracks_tree_->Branch("track_hgcal_phi", &track_hgcal_phi);
+
   tracks_tree_->Branch("track_hgcal_pt", &track_hgcal_pt);
   tracks_tree_->Branch("track_pt", &track_pt);
   tracks_tree_->Branch("track_missing_outer_hits", &track_missing_outer_hits);
