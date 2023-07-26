@@ -49,6 +49,8 @@ public:
     return idProbabilities_[(int)type];
   }
 
+  inline const std::array<float, 8>& idProbabilities() const { return idProbabilities_; }
+
   void zeroProbabilities() {
     for (auto& p : idProbabilities_) {
       p = 0.f;
