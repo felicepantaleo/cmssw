@@ -90,6 +90,11 @@ void PFTICLProducer::produce(edm::Event& evt, const edm::EventSetup& es) {
 
   for (const auto& ticl_cand : ticl_candidates) {
     const auto abs_pdg_id = std::abs(ticl_cand.pdgId());
+    std::cout << "TICL candidate with pdgId " << ticl_cand.pdgId() << " and raw energy " << ticl_cand.rawEnergy()
+              << std::endl;
+    for(const auto& probability: ticl_cand.idProbabilities()) {
+      std::cout << "Probability: " << probability << std::endl;
+    }
     const auto charge = ticl_cand.charge();
     const auto& four_mom = ticl_cand.p4();
     float total_raw_energy = 0.f;

@@ -279,10 +279,10 @@ void TrackstersMergeProducer::produce(edm::Event &evt, const edm::EventSetup &es
   for (const auto &cand : candidates) {
     auto track_ptr = cand.trackPtr();
     auto trackster_ptrs = cand.tracksters();
-
-#ifdef EDM_ML_DEBUG
     auto track_idx = track_ptr.get() - (edm::Ptr<reco::Track>(track_h, 0)).get();
     track_idx = (track_ptr.isNull()) ? -1 : track_idx;
+
+#ifdef EDM_ML_DEBUG
     LogDebug("TrackstersMergeProducer") << "PDG ID " << cand.pdgId() << " charge " << cand.charge() << " p " << cand.p()
                                         << std::endl;
     LogDebug("TrackstersMergeProducer") << "track id (p) : " << track_idx << " ("
@@ -292,6 +292,8 @@ void TrackstersMergeProducer::produce(edm::Event &evt, const edm::EventSetup &es
 
     // Merge included tracksters
     ticl::Trackster outTrackster;
+    outTrackster.setTrackIdx(track_idx);
+
     auto updated_size = 0;
     for (const auto &ts_ptr : trackster_ptrs) {
 #ifdef EDM_ML_DEBUG
@@ -354,7 +356,7 @@ void TrackstersMergeProducer::produce(edm::Event &evt, const edm::EventSetup &es
   auto isHad = [](const Trackster &tracksterMerge) {
     return tracksterMerge.id_probability(Trackster::ParticleType::photon) +
                tracksterMerge.id_probability(Trackster::ParticleType::electron) <
-           0.5;
+           0.5f or tracksterMerge.raw_em_energy() < 0.85f * tracksterMerge.raw_energy();
   };
   for (size_t i = 0; i < resultTrackstersMerged->size(); i++) {
     auto const &tm = (*resultTrackstersMerged)[i];
@@ -365,7 +367,8 @@ void TrackstersMergeProducer::produce(edm::Event &evt, const edm::EventSetup &es
     if (!cand.trackPtr().isNull()) {
       auto pdgId = isHad(tm) ? 211 : 11;
       auto const &tk = cand.trackPtr().get();
-      cand.setPdgId(pdgId * tk->charge());
+      if(cand.pdgId() == 0)
+        cand.setPdgId(pdgId * tk->charge());
       cand.setCharge(tk->charge());
       cand.setRawEnergy(tm.raw_energy());
       auto const &regrE = tm.regressed_energy();
