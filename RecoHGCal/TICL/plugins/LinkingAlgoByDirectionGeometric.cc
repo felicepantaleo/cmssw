@@ -287,10 +287,10 @@ void LinkingAlgoByDirectionGeometric::linkTracksters(const edm::Handle<std::vect
       continue;
 
 
-
-    // don't consider tracks below 2 GeV for linking
-    if (std::sqrt(tk.p() * tk.p() + ticl::mpion2) < tkEnergyCut_)
-      continue;
+    // FP: disable track energy cut for the moment
+    // // don't consider tracks below 2 GeV for linking
+    // if (std::sqrt(tk.p() * tk.p() + ticl::mpion2) < tkEnergyCut_)
+    //   continue;
     // record tracks that can be used to make a ticlcandidate
     candidateTrackIds.push_back(i);
 
