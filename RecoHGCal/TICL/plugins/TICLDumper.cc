@@ -410,7 +410,10 @@ private:
   std::vector<float> track_hgcal_pz;
   std::vector<float> track_hgcal_eta;
   std::vector<float> track_hgcal_phi;
+  std::vector<float> track_hgcal_pt;
   std::vector<float> track_pt;
+  std::vector<int> track_quality;
+  std::vector<int> track_missing_outer_hits;
   std::vector<int> track_charge;
   std::vector<double> track_time;
   std::vector<float> track_time_quality;
@@ -699,7 +702,10 @@ void TICLDumper::clearVariables() {
   track_hgcal_px.clear();
   track_hgcal_py.clear();
   track_hgcal_pz.clear();
+  track_hgcal_pt.clear();
+  track_quality.clear();
   track_pt.clear();
+  track_missing_outer_hits.clear();
   track_charge.clear();
   track_time.clear();
   track_time_quality.clear();
@@ -1047,7 +1053,10 @@ void TICLDumper::beginJob() {
 
   tracks_tree_->Branch("track_ev", &track_ev);
   tracks_tree_->Branch("track_id", &track_id);
+  tracks_tree_->Branch("track_hgcal_pt", &track_hgcal_pt);
   tracks_tree_->Branch("track_pt", &track_pt);
+  tracks_tree_->Branch("track_missing_outer_hits", &track_missing_outer_hits);
+  tracks_tree_->Branch("track_quality", &track_quality);
   tracks_tree_->Branch("track_charge", &track_charge);
   tracks_tree_->Branch("track_time", &track_time);
   tracks_tree_->Branch("track_time_quality", &track_time_quality);
@@ -1919,7 +1928,10 @@ void TICLDumper::analyze(const edm::Event& event, const edm::EventSetup& setup) 
       track_hgcal_px.push_back(globalMom.x());
       track_hgcal_py.push_back(globalMom.y());
       track_hgcal_pz.push_back(globalMom.z());
-      track_pt.push_back(globalMom.perp());
+      track_hgcal_pt.push_back(globalMom.perp());
+      track_pt.push_back(track.pt());
+      track_quality.push_back(track.quality(reco::TrackBase::highPurity));
+      track_missing_outer_hits.push_back(track.missingOuterHits());
       track_charge.push_back(track.charge());
       track_time.push_back(trackTime[trackref]);
       track_time_quality.push_back(trackTimeQual[trackref]);
