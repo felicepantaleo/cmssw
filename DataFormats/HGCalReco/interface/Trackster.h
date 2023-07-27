@@ -18,7 +18,7 @@
 namespace ticl {
   class Trackster {
   public:
-    typedef math::XYZVector Vector;
+    typedef math::XYZVectorF Vector;
 
     enum IterationIndex { TRKEM = 0, EM, TRKHAD, HAD, MIP, SIM, SIM_CP };
 
@@ -150,55 +150,54 @@ namespace ticl {
     }
 
   private:
-    Vector barycenter_;
-    // regressed energy
-    float regressed_energy_;
-    float raw_energy_;
-    float raw_em_energy_;
-    float raw_pt_;
-    float raw_em_pt_;
+    Vector barycenter_; 
+    float regressed_energy_; 
+    float raw_energy_; 
+    // -99, -1 if not available. ns units otherwise
+    float time_; 
+    float timeError_; 
+    float raw_em_energy_; 
+
 
     // trackster ID probabilities
-    std::array<float, 8> id_probabilities_;
+    std::array<float, 8> id_probabilities_; 
+
 
     // The vertices of the DAG are the indices of the
     // 2d objects in the global collection
-    std::vector<unsigned int> vertices_;
-    std::vector<float> vertex_multiplicity_;
-
-    // -99, -1 if not available. ns units otherwise
-    float time_;
-    float timeError_;
-
-    int track_idx_ = -1;
-
-    // PCA Variables
-    std::array<Vector, 3> eigenvectors_;
-    std::array<float, 3> eigenvalues_;
-    std::array<float, 3> sigmas_;
-    std::array<float, 3> sigmasPCA_;
-
-    // The edges connect two vertices together in a directed doublet
-    // ATTENTION: order matters!
-    // A doublet generator should create edges in which:
-    // the first element is on the inner layer and
-    // the outer element is on the outer layer.
-    std::vector<std::array<unsigned int, 2> > edges_;
+    std::vector<unsigned int> vertices_; 
+    std::vector<float> vertex_multiplicity_; 
+    float raw_pt_; 
+    float raw_em_pt_; 
 
     // Product ID of the seeding collection used to create the Trackster.
     // For GlobalSeeding the ProductID is set to 0. For track-based seeding
     // this is the ProductID of the track-collection used to create the
     // seeding-regions.
-    edm::ProductID seedID_;
+    edm::ProductID seedID_; 
 
     // For Global Seeding the index is fixed to one. For track-based seeding,
     // the index is the index of the track originating the seeding region that
     // created the trackster. For track-based seeding the pointer to the track
     // can be cooked using the previous ProductID and this index.
-    int seedIndex_;
+    int seedIndex_; 
+    int track_idx_ = -1; 
+    
+    std::array<Vector, 3> eigenvectors_; 
+    std::array<float, 3> eigenvalues_; 
+    std::array<float, 3> sigmas_; 
+    std::array<float, 3> sigmasPCA_; 
+
+    
+    // The edges connect two vertices together in a directed doublet
+    // ATTENTION: order matters!
+    // A doublet generator should create edges in which:
+    // the first element is on the inner layer and
+    // the outer element is on the outer layer.
+    std::vector<std::array<unsigned int, 2> > edges_; 
 
     // TICL iteration producing the trackster
-    uint8_t iterationIndex_;
+    uint8_t iterationIndex_; 
   };
 
   typedef std::vector<Trackster> TracksterCollection;
