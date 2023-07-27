@@ -36,14 +36,14 @@ void LinkingAlgoByDirectionGeometric::initialize(const HGCalDDDConstants *hgcons
   propagator_ = propH;
 }
 
-math::XYZVector LinkingAlgoByDirectionGeometric::propagateTrackster(const Trackster &t,
+math::XYZVectorF LinkingAlgoByDirectionGeometric::propagateTrackster(const Trackster &t,
                                                                     const unsigned idx,
                                                                     float zVal,
                                                                     std::array<TICLLayerTile, 2> &tracksterTiles) {
   // needs only the positive Z co-ordinate of the surface to propagate to
   // the correct sign is calculated inside according to the barycenter of trackster
-  Vector const &baryc = t.barycenter();
-  Vector directnv = t.eigenvectors(0);
+  math::XYZVectorF const &baryc = t.barycenter();
+  math::XYZVectorF directnv = t.eigenvectors(0);
 
   // barycenter as direction for tracksters w/ poor PCA
   // propagation still done to get the cartesian coords
@@ -59,7 +59,7 @@ math::XYZVector LinkingAlgoByDirectionGeometric::propagateTrackster(const Tracks
   float par = (zVal - baryc.Z()) / directnv.Z();
   float xOnSurface = par * directnv.X() + baryc.X();
   float yOnSurface = par * directnv.Y() + baryc.Y();
-  Vector tPoint(xOnSurface, yOnSurface, zVal);
+  math::XYZVectorF tPoint(xOnSurface, yOnSurface, zVal);
   if (tPoint.Eta() > 0)
     tracksterTiles[1].fill(tPoint.Eta(), tPoint.Phi(), idx);
 
@@ -71,9 +71,9 @@ math::XYZVector LinkingAlgoByDirectionGeometric::propagateTrackster(const Tracks
 
 void LinkingAlgoByDirectionGeometric::findTrackstersInWindow(
     const std::vector<Trackster> &tracksters,
-    const std::vector<std::pair<Vector, unsigned>> &seedingCollection,
+    const std::vector<std::pair<math::XYZVectorF, unsigned>> &seedingCollection,
     const std::array<TICLLayerTile, 2> &tracksterTiles,
-    const std::vector<Vector> &tracksterPropPoints,
+    const std::vector<math::XYZVectorF> &tracksterPropPoints,
     const float delta,
     unsigned trackstersSize,
     std::vector<std::vector<unsigned>> &resultCollection,
@@ -164,6 +164,7 @@ bool LinkingAlgoByDirectionGeometric::timeAndEnergyCompatible(float &total_raw_e
     if (!(timeCompatible))
       LogDebug("LinkingAlgoByDirectionGeometric") << "time compatibility : track time " << tkT << " +/- " << tkTErr
                                                   << " trackster time " << tsT << " +/- " << tsTErr << "\n";
+  }
     // 
   // return energyCompatible && timeCompatible;
   return energyCompatible;
@@ -244,10 +245,10 @@ void LinkingAlgoByDirectionGeometric::linkTracksters(const edm::Handle<std::vect
   // propagated point collections
   // elements in the propagated points collecions are used
   // to look for potential linkages in the appropriate tiles
-  std::vector<std::pair<Vector, unsigned>> trackPColl;     // propagated track points and index of track in collection
-  std::vector<std::pair<Vector, unsigned>> tkPropIntColl;  // tracks propagated to lastLayerEE
-  std::vector<std::pair<Vector, unsigned>> tsPropIntColl;  // Tracksters in CE-E, propagated to lastLayerEE
-  std::vector<std::pair<Vector, unsigned>> tsHadPropIntColl;  // Tracksters in CE-H, propagated to lastLayerEE
+  std::vector<std::pair<math::XYZVectorF, unsigned>> trackPColl;     // propagated track points and index of track in collection
+  std::vector<std::pair<math::XYZVectorF, unsigned>> tkPropIntColl;  // tracks propagated to lastLayerEE
+  std::vector<std::pair<math::XYZVectorF, unsigned>> tsPropIntColl;  // Tracksters in CE-E, propagated to lastLayerEE
+  std::vector<std::pair<math::XYZVectorF, unsigned>> tsHadPropIntColl;  // Tracksters in CE-H, propagated to lastLayerEE
   trackPColl.reserve(tracks.size());
   tkPropIntColl.reserve(tracks.size());
   tsPropIntColl.reserve(tracksters.size());
@@ -297,13 +298,13 @@ void LinkingAlgoByDirectionGeometric::linkTracksters(const edm::Handle<std::vect
     // to the HGCal front
     const auto &tsos = prop.propagate(fts, firstDisk_[iSide]->surface());
     if (tsos.isValid()) {
-      Vector trackP(tsos.globalPosition().x(), tsos.globalPosition().y(), tsos.globalPosition().z());
+      math::XYZVectorF trackP(tsos.globalPosition().x(), tsos.globalPosition().y(), tsos.globalPosition().z());
       trackPColl.emplace_back(trackP, i);
     }
     // to lastLayerEE
     const auto &tsos_int = prop.propagate(fts, interfaceDisk_[iSide]->surface());
     if (tsos_int.isValid()) {
-      Vector trackP(tsos_int.globalPosition().x(), tsos_int.globalPosition().y(), tsos_int.globalPosition().z());
+      math::XYZVectorF trackP(tsos_int.globalPosition().x(), tsos_int.globalPosition().y(), tsos_int.globalPosition().z());
       tkPropIntColl.emplace_back(trackP, i);
     }
   }  // Tracks
@@ -318,8 +319,8 @@ void LinkingAlgoByDirectionGeometric::linkTracksters(const edm::Handle<std::vect
   // Record postions of all tracksters propagated to layer 1 and lastLayerEE,
   // to be used later for distance calculation in the link finding stage
   // indexed by trackster index in event collection
-  std::vector<Vector> tsAllProp;
-  std::vector<Vector> tsAllPropInt;
+  std::vector<math::XYZVectorF> tsAllProp;
+  std::vector<math::XYZVectorF> tsAllPropInt;
   tsAllProp.reserve(tracksters.size());
   tsAllPropInt.reserve(tracksters.size());
 

@@ -37,20 +37,21 @@ namespace ticl {
     enum class PCAOrdering { ascending = 0, descending };
 
     Trackster()
-        : barycenter_({0., 0., 0.}),
+        : barycenter_({0.f, 0.f, 0.f}),
           regressed_energy_(0.f),
           raw_energy_(0.f),
-          raw_em_energy_(0.f),
-          raw_pt_(0.f),
-          raw_em_pt_(0.f),
           time_(0.f),
           timeError_(-1.f),
-          eigenvalues_{{0.f, 0.f, 0.f}},
-          sigmas_{{0.f, 0.f, 0.f}},
-          sigmasPCA_{{0.f, 0.f, 0.f}},
+          raw_em_energy_(0.f),
+          id_probabilities_{},
+          raw_pt_(0.f),
+          raw_em_pt_(0.f),
           seedIndex_(-1),
+          eigenvalues_{},
+          sigmas_{},
+          sigmasPCA_{},
           iterationIndex_(0) {
-      zeroProbabilities();
+      
     }
 
     inline void setIteration(const Trackster::IterationIndex i) { iterationIndex_ = i; }
@@ -182,7 +183,7 @@ namespace ticl {
     // can be cooked using the previous ProductID and this index.
     int seedIndex_; 
     int track_idx_ = -1; 
-    
+
     std::array<Vector, 3> eigenvectors_; 
     std::array<float, 3> eigenvalues_; 
     std::array<float, 3> sigmas_; 
