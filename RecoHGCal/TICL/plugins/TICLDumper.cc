@@ -87,6 +87,10 @@ private:
   const edm::EDGetTokenT<edm::ValueMap<float>> tracks_time_token_;
   const edm::EDGetTokenT<edm::ValueMap<float>> tracks_time_quality_token_;
   const edm::EDGetTokenT<edm::ValueMap<float>> tracks_time_err_token_;
+  const edm::EDGetTokenT<edm::ValueMap<float>> tracks_beta_token_;
+  const edm::EDGetTokenT<edm::ValueMap<float>> tracks_time_mtd_token_;
+  const edm::EDGetTokenT<edm::ValueMap<float>> tracks_time_mtd_err_token_;
+  const edm::EDGetTokenT<edm::ValueMap<GlobalPoint>> tracks_pos_mtd_token_;
   const edm::EDGetTokenT<std::vector<double>> hgcaltracks_x_token_;
   const edm::EDGetTokenT<std::vector<double>> hgcaltracks_y_token_;
   const edm::EDGetTokenT<std::vector<double>> hgcaltracks_z_token_;
@@ -423,6 +427,10 @@ private:
   std::vector<double> track_time;
   std::vector<float> track_time_quality;
   std::vector<float> track_time_err;
+  std::vector<float> track_beta;
+  std::vector<float> track_time_mtd;
+  std::vector<float> track_time_mtd_err;
+  std::vector<GlobalPoint> track_pos_mtd;
   std::vector<int> track_nhits;
 
   TTree* trackster_tree_;
@@ -714,6 +722,10 @@ void TICLDumper::clearVariables() {
   track_time.clear();
   track_time_quality.clear();
   track_time_err.clear();
+  track_beta.clear();
+  track_time_mtd.clear();
+  track_time_mtd_err.clear();
+  track_pos_mtd.clear();
   track_nhits.clear();
 };
 
@@ -725,6 +737,10 @@ TICLDumper::TICLDumper(const edm::ParameterSet& ps)
       tracks_time_token_(consumes<edm::ValueMap<float>>(ps.getParameter<edm::InputTag>("tracksTime"))),
       tracks_time_quality_token_(consumes<edm::ValueMap<float>>(ps.getParameter<edm::InputTag>("tracksTimeQual"))),
       tracks_time_err_token_(consumes<edm::ValueMap<float>>(ps.getParameter<edm::InputTag>("tracksTimeErr"))),
+      tracks_beta_token_(consumes<edm::ValueMap<float>>(ps.getParameter<edm::InputTag>("tracksBeta"))),
+      tracks_time_mtd_token_(consumes<edm::ValueMap<float>>(ps.getParameter<edm::InputTag>("tracksTimeMtd"))),
+      tracks_time_mtd_err_token_(consumes<edm::ValueMap<float>>(ps.getParameter<edm::InputTag>("tracksTimeMtdErr"))),
+      tracks_pos_mtd_token_(consumes<edm::ValueMap<GlobalPoint>>(ps.getParameter<edm::InputTag>("tracksPosMtd"))),
       tracksters_merged_token_(
           consumes<std::vector<ticl::Trackster>>(ps.getParameter<edm::InputTag>("trackstersmerged"))),
       clustersTime_token_(
@@ -1077,6 +1093,10 @@ void TICLDumper::beginJob() {
     tracks_tree_->Branch("track_time", &track_time);
     tracks_tree_->Branch("track_time_quality", &track_time_quality);
     tracks_tree_->Branch("track_time_err", &track_time_err);
+    tracks_tree_->Branch("track_beta", &track_beta);
+    tracks_tree_->Branch("track_time_mtd", &track_time_mtd);
+    tracks_tree_->Branch("track_time_mtd_err", &track_time_mtd_err);
+    tracks_tree_->Branch("track_pos_mtd", &track_pos_mtd);
     tracks_tree_->Branch("track_nhits", &track_nhits);
   }
 
@@ -1174,9 +1194,25 @@ void TICLDumper::analyze(const edm::Event& event, const edm::EventSetup& setup) 
   event.getByToken(tracks_time_err_token_, trackTimeErr_h);
   const auto& trackTimeErr = *trackTimeErr_h;
 
+  edm::Handle<edm::ValueMap<float>> trackBeta_h;
+  event.getByToken(tracks_beta_token_, trackBeta_h);
+  const auto& trackBeta = *trackBeta_h;
+
   edm::Handle<edm::ValueMap<float>> trackTimeQual_h;
   event.getByToken(tracks_time_quality_token_, trackTimeQual_h);
   const auto& trackTimeQual = *trackTimeQual_h;
+
+  edm::Handle<edm::ValueMap<float>> trackTimeMtd_h;
+  event.getByToken(tracks_time_mtd_token_, trackTimeMtd_h);
+  const auto& trackTimeMtd = *trackTimeMtd_h;
+
+  edm::Handle<edm::ValueMap<float>> trackTimeMtdErr_h;
+  event.getByToken(tracks_time_mtd_err_token_, trackTimeMtdErr_h);
+  const auto& trackTimeMtdErr = *trackTimeMtdErr_h;
+
+  edm::Handle<edm::ValueMap<GlobalPoint>> trackPosMtd_h;
+  event.getByToken(tracks_pos_mtd_token_, trackPosMtd_h);
+  const auto& trackPosMtd = *trackPosMtd_h;
 
   //Tracksters merged
   edm::Handle<std::vector<ticl::Trackster>> tracksters_merged_h;
@@ -2026,6 +2062,10 @@ void TICLDumper::analyze(const edm::Event& event, const edm::EventSetup& setup) 
       track_time.push_back(trackTime[trackref]);
       track_time_quality.push_back(trackTimeQual[trackref]);
       track_time_err.push_back(trackTimeErr[trackref]);
+      track_beta.push_back(trackBeta[trackref]);
+      track_time_mtd.push_back(trackTimeMtd[trackref]);
+      track_time_mtd_err.push_back(trackTimeMtdErr[trackref]);
+      track_pos_mtd.push_back(trackPosMtd[trackref]);
       track_nhits.push_back(tracks[i].recHitsSize());
     }
   }
@@ -2062,6 +2102,10 @@ void TICLDumper::fillDescriptions(edm::ConfigurationDescriptions& descriptions) 
   desc.add<edm::InputTag>("tracksTime", edm::InputTag("tofPID:t0"));
   desc.add<edm::InputTag>("tracksTimeQual", edm::InputTag("mtdTrackQualityMVA:mtdQualMVA"));
   desc.add<edm::InputTag>("tracksTimeErr", edm::InputTag("tofPID:sigmat0"));
+  desc.add<edm::InputTag>("tracksBeta", edm::InputTag("trackExtenderWithMTD:generalTrackBeta"));
+  desc.add<edm::InputTag>("tracksTimeMtd", edm::InputTag("trackExtenderWithMTD:generalTracktmtd"));
+  desc.add<edm::InputTag>("tracksTimeMtdErr", edm::InputTag("trackExtenderWithMTD:generalTracksigmatmtd"));
+  desc.add<edm::InputTag>("tracksPosMtd", edm::InputTag("trackExtenderWithMTD:generalTrackmtdpos"));
   desc.add<edm::InputTag>("trackstersmerged", edm::InputTag("ticlTrackstersMerge"));
   desc.add<edm::InputTag>("simtrackstersSC", edm::InputTag("ticlSimTracksters"));
   desc.add<edm::InputTag>("simtrackstersCP", edm::InputTag("ticlSimTracksters", "fromCPs"));
