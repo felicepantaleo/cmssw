@@ -82,3 +82,29 @@ postProcessorHGCALTracksters = DQMEDHarvester('DQMGenericClient',
   outputFileName = cms.untracked.string(""),
   verbose = cms.untracked.uint32(4)
 )
+
+neutrals = ["photons", "neutral_pions", "neutral_hadrons"]
+charged = ["electrons", "charged_pions", "charged_hadrons"]
+variables = ["energy", "pt", "eta", "phi"]
+subDirsCandidates = [prefix + hgcalValidator.ticlCandidates.value() + "/" + c for cands in (neutrals, charged) for c in cands]
+eff_candidates = []
+
+for c in charged:
+    for var in variables:
+        eff_candidates.append("eff_"+c+"_track_"+var+" '"+c.replace("_", " ")+" candidates track efficiency vs "+var+"' num_track_cand_vs_"+var+"_"+c+" den_cand_vs_"+var+"_"+c)
+        eff_candidates.append("eff_"+c+"_pid_"+var+" '"+c.replace("_", " ")+" candidates track + pid efficiency vs "+var+"' num_pid_cand_vs_"+var+"_"+c+" den_cand_vs_"+var+"_"+c)
+        eff_candidates.append("eff_"+c+"_energy_"+var+" '"+c.replace("_", " ")+" candidates track + pid + energy efficiency vs "+var+"' num_energy_cand_vs_"+var+"_"+c+" den_cand_vs_"+var+"_"+c)
+for n in neutrals:
+    for var in variables:
+        eff_candidates.append("eff_"+n+"_pid_"+var+" '"+n.replace("_", " ")+" candidates pid efficiency vs "+var+"' num_pid_cand_vs_"+var+"_"+n+" den_cand_vs_"+var+"_"+n)
+        eff_candidates.append("eff_"+n+"_energy_"+var+" '"+n.replace("_", " ")+" candidates pid + energy efficiency vs "+var+"' num_energy_cand_vs_"+var+"_"+n+" den_cand_vs_"+var+"_"+n)
+
+postProcessorHGCALCandidates = DQMEDHarvester('DQMGenericClient',
+  subDirs = cms.untracked.vstring(subDirsCandidates),
+  efficiency = cms.vstring(eff_candidates),
+  resolution = cms.vstring(),
+  cumulativeDists = cms.untracked.vstring(),
+  noFlowDists = cms.untracked.vstring(),
+  outputFileName = cms.untracked.string(""),
+  verbose = cms.untracked.uint32(4)
+)
