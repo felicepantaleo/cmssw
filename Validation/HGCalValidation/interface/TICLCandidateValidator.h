@@ -46,6 +46,8 @@ private:
   dqm::reco::MonitorElement* h_candidate_pT;
   dqm::reco::MonitorElement* h_candidate_charge;
   dqm::reco::MonitorElement* h_candidate_pdgId;
+  dqm::reco::MonitorElement* h_candidate_partType;
+
   std::vector<dqm::reco::MonitorElement*> h_den_chg_energy_candidate;
   std::vector<dqm::reco::MonitorElement*> h_num_chg_energy_candidate_track;
   std::vector<dqm::reco::MonitorElement*> h_num_chg_energy_candidate_pdgId;
@@ -75,6 +77,36 @@ private:
   std::vector<dqm::reco::MonitorElement*> h_den_neut_phi_candidate;
   std::vector<dqm::reco::MonitorElement*> h_num_neut_phi_candidate_pdgId;
   std::vector<dqm::reco::MonitorElement*> h_num_neut_phi_candidate_energy;
+
+  std::vector<dqm::reco::MonitorElement*> h_den_fake_chg_energy_candidate;
+  std::vector<dqm::reco::MonitorElement*> h_num_fake_chg_energy_candidate_track;
+  std::vector<dqm::reco::MonitorElement*> h_num_fake_chg_energy_candidate_pdgId;
+  std::vector<dqm::reco::MonitorElement*> h_num_fake_chg_energy_candidate_energy;
+  std::vector<dqm::reco::MonitorElement*> h_den_fake_chg_pt_candidate;
+  std::vector<dqm::reco::MonitorElement*> h_num_fake_chg_pt_candidate_track;
+  std::vector<dqm::reco::MonitorElement*> h_num_fake_chg_pt_candidate_pdgId;
+  std::vector<dqm::reco::MonitorElement*> h_num_fake_chg_pt_candidate_energy;
+  std::vector<dqm::reco::MonitorElement*> h_den_fake_chg_eta_candidate;
+  std::vector<dqm::reco::MonitorElement*> h_num_fake_chg_eta_candidate_track;
+  std::vector<dqm::reco::MonitorElement*> h_num_fake_chg_eta_candidate_pdgId;
+  std::vector<dqm::reco::MonitorElement*> h_num_fake_chg_eta_candidate_energy;
+  std::vector<dqm::reco::MonitorElement*> h_den_fake_chg_phi_candidate;
+  std::vector<dqm::reco::MonitorElement*> h_num_fake_chg_phi_candidate_track;
+  std::vector<dqm::reco::MonitorElement*> h_num_fake_chg_phi_candidate_pdgId;
+  std::vector<dqm::reco::MonitorElement*> h_num_fake_chg_phi_candidate_energy;
+
+  std::vector<dqm::reco::MonitorElement*> h_den_fake_neut_energy_candidate;
+  std::vector<dqm::reco::MonitorElement*> h_num_fake_neut_energy_candidate_pdgId;
+  std::vector<dqm::reco::MonitorElement*> h_num_fake_neut_energy_candidate_energy;
+  std::vector<dqm::reco::MonitorElement*> h_den_fake_neut_pt_candidate;
+  std::vector<dqm::reco::MonitorElement*> h_num_fake_neut_pt_candidate_pdgId;
+  std::vector<dqm::reco::MonitorElement*> h_num_fake_neut_pt_candidate_energy;
+  std::vector<dqm::reco::MonitorElement*> h_den_fake_neut_eta_candidate;
+  std::vector<dqm::reco::MonitorElement*> h_num_fake_neut_eta_candidate_pdgId;
+  std::vector<dqm::reco::MonitorElement*> h_num_fake_neut_eta_candidate_energy;
+  std::vector<dqm::reco::MonitorElement*> h_den_fake_neut_phi_candidate;
+  std::vector<dqm::reco::MonitorElement*> h_num_fake_neut_phi_candidate_pdgId;
+  std::vector<dqm::reco::MonitorElement*> h_num_fake_neut_phi_candidate_energy;
 
   edm::EDGetTokenT<std::vector<TICLCandidate>> TICLCandidatesToken_;
   edm::EDGetTokenT<std::vector<TICLCandidate>> simTICLCandidatesToken_;
