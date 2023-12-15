@@ -295,11 +295,6 @@ void TICLCandidateValidator::fillCandidateHistos(const edm::Event& event,
     h_candidate_partType->Fill(std::max_element(arr.begin(), arr.end()) - arr.begin());
   }
 
-  std::cout << "-------EVENT-------\n";
-  std::cout << "simTICLCandidates: " << simTICLCandidates.size() << "\n";
-  std::cout << "TICLCandidates: " << TICLCandidates.size() << "\n";
-  std::cout << "tracks: " << recoTracks.size() << "\n";
-
   std::vector<int> chargedCandidates;
   std::vector<int> neutralCandidates;
   chargedCandidates.reserve(simTICLCandidates.size());
@@ -307,26 +302,21 @@ void TICLCandidateValidator::fillCandidateHistos(const edm::Event& event,
 
   for (size_t i = 0; i < simTICLCandidates.size(); ++i) {
     const auto& simCand = simTICLCandidates[i];
-    std::cout << "pdgId " << simCand.pdgId() ;
     const auto particleType = ticl::tracksterParticleTypeFromPdgId(simCand.pdgId(), simCand.charge());
-    std::cout << " particleType " << (int)particleType ;
     if (particleType == ticl::Trackster::ParticleType::electron or
         particleType == ticl::Trackster::ParticleType::muon or
-        particleType == ticl::Trackster::ParticleType::charged_hadron) {
-      std::cout << " is charged\n";
+        particleType == ticl::Trackster::ParticleType::charged_hadron)
       chargedCandidates.emplace_back(i);
-   } else if (particleType == ticl::Trackster::ParticleType::photon or
+    else if (particleType == ticl::Trackster::ParticleType::photon or
              particleType == ticl::Trackster::ParticleType::neutral_pion or
-             particleType == ticl::Trackster::ParticleType::neutral_hadron) {
-      std::cout << " is neutral\n";
+             particleType == ticl::Trackster::ParticleType::neutral_hadron)
       neutralCandidates.emplace_back(i);
-    }// should consider also unknown ?
+    // should consider also unknown ?
   }
 
   chargedCandidates.shrink_to_fit();
   neutralCandidates.shrink_to_fit();
 
-  std::cout << "LOOP on sim\n";
   for (const auto i : chargedCandidates) {
     const auto& simCand = simTICLCandidates[i];
     auto index = std::log2(int(ticl::tracksterParticleTypeFromPdgId(simCand.pdgId(), 1)));
@@ -334,22 +324,17 @@ void TICLCandidateValidator::fillCandidateHistos(const edm::Event& event,
      * 13 (type 2) becomes 1
      * 211 (type 4) becomes 2
      */
-    std::cout << " --- simCand CHARGED, pdgId: " << simCand.pdgId() << " type: " << index << " --- \n";
     int32_t simCandTrackIdx = -1;
     if (simCand.trackPtr().get() != nullptr)
       simCandTrackIdx = simCand.trackPtr().get() - edm::Ptr<reco::Track>(recoTracks_h, 0).get();
     else {
-      std::cout << "no reco track, but simCand is charged --> SKIP\n";
+      // no reco track, but simCand is charged
       continue;
     }
-    std::cout << "track Idx = " << simCandTrackIdx << "\n";
     if (simCand.trackPtr().get()->pt() < 1 or simCand.trackPtr().get()->missingOuterHits() > 5 or
-        not simCand.trackPtr().get()->quality(reco::TrackBase::highPurity)) {
-      std::cout << "track does not pass cuts: pt " << simCand.trackPtr().get()->pt() << " > 1, moh "
-                << simCand.trackPtr().get()->missingOuterHits() << " < 5 and quality "
-                << simCand.trackPtr().get()->quality(reco::TrackBase::highPurity) << " --> SKIP\n";
+        not simCand.trackPtr().get()->quality(reco::TrackBase::highPurity))
       continue;
-    }
+
     // +1 to all denominators
     h_den_chg_energy_candidate[index]->Fill(simCand.rawEnergy());
     h_den_chg_pt_candidate[index]->Fill(simCand.pt());
@@ -382,7 +367,6 @@ void TICLCandidateValidator::fillCandidateHistos(const edm::Event& event,
       }
     }
 
-    std::cout << "reco cand assoc idx = " << cand_idx << "\n";
     // no reco associated to sim
     if (cand_idx == -1)
       continue;
@@ -390,25 +374,20 @@ void TICLCandidateValidator::fillCandidateHistos(const edm::Event& event,
     const auto& recoCand = TICLCandidates[cand_idx];
     if (recoCand.trackPtr().get() != nullptr) {
       const auto candTrackIdx = recoCand.trackPtr().get() - edm::Ptr<reco::Track>(recoTracks_h, 0).get();
-      std::cout << "reco cand has track associated and ";
       if (simCandTrackIdx == candTrackIdx) {
         // +1 to track num
-        std::cout << "is correct\n";
         h_num_chg_energy_candidate_track[index]->Fill(simCand.rawEnergy());
         h_num_chg_pt_candidate_track[index]->Fill(simCand.pt());
         h_num_chg_eta_candidate_track[index]->Fill(simCand.eta());
         h_num_chg_phi_candidate_track[index]->Fill(simCand.phi());
       } else {
-        std::cout << "is wrong\n";
         continue;
       }
     } else {
-      std::cout << "reco cand has NO track associated.\n";
       continue;
     }
 
     //step 2: PID
-    std::cout << "PID: sim = " << simCand.pdgId() << " and reco = " << recoCand.pdgId() << "\n";
     if (simCand.pdgId() == recoCand.pdgId()) {
       // +1 to num pdg id
       h_num_chg_energy_candidate_pdgId[index]->Fill(simCand.rawEnergy());
@@ -417,8 +396,6 @@ void TICLCandidateValidator::fillCandidateHistos(const edm::Event& event,
       h_num_chg_phi_candidate_pdgId[index]->Fill(simCand.phi());
 
       //step 3: energy
-      std::cout << "shared energy is " << shared_energy << ", raw energy " << simCand.rawEnergy()
-                << ", passes threshold: " << (shared_energy / simCand.rawEnergy() > 0.5) << std::endl;
       if (shared_energy / simCand.rawEnergy() > 0.5) {
         // +1 to ene num
         h_num_chg_energy_candidate_energy[index]->Fill(simCand.rawEnergy());
@@ -436,9 +413,8 @@ void TICLCandidateValidator::fillCandidateHistos(const edm::Event& event,
      * 111 (type 3) becomes 1
      * 130 (type 5) becomes 2
      */
-    std::cout << " --- simCand NEUTRAL, pdgId: " << simCand.pdgId() << " type: " << index << " --- \n";
-    if (simCand.trackPtr().get() != nullptr)
-      std::cout << "ERROR: NEUTRAL WITH TRACK\n";
+    //if (simCand.trackPtr().get() != nullptr)
+    //  std::cout << "ERROR: NEUTRAL WITH TRACK\n";
 
     h_den_neut_energy_candidate[index]->Fill(simCand.rawEnergy());
     h_den_neut_pt_candidate[index]->Fill(simCand.pt());
@@ -471,19 +447,15 @@ void TICLCandidateValidator::fillCandidateHistos(const edm::Event& event,
       }
     }
 
-    std::cout << "reco cand assoc idx = " << cand_idx << "\n";
     // no reco associated to sim
     if (cand_idx == -1)
       continue;
 
     const auto& recoCand = TICLCandidates[cand_idx];
-    if (recoCand.trackPtr().get() != nullptr) {
-      std::cout << "ERROR: reco cand has track associated but sim was neutral\n";
+    if (recoCand.trackPtr().get() != nullptr)
       continue;
-    }
 
     //step 2: PID
-    std::cout << "PID: sim = " << simCand.pdgId() << " and reco = " << recoCand.pdgId() << "\n";
     if (simCand.pdgId() == recoCand.pdgId()) {
       // +1 to num pdg id
       h_num_neut_energy_candidate_pdgId[index]->Fill(simCand.rawEnergy());
@@ -492,8 +464,6 @@ void TICLCandidateValidator::fillCandidateHistos(const edm::Event& event,
       h_num_neut_phi_candidate_pdgId[index]->Fill(simCand.phi());
 
       //step 3: energy
-      std::cout << "shared energy is " << shared_energy << ", raw energy " << simCand.rawEnergy()
-                << ", passes threshold: " << (shared_energy / simCand.rawEnergy() > 0.5) << std::endl;
       if (shared_energy / simCand.rawEnergy() > 0.5) {
         // +1 to ene num
         h_num_neut_energy_candidate_energy[index]->Fill(simCand.rawEnergy());
@@ -505,7 +475,6 @@ void TICLCandidateValidator::fillCandidateHistos(const edm::Event& event,
   }
 
   // FAKE rate
-  std::cout << "LOOP on reco\n";
   chargedCandidates.clear();
   neutralCandidates.clear();
   chargedCandidates.reserve(TICLCandidates.size());
@@ -548,14 +517,11 @@ void TICLCandidateValidator::fillCandidateHistos(const edm::Event& event,
      * 13 (type 2) becomes 1
      * 211 (type 4) becomes 2
      */
-    std::cout << " --- Cand CHARGED, pdgId: " << cand.pdgId() << " type: " << index << " --- \n";
     int32_t candTrackIdx = -1;
     if (cand.trackPtr().get() != nullptr)
       candTrackIdx = cand.trackPtr().get() - edm::Ptr<reco::Track>(recoTracks_h, 0).get();
-    else {
-      std::cout << "no reco track, but Cand is charged --> ERROR (?)\n";
+    else
       continue;
-    }
     // +1 to all denominators
     h_den_fake_chg_energy_candidate[index]->Fill(cand.rawEnergy());
     h_den_fake_chg_pt_candidate[index]->Fill(cand.pt());
@@ -588,18 +554,13 @@ void TICLCandidateValidator::fillCandidateHistos(const edm::Event& event,
       }
     }
 
-    std::cout << "sim cand assoc idx = " << simCand_idx << "\n";
     if (simCand_idx == -1)
       continue;
 
     const auto& simCand = simTICLCandidates[simCand_idx];
     if (simCand.trackPtr().get() != nullptr) {
       const auto simCandTrackIdx = simCand.trackPtr().get() - edm::Ptr<reco::Track>(recoTracks_h, 0).get();
-      std::cout << "reco cand has track associated and ";
-      if (simCandTrackIdx == candTrackIdx) {
-        std::cout << "is correct\n";
-      } else {
-        std::cout << "is wrong\n";
+      if (simCandTrackIdx != candTrackIdx) {
         // fake += 1
         h_num_fake_chg_energy_candidate_track[index]->Fill(cand.rawEnergy());
         h_num_fake_chg_pt_candidate_track[index]->Fill(cand.pt());
@@ -608,7 +569,6 @@ void TICLCandidateValidator::fillCandidateHistos(const edm::Event& event,
         continue;
       }
     } else {
-      std::cout << "sim cand has NO track associated.\n";
       // fake += 1
       h_num_fake_chg_energy_candidate_track[index]->Fill(cand.rawEnergy());
       h_num_fake_chg_pt_candidate_track[index]->Fill(cand.pt());
@@ -618,7 +578,6 @@ void TICLCandidateValidator::fillCandidateHistos(const edm::Event& event,
     }
 
     //step 2: PID
-    std::cout << "PID: sim = " << simCand.pdgId() << " and reco = " << cand.pdgId() << "\n";
     if (simCand.pdgId() != cand.pdgId()) {
       // +1 to num fake pdg id
       h_num_fake_chg_energy_candidate_pdgId[index]->Fill(cand.rawEnergy());
@@ -629,8 +588,6 @@ void TICLCandidateValidator::fillCandidateHistos(const edm::Event& event,
     }
 
     //step 3: energy
-    std::cout << "shared energy is " << shared_energy << ", raw energy " << simCand.rawEnergy()
-              << ", passes threshold: " << (shared_energy / simCand.rawEnergy() > 0.5) << std::endl;
     if (shared_energy / simCand.rawEnergy() < 0.5) {
       // +1 to ene num
       h_num_fake_chg_energy_candidate_energy[index]->Fill(cand.rawEnergy());
@@ -649,11 +606,9 @@ void TICLCandidateValidator::fillCandidateHistos(const edm::Event& event,
      * 111 (type 3) becomes 1
      * 130 (type 5) becomes 2
      */
-    std::cout << " --- Cand NEUTRAL, pdgId: " << cand.pdgId() << " type: " << index << " --- \n";
-    if (cand.trackPtr().get() != nullptr) {
-      std::cout << "reco track, but Cand is neutral --> ERROR (?)\n";
+    if (cand.trackPtr().get() != nullptr)
       continue;
-    }
+
     // +1 to all denominators
     h_den_fake_neut_energy_candidate[index]->Fill(cand.rawEnergy());
     h_den_fake_neut_pt_candidate[index]->Fill(cand.pt());
@@ -686,7 +641,6 @@ void TICLCandidateValidator::fillCandidateHistos(const edm::Event& event,
       }
     }
 
-    std::cout << "sim cand assoc idx = " << simCand_idx << "\n";
     if (simCand_idx == -1)
       continue;
 
@@ -694,7 +648,6 @@ void TICLCandidateValidator::fillCandidateHistos(const edm::Event& event,
     // check su simTICLCandidate track?
 
     //step 2: PID
-    std::cout << "PID: sim = " << simCand.pdgId() << " and reco = " << cand.pdgId() << "\n";
     if (simCand.pdgId() != cand.pdgId()) {
       // +1 to num fake pdg id
       h_num_fake_neut_energy_candidate_pdgId[index]->Fill(cand.rawEnergy());
@@ -705,8 +658,6 @@ void TICLCandidateValidator::fillCandidateHistos(const edm::Event& event,
     }
 
     //step 3: energy
-    std::cout << "shared energy is " << shared_energy << ", raw energy " << simCand.rawEnergy()
-              << ", passes threshold: " << (shared_energy / simCand.rawEnergy() > 0.5) << std::endl;
     if (shared_energy / simCand.rawEnergy() < 0.5) {
       // +1 to ene num
       h_num_fake_neut_energy_candidate_energy[index]->Fill(cand.rawEnergy());
