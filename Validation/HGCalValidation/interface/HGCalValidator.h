@@ -99,7 +99,7 @@ protected:
   std::unique_ptr<HGVHistoProducerAlgo> histoProducerAlgo_;
 
 private:
-  mutable TICLCandidateValidator candidateVal; 
+  mutable TICLCandidateValidator candidateVal;
   CaloParticleSelector cpSelector;
   std::shared_ptr<hgcal::RecHitTools> tools_;
   std::map<double, double> cummatbudg;

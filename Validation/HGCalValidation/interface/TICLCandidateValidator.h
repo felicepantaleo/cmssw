@@ -22,7 +22,6 @@
 
 class TICLCandidateValidator {
 public:
-
   typedef dqm::legacy::DQMStore DQMStore;
   typedef dqm::legacy::MonitorElement MonitorElement;
 
@@ -38,7 +37,7 @@ public:
   void bookCandidatesHistos(DQMStore::IBooker& ibook, std::string baseDir);
 
   void fillCandidateHistos(const edm::Event& event, edm::Handle<ticl::TracksterCollection> simTrackstersCP_h);
- 
+
 private:
   dqm::reco::MonitorElement* h_tracksters_in_candidate;
   dqm::reco::MonitorElement* h_candidate_raw_energy;

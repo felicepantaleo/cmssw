@@ -66,7 +66,7 @@ HGCalValidator::HGCalValidator(const edm::ParameterSet& pset)
         consumes<std::vector<reco::Track>>(pset.getParameter<edm::InputTag>("recoTracks"));
     edm::EDGetTokenT<std::vector<ticl::Trackster>> trackstersToken =
         consumes<std::vector<ticl::Trackster>>(pset.getParameter<edm::InputTag>("ticlTrackstersMerge"));
-        //consumes<std::vector<ticl::Trackster>>(pset.getParameter<edm::InputTag>("trackstersclue3d"));
+    //consumes<std::vector<ticl::Trackster>>(pset.getParameter<edm::InputTag>("trackstersclue3d"));
     edm::EDGetTokenT<hgcal::RecoToSimCollectionSimTracksters> associatorMapRtSToken =
         consumes<hgcal::SimToRecoCollectionSimTracksters>(pset.getParameter<edm::InputTag>("mergeRecoToSimAssociator"));
     edm::EDGetTokenT<hgcal::SimToRecoCollectionSimTracksters> associatorMapStRToken =

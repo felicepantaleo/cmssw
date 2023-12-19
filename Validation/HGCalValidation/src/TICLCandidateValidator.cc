@@ -41,41 +41,39 @@ void TICLCandidateValidator::bookCandidatesHistos(DQMStore::IBooker& ibook, std:
         ibook.book1D("den_fake_cand_vs_energy_" + neutrals[i], neutrals[i] + " vs energy;E (GeV)", 250, 0, 250));
     h_num_fake_neut_energy_candidate_pdgId.push_back(ibook.book1D(
         "num_fake_pid_cand_vs_energy_" + neutrals[i], neutrals[i] + " PID fake vs energy;E (GeV)", 250, 0, 250));
-    h_num_fake_neut_energy_candidate_energy.push_back(ibook.book1D("num_fake_energy_cand_vs_energy_" + neutrals[i],
-                                                                   neutrals[i] + " PID and energy fake vs energy;E (GeV)",
-                                                                   250,
-                                                                   0,
-                                                                   250));
+    h_num_fake_neut_energy_candidate_energy.push_back(
+        ibook.book1D("num_fake_energy_cand_vs_energy_" + neutrals[i],
+                     neutrals[i] + " PID and energy fake vs energy;E (GeV)",
+                     250,
+                     0,
+                     250));
     h_den_fake_neut_pt_candidate.push_back(
         ibook.book1D("den_fake_cand_vs_pt_" + neutrals[i], neutrals[i] + " vs pT;p_{T} (GeV)", 250, 0, 250));
     h_num_fake_neut_pt_candidate_pdgId.push_back(ibook.book1D(
         "num_fake_pid_cand_vs_pt_" + neutrals[i], neutrals[i] + " PID fake vs pT;p_{T} (GeV)", 250, 0, 250));
-    h_num_fake_neut_pt_candidate_energy.push_back(ibook.book1D(
-        "num_fake_energy_cand_vs_pt_" + neutrals[i], neutrals[i] + " PID and energy fake vs pT;p_{T} (GeV)", 250, 0, 250));
+    h_num_fake_neut_pt_candidate_energy.push_back(ibook.book1D("num_fake_energy_cand_vs_pt_" + neutrals[i],
+                                                               neutrals[i] + " PID and energy fake vs pT;p_{T} (GeV)",
+                                                               250,
+                                                               0,
+                                                               250));
     h_den_fake_neut_eta_candidate.push_back(
         ibook.book1D("den_fake_cand_vs_eta_" + neutrals[i], neutrals[i] + " vs eta;#eta (GeV)", 100, -3, 3));
     h_num_fake_neut_eta_candidate_pdgId.push_back(ibook.book1D(
         "num_fake_pid_cand_vs_eta_" + neutrals[i], neutrals[i] + " PID fake vs eta;#eta (GeV)", 100, -3, 3));
-    h_num_fake_neut_eta_candidate_energy.push_back(
-        ibook.book1D("num_fake_energy_cand_vs_eta_" + neutrals[i],
-                     neutrals[i] + " PID and energy fake vs eta;#eta (GeV)",
-                     100,
-                     -3,
-                     3));
+    h_num_fake_neut_eta_candidate_energy.push_back(ibook.book1D("num_fake_energy_cand_vs_eta_" + neutrals[i],
+                                                                neutrals[i] + " PID and energy fake vs eta;#eta (GeV)",
+                                                                100,
+                                                                -3,
+                                                                3));
     h_den_fake_neut_phi_candidate.push_back(ibook.book1D(
         "den_fake_cand_vs_phi_" + neutrals[i], neutrals[i] + " vs phi;#phi (GeV)", 100, -3.14159, 3.14159));
-    h_num_fake_neut_phi_candidate_pdgId.push_back(
-        ibook.book1D("num_fake_pid_cand_vs_phi_" + neutrals[i],
-                     neutrals[i] + " PID fake vs phi;#phi (GeV)",
-                     100,
-                     -3.14159,
-                     3.14159));
-    h_num_fake_neut_phi_candidate_energy.push_back(
-        ibook.book1D("num_fake_energy_cand_vs_phi_" + neutrals[i],
-                     neutrals[i] + " PID and energy fake vs phi;#phi (GeV)",
-                     100,
-                     -3.14159,
-                     3.14159));
+    h_num_fake_neut_phi_candidate_pdgId.push_back(ibook.book1D(
+        "num_fake_pid_cand_vs_phi_" + neutrals[i], neutrals[i] + " PID fake vs phi;#phi (GeV)", 100, -3.14159, 3.14159));
+    h_num_fake_neut_phi_candidate_energy.push_back(ibook.book1D("num_fake_energy_cand_vs_phi_" + neutrals[i],
+                                                                neutrals[i] + " PID and energy fake vs phi;#phi (GeV)",
+                                                                100,
+                                                                -3.14159,
+                                                                3.14159));
 
     h_den_neut_energy_candidate.push_back(
         ibook.book1D("den_cand_vs_energy_" + neutrals[i], neutrals[i] + " vs energy;E (GeV)", 250, 0, 250));
@@ -134,12 +132,8 @@ void TICLCandidateValidator::bookCandidatesHistos(DQMStore::IBooker& ibook, std:
         ibook.book1D("den_fake_cand_vs_energy_" + charged[i], charged[i] + " vs energy;E (GeV)", 250, 0, 250));
     h_num_fake_chg_energy_candidate_track.push_back(ibook.book1D(
         "num_fake_track_cand_vs_energy_" + charged[i], charged[i] + " track fake vs energy;E (GeV)", 250, 0, 250));
-    h_num_fake_chg_energy_candidate_pdgId.push_back(
-        ibook.book1D("num_fake_pid_cand_vs_energy_" + charged[i],
-                     charged[i] + " track and PID fake vs energy;E (GeV)",
-                     250,
-                     0,
-                     250));
+    h_num_fake_chg_energy_candidate_pdgId.push_back(ibook.book1D(
+        "num_fake_pid_cand_vs_energy_" + charged[i], charged[i] + " track and PID fake vs energy;E (GeV)", 250, 0, 250));
     h_num_fake_chg_energy_candidate_energy.push_back(
         ibook.book1D("num_fake_energy_cand_vs_energy_" + charged[i],
                      charged[i] + " track, PID and energy fake vs energy;E (GeV)",
@@ -150,11 +144,8 @@ void TICLCandidateValidator::bookCandidatesHistos(DQMStore::IBooker& ibook, std:
         ibook.book1D("den_fake_cand_vs_pt_" + charged[i], charged[i] + " vs pT;p_{T} (GeV)", 250, 0, 250));
     h_num_fake_chg_pt_candidate_track.push_back(ibook.book1D(
         "num_fake_track_cand_vs_pt_" + charged[i], charged[i] + " track fake vs pT;p_{T} (GeV)", 250, 0, 250));
-    h_num_fake_chg_pt_candidate_pdgId.push_back(ibook.book1D("num_fake_pid_cand_vs_pt_" + charged[i],
-                                                             charged[i] + " track and PID fake vs pT;p_{T} (GeV)",
-                                                             250,
-                                                             0,
-                                                             250));
+    h_num_fake_chg_pt_candidate_pdgId.push_back(ibook.book1D(
+        "num_fake_pid_cand_vs_pt_" + charged[i], charged[i] + " track and PID fake vs pT;p_{T} (GeV)", 250, 0, 250));
     h_num_fake_chg_pt_candidate_energy.push_back(
         ibook.book1D("num_fake_energy_cand_vs_pt_" + charged[i],
                      charged[i] + " track, PID and energy fake vs pT;p_{T} (GeV)",
@@ -165,12 +156,8 @@ void TICLCandidateValidator::bookCandidatesHistos(DQMStore::IBooker& ibook, std:
         ibook.book1D("den_fake_cand_vs_eta_" + charged[i], charged[i] + " vs eta;#eta (GeV)", 100, -3, 3));
     h_num_fake_chg_eta_candidate_track.push_back(ibook.book1D(
         "num_fake_track_cand_vs_eta_" + charged[i], charged[i] + " track fake vs eta;#eta (GeV)", 100, -3, 3));
-    h_num_fake_chg_eta_candidate_pdgId.push_back(
-        ibook.book1D("num_fake_pid_cand_vs_eta_" + charged[i],
-                     charged[i] + " track and PID fake vs eta;#eta (GeV)",
-                     100,
-                     -3,
-                     3));
+    h_num_fake_chg_eta_candidate_pdgId.push_back(ibook.book1D(
+        "num_fake_pid_cand_vs_eta_" + charged[i], charged[i] + " track and PID fake vs eta;#eta (GeV)", 100, -3, 3));
     h_num_fake_chg_eta_candidate_energy.push_back(
         ibook.book1D("num_fake_energy_cand_vs_eta_" + charged[i],
                      charged[i] + " track, PID and energy fake vs eta;#eta (GeV)",
@@ -184,12 +171,11 @@ void TICLCandidateValidator::bookCandidatesHistos(DQMStore::IBooker& ibook, std:
                                                               100,
                                                               -3.14159,
                                                               3.14159));
-    h_num_fake_chg_phi_candidate_pdgId.push_back(
-        ibook.book1D("num_fake_pid_cand_vs_phi_" + charged[i],
-                     charged[i] + " track and PID fake vs phi;#phi (GeV)",
-                     100,
-                     -3.14159,
-                     3.14159));
+    h_num_fake_chg_phi_candidate_pdgId.push_back(ibook.book1D("num_fake_pid_cand_vs_phi_" + charged[i],
+                                                              charged[i] + " track and PID fake vs phi;#phi (GeV)",
+                                                              100,
+                                                              -3.14159,
+                                                              3.14159));
     h_num_fake_chg_phi_candidate_energy.push_back(
         ibook.book1D("num_fake_energy_cand_vs_phi_" + charged[i],
                      charged[i] + " track, PID and energy fake vs phi;#phi (GeV)",
