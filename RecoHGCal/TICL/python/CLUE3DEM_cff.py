@@ -6,18 +6,20 @@ from RecoHGCal.TICL.filteredLayerClustersProducer_cfi import filteredLayerCluste
 
 # CLUSTER FILTERING/MASKING
 
-filteredLayerClustersCLUE3DHigh = _filteredLayerClustersProducer.clone(
-    clusterFilter = "ClusterFilterByAlgoAndSize",
+filteredLayerClustersCLUE3DEM = _filteredLayerClustersProducer.clone(
+    clusterFilter = "ClusterFilterByAlgoAndSizeAndLayerRange",
     min_cluster_size = 2, # inclusive
-    iteration_label = "CLUE3DHigh"
+    iteration_label = "CLUE3DEM",
+    algo_number = [6,7],
+    max_layerId = 28, # inclusive
 )
 
 # PATTERN RECOGNITION
 
-ticlTrackstersCLUE3DHigh = _trackstersProducer.clone(
-    filtered_mask = "filteredLayerClustersCLUE3DHigh:CLUE3DHigh",
+ticlTrackstersCLUE3DEM = _trackstersProducer.clone(
+    filtered_mask = "filteredLayerClustersCLUE3DEM:CLUE3DEM",
     seeding_regions = "ticlSeedingGlobal",
-    itername = "CLUE3DHigh",
+    itername = "EM",
     patternRecognitionBy = "CLUE3D",
     pluginPatternRecognitionByCLUE3D = dict (
         criticalDensity = [0.6, 0.6, 0.6],
@@ -28,7 +30,7 @@ ticlTrackstersCLUE3DHigh = _trackstersProducer.clone(
 
 )
 
-ticlCLUE3DHighStepTask = cms.Task(ticlSeedingGlobal
-    ,filteredLayerClustersCLUE3DHigh
-    ,ticlTrackstersCLUE3DHigh)
+ticlCLUE3DEMStepTask = cms.Task(ticlSeedingGlobal
+    ,filteredLayerClustersCLUE3DEM
+    ,ticlTrackstersCLUE3DEM)
 
