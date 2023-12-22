@@ -1,6 +1,7 @@
 import FWCore.ParameterSet.Config as cms
+from RecoLocalCalo.HGCalRecProducers.HGCalUncalibRecHitProducer_cfi import HGCalUncalibRecHitProducer
 
-HGCalUncalibRecHitL1Seeded = cms.EDProducer("HGCalUncalibRecHitProducer",
+HGCalUncalibRecHitL1Seeded = HGCalUncalibRecHitProducer.clone(
     HGCEEConfig = cms.PSet(
         adcNbits = cms.uint32(10),
         adcSaturation = cms.double(100),
@@ -13,7 +14,6 @@ HGCalUncalibRecHitL1Seeded = cms.EDProducer("HGCalUncalibRecHitProducer",
         toaLSB_ns = cms.double(0.0244)
     ),
     HGCEEdigiCollection = cms.InputTag("hgcalDigisL1Seeded","EE"),
-    HGCEEhitCollection = cms.string('HGCEEUncalibRecHits'),
     HGCHEBConfig = cms.PSet(
         adcNbits = cms.uint32(10),
         adcSaturation = cms.double(68.75),
@@ -26,7 +26,6 @@ HGCalUncalibRecHitL1Seeded = cms.EDProducer("HGCalUncalibRecHitProducer",
         toaLSB_ns = cms.double(0.0244)
     ),
     HGCHEBdigiCollection = cms.InputTag("hgcalDigisL1Seeded","HEback"),
-    HGCHEBhitCollection = cms.string('HGCHEBUncalibRecHits'),
     HGCHEFConfig = cms.PSet(
         adcNbits = cms.uint32(10),
         adcSaturation = cms.double(100),
@@ -39,7 +38,6 @@ HGCalUncalibRecHitL1Seeded = cms.EDProducer("HGCalUncalibRecHitProducer",
         toaLSB_ns = cms.double(0.0244)
     ),
     HGCHEFdigiCollection = cms.InputTag("hgcalDigisL1Seeded","HEfront"),
-    HGCHEFhitCollection = cms.string('HGCHEFUncalibRecHits'),
     HGCHFNoseConfig = cms.PSet(
         adcNbits = cms.uint32(10),
         adcSaturation = cms.double(100),
@@ -50,8 +48,5 @@ HGCalUncalibRecHitL1Seeded = cms.EDProducer("HGCalUncalibRecHitProducer",
         tdcSaturation = cms.double(10000),
         tofDelay = cms.double(-33),
         toaLSB_ns = cms.double(0.0244)
-    ),
-    HGCHFNosedigiCollection = cms.InputTag("hfnoseDigis","HFNose"),
-    HGCHFNosehitCollection = cms.string('HGCHFNoseUncalibRecHits'),
-    algo = cms.string('HGCalUncalibRecHitWorkerWeights')
+    )
 )
