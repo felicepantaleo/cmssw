@@ -74,12 +74,9 @@ namespace ticl {
     inline void setBarycenter(Vector value) { barycenter_ = value; }
     inline void setTrackIdx(int index) { track_idx_ = index; }
     int trackIdx() const { return track_idx_; }
-		inline bool isHadronic(float th = 0.5f) const {
- 			return id_probability(Trackster::ParticleType::photon) +
- 			          id_probability(Trackster::ParticleType::electron) <
- 			      th;
-			
-		}
+    inline bool isHadronic(float th = 0.5f) const {
+      return id_probability(Trackster::ParticleType::photon) + id_probability(Trackster::ParticleType::electron) < th;
+    }
     inline void mergeTracksters(const Trackster &other) {
       *this += other;
 

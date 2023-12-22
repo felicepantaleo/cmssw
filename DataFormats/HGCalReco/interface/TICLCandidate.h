@@ -45,7 +45,7 @@ public:
         auto const& tk = trackPtr_.get();
         setPdgId(pdgId * tk->charge());
         setCharge(tk->charge());
-        rawEnergy_= trackster->raw_energy();
+        rawEnergy_ = trackster->raw_energy();
         auto const& regrE = trackster->regressed_energy();
         math::XYZTLorentzVector p4(regrE * tk->momentum().unit().x(),
                                    regrE * tk->momentum().unit().y(),
@@ -57,7 +57,7 @@ public:
         auto pdgId = trackster->isHadronic() ? 130 : 22;
         setPdgId(pdgId);
         setCharge(0);
-        rawEnergy_= trackster->raw_energy();
+        rawEnergy_ = trackster->raw_energy();
         const float& regrE = trackster->regressed_energy();
         math::XYZTLorentzVector p4(regrE * trackster->barycenter().unit().x(),
                                    regrE * trackster->barycenter().unit().y(),

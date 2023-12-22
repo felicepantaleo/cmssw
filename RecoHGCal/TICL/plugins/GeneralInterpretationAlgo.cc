@@ -76,10 +76,9 @@ Vector GeneralInterpretationAlgo::propagateTrackster(const Trackster &t,
   float xOnSurface = par * directnv.X() + baryc.X();
   float yOnSurface = par * directnv.Y() + baryc.Y();
   Vector tPoint(xOnSurface, yOnSurface, zVal);
-  if (tPoint.Eta() > 0){
+  if (tPoint.Eta() > 0) {
     tracksterTiles[1].fill(tPoint.Eta(), tPoint.Phi(), idx);
-  }
-  else if (tPoint.Eta() < 0){
+  } else if (tPoint.Eta() < 0) {
     tracksterTiles[0].fill(tPoint.Eta(), tPoint.Phi(), idx);
   }
 
@@ -357,63 +356,62 @@ void GeneralInterpretationAlgo::makeCandidates(const Inputs &input,
 
     for (auto const tsIdx : tsNearTk[i]) {
       if (chargedMask[tsIdx] && timeAndEnergyCompatible(total_raw_energy,
-                                  tracks[i],
-                                  tracksters[tsIdx],
-                                  track_time,
-                                  track_timeErr,
-                                  track_timeQual,
-                                  track_beta,
-                                  track_MtdPos,
-                                  useMTDTiming)) {
+                                                        tracks[i],
+                                                        tracksters[tsIdx],
+                                                        track_time,
+                                                        track_timeErr,
+                                                        track_timeQual,
+                                                        track_beta,
+                                                        track_MtdPos,
+                                                        useMTDTiming)) {
         chargedCandidate.push_back(tsIdx);
         chargedMask[tsIdx] = false;
       }
     }
     for (const unsigned tsIdx : tsNearTkAtInt[i]) {  // do the same for tk -> ts links at the interface
       if (chargedMask[tsIdx] && timeAndEnergyCompatible(total_raw_energy,
-                                  tracks[i],
-                                  tracksters[tsIdx],
-                                  track_time,
-                                  track_timeErr,
-                                  track_timeQual,
-                                  track_beta,
-                                  track_MtdPos,
-                                  useMTDTiming)) {
+                                                        tracks[i],
+                                                        tracksters[tsIdx],
+                                                        track_time,
+                                                        track_timeErr,
+                                                        track_timeQual,
+                                                        track_beta,
+                                                        track_MtdPos,
+                                                        useMTDTiming)) {
         chargedCandidate.push_back(tsIdx);
         chargedMask[tsIdx] = false;
       }
     }
-      trackstersInTrackIndices[i] = chargedCandidate;
-    }
+    trackstersInTrackIndices[i] = chargedCandidate;
+  }
 
-  for(size_t iTrack = 0; iTrack < trackstersInTrackIndices.size(); iTrack++){
-    if(!trackstersInTrackIndices[iTrack].empty()){
-     Trackster outTrackster;
-     for(auto const tracksterId : trackstersInTrackIndices[iTrack]){
-//maskTracksters[tracksterId] = 0;
-       outTrackster.mergeTracksters(input.tracksters[tracksterId]);
-     }
-     resultCandidate[iTrack] = resultTracksters.size();
-     resultTracksters.push_back(outTrackster);
+  for (size_t iTrack = 0; iTrack < trackstersInTrackIndices.size(); iTrack++) {
+    if (!trackstersInTrackIndices[iTrack].empty()) {
+      Trackster outTrackster;
+      for (auto const tracksterId : trackstersInTrackIndices[iTrack]) {
+        //maskTracksters[tracksterId] = 0;
+        outTrackster.mergeTracksters(input.tracksters[tracksterId]);
+      }
+      resultCandidate[iTrack] = resultTracksters.size();
+      resultTracksters.push_back(outTrackster);
     }
   }
 
-  for(size_t iTrackster =0; iTrackster < input.tracksters.size(); iTrackster++){
-    if(chargedMask[iTrackster]){
+  for (size_t iTrackster = 0; iTrackster < input.tracksters.size(); iTrackster++) {
+    if (chargedMask[iTrackster]) {
       resultTracksters.push_back(input.tracksters[iTrackster]);
     }
   }
-
 };
 
-  void GeneralInterpretationAlgo::fillPSetDescription(edm::ParameterSetDescription & desc) {
-    desc.add<std::string>("cutTk",
-                          "1.48 < abs(eta) < 3.0 && pt > 1. && quality(\"highPurity\") && "
-                          "hitPattern().numberOfLostHits(\"MISSING_OUTER_HITS\") < 5");
-    desc.add<double>("delta_tk_ts_layer1", 0.02);
-    desc.add<double>("delta_tk_ts_interface", 0.03);
-    desc.add<double>("delta_ts_em_had", 0.03);
-    desc.add<double>("delta_ts_had_had", 0.03);
-    desc.add<double>("track_time_quality_threshold", 0.5);
-    TICLInterpretationAlgoBase::fillPSetDescription(desc);
-  }
+void GeneralInterpretationAlgo::fillPSetDescription(edm::ParameterSetDescription &desc) {
+  desc.add<std::string>("cutTk",
+                        "1.48 < abs(eta) < 3.0 && pt > 1. && quality(\"highPurity\") && "
+                        "hitPattern().numberOfLostHits(\"MISSING_OUTER_HITS\") < 5");
+  desc.add<double>("delta_tk_ts_layer1", 0.02);
+  desc.add<double>("delta_tk_ts_interface", 0.03);
+  desc.add<double>("delta_ts_em_had", 0.03);
+  desc.add<double>("delta_ts_had_had", 0.03);
+  desc.add<double>("track_time_quality_threshold", 0.5);
+  TICLInterpretationAlgoBase::fillPSetDescription(desc);
+}

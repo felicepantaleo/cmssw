@@ -178,9 +178,9 @@ TICLCandidateProducer::TICLCandidateProducer(const edm::ParameterSet &ps)
   }
 
   if (useMTDTiming_) {
-  std::string detectorName_ = (detector_ == "HFNose") ? "HGCalHFNoseSensitive" : "HGCalEESensitive";
-  hdc_token_ =
-      esConsumes<HGCalDDDConstants, IdealGeometryRecord, edm::Transition::BeginRun>(edm::ESInputTag("", detectorName_));
+    std::string detectorName_ = (detector_ == "HFNose") ? "HGCalHFNoseSensitive" : "HGCalEESensitive";
+    hdc_token_ = esConsumes<HGCalDDDConstants, IdealGeometryRecord, edm::Transition::BeginRun>(
+        edm::ESInputTag("", detectorName_));
     tracks_time_token_ = consumes<edm::ValueMap<float>>(ps.getParameter<edm::InputTag>("tracksTime"));
     tracks_time_quality_token_ = consumes<edm::ValueMap<float>>(ps.getParameter<edm::InputTag>("tracksTimeQual"));
     tracks_time_err_token_ = consumes<edm::ValueMap<float>>(ps.getParameter<edm::InputTag>("tracksTimeErr"));
@@ -322,8 +322,7 @@ void TICLCandidateProducer::produce(edm::Event &evt, const edm::EventSetup &es) 
                                                                        maskTracks);
 
   const typename TICLInterpretationAlgoBase<reco::Track>::TrackTimingInformation inputTiming(
-    trackTime_h, trackTimeErr_h, trackTimeQual_h, trackTimeQual_h, trackTimeGlobalPosition_h);
-  
+      trackTime_h, trackTimeErr_h, trackTimeQual_h, trackTimeQual_h, trackTimeGlobalPosition_h);
 
   auto resultCandidates = std::make_unique<std::vector<TICLCandidate>>();
   std::vector<int> trackstersInTrackIndices(tracks.size());
@@ -331,30 +330,26 @@ void TICLCandidateProducer::produce(edm::Event &evt, const edm::EventSetup &es) 
   //TODO
   //egammaInterpretationAlg_->makecandidates(inputGSF, inputTiming, *resultTrackstersMerged, trackstersInGSFTrackIndices)
   // mask generalTracks associated to GSFTrack linked in egammaInterpretationAlgo_
-  
+
   generalInterpretationAlgo_->makeCandidates(input, inputTiming, *resultTracksters, trackstersInTrackIndices);
 
-
- 
   assignPCAtoTracksters(
       *resultTracksters, layerClusters, layerClustersTimes, rhtools_.getPositionLayer(rhtools_.lastLayerEE()).z());
 
   energyRegressionAndID(layerClusters, tfSession_, *resultTracksters);
-  
 
   std::vector<bool> maskTracksters(resultTracksters->size(), 1);
   edm::OrphanHandle<std::vector<Trackster>> resultTracksters_h = evt.put(std::move(resultTracksters));
-  //create ChargedCandidates 
-  for(size_t iTrack = 0; iTrack < tracks.size(); iTrack++){
+  //create ChargedCandidates
+  for (size_t iTrack = 0; iTrack < tracks.size(); iTrack++) {
     auto const tracksterId = trackstersInTrackIndices[iTrack];
     auto trackPtr = edm::Ptr<reco::Track>(tracks_h, iTrack);
-    if(tracksterId != -1){
-      auto tracksterPtr = edm::Ptr<Trackster>(resultTracksters_h, tracksterId); 
+    if (tracksterId != -1) {
+      auto tracksterPtr = edm::Ptr<Trackster>(resultTracksters_h, tracksterId);
       TICLCandidate chargedCandidate(trackPtr, tracksterPtr);
       resultCandidates->push_back(chargedCandidate);
       maskTracksters[tracksterId] = 0;
-    }
-    else{
+    } else {
       //charged candidates track only
       edm::Ptr<Trackster> tracksterPtr;
       TICLCandidate chargedCandidate(trackPtr, tracksterPtr);
@@ -363,22 +358,21 @@ void TICLCandidateProducer::produce(edm::Event &evt, const edm::EventSetup &es) 
   }
 
   //Neutral Candidate
-  for(size_t iTrackster = 0; iTrackster < maskTracksters.size(); iTrackster++){
-      if(maskTracksters[iTrackster]){
-        edm::Ptr<Trackster> tracksterPtr(resultTracksters_h, 0);  //= edm::Ptr<Trackster>(resultTracksters_h, iTrackster); 
-        edm::Ptr<reco::Track> trackPtr;
-        TICLCandidate neutralCandidate(trackPtr, tracksterPtr); 
-        resultCandidates->push_back(neutralCandidate);
-      }
+  for (size_t iTrackster = 0; iTrackster < maskTracksters.size(); iTrackster++) {
+    if (maskTracksters[iTrackster]) {
+      edm::Ptr<Trackster> tracksterPtr(resultTracksters_h, 0);  //= edm::Ptr<Trackster>(resultTracksters_h, iTrackster);
+      edm::Ptr<reco::Track> trackPtr;
+      TICLCandidate neutralCandidate(trackPtr, tracksterPtr);
+      resultCandidates->push_back(neutralCandidate);
+    }
   }
-  
-  evt.put(std::move(resultCandidates));
 
+  evt.put(std::move(resultCandidates));
 }
 
 void TICLCandidateProducer::energyRegressionAndID(const std::vector<reco::CaloCluster> &layerClusters,
-                                                    const tensorflow::Session *eidSession,
-                                                    std::vector<Trackster> &tracksters) const {
+                                                  const tensorflow::Session *eidSession,
+                                                  std::vector<Trackster> &tracksters) const {
   // Energy regression and particle identification strategy:
   //
   // 1. Set default values for regressed energy and particle id for each trackster.

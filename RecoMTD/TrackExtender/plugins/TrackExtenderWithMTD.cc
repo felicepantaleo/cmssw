@@ -1294,10 +1294,12 @@ reco::Track TrackExtenderWithMTDT<TrackCollection>::buildTrack(const reco::Track
             thit = (tofInfo.dt * err1 + mtdhit2->time() * err2) * thiterror;
             thiterror = std::sqrt(thiterror);
             thitpos = mtdhit2->globalPosition();
-          LogTrace("TrackExtenderWithMTD")      << "TrackExtenderWithMTD: p trk = " << p.mag() << " ETL hits times/errors: 1) " << mtdhit1->time()
+            LogTrace("TrackExtenderWithMTD")
+                << "TrackExtenderWithMTD: p trk = " << p.mag() << " ETL hits times/errors: 1) " << mtdhit1->time()
                 << " +/- " << mtdhit1->timeError() << " , 2) " << mtdhit2->time() << " +/- " << mtdhit2->timeError()
                 << " extrapolated time1: " << tofInfo.dt << " +/- " << tofInfo.dterror << " average = " << thit
-                << " +/- " << thiterror << "\n    hit1 pos: " << mtdhit1->globalPosition() << " hit2 pos: " << mtdhit2->globalPosition() << " etl path length " << etlpathlength << std::endl;
+                << " +/- " << thiterror << "\n    hit1 pos: " << mtdhit1->globalPosition()
+                << " hit2 pos: " << mtdhit2->globalPosition() << " etl path length " << etlpathlength << std::endl;
             validmtd = true;
           } else {
             LogTrace("TrackExtenderWithMTD")
