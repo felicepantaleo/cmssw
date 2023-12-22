@@ -23,7 +23,7 @@ ticlLayerTileTask = cms.Task(ticlLayerTileProducer)
 
 ticlTrackstersMerge = _trackstersMergeProducer.clone()
 ticlTracksterLinks = _tracksterLinksProducer.clone()
-ticlCandidateTEST = _ticlCandidateProducer.clone()
+ticlCandidate = _ticlCandidateProducer.clone()
 
 pfTICL = _pfTICLProducer.clone()
 ticlPFTask = cms.Task(pfTICL)
@@ -34,7 +34,7 @@ ticlIterationsTask = cms.Task(
     ticlCLUE3DHighStepTask
 )
 
-ticlCandidateTask = cms.Task(ticlCandidateTEST)
+ticlCandidateTask = cms.Task(ticlCandidate)
 
 
 from Configuration.ProcessModifiers.fastJetTICL_cff import fastJetTICL
