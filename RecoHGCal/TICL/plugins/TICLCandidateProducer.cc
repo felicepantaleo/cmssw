@@ -15,6 +15,7 @@
 #include "FWCore/Framework/interface/ConsumesCollector.h"
 #include "DataFormats/Common/interface/OrphanHandle.h"
 
+#include "DataFormats/BeamSpot/interface/BeamSpot.h"
 #include "DataFormats/CaloRecHit/interface/CaloCluster.h"
 #include "DataFormats/HGCalReco/interface/Common.h"
 #include "DataFormats/HGCalReco/interface/TICLLayerTile.h"
@@ -42,6 +43,10 @@
 #include "TrackingTools/TrajectoryState/interface/TrajectoryStateTransform.h"
 #include "TrackingTools/GeomPropagators/interface/Propagator.h"
 #include "TrackingTools/Records/interface/TrackingComponentsRecord.h"
+#include "TrackingTools/TrajectoryState/interface/TrajectoryStateClosestToBeamLine.h"
+#include "TrackingTools/PatternTools/interface/Trajectory.h"
+#include "TrackingTools/PatternTools/interface/TrajTrackAssociation.h"
+#include "TrackingTools/PatternTools/interface/TSCBLBuilderWithPropagator.h"
 
 #include "MagneticField/Engine/interface/MagneticField.h"
 #include "MagneticField/Records/interface/IdealMagneticFieldRecord.h"
@@ -73,6 +78,15 @@ private:
                              const tensorflow::Session *,
                              std::vector<Trackster> &result) const;
 
+  template <typename F>
+  void assignTimeToCandidates(std::vector<TICLCandidate> &resultCandidates,
+                              edm::Handle<std::vector<reco::Track>> track_h,
+                              edm::Handle<edm::ValueMap<float>> trackPath_h,
+                              edm::Handle<edm::ValueMap<float>> trackBeta_h,
+                              edm::Handle<edm::ValueMap<GlobalPoint>> trackMtdPos_h,
+                              TrajTrackAssociationCollection trjtrks,
+                              F func) const;
+
   std::unique_ptr<TICLInterpretationAlgoBase<reco::Track>> generalInterpretationAlgo_;
   std::vector<edm::EDGetTokenT<std::vector<Trackster>>> egamma_tracksters_tokens_;
   std::vector<edm::EDGetTokenT<std::vector<std::vector<unsigned>>>> egamma_tracksterlinks_tokens_;
@@ -92,15 +106,19 @@ private:
   edm::EDGetTokenT<edm::ValueMap<float>> tracks_beta_token_;
   edm::EDGetTokenT<edm::ValueMap<float>> tracks_path_length_token_;
   edm::EDGetTokenT<edm::ValueMap<GlobalPoint>> tracks_glob_pos_token_;
+  const edm::EDGetTokenT<TrajTrackAssociationCollection> trajTrackAssToken_;
 
   const edm::EDGetTokenT<std::vector<reco::Muon>> muons_token_;
   const bool useMTDTiming_;
   const edm::ESGetToken<CaloGeometry, CaloGeometryRecord> geometry_token_;
 
   const edm::ESGetToken<MagneticField, IdealMagneticFieldRecord> bfield_token_;
+  const edm::ESGetToken<MagneticField, IdealMagneticFieldRecord> bfieldProduce_token_;
   const std::string detector_;
   const std::string propName_;
   const edm::ESGetToken<Propagator, TrackingComponentsRecord> propagator_token_;
+  const edm::ESGetToken<Propagator, TrackingComponentsRecord> propagatorProduce_token_;
+  const edm::EDGetTokenT<reco::BeamSpot> bsToken_;
 
   const std::string tfDnnLabel_;
   const edm::ESGetToken<TfGraphDefWrapper, TfGraphRecord> tfDnnToken_;
@@ -127,14 +145,18 @@ TICLCandidateProducer::TICLCandidateProducer(const edm::ParameterSet &ps)
       clustersTime_token_(
           consumes<edm::ValueMap<std::pair<float, float>>>(ps.getParameter<edm::InputTag>("layer_clustersTime"))),
       tracks_token_(consumes<std::vector<reco::Track>>(ps.getParameter<edm::InputTag>("tracks"))),
+      trajTrackAssToken_(consumes<TrajTrackAssociationCollection>(ps.getParameter<edm::InputTag>("trjtrkAss"))),
       muons_token_(consumes<std::vector<reco::Muon>>(ps.getParameter<edm::InputTag>("muons"))),
       useMTDTiming_(ps.getParameter<bool>("useMTDTiming")),
       geometry_token_(esConsumes<CaloGeometry, CaloGeometryRecord, edm::Transition::BeginRun>()),
       bfield_token_(esConsumes<MagneticField, IdealMagneticFieldRecord, edm::Transition::BeginRun>()),
+      bfieldProduce_token_(esConsumes<MagneticField, IdealMagneticFieldRecord>()),
       detector_(ps.getParameter<std::string>("detector")),
       propName_(ps.getParameter<std::string>("propagator")),
       propagator_token_(
           esConsumes<Propagator, TrackingComponentsRecord, edm::Transition::BeginRun>(edm::ESInputTag("", propName_))),
+      propagatorProduce_token_(esConsumes<Propagator, TrackingComponentsRecord>(edm::ESInputTag("", propName_))),
+      bsToken_(consumes<reco::BeamSpot>(ps.getParameter<edm::InputTag>("beamspot"))),
       tfDnnLabel_(ps.getParameter<std::string>("tfDnnLabel")),
       tfDnnToken_(esConsumes(edm::ESInputTag("", tfDnnLabel_))),
       tfSession_(nullptr),
@@ -257,11 +279,13 @@ void TICLCandidateProducer::produce(edm::Event &evt, const edm::EventSetup &es) 
   auto const &muons = evt.get(muons_token_);
 
   edm::Handle<std::vector<reco::Track>> tracks_h;
+  const auto &trjtrks = evt.get(trajTrackAssToken_);
 
   edm::Handle<edm::ValueMap<float>> trackTime_h;
   edm::Handle<edm::ValueMap<float>> trackTimeErr_h;
   edm::Handle<edm::ValueMap<float>> trackTimeQual_h;
   edm::Handle<edm::ValueMap<float>> trackTimeBeta_h;
+  edm::Handle<edm::ValueMap<float>> trackPathToMTD_h;
   edm::Handle<edm::ValueMap<GlobalPoint>> trackTimeGlobalPosition_h;
   evt.getByToken(tracks_token_, tracks_h);
   const auto &tracks = *tracks_h;
@@ -269,9 +293,18 @@ void TICLCandidateProducer::produce(edm::Event &evt, const edm::EventSetup &es) 
     evt.getByToken(tracks_time_token_, trackTime_h);
     evt.getByToken(tracks_time_err_token_, trackTimeErr_h);
     evt.getByToken(tracks_time_quality_token_, trackTimeQual_h);
-    evt.getByToken(tracks_time_err_token_, trackTimeBeta_h);
+    evt.getByToken(tracks_beta_token_, trackTimeBeta_h);
+    evt.getByToken(tracks_path_length_token_, trackPathToMTD_h);
     evt.getByToken(tracks_glob_pos_token_, trackTimeGlobalPosition_h);
   }
+
+  const auto &bs = evt.get(bsToken_);
+
+  edm::ESHandle<MagneticField> bfieldH = es.getHandle(bfieldProduce_token_);
+  const auto &bFieldProd = bfieldH.product();
+
+  auto propH = es.getTransientHandle(propagatorProduce_token_);
+  const Propagator *propagator = propH.product();
 
   // loop over the original_masks_tokens_ and get the original masks collections and multiply them
   // to get the global mask
@@ -366,6 +399,61 @@ void TICLCandidateProducer::produce(edm::Event &evt, const edm::EventSetup &es) 
       resultCandidates->push_back(neutralCandidate);
     }
   }
+
+  auto getPathLength =
+      [&](const reco::Track track, float zVal, const Trajectory &traj, TrajectoryStateClosestToBeamLine &tscbl) {
+        TrajectoryStateOnSurface stateForProjectionToBeamLineOnSurface =
+            traj.closestMeasurement(GlobalPoint(bs.x0(), bs.y0(), bs.z0())).updatedState();
+
+        if (!stateForProjectionToBeamLineOnSurface.isValid()) {
+          edm::LogError("CannotPropagateToBeamLine")
+              << "the state on the closest measurement is not valid. skipping track.";
+          return 0.f;
+        }
+        const FreeTrajectoryState &stateForProjectionToBeamLine = *stateForProjectionToBeamLineOnSurface.freeState();
+
+        TSCBLBuilderWithPropagator tscblBuilder(*propagator);
+        tscbl = tscblBuilder(stateForProjectionToBeamLine, bs);
+
+        if (tscbl.isValid()) {
+          auto const &tscblPCA = tscbl.trackStateAtPCA();
+          auto const &innSurface = traj.direction() == alongMomentum ? traj.firstMeasurement().updatedState().surface()
+                                                                     : traj.lastMeasurement().updatedState().surface();
+          auto const &extSurface = traj.direction() == alongMomentum ? traj.lastMeasurement().updatedState().surface()
+                                                                     : traj.firstMeasurement().updatedState().surface();
+          float pathlength = propagator->propagateWithPath(tscblPCA, innSurface).second;
+
+          if (pathlength) {
+            const auto &fts_inn = trajectoryStateTransform::innerFreeState((track), bFieldProd);
+            const auto &t_inn_out = propagator->propagateWithPath(fts_inn, extSurface);
+
+            if (t_inn_out.first.isValid()) {
+              pathlength += t_inn_out.second;
+
+              std::pair<float, float> rMinMax = hgcons_->rangeR(zVal, true);
+
+              int iSide = int(track.eta() > 0);
+              float zSide = (iSide == 0) ? (-1. * zVal) : zVal;
+              const auto &disk = std::make_unique<GeomDet>(
+                  Disk::build(Disk::PositionType(0, 0, zSide),
+                              Disk::RotationType(),
+                              SimpleDiskBounds(rMinMax.first, rMinMax.second, zSide - 0.5, zSide + 0.5))
+                      .get());
+              const auto &fts_out = trajectoryStateTransform::outerFreeState((track), bFieldProd);
+              const auto &tsos = propagator->propagateWithPath(fts_out, disk->surface());
+
+              if (tsos.first.isValid()) {
+                pathlength += tsos.second;
+                return pathlength;
+              }
+            }
+          }
+        }
+        return 0.f;
+      };
+
+  assignTimeToCandidates(
+      *resultCandidates, tracks_h, trackPathToMTD_h, trackTimeBeta_h, trackTimeGlobalPosition_h, trjtrks, getPathLength);
 
   evt.put(std::move(resultCandidates));
 }
@@ -496,6 +584,66 @@ void TICLCandidateProducer::energyRegressionAndID(const std::vector<reco::CaloCl
   }
 }
 
+template <typename F>
+void TICLCandidateProducer::assignTimeToCandidates(std::vector<TICLCandidate> &resultCandidates,
+                                                   edm::Handle<std::vector<reco::Track>> track_h,
+                                                   edm::Handle<edm::ValueMap<float>> trackPath_h,
+                                                   edm::Handle<edm::ValueMap<float>> trackBeta_h,
+                                                   edm::Handle<edm::ValueMap<GlobalPoint>> trackMtdPos_h,
+                                                   TrajTrackAssociationCollection trjtrks,
+                                                   F func) const {
+  for (auto &cand : resultCandidates) {
+    float beta = 1;
+    float time = 0.f;
+    float invTimeErr = 0.f;
+
+    for (const auto &tr : cand.tracksters()) {
+      if (tr->timeError() > 0) {
+        const auto invTimeESq = pow(tr->timeError(), -2);
+        const auto x = tr->barycenter().X();
+        const auto y = tr->barycenter().Y();
+        const auto z = tr->barycenter().Z();
+        auto path = std::sqrt(x * x + y * y + z * z);
+        if (cand.trackPtr().get() != nullptr) {
+          const auto &trackIndex = cand.trackPtr().get() - (edm::Ptr<reco::Track>(track_h, 0)).get();
+          const auto &trackRef = edm::Ref<std::vector<reco::Track>>(track_h, trackIndex);
+          if (useMTDTiming_ and (*trackPath_h)[trackRef]) {
+            const auto xMtd = (*trackMtdPos_h)[trackRef].x();
+            const auto yMtd = (*trackMtdPos_h)[trackRef].y();
+            const auto zMtd = (*trackMtdPos_h)[trackRef].z();
+
+            beta = (*trackBeta_h)[trackRef];
+            path = std::sqrt((x - xMtd) * (x - xMtd) + (y - yMtd) * (y - yMtd) + (z - zMtd) * (z - zMtd)) +
+                   (*trackPath_h)[trackRef];
+          } else {
+            const auto &trackIndex = cand.trackPtr().get() - (edm::Ptr<reco::Track>(track_h, 0)).get();
+            for (const auto &trj : trjtrks) {
+              if (trj.val != edm::Ref<std::vector<reco::Track>>(track_h, trackIndex))
+                continue;
+              const Trajectory &traj = *trj.key;
+              TrajectoryStateClosestToBeamLine tscbl;
+
+              float pathLength = func(*(cand.trackPtr().get()), z, traj, tscbl);
+              if (pathLength) {
+                path = pathLength;
+                break;
+              }
+            }
+          }
+          time += (tr->time() - path / (beta * 29.9792458)) * invTimeESq;
+          invTimeErr += invTimeESq;
+        }
+      }
+    }
+    if (invTimeErr > 0) {
+      cand.setTime(time / invTimeErr);
+      // FIXME_ set a liminf of 0.02 ns on the ts error (based on residuals)
+      auto timeErr = sqrt(1.f / invTimeErr) > 0.02 ? sqrt(1.f / invTimeErr) : 0.02;
+      cand.setTimeError(timeErr);
+    }
+  }
+}
+
 void TICLCandidateProducer::fillDescriptions(edm::ConfigurationDescriptions &descriptions) {
   edm::ParameterSetDescription desc;
   edm::ParameterSetDescription interpretationDesc;
@@ -510,6 +658,7 @@ void TICLCandidateProducer::fillDescriptions(edm::ConfigurationDescriptions &des
   desc.add<edm::InputTag>("layer_clusters", edm::InputTag("hgcalMergeLayerClusters"));
   desc.add<edm::InputTag>("layer_clustersTime", edm::InputTag("hgcalMergeLayerClusters", "timeLayerCluster"));
   desc.add<edm::InputTag>("tracks", edm::InputTag("generalTracks"));
+  desc.add<edm::InputTag>("trjtrkAss", edm::InputTag("generalTracks"));
   desc.add<edm::InputTag>("tracksTime", edm::InputTag("tofPID:t0"));
   desc.add<edm::InputTag>("tracksTimeQual", edm::InputTag("mtdTrackQualityMVA:mtdQualMVA"));
   desc.add<edm::InputTag>("tracksTimeErr", edm::InputTag("tofPID:sigmat0"));
@@ -519,6 +668,7 @@ void TICLCandidateProducer::fillDescriptions(edm::ConfigurationDescriptions &des
   desc.add<edm::InputTag>("muons", edm::InputTag("muons1stStep"));
   desc.add<std::string>("detector", "HGCAL");
   desc.add<std::string>("propagator", "PropagatorWithMaterial");
+  desc.add<edm::InputTag>("beamspot", edm::InputTag("offlineBeamSpot"));
   desc.add<bool>("useMTDTiming", true);
   desc.add<std::string>("tfDnnLabel", "tracksterSelectionTf");
   desc.add<std::string>("eid_input_name", "input");
