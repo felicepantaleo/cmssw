@@ -253,18 +253,18 @@ void filterTracks(edm::Handle<std::vector<reco::Track>> tkH,
     int muId = PFMuonAlgo::muAssocToTrack(trackref, muons);
 
     if (!cutTk_((tk)) or muId != -1) {
-      maskTracks[i] = 0;
+      maskTracks[i] = false;
       continue;
     }
 
     // don't consider tracks below 2 GeV for linking
     if (std::sqrt(tk.p() * tk.p() + ticl::mpion2) < tkEnergyCut_) {
-      maskTracks[i] = 0;
+      maskTracks[i] = false;
       continue;
     }
 
     // record tracks that can be used to make a ticlcandidate
-    maskTracks[i] = 1;
+    maskTracks[i] = true;
   }
 }
 
@@ -371,7 +371,7 @@ void TICLCandidateProducer::produce(edm::Event &evt, const edm::EventSetup &es) 
 
   energyRegressionAndID(layerClusters, tfSession_, *resultTracksters);
 
-  std::vector<bool> maskTracksters(resultTracksters->size(), 1);
+  std::vector<bool> maskTracksters(resultTracksters->size(), true);
   edm::OrphanHandle<std::vector<Trackster>> resultTracksters_h = evt.put(std::move(resultTracksters));
   //create ChargedCandidates
   for (size_t iTrack = 0; iTrack < tracks.size(); iTrack++) {
@@ -381,7 +381,7 @@ void TICLCandidateProducer::produce(edm::Event &evt, const edm::EventSetup &es) 
       auto tracksterPtr = edm::Ptr<Trackster>(resultTracksters_h, tracksterId);
       TICLCandidate chargedCandidate(trackPtr, tracksterPtr);
       resultCandidates->push_back(chargedCandidate);
-      maskTracksters[tracksterId] = 0;
+      maskTracksters[tracksterId] = false;
     } else {
       //charged candidates track only
       edm::Ptr<Trackster> tracksterPtr;

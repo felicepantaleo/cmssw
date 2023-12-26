@@ -28,7 +28,7 @@ public:
         timeError_(trackster->timeError()),
         rawEnergy_(0.f) {}
 
-  TICLCandidate(const edm::Ptr<reco::Track> trackPtr, edm::Ptr<ticl::Trackster>& tracksterPtr)
+  TICLCandidate(edm::Ptr<reco::Track> trackPtr, edm::Ptr<ticl::Trackster> tracksterPtr)
       : LeafCandidate(),
         tracksters_({std::move(tracksterPtr)}),
         trackPtr_(std::move(trackPtr)),

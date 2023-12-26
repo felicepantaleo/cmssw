@@ -248,8 +248,6 @@ void GeneralInterpretationAlgo::makeCandidates(const Inputs &input,
   for (unsigned i = 0; i < tracks.size(); ++i) {
     if (!maskTracks.at(i))
       continue;
-    const auto &tk = tracks.at(i);
-    reco::TrackRef trackref = reco::TrackRef(tkH, i);
     candidateTrackIds.push_back(i);
   }
 
