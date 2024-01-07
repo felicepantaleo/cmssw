@@ -19,6 +19,10 @@ TracksterLinkingbySkeletons::TracksterLinkingbySkeletons(const edm::ParameterSet
       angle_first_cone_(conf.getParameter<double>("angle0")),
       angle_second_cone_(conf.getParameter<double>("angle1")),
       angle_third_cone_(conf.getParameter<double>("angle2")),
+      pcaQ_(conf.getParameter<double>("pcaQuality")),
+      pcaQLCSize_(conf.getParameter<unsigned int>("pcaQualityLCSize")),
+      dotCut_(conf.getParameter<double>("dotProdCut")),
+      maxDistSkeletonsSq_(conf.getParameter<double>("maxDistSkeletonsSq")),
       max_height_cone_(conf.getParameter<double>("maxConeHeight")){}
 
 void TracksterLinkingbySkeletons::buildLayers() {
@@ -73,7 +77,7 @@ float TracksterLinkingbySkeletons::findSkeletonPoints(float percentage,
   }
   if (TracksterLinkingAlgoBase::algo_verbosity_ > VerbosityLevel::Advanced) {
     for (size_t iLay = 0; iLay < energyInLayer.size(); ++iLay) {
-      std::cout << "Layer " << iLay << " contains a Trackster energy fraction of "
+      LogDebug("TracksterLinkingbySkeletons") << "Layer " << iLay << " contains a Trackster energy fraction of "
                                      << energyInLayer[iLay] << " and the trackster energy is " << trackster_energy
                                      << "\n";
     }
@@ -85,7 +89,7 @@ float TracksterLinkingbySkeletons::findSkeletonPoints(float percentage,
   }
   if (TracksterLinkingAlgoBase::algo_verbosity_ > VerbosityLevel::Advanced) {
     for (size_t iLay = 0; iLay < cumulativeEnergyInLayer.size(); ++iLay) {
-      std::cout << "Layer " << iLay << " cumulative has a Trackster energy fraction of "
+      LogDebug("TracksterLinkingbySkeletons") << "Layer " << iLay << " cumulative has a Trackster energy fraction of "
                                      << cumulativeEnergyInLayer[iLay] << " and the trackster energy is "
                                      << trackster_energy << "\n";
     }
@@ -110,7 +114,7 @@ float TracksterLinkingbySkeletons::findSkeletonPoints(float percentage,
   if (layerI != cumulativeEnergyInLayer.end()) {
     int layer = std::distance(cumulativeEnergyInLayer.begin(), layerI);
     if (TracksterLinkingAlgoBase::algo_verbosity_ > VerbosityLevel::Advanced) {
-      std::cout << "Layer containing at least an energy fraction " << percentage << " is " << layer
+      LogDebug("TracksterLinkingbySkeletons") << "Layer containing at least an energy fraction " << percentage << " is " << layer
                                      << "\n";
     }
     return rhtools_.getPositionLayer(layer, false).z();
@@ -134,7 +138,7 @@ void TracksterLinkingbySkeletons::linkTracksters(const Inputs& input, std::vecto
   };
 
   if (TracksterLinkingAlgoBase::algo_verbosity_ > VerbosityLevel::Advanced)
-    std::cout << "------- Graph Linking ------- \n";
+    LogDebug("TracksterLinkingbySkeletons") << "------- Graph Linking ------- \n";
 
   auto intersectLineWithSurface = [](float surfaceZ, const Vector &origin, const Vector &direction) -> Vector {
     auto const t = (surfaceZ - origin.Z()) / direction.Z();
@@ -188,7 +192,7 @@ void TracksterLinkingbySkeletons::linkTracksters(const Inputs& input, std::vecto
     Vector toCheck = testPoint - origin;
       auto projection = toCheck.Dot(direction.Unit());
       auto const angle = ROOT::Math::VectorUtil::Angle(direction, toCheck);
-      std::cout << str << "Origin " << origin << " TestPoint " << testPoint <<  " projection " << projection << " maxHeight " << maxHeight << " Angle " << angle << " halfAngle " << halfAngle << std::endl; 
+      LogDebug("TracksterLinkingbySkeletons") << str << "Origin " << origin << " TestPoint " << testPoint <<  " projection " << projection << " maxHeight " << maxHeight << " Angle " << angle << " halfAngle " << halfAngle << std::endl; 
     if (projection < 0.f || projection > maxHeight) {
       return false;
     }
@@ -221,6 +225,7 @@ void TracksterLinkingbySkeletons::linkTracksters(const Inputs& input, std::vecto
     auto const normalized_e2 = e2 / sum;
     return normalized_e0; 
   };
+
   const float halfAngle0 = angle_first_cone_;
   const float halfAngle1 = angle_second_cone_;
   const float halfAngle2 = angle_third_cone_;
@@ -239,12 +244,13 @@ void TracksterLinkingbySkeletons::linkTracksters(const Inputs& input, std::vecto
       isHadron(trackster);
 
     auto pcaQ = pcaQuality(trackster);
-    std::cout << "DEBUG Trackster " << it  <<  " energy " << trackster.raw_energy() << " Num verties "
+    LogDebug("TracksterLinkingbySkeletons") << "DEBUG Trackster " << it  <<  " energy " << trackster.raw_energy() << " Num verties "
                                    << trackster.vertices().size() << " PCA Quality " << pcaQ << std::endl; 
-  
-    if (pcaQ >= 0.975f && trackster.vertices().size() > 5) {
+    const float pcaQTh = pcaQ_; 
+    const unsigned int pcaQLCSize = pcaQLCSize_;
+    if (pcaQ >= pcaQTh && trackster.vertices().size() > pcaQLCSize) {
         auto const skeletons = returnSkeletons(trackster);
-        std::cout << "Trackster " << it  <<  " energy " << trackster.raw_energy() << " Num verties "
+        LogDebug("TracksterLinkingbySkeletons") << "Trackster " << it  <<  " energy " << trackster.raw_energy() << " Num verties "
                                    << trackster.vertices().size() << " PCA Quality " << pcaQ << " Skeletons " << skeletons[0] <<  std::endl;
         auto const &eigenVec = trackster.eigenvectors(0);
       auto const eigenVal = trackster.eigenvalues()[0];
@@ -274,29 +280,29 @@ void TracksterLinkingbySkeletons::linkTracksters(const Inputs& input, std::vecto
                 auto const skeletonDist2 = (skeletons[2] - skeletons_out[0]).Mag2();
                 auto const pcaQOuter = pcaQuality(trackster_out);
               //              auto const dotProd  = ((skeletons[0]-skeletons[2]).Unit()).Dot((skeletons_out[0] - skeletons_out[2]).Unit());
-              bool isGoodPCA = (pcaQOuter >= 3.f) && (trackster_out.vertices().size() > 5);
+                bool isGoodPCA = (pcaQOuter >= pcaQTh) && (trackster_out.vertices().size() > pcaQLCSize);
                 auto const maxHeightSmallCone = std::sqrt((skeletons[2] - skeletons[0]).Mag2());
                 bool isInSmallCone = isPointInCone(skeletons[0], directionOrigin, halfAngle0, maxHeightSmallCone, skeletons_out[0], "Small Cone" );
                 bool isInCone = isPointInCone(skeletons[1], directionOrigin, halfAngle1, maxHeightCone, skeletons_out[0], "BigCone ");
                 bool isInLastCone = isPointInCone(skeletons[2], directionOrigin, halfAngle2, maxHeightCone, skeletons_out[0], "LastCone");
                 bool dotProd =
                       isGoodPCA 
-                      ? ((skeletons[0] - skeletons[2]).Unit()).Dot((skeletons_out[0] - skeletons_out[2]).Unit()) >= 0.97
+                      ? ((skeletons[0] - skeletons[2]).Unit()).Dot((skeletons_out[0] - skeletons_out[2]).Unit()) >= dotCut_ 
                       : true;
   
-              std::cout <<  "\tTrying to Link Trackster " << n << " energy " << tracksters[n].raw_energy() << " LCs " << tracksters[n].vertices().size() << " skeletons " << skeletons_out[0] << " Dist " << skeletonDist2 << " dot Prod " << ((skeletons[0] - skeletons[2]).Unit()).Dot((skeletons_out[0] - skeletons_out[2]).Unit()) << " isGoodDotProd " << dotProd << " isPointInBigCone " << isInCone << " isPointInSmallCone " << isInSmallCone << " isPointInLastCone " << isInLastCone << std::endl; 
+              LogDebug("TracksterLinkingbySkeletons") <<  "\tTrying to Link Trackster " << n << " energy " << tracksters[n].raw_energy() << " LCs " << tracksters[n].vertices().size() << " skeletons " << skeletons_out[0] << " Dist " << skeletonDist2 << " dot Prod " << ((skeletons[0] - skeletons[2]).Unit()).Dot((skeletons_out[0] - skeletons_out[2]).Unit()) << " isGoodDotProd " << dotProd << " isPointInBigCone " << isInCone << " isPointInSmallCone " << isInSmallCone << " isPointInLastCone " << isInLastCone << std::endl; 
               if(isInLastCone && dotProd){
-                std::cout << "\t==== LINK: Trackster " << it << " Linked with Trackster " << n << " LCs " << tracksters[n].vertices().size() << std::endl;
-                std::cout
+                LogDebug("TracksterLinkingbySkeletons") << "\t==== LINK: Trackster " << it << " Linked with Trackster " << n << " LCs " << tracksters[n].vertices().size() << std::endl;
+                LogDebug("TracksterLinkingbySkeletons")
                     << "\t\tSkeleton origin " << skeletons[2] << " Skeleton out " << skeletons_out[0] << std::endl;
                 maskReceivedLink[n] = 0;
                   allNodes[it].addNeighbour(n);
                   isRootTracksters[n] = 0;
                 }
               if (isInCone &&
-                  skeletonDist2 <= 2500.f && dotProd) {
-                std::cout << "\t==== LINK: Trackster " << it << " Linked with Trackster " << n << " LCs " << tracksters[n].vertices().size() << std::endl;
-                std::cout
+                  skeletonDist2 <= maxDistSkeletonsSq_ && dotProd) {
+                LogDebug("TracksterLinkingbySkeletons") << "\t==== LINK: Trackster " << it << " Linked with Trackster " << n << " LCs " << tracksters[n].vertices().size() << std::endl;
+                LogDebug("TracksterLinkingbySkeletons")
                     << "\t\tSkeleton origin " << skeletons[2] << " Skeleton out " << skeletons_out[0] << std::endl;
                 maskReceivedLink[n] = 0;
                   allNodes[it].addNeighbour(n);
@@ -308,9 +314,9 @@ void TracksterLinkingbySkeletons::linkTracksters(const Inputs& input, std::vecto
                   maskReceivedLink[n] = 0;
                     allNodes[it].addNeighbour(n);
                     isRootTracksters[n] = 0;
-                    std::cout
+                    LogDebug("TracksterLinkingbySkeletons")
                       << "\t==== LINK: Trackster " << it << " Linked with Trackster in small cone " << n << std::endl;
-                  std::cout
+                  LogDebug("TracksterLinkingbySkeletons")
                       << "\t\tSkeleton origin " << skeletons[0] << " Skeleton out " << skeletons_out[0] << std::endl;
                   continue;
               }
@@ -321,19 +327,19 @@ void TracksterLinkingbySkeletons::linkTracksters(const Inputs& input, std::vecto
     }
   }
 
-  std::cout <<"****************  FINAL GRAPH **********************" << std::endl;
+  LogDebug("TracksterLinkingbySkeletons") <<"****************  FINAL GRAPH **********************" << std::endl;
   for (auto const &node : allNodes) {
     if (isRootTracksters[node.getId()]) {
-      std::cout << "ISROOT "
+      LogDebug("TracksterLinkingbySkeletons") << "ISROOT "
                                      << " Node " << node.getId() << " position "
                                      << tracksters[node.getId()].barycenter() << " energy "
                                      << tracksters[node.getId()].raw_energy() << std::endl;
     } else {
-      std::cout << "Node " << node.getId() << " position " << tracksters[node.getId()].barycenter()
+      LogDebug("TracksterLinkingbySkeletons") << "Node " << node.getId() << " position " << tracksters[node.getId()].barycenter()
                                      << " energy " << tracksters[node.getId()].raw_energy() << std::endl;
     }
   }
-  std::cout <<"********************************************************" << std::endl;
+  LogDebug("TracksterLinkingbySkeletons") <<"********************************************************" << std::endl;
 
     TICLGraph graph(allNodes, isRootTracksters);
   
@@ -341,20 +347,20 @@ void TracksterLinkingbySkeletons::linkTracksters(const Inputs& input, std::vecto
     auto const &components = graph.findSubComponents();
   linkedTracksterIdToInputTracksterId.resize(components.size());
     for (auto const &comp : components) {
-      std::cout << "Component " << ic << " Node: ";
+      LogDebug("TracksterLinkingbySkeletons") << "Component " << ic << " Node: ";
     std::vector<unsigned int> linkedTracksters;
       Trackster outTrackster;
       for (auto const &node : comp) {
-        std::cout << node << " ";
+        LogDebug("TracksterLinkingbySkeletons") << node << " ";
         linkedTracksterIdToInputTracksterId[ic].push_back(node);
         outTrackster.mergeTracksters(input.tracksters[node]);
       }
     linkedTracksters.push_back(resultTracksters.size()); 
       resultTracksters.push_back(outTrackster);
       linkedResultTracksters.push_back(linkedTracksters);
-      std::cout << "\n";
+      LogDebug("TracksterLinkingbySkeletons") << "\n";
     ++ic;
   }
-  std::cout << "resultLinked " <<  std::endl;
+  LogDebug("TracksterLinkingbySkeletons") << "resultLinked " <<  std::endl;
 }  // linkTracksters
 

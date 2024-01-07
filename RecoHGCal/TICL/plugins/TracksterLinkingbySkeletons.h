@@ -48,6 +48,10 @@ public:
         iDesc.add<double>("angle1", 1.349006);
         iDesc.add<double>("angle2", 1.174532);
         iDesc.add<double>("maxConeHeight", 500.);
+        iDesc.add<double>("pcaQuality", 0.97);
+        iDesc.add<unsigned int>("pcaQualityLCSize", 5);
+        iDesc.add<double>("dotProdCut", 0.975);
+        iDesc.add<double>("maxDistSkeletonsSq", 2500.);
         TracksterLinkingAlgoBase::fillPSetDescription(iDesc);
     }
 
@@ -64,6 +68,10 @@ private:
     float angle_first_cone_;
     float angle_second_cone_;
     float angle_third_cone_;
+    float pcaQ_;
+    unsigned int pcaQLCSize_;
+    float dotCut_;
+    float maxDistSkeletonsSq_;
     float max_height_cone_;
     const HGCalDDDConstants *hgcons_;
 
