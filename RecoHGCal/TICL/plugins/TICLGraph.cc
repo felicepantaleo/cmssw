@@ -1,13 +1,14 @@
+#include "FWCore/MessageLogger/interface/MessageLogger.h"
 #include "TICLGraph.h"
 
 void Node::findSubComponents(std::vector<Node>& graph, std::vector<unsigned int>& subComponent, std::string tabs) {
   tabs += "\t";
   if (!alreadyVisited_) {
-    std::cout << tabs << " Visiting node " << index_ << std::endl;
+    LogDebug("TICLGraph") << tabs << " Visiting node " << index_ << std::endl;
     alreadyVisited_ = true;
     subComponent.push_back(index_);
     for (auto const& neighbour : neighboursId_) {
-      std::cout << tabs << " Trying to visit " << neighbour << std::endl;
+      LogDebug("TICLGraph") << tabs << " Trying to visit " << neighbour << std::endl;
       graph[neighbour].findSubComponents(graph, subComponent, tabs);
     }
   }
@@ -18,7 +19,7 @@ std::vector<std::vector<unsigned int>> TICLGraph::findSubComponents() {
   for (auto const& node : nodes_) {
     auto const id = node.getId();
     if (isRootNode_[id]) {
-      //std::cout << "DFS Starting From " << id << std::endl;
+      //LogDebug("TICLGraph") << "DFS Starting From " << id << std::endl;
       std::string tabs = "\t";
       std::vector<unsigned int> tmpSubComponents;
       nodes_[id].findSubComponents(nodes_, tmpSubComponents, tabs);
