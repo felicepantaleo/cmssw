@@ -87,7 +87,7 @@ TracksterLinksProducer::TracksterLinksProducer(const edm::ParameterSet &ps)
       propName_(ps.getParameter<std::string>("propagator")),
       bfield_token_(esConsumes<MagneticField, IdealMagneticFieldRecord, edm::Transition::BeginRun>()),
       propagator_token_(
-          esConsumes<Propagator, TrackingComponentsRecord, edm::Transition::BeginRun>(edm::ESInputTag("", propName_))){
+          esConsumes<Propagator, TrackingComponentsRecord, edm::Transition::BeginRun>(edm::ESInputTag("", propName_))) {
   // Loop over the edm::VInputTag and append the token to tracksters_tokens_
   for (auto const &tag : ps.getParameter<std::vector<edm::InputTag>>("tracksters_collections")) {
     tracksters_tokens_.emplace_back(consumes<std::vector<Trackster>>(tag));
@@ -109,10 +109,10 @@ TracksterLinksProducer::TracksterLinksProducer(const edm::ParameterSet &ps)
   auto linkingPSet = ps.getParameter<edm::ParameterSet>("linkingPSet");
   auto algoType = linkingPSet.getParameter<std::string>("type");
 
-  if(algoType == "Skeletons"){
+  if (algoType == "Skeletons") {
     std::string detectorName_ = (detector_ == "HFNose") ? "HGCalHFNoseSensitive" : "HGCalEESensitive";
-    hdc_token_ =
-        esConsumes<HGCalDDDConstants, IdealGeometryRecord, edm::Transition::BeginRun>(edm::ESInputTag("", detectorName_));
+    hdc_token_ = esConsumes<HGCalDDDConstants, IdealGeometryRecord, edm::Transition::BeginRun>(
+        edm::ESInputTag("", detectorName_));
   }
 
   linkingAlgo_ = TracksterLinkingPluginFactory::get()->create(algoType, linkingPSet, consumesCollector());

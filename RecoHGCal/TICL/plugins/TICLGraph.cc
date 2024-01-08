@@ -29,10 +29,9 @@ std::vector<std::vector<unsigned int>> TICLGraph::findSubComponents() {
   return components;
 }
 
-
 void TICLGraph::dfsForCC(unsigned int nodeIndex,
-                     std::unordered_set<unsigned int>& visited,
-                     std::vector<unsigned int>& component) const {
+                         std::unordered_set<unsigned int>& visited,
+                         std::vector<unsigned int>& component) const {
   visited.insert(nodeIndex);
   component.push_back(nodeIndex);
 
