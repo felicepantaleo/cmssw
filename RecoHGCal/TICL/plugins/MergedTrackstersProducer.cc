@@ -27,28 +27,26 @@ private:
 };
 
 MergedTrackstersProducer::MergedTrackstersProducer(const edm::ParameterSet &ps)
-  :
-      egamma_tracksters_token_(consumes<std::vector<ticl::Trackster>>(ps.getParameter<edm::InputTag>("egamma_tracksters"))),
-      general_tracksters_token_(consumes<std::vector<ticl::Trackster>>(ps.getParameter<edm::InputTag>("had_tracksters"))){
-      
-        produces<std::vector<Trackster>>();
-
-      }
+    : egamma_tracksters_token_(
+          consumes<std::vector<ticl::Trackster>>(ps.getParameter<edm::InputTag>("egamma_tracksters"))),
+      general_tracksters_token_(
+          consumes<std::vector<ticl::Trackster>>(ps.getParameter<edm::InputTag>("had_tracksters"))) {
+  produces<std::vector<Trackster>>();
+}
 
 void MergedTrackstersProducer::produce(edm::Event &evt, const edm::EventSetup &es) {
   auto resultTracksters = std::make_unique<std::vector<Trackster>>();
-  auto const& egamma_tracksters = evt.get(egamma_tracksters_token_);
-  auto const& had_tracksters = evt.get(general_tracksters_token_);
-  for(auto const& eg_trackster: egamma_tracksters){
+  auto const &egamma_tracksters = evt.get(egamma_tracksters_token_);
+  auto const &had_tracksters = evt.get(general_tracksters_token_);
+  for (auto const &eg_trackster : egamma_tracksters) {
     resultTracksters->push_back(eg_trackster);
   }
-  for(auto const& had_trackster: had_tracksters){
+  for (auto const &had_trackster : had_tracksters) {
     resultTracksters->push_back(had_trackster);
   }
 
   evt.put(std::move(resultTracksters));
 }
-
 
 void MergedTrackstersProducer::fillDescriptions(edm::ConfigurationDescriptions &descriptions) {
   edm::ParameterSetDescription desc;
