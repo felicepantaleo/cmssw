@@ -67,7 +67,7 @@ public:
                     const float energy,
                     const int pdgId,
                     const int charge,
-                    float time,
+                    const float time,
                     const edm::ProductID seed,
                     const Trackster::IterationIndex iter,
                     std::vector<float>& output_mask,
@@ -220,6 +220,7 @@ void SimTrackstersProducer::addTrackster(
   tmpTrackster.setRegressedEnergy(energy);
   tmpTrackster.setIteration(iter);
   tmpTrackster.setSeed(seed, index);
+  tmpTrackster.setBoundaryTime(time * 1e9);
   if (add) {
     result[index] = tmpTrackster;
     loop_index += 1;
@@ -434,10 +435,6 @@ void SimTrackstersProducer::produce(edm::Event& evt, const edm::EventSetup& es) 
 
       auto& cand = (*result_ticlCandidates)[cp_index];
       cand.addTrackster(edm::Ptr<Trackster>(simTracksters_h, i));
-      if (trackIndex != -1 and (trackIndex < 0 or trackIndex >= (long int)recoTracks.size())) {
-      }
-      cand.setTime((*result_fromCP)[cp_index].time());
-      cand.setTimeError(0);
       if (trackIndex != -1 && caloparticles[cp_index].charge() != 0)
         cand.setTrackPtr(edm::Ptr<reco::Track>(recoTracks_h, trackIndex));
       toKeep.push_back(cp_index);
@@ -459,6 +456,9 @@ void SimTrackstersProducer::produce(edm::Event& evt, const edm::EventSetup& es) 
     const auto& cp = caloparticles[cp_index];
     float rawEnergy = 0.f;
     float regressedEnergy = 0.f;
+
+    cand.setTime(simVertices[cp.g4Tracks()[0].vertIndex()].position().t() * pow(10, 9));
+    cand.setTimeError(0);
 
     for (const auto& trackster : cand.tracksters()) {
       rawEnergy += trackster->raw_energy();
