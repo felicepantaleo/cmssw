@@ -10,8 +10,8 @@ namespace ticl {
                              const std::vector<reco::CaloCluster> &,
                              const edm::ValueMap<std::pair<float, float>> &,
                              double,
-                             bool energyWeight = true,
-                             bool computeLocalTime = false);
+                             bool computeLocalTime = false,
+                             bool energyWeight = true);
   std::pair<float, float> computeLocalTracksterTime(const Trackster &trackster,
                                                     const std::vector<reco::CaloCluster> &layerClusters,
                                                     const edm::ValueMap<std::pair<float, float>> &layerClustersTime,

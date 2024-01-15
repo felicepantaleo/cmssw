@@ -13,8 +13,8 @@ void ticl::assignPCAtoTracksters(std::vector<Trackster> &tracksters,
                                  const std::vector<reco::CaloCluster> &layerClusters,
                                  const edm::ValueMap<std::pair<float, float>> &layerClustersTime,
                                  double z_limit_em,
-                                 bool energyWeight,
-                                 bool computeLocalTime) {
+                                 bool computeLocalTime,
+                                 bool energyWeight) {
   LogDebug("TrackstersPCA_Eigen") << "------- Eigen -------" << std::endl;
 
   for (auto &trackster : tracksters) {
@@ -180,8 +180,8 @@ std::pair<float, float> ticl::computeLocalTracksterTime(const Trackster &trackst
     return std::sqrt(distance);
   };
 
+  constexpr double c = 29.9792458;  // cm/ns
   for (size_t i = 0; i < N; ++i) {
-    constexpr double c = 29.9792458;  // cm/ns
     // Add timing from layerClusters not already used
     if ((usedLC.insert(trackster.vertices(i))).second) {
       float timeE = layerClustersTime.get(trackster.vertices(i)).second;
