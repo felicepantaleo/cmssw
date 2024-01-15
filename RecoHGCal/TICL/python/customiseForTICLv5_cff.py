@@ -139,7 +139,7 @@ def customiseForTICLv5(process, enableDumper = False):
             saveAssociations=True,
             trackstersclue3d = cms.InputTag('mergedTrackstersProducer'),
             ticlcandidates = cms.InputTag("ticlCandidate"),
-            trackstersmerged = cms.InputTag("ticlTracksterLinks")
+            trackstersmerged = cms.InputTag("ticlCandidate")
         )
         process.TFileService = cms.Service("TFileService",
                                            fileName=cms.string("histo.root")

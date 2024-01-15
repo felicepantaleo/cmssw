@@ -1758,7 +1758,7 @@ void TICLDumper::analyze(const edm::Event& event, const edm::EventSetup& setup) 
     auto trackster_ptrs = candidate.tracksters();
     auto track_ptr = candidate.trackPtr();
     for (const auto& ts_ptr : trackster_ptrs) {
-      auto ts_idx = ts_ptr.get() - (edm::Ptr<ticl::Trackster>(tracksters_handle, 0)).get();
+      auto ts_idx = ts_ptr.get() - (edm::Ptr<ticl::Trackster>(tracksters_merged_h, 0)).get();
       tracksters_in_candidate[i].push_back(ts_idx);
     }
     if (track_ptr.isNull())
