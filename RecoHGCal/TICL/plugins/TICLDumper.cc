@@ -190,6 +190,7 @@ private:
   std::vector<std::vector<float>> trackster_vertices_multiplicity;
 
   std::vector<float> stsSC_trackster_time;
+  std::vector<float> stsSC_trackster_timeBoundary;
   std::vector<float> stsSC_trackster_timeError;
   std::vector<float> stsSC_trackster_regressed_energy;
   std::vector<float> stsSC_trackster_regressed_pt;
@@ -242,6 +243,7 @@ private:
   std::vector<std::vector<float>> stsSC_trackster_vertices_correctedEnergyUncertainty;
   std::vector<std::vector<float>> stsSC_trackster_vertices_multiplicity;
   std::vector<float> stsCP_trackster_time;
+  std::vector<float> stsCP_trackster_timeBoundary;
   std::vector<float> stsCP_trackster_timeError;
   std::vector<float> stsCP_trackster_regressed_energy;
   std::vector<float> stsCP_trackster_regressed_pt;
@@ -303,9 +305,8 @@ private:
   std::vector<float> simTICLCandidate_boundaryPx;
   std::vector<float> simTICLCandidate_boundaryPy;
   std::vector<float> simTICLCandidate_boundaryPz;
-  std::vector<float> simTICLCandidate_trackTime;
-  std::vector<float> simTICLCandidate_trackBeta;
   std::vector<float> simTICLCandidate_caloParticleMass;
+  std::vector<float> simTICLCandidate_time;
   std::vector<int> simTICLCandidate_pdgId;
   std::vector<int> simTICLCandidate_charge;
   std::vector<int> simTICLCandidate_track_in_candidate;
@@ -483,6 +484,7 @@ void TICLDumper::clearVariables() {
   trackster_vertices_multiplicity.clear();
 
   stsSC_trackster_time.clear();
+  stsSC_trackster_timeBoundary.clear();
   stsSC_trackster_timeError.clear();
   stsSC_trackster_regressed_energy.clear();
   stsSC_trackster_regressed_pt.clear();
@@ -536,6 +538,7 @@ void TICLDumper::clearVariables() {
   stsSC_trackster_vertices_multiplicity.clear();
 
   stsCP_trackster_time.clear();
+  stsCP_trackster_timeBoundary.clear();
   stsCP_trackster_timeError.clear();
   stsCP_trackster_regressed_energy.clear();
   stsCP_trackster_regressed_pt.clear();
@@ -591,8 +594,7 @@ void TICLDumper::clearVariables() {
   simTICLCandidate_boundaryPx.clear();
   simTICLCandidate_boundaryPy.clear();
   simTICLCandidate_boundaryPz.clear();
-  simTICLCandidate_trackTime.clear();
-  simTICLCandidate_trackBeta.clear();
+  simTICLCandidate_time.clear();
   simTICLCandidate_caloParticleMass.clear();
   simTICLCandidate_pdgId.clear();
   simTICLCandidate_charge.clear();
@@ -963,6 +965,7 @@ void TICLDumper::beginJob() {
     simtrackstersSC_tree_->Branch("event", &ev_event_);
     simtrackstersSC_tree_->Branch("NTracksters", &stsSC_ntracksters_);
     simtrackstersSC_tree_->Branch("time", &stsSC_trackster_time);
+    simtrackstersSC_tree_->Branch("timeBoundary", &stsSC_trackster_timeBoundary);
     simtrackstersSC_tree_->Branch("timeError", &stsSC_trackster_timeError);
     simtrackstersSC_tree_->Branch("regressed_energy", &stsSC_trackster_regressed_energy);
     simtrackstersSC_tree_->Branch("regressed_pt", &stsSC_trackster_regressed_pt);
@@ -1022,6 +1025,7 @@ void TICLDumper::beginJob() {
     simtrackstersCP_tree_->Branch("event", &ev_event_);
     simtrackstersCP_tree_->Branch("NTracksters", &stsCP_ntracksters_);
     simtrackstersCP_tree_->Branch("time", &stsCP_trackster_time);
+    simtrackstersCP_tree_->Branch("timeBoundary", &stsCP_trackster_timeBoundary);
     simtrackstersCP_tree_->Branch("timeError", &stsCP_trackster_timeError);
     simtrackstersCP_tree_->Branch("regressed_energy", &stsCP_trackster_regressed_energy);
     simtrackstersCP_tree_->Branch("regressed_pt", &stsCP_trackster_regressed_pt);
@@ -1111,8 +1115,7 @@ void TICLDumper::beginJob() {
     simTICLCandidate_tree->Branch("simTICLCandidate_boundaryPx", &simTICLCandidate_boundaryPx);
     simTICLCandidate_tree->Branch("simTICLCandidate_boundaryPy", &simTICLCandidate_boundaryPy);
     simTICLCandidate_tree->Branch("simTICLCandidate_boundaryPz", &simTICLCandidate_boundaryPz);
-    simTICLCandidate_tree->Branch("simTICLCandidate_trackTime", &simTICLCandidate_trackTime);
-    simTICLCandidate_tree->Branch("simTICLCandidate_trackBeta", &simTICLCandidate_trackBeta);
+    simTICLCandidate_tree->Branch("simTICLCandidate_time", &simTICLCandidate_time);
     simTICLCandidate_tree->Branch("simTICLCandidate_caloParticleMass", &simTICLCandidate_caloParticleMass);
     simTICLCandidate_tree->Branch("simTICLCandidate_pdgId", &simTICLCandidate_pdgId);
     simTICLCandidate_tree->Branch("simTICLCandidate_charge", &simTICLCandidate_charge);
@@ -1370,6 +1373,7 @@ void TICLDumper::analyze(const edm::Event& event, const edm::EventSetup& setup) 
        ++trackster_iterator) {
     //per-trackster analysis
     stsSC_trackster_time.push_back(trackster_iterator->time());
+    stsSC_trackster_timeBoundary.push_back(trackster_iterator->boundaryTime());
     stsSC_trackster_timeError.push_back(trackster_iterator->timeError());
     stsSC_trackster_regressed_energy.push_back(trackster_iterator->regressed_energy());
     stsSC_trackster_raw_energy.push_back(trackster_iterator->raw_energy());
@@ -1515,6 +1519,7 @@ void TICLDumper::analyze(const edm::Event& event, const edm::EventSetup& setup) 
        ++trackster_iterator) {
     //per-trackster analysis
     stsCP_trackster_time.push_back(trackster_iterator->time());
+    stsCP_trackster_timeBoundary.push_back(trackster_iterator->boundaryTime());
     stsCP_trackster_timeError.push_back(trackster_iterator->timeError());
     stsCP_trackster_regressed_energy.push_back(trackster_iterator->regressed_energy());
     stsCP_trackster_raw_energy.push_back(trackster_iterator->raw_energy());
@@ -1661,6 +1666,7 @@ void TICLDumper::analyze(const edm::Event& event, const edm::EventSetup& setup) 
     simTICLCandidate_regressed_energy.push_back(cand.p4().energy());
     simTICLCandidate_pdgId.push_back(cand.pdgId());
     simTICLCandidate_charge.push_back(cand.charge());
+    simTICLCandidate_time.push_back(cand.time());
     std::vector<int> tmpIdxVec;
     for (auto const& simTS : cand.tracksters()) {
       auto trackster_idx = simTS.get() - (edm::Ptr<ticl::Trackster>(simTrackstersSC_h, 0)).get();
@@ -1687,8 +1693,6 @@ void TICLDumper::analyze(const edm::Event& event, const edm::EventSetup& setup) 
         simTICLCandidate_boundaryPx.push_back(globalMom.x());
         simTICLCandidate_boundaryPy.push_back(globalMom.y());
         simTICLCandidate_boundaryPz.push_back(globalMom.z());
-        simTICLCandidate_trackTime.push_back(track.t0());
-        simTICLCandidate_trackBeta.push_back(track.beta());
       } else {
         simTICLCandidate_boundaryX.push_back(-999);
         simTICLCandidate_boundaryY.push_back(-999);
@@ -1696,8 +1700,6 @@ void TICLDumper::analyze(const edm::Event& event, const edm::EventSetup& setup) 
         simTICLCandidate_boundaryPx.push_back(-999);
         simTICLCandidate_boundaryPy.push_back(-999);
         simTICLCandidate_boundaryPz.push_back(-999);
-        simTICLCandidate_trackTime.push_back(-999);
-        simTICLCandidate_trackBeta.push_back(-999);
       }
     } else {
       simTICLCandidate_boundaryX.push_back(-999);
@@ -1706,8 +1708,6 @@ void TICLDumper::analyze(const edm::Event& event, const edm::EventSetup& setup) 
       simTICLCandidate_boundaryPx.push_back(-999);
       simTICLCandidate_boundaryPy.push_back(-999);
       simTICLCandidate_boundaryPz.push_back(-999);
-      simTICLCandidate_trackTime.push_back(-999);
-      simTICLCandidate_trackBeta.push_back(-999);
     }
   }
 
