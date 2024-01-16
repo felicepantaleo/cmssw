@@ -135,7 +135,7 @@ private:
   edm::ESGetToken<HGCalDDDConstants, IdealGeometryRecord> hdc_token_;
   edm::ESHandle<MagneticField> bfield_;
   edm::ESHandle<Propagator> propagator_;
-  const double c_light_ = 29.9792458;
+  static constexpr float c_light_ = CLHEP::c_light * CLHEP::ns / CLHEP::cm;
 };
 
 TICLCandidateProducer::TICLCandidateProducer(const edm::ParameterSet &ps)

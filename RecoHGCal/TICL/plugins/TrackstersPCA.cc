@@ -76,7 +76,7 @@ void ticl::assignPCAtoTracksters(std::vector<Trackster> &tracksters,
           covM(y, x) = covM(x, y);
         }
     }
-    covM *= 1. / (1. - weights2_sum);
+    covM *= 1.f / (1.f - weights2_sum);
 
     std::pair<float, float> timeTrackster;
     if (computeLocalTime)
@@ -108,8 +108,8 @@ void ticl::assignPCAtoTracksters(std::vector<Trackster> &tracksters,
             (layerClusters[trackster.vertices(i)].energy() / trackster.vertex_multiplicity(i)) / trackster.raw_energy();
       sigmasEigen += weight * (point_transformed.cwiseAbs2());
     }
-    sigmas /= (1. - weights2_sum);
-    sigmasEigen /= (1. - weights2_sum);
+    sigmas /= (1.f - weights2_sum);
+    sigmasEigen /= (1.f - weights2_sum);
 
     // Add trackster attributes
     trackster.setBarycenter(ticl::Trackster::Vector(barycenter));
@@ -187,15 +187,15 @@ std::pair<float, float> ticl::computeLocalTracksterTime(const Trackster &trackst
       float timeE = layerClustersTime.get(trackster.vertices(i)).second;
       if (timeE > 0.f) {
         float time = layerClustersTime.get(trackster.vertices(i)).first;
-        timeE = 1. / pow(timeE, 2);
+        timeE = 1.f / pow(timeE, 2);
         float x = layerClusters[trackster.vertices(i)].x();
         float y = layerClusters[trackster.vertices(i)].y();
         float z = layerClusters[trackster.vertices(i)].z();
 
         if (project_lc_to_pca({x, y, z}, {barycenter[0], barycenter[1], barycenter[2]}) < 3) {  // set MR to 3
-          float deltaT = 1 / c *
-                         std::sqrt(((barycenter[2] / z - 1) * x) * ((barycenter[2] / z - 1) * x) +
-                                   ((barycenter[2] / z - 1) * y) * ((barycenter[2] / z - 1) * y) +
+          float deltaT = 1.f / c *
+                         std::sqrt(((barycenter[2] / z - 1.f) * x) * ((barycenter[2] / z - 1.f) * x) +
+                                   ((barycenter[2] / z - 1.f) * y) * ((barycenter[2] / z - 1.f) * y) +
                                    (barycenter[2] - z) * (barycenter[2] - z));
           time = std::abs(barycenter[2]) < std::abs(z) ? time - deltaT : time + deltaT;
 
@@ -206,9 +206,9 @@ std::pair<float, float> ticl::computeLocalTracksterTime(const Trackster &trackst
     }
   }
   if (tracksterTimeErr > 0.f)
-    return {tracksterTime / tracksterTimeErr, 1. / std::sqrt(tracksterTimeErr)};
+    return {tracksterTime / tracksterTimeErr, 1.f / std::sqrt(tracksterTimeErr)};
   else
-    return {-99., -1.};
+    return {-99.f, -1.f};
 }
 
 std::pair<float, float> ticl::computeTracksterTime(const Trackster &trackster,
@@ -224,7 +224,7 @@ std::pair<float, float> ticl::computeTracksterTime(const Trackster &trackster,
       float timeE = layerClustersTime.get(trackster.vertices(i)).second;
       if (timeE > 0.f) {
         times.push_back(layerClustersTime.get(trackster.vertices(i)).first);
-        timeErrors.push_back(1. / pow(timeE, 2));
+        timeErrors.push_back(1.f / pow(timeE, 2));
       }
     }
   }
