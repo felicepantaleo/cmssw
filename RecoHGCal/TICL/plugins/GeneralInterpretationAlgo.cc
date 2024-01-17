@@ -221,21 +221,12 @@ void GeneralInterpretationAlgo::makeCandidates(const Inputs &input,
   // to look for potential linkages in the appropriate tiles
   std::vector<std::pair<Vector, unsigned>> trackPColl;     // propagated track points and index of track in collection
   std::vector<std::pair<Vector, unsigned>> tkPropIntColl;  // tracks propagated to lastLayerEE
-  std::vector<std::pair<Vector, unsigned>> tsPropIntColl;  // Tracksters in CE-E, propagated to lastLayerEE
-  std::vector<std::pair<Vector, unsigned>> tsHadPropIntColl;  // Tracksters in CE-H, propagated to lastLayerEE
 
   trackPColl.reserve(tracks.size());
   tkPropIntColl.reserve(tracks.size());
 
   std::array<TICLLayerTile, 2> tracksterPropTiles = {};  // all Tracksters, propagated to layer 1
   std::array<TICLLayerTile, 2> tsPropIntTiles = {};      // all Tracksters, propagated to lastLayerEE
-  std::array<TICLLayerTile, 2> tsHadPropIntTiles = {};   // Tracksters in CE-H, propagated to lastLayerEE
-
-  // linking : trackster is hadronic if its barycenter is in CE-H
-  auto isHadron = [&](const Trackster &t) -> bool {
-    auto boundary_z = rhtools_.getPositionLayer(rhtools_.lastLayerEE()).z();
-    return (std::abs(t.barycenter().Z()) > boundary_z);
-  };
 
   if (TICLInterpretationAlgoBase::algo_verbosity_ > VerbosityLevel::Advanced)
     LogDebug("GeneralInterpretationAlgo") << "------- Geometric Linking ------- \n";
@@ -302,15 +293,7 @@ void GeneralInterpretationAlgo::makeCandidates(const Inputs &input,
     tsP = propagateTrackster(t, i, zVal, tsPropIntTiles);
     tsAllPropInt.emplace_back(tsP);
 
-    if (!isHadron(t))  // EM tracksters
-      tsPropIntColl.emplace_back(tsP, i);
-    else {  // HAD
-      tsHadPropIntTiles[(t.barycenter().Z() > 0) ? 1 : 0].fill(tsP.Eta(), tsP.Phi(), i);
-      tsHadPropIntColl.emplace_back(tsP, i);
-    }
   }  // TS
-  tsPropIntColl.shrink_to_fit();
-  tsHadPropIntColl.shrink_to_fit();
 
   std::vector<std::vector<unsigned>> tsNearTk(tracks.size());
   findTrackstersInWindow(
@@ -324,8 +307,6 @@ void GeneralInterpretationAlgo::makeCandidates(const Inputs &input,
   std::vector<unsigned int> chargedHadronsFromTk;
   std::vector<std::vector<unsigned int>> trackstersInTrackIndices;
   trackstersInTrackIndices.resize(tracks.size());
-
-  resultCandidate.resize(tracks.size(), -1);
 
   std::vector<bool> chargedMask(tracksters.size(), true);
   for (unsigned &i : candidateTrackIds) {

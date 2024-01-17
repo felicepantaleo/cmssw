@@ -238,7 +238,7 @@ void filterTracks(edm::Handle<std::vector<reco::Track>> tkH,
                   const std::vector<reco::Muon> &muons,
                   const StringCutObjectSelector<reco::Track> cutTk_,
                   const float tkEnergyCut_,
-                  std::vector<bool> maskTracks) {
+                  std::vector<bool> &maskTracks) {
   auto const &tracks = *tkH;
   for (unsigned i = 0; i < tracks.size(); ++i) {
     const auto &tk = tracks[i];
@@ -348,7 +348,7 @@ void TICLCandidateProducer::produce(edm::Event &evt, const edm::EventSetup &es) 
       trackTime_h, trackTimeErr_h, trackTimeBeta_h, trackPathToMTD_h, trackTimeGlobalPosition_h);
 
   auto resultCandidates = std::make_unique<std::vector<TICLCandidate>>();
-  std::vector<int> trackstersInTrackIndices(tracks.size());
+  std::vector<int> trackstersInTrackIndices(tracks.size(), -1);
 
   //TODO
   //egammaInterpretationAlg_->makecandidates(inputGSF, inputTiming, *resultTrackstersMerged, trackstersInGSFTrackIndices)
@@ -383,7 +383,7 @@ void TICLCandidateProducer::produce(edm::Event &evt, const edm::EventSetup &es) 
   //Neutral Candidate
   for (size_t iTrackster = 0; iTrackster < maskTracksters.size(); iTrackster++) {
     if (maskTracksters[iTrackster]) {
-      edm::Ptr<Trackster> tracksterPtr(resultTracksters_h, 0);  //= edm::Ptr<Trackster>(resultTracksters_h, iTrackster);
+      edm::Ptr<Trackster> tracksterPtr(resultTracksters_h, iTrackster);
       edm::Ptr<reco::Track> trackPtr;
       TICLCandidate neutralCandidate(trackPtr, tracksterPtr);
       resultCandidates->push_back(neutralCandidate);
@@ -650,9 +650,8 @@ void TICLCandidateProducer::fillDescriptions(edm::ConfigurationDescriptions &des
   desc.add<edm::InputTag>("layer_clustersTime", edm::InputTag("hgcalMergeLayerClusters", "timeLayerCluster"));
   desc.add<edm::InputTag>("tracks", edm::InputTag("generalTracks"));
   desc.add<edm::InputTag>("trjtrkAss", edm::InputTag("generalTracks"));
-  desc.add<edm::InputTag>("tracksTime", edm::InputTag("tofPID:t0"));
-  desc.add<edm::InputTag>("tracksTimeQual", edm::InputTag("mtdTrackQualityMVA:mtdQualMVA"));
-  desc.add<edm::InputTag>("tracksTimeErr", edm::InputTag("tofPID:sigmat0"));
+  desc.add<edm::InputTag>("tracksTime", edm::InputTag("trackExtenderWithMTD:generalTracktmtd"));
+  desc.add<edm::InputTag>("tracksTimeErr", edm::InputTag("trackExtenderWithMTD:generalTracksigmatmtd"));
   desc.add<edm::InputTag>("tracksBeta", edm::InputTag("trackExtenderWithMTD:generalTrackBeta"));
   desc.add<edm::InputTag>("tracksGlobalPosition", edm::InputTag("trackExtenderWithMTD:generalTrackmtdpos"));
   desc.add<edm::InputTag>("tracksPathLength", edm::InputTag("trackExtenderWithMTD:generalTrackPathLength"));
