@@ -626,8 +626,7 @@ if( inputTimingView.timeErr()[trackIndex] > 0) {
       time = time / invTimeErr;
       // FIXME_ set a liminf of 0.02 ns on the ts error (based on residuals)
       timeErr = sqrt(1.f / invTimeErr) > 0.02 ? sqrt(1.f / invTimeErr) : 0.02;
-      cand.setTime(time);
-      cand.setTimeError(timeErr);
+      cand.setTime(time, timeErr);
     }
 
     if (useMTDTiming_ and cand.charge()) {
@@ -653,8 +652,8 @@ if( inputTimingView.timeErr()[trackIndex] > 0) {
           timeErr = timeEMTD;
         }
       }
-      cand.setTime(time);
-      cand.setTimeError(timeErr);
+      cand.setTime(time, timeErr);
+      cand.setMTDTime(inputTimingView.time()[trackIndex], inputTimingView.timeErr()[trackIndex]);
     }
   }
 }
