@@ -59,4 +59,22 @@
   <class name="std::vector<TICLCandidate>" />
   <class name="edm::Wrapper<TICLCandidate>" />
   <class name="edm::Wrapper<std::vector<TICLCandidate> >" />
+
+  <class name="MtdSoA"/>
+  <class name="MtdSoA::View"/>
+
+  <class name="MtdHostCollection"/>
+  <read
+    sourceClass="MtdHostCollection"
+    targetClass="MtdHostCollection"
+    version="[1-]"
+    source="MtdSoA layout_;"
+    target="buffer_,layout_,view_"
+    embed="false">
+  <![CDATA[
+    MtdHostCollection::ROOTReadStreamer(newObj, onfile.layout_);
+  ]]>
+  </read>
+  <class name="edm::Wrapper<MtdHostCollection>" splitLevel="0"/> 
+
 </lcgdict>
