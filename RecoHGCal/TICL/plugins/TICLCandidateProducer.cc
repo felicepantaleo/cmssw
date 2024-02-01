@@ -18,6 +18,7 @@
 #include "DataFormats/BeamSpot/interface/BeamSpot.h"
 #include "DataFormats/CaloRecHit/interface/CaloCluster.h"
 #include "DataFormats/HGCalReco/interface/Common.h"
+#include "DataFormats/HGCalReco/interface/MtdHostCollection.h"
 #include "DataFormats/HGCalReco/interface/TICLLayerTile.h"
 #include "DataFormats/HGCalReco/interface/Trackster.h"
 #include "DataFormats/TrackReco/interface/Track.h"
@@ -81,9 +82,7 @@ private:
   template <typename F>
   void assignTimeToCandidates(std::vector<TICLCandidate> &resultCandidates,
                               edm::Handle<std::vector<reco::Track>> track_h,
-                              TICLInterpretationAlgoBase<reco::Track>::TrackTimingInformation inputTiming,
-                              edm::Handle<edm::ValueMap<float>> trackTime0_h,
-                              edm::Handle<edm::ValueMap<float>> trackTime0Err_h,
+                              edm::Handle<MtdHostCollection> inputTiming_h,
                               TrajTrackAssociationCollection trjtrks,
                               F func) const;
 
@@ -100,15 +99,8 @@ private:
   std::vector<edm::EDGetTokenT<std::vector<float>>> original_masks_tokens_;
 
   const edm::EDGetTokenT<std::vector<reco::Track>> tracks_token_;
-  edm::EDGetTokenT<edm::ValueMap<float>> tracks_time0_token_;
-  edm::EDGetTokenT<edm::ValueMap<float>> tracks_time0_err_token_;
-  edm::EDGetTokenT<edm::ValueMap<float>> tracks_time_token_;
-  edm::EDGetTokenT<edm::ValueMap<float>> tracks_time_err_token_;
-  edm::EDGetTokenT<edm::ValueMap<float>> tracks_time_qual_token_;
-  edm::EDGetTokenT<edm::ValueMap<float>> tracks_beta_token_;
-  edm::EDGetTokenT<edm::ValueMap<float>> tracks_path_length_token_;
-  edm::EDGetTokenT<edm::ValueMap<GlobalPoint>> tracks_glob_pos_token_;
   const edm::EDGetTokenT<TrajTrackAssociationCollection> trajTrackAssToken_;
+  edm::EDGetTokenT<MtdHostCollection> inputTimingToken_;
 
   const edm::EDGetTokenT<std::vector<reco::Muon>> muons_token_;
   const bool useMTDTiming_;
@@ -151,6 +143,7 @@ TICLCandidateProducer::TICLCandidateProducer(const edm::ParameterSet &ps)
           consumes<edm::ValueMap<std::pair<float, float>>>(ps.getParameter<edm::InputTag>("layer_clustersTime"))),
       tracks_token_(consumes<std::vector<reco::Track>>(ps.getParameter<edm::InputTag>("tracks"))),
       trajTrackAssToken_(consumes<TrajTrackAssociationCollection>(ps.getParameter<edm::InputTag>("trjtrkAss"))),
+      inputTimingToken_(consumes<MtdHostCollection>(ps.getParameter<edm::InputTag>("timingSoA"))),
       muons_token_(consumes<std::vector<reco::Muon>>(ps.getParameter<edm::InputTag>("muons"))),
       useMTDTiming_(ps.getParameter<bool>("useMTDTiming")),
       useTimingAverage_(ps.getParameter<bool>("useTimingAverage")),
@@ -208,15 +201,7 @@ TICLCandidateProducer::TICLCandidateProducer(const edm::ParameterSet &ps)
     std::string detectorName_ = (detector_ == "HFNose") ? "HGCalHFNoseSensitive" : "HGCalEESensitive";
     hdc_token_ = esConsumes<HGCalDDDConstants, IdealGeometryRecord, edm::Transition::BeginRun>(
         edm::ESInputTag("", detectorName_));
-    tracks_time0_token_ = consumes<edm::ValueMap<float>>(ps.getParameter<edm::InputTag>("tracksTime0"));
-    tracks_time0_err_token_ = consumes<edm::ValueMap<float>>(ps.getParameter<edm::InputTag>("tracksTime0Err"));
-    tracks_time_token_ = consumes<edm::ValueMap<float>>(ps.getParameter<edm::InputTag>("tracksTime"));
-    tracks_time_err_token_ = consumes<edm::ValueMap<float>>(ps.getParameter<edm::InputTag>("tracksTimeErr"));
-    tracks_time_qual_token_ = consumes<edm::ValueMap<float>>(ps.getParameter<edm::InputTag>("tracksTimeQual"));
-    tracks_beta_token_ = consumes<edm::ValueMap<float>>(ps.getParameter<edm::InputTag>("tracksBeta"));
-    tracks_path_length_token_ = consumes<edm::ValueMap<float>>(ps.getParameter<edm::InputTag>("tracksPathLength"));
-    tracks_glob_pos_token_ =
-        consumes<edm::ValueMap<GlobalPoint>>(ps.getParameter<edm::InputTag>("tracksGlobalPosition"));
+    inputTimingToken_ = consumes<MtdHostCollection>(ps.getParameter<edm::InputTag>("timingSoA"));
   }
 
   produces<std::vector<TICLCandidate>>();
@@ -288,27 +273,14 @@ void TICLCandidateProducer::produce(edm::Event &evt, const edm::EventSetup &es) 
   evt.getByToken(muons_token_, muons_h);
 
   edm::Handle<std::vector<reco::Track>> tracks_h;
-  const auto &trjtrks = evt.get(trajTrackAssToken_);
-
-  edm::Handle<edm::ValueMap<float>> trackTime0_h;
-  edm::Handle<edm::ValueMap<float>> trackTime0Err_h;
-  edm::Handle<edm::ValueMap<float>> trackTime_h;
-  edm::Handle<edm::ValueMap<float>> trackTimeErr_h;
-  edm::Handle<edm::ValueMap<float>> trackTimeQual_h;
-  edm::Handle<edm::ValueMap<float>> trackTimeBeta_h;
-  edm::Handle<edm::ValueMap<float>> trackPathToMTD_h;
-  edm::Handle<edm::ValueMap<GlobalPoint>> trackTimeGlobalPosition_h;
   evt.getByToken(tracks_token_, tracks_h);
   const auto &tracks = *tracks_h;
+
+  const auto &trjtrks = evt.get(trajTrackAssToken_);
+
+  edm::Handle<MtdHostCollection> inputTiming_h;
   if (useMTDTiming_) {
-    evt.getByToken(tracks_time0_token_, trackTime0_h);
-    evt.getByToken(tracks_time0_err_token_, trackTime0Err_h);
-    evt.getByToken(tracks_time_token_, trackTime_h);
-    evt.getByToken(tracks_time_err_token_, trackTimeErr_h);
-    evt.getByToken(tracks_time_qual_token_, trackTimeQual_h);
-    evt.getByToken(tracks_beta_token_, trackTimeBeta_h);
-    evt.getByToken(tracks_path_length_token_, trackPathToMTD_h);
-    evt.getByToken(tracks_glob_pos_token_, trackTimeGlobalPosition_h);
+    evt.getByToken(inputTimingToken_, inputTiming_h);
   }
 
   const auto &bs = evt.get(bsToken_);
@@ -364,9 +336,6 @@ void TICLCandidateProducer::produce(edm::Event &evt, const edm::EventSetup &es) 
                                                                        tracks_h,
                                                                        maskTracks);
 
-  const typename TICLInterpretationAlgoBase<reco::Track>::TrackTimingInformation inputTiming(
-      trackTime_h, trackTimeErr_h, trackTimeQual_h, trackTimeBeta_h, trackPathToMTD_h, trackTimeGlobalPosition_h);
-
   auto resultCandidates = std::make_unique<std::vector<TICLCandidate>>();
   std::vector<int> trackstersInTrackIndices(tracks.size(), -1);
 
@@ -374,7 +343,7 @@ void TICLCandidateProducer::produce(edm::Event &evt, const edm::EventSetup &es) 
   //egammaInterpretationAlg_->makecandidates(inputGSF, inputTiming, *resultTrackstersMerged, trackstersInGSFTrackIndices)
   // mask generalTracks associated to GSFTrack linked in egammaInterpretationAlgo_
 
-  generalInterpretationAlgo_->makeCandidates(input, inputTiming, *resultTracksters, trackstersInTrackIndices);
+  generalInterpretationAlgo_->makeCandidates(input, inputTiming_h, *resultTracksters, trackstersInTrackIndices);
 
   assignPCAtoTracksters(
       *resultTracksters, layerClusters, layerClustersTimes, rhtools_.getPositionLayer(rhtools_.lastLayerEE()).z(), true);
@@ -470,7 +439,7 @@ void TICLCandidateProducer::produce(edm::Event &evt, const edm::EventSetup &es) 
       };
 
   assignTimeToCandidates(
-      *resultCandidates, tracks_h, inputTiming, trackTime0_h, trackTime0Err_h, trjtrks, getPathLength);
+      *resultCandidates, tracks_h, inputTiming_h, trjtrks, getPathLength);
 
   evt.put(std::move(resultCandidates));
 }
@@ -605,9 +574,7 @@ template <typename F>
 void TICLCandidateProducer::assignTimeToCandidates(
     std::vector<TICLCandidate> &resultCandidates,
     edm::Handle<std::vector<reco::Track>> track_h,
-    TICLInterpretationAlgoBase<reco::Track>::TrackTimingInformation inputTiming,
-    edm::Handle<edm::ValueMap<float>> trackTime0_h,
-    edm::Handle<edm::ValueMap<float>> trackTime0Err_h,
+    edm::Handle<MtdHostCollection> inputTiming_h,
     TrajTrackAssociationCollection trjtrks,
     F func) const {
   for (auto &cand : resultCandidates) {
@@ -625,17 +592,17 @@ void TICLCandidateProducer::assignTimeToCandidates(
         auto path = std::sqrt(x * x + y * y + z * z);
         if (cand.trackPtr().get() != nullptr) {
           const auto &trackIndex = cand.trackPtr().get() - (edm::Ptr<reco::Track>(track_h, 0)).get();
-          const auto &trackRef = edm::Ref<std::vector<reco::Track>>(track_h, trackIndex);
-          if (useMTDTiming_ and (*inputTiming.tkTimeErr_h)[trackRef] > 0) {
-            const auto &trackMtdPos = (*inputTiming.tkMtdPos_h);
-            const auto xMtd = trackMtdPos[trackRef].x();
-            const auto yMtd = trackMtdPos[trackRef].y();
-            const auto zMtd = trackMtdPos[trackRef].z();
+          if (useMTDTiming_) {
+ auto const& inputTimingView = (*inputTiming_h).const_view();
+if( inputTimingView.timeErr()[trackIndex] > 0) {
+            const auto xMtd = inputTimingView.posInMTD_x()[trackIndex]; 
+            const auto yMtd = inputTimingView.posInMTD_y()[trackIndex]; 
+            const auto zMtd = inputTimingView.posInMTD_z()[trackIndex]; 
 
-            beta = (*inputTiming.tkBeta_h)[trackRef];
+            beta = inputTimingView.beta()[trackIndex];
             path = std::sqrt((x - xMtd) * (x - xMtd) + (y - yMtd) * (y - yMtd) + (z - zMtd) * (z - zMtd)) +
-                   (*inputTiming.tkPath_h)[trackRef];
-          } else {
+                   inputTimingView.pathLength()[trackIndex];
+}          } else {
             const auto &trackIndex = cand.trackPtr().get() - (edm::Ptr<reco::Track>(track_h, 0)).get();
             for (const auto &trj : trjtrks) {
               if (trj.val != edm::Ref<std::vector<reco::Track>>(track_h, trackIndex))
@@ -665,14 +632,14 @@ void TICLCandidateProducer::assignTimeToCandidates(
 
     if (useMTDTiming_ and cand.charge()) {
       // Check MTD timing availability
+ auto const& inputTimingView = (*inputTiming_h).const_view();
       const auto &trackIndex = cand.trackPtr().get() - (edm::Ptr<reco::Track>(track_h, 0)).get();
-      const auto &trackRef = edm::Ref<std::vector<reco::Track>>(track_h, trackIndex);
-      const bool assocQuality = (*inputTiming.tkQuality_h)[trackRef] > timingQualityThreshold_;
+      const bool assocQuality = inputTimingView.MVAquality()[trackIndex] > timingQualityThreshold_;
       if (assocQuality) {
         const auto timeHGC = cand.time();
         const auto timeEHGC = cand.timeError();
-        const auto timeMTD = (*trackTime0_h)[trackRef];
-        const auto timeEMTD = (*trackTime0Err_h)[trackRef];
+        const auto timeMTD = inputTimingView.time0()[trackIndex];
+        const auto timeEMTD = inputTimingView.time0Err()[trackIndex];
 
         if (useTimingAverage_ && (timeEMTD > 0 && timeEHGC > 0)) {
           // Compute weighted average between HGCAL and MTD timing
@@ -707,14 +674,7 @@ void TICLCandidateProducer::fillDescriptions(edm::ConfigurationDescriptions &des
   desc.add<edm::InputTag>("layer_clustersTime", edm::InputTag("hgcalMergeLayerClusters", "timeLayerCluster"));
   desc.add<edm::InputTag>("tracks", edm::InputTag("generalTracks"));
   desc.add<edm::InputTag>("trjtrkAss", edm::InputTag("generalTracks"));
-  desc.add<edm::InputTag>("tracksTime0", edm::InputTag("tofPID:t0"));
-  desc.add<edm::InputTag>("tracksTime0Err", edm::InputTag("tofPID:sigmat0"));
-  desc.add<edm::InputTag>("tracksTime", edm::InputTag("trackExtenderWithMTD:generalTracktmtd"));
-  desc.add<edm::InputTag>("tracksTimeErr", edm::InputTag("trackExtenderWithMTD:generalTracksigmatmtd"));
-  desc.add<edm::InputTag>("tracksTimeQual", edm::InputTag("mtdTrackQualityMVA:mtdQualMVA"));
-  desc.add<edm::InputTag>("tracksBeta", edm::InputTag("trackExtenderWithMTD:generalTrackBeta"));
-  desc.add<edm::InputTag>("tracksGlobalPosition", edm::InputTag("trackExtenderWithMTD:generalTrackmtdpos"));
-  desc.add<edm::InputTag>("tracksPathLength", edm::InputTag("trackExtenderWithMTD:generalTrackPathLength"));
+  desc.add<edm::InputTag>("timingSoA", edm::InputTag("mtdSoA"));
   desc.add<edm::InputTag>("muons", edm::InputTag("muons1stStep"));
   desc.add<std::string>("detector", "HGCAL");
   desc.add<std::string>("propagator", "PropagatorWithMaterial");

@@ -4,6 +4,7 @@
 #include <memory>
 #include <vector>
 #include "DataFormats/CaloRecHit/interface/CaloCluster.h"
+#include "DataFormats/HGCalReco/interface/MtdHostCollection.h"
 #include "DataFormats/HGCalReco/interface/Trackster.h"
 #include "DataFormats/HGCalReco/interface/TICLCandidate.h"
 #include "DataFormats/HGCalReco/interface/TICLLayerTile.h"
@@ -80,7 +81,7 @@ namespace ticl {
     };
 
     virtual void makeCandidates(const Inputs& input,
-                                const TrackTimingInformation& inputTiming,
+                                edm::Handle<MtdHostCollection> inputTiming_h,
                                 std::vector<Trackster>& resultTracksters,
                                 std::vector<int>& resultCandidate) = 0;
 

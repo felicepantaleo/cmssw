@@ -31,6 +31,7 @@ from RecoHGCal.TICL.CLUE3DHAD_cff import ticlTrackstersCLUE3DHAD
 from RecoHGCal.TICL.CLUE3DHighStep_cff import ticlTrackstersCLUE3DHigh
 from RecoHGCal.TICL.TrkEMStep_cff import ticlTrackstersTrkEM, filteredLayerClustersHFNoseTrkEM
 
+from RecoHGCal.TICL.mtdSoAProducer_cfi import mtdSoAProducer as _mtdSoAProducer
 
 def customiseForTICLv5(process, enableDumper = False):
 
@@ -65,6 +66,9 @@ def customiseForTICLv5(process, enableDumper = False):
         ticlCLUE3DHADStepTask,
     )
 
+    process.mtdSoA = _mtdSoAProducer.clone()
+    process.mtdSoATask = cms.Task(process.mtdSoA)
+
     process.ticlTracksterLinks = _tracksterLinksProducer.clone()
     process.ticlTracksterLinksTask = cms.Task(process.ticlTracksterLinks)
 
@@ -93,6 +97,7 @@ def customiseForTICLv5(process, enableDumper = False):
         label_tst = cms.InputTag("mergedTrackstersProducer")
         )
     process.iterTICLTask = cms.Task(process.ticlLayerTileTask,
+                                     process.mtdSoATask,
                                      process.ticlIterationsTask,
                                      process.ticlTracksterLinksTask,
                                      process.ticlCandidateTask)

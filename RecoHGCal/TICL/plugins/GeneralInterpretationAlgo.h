@@ -18,7 +18,7 @@ namespace ticl {
     ~GeneralInterpretationAlgo() override;
 
     void makeCandidates(const Inputs &input,
-                        const TrackTimingInformation &inputTiming,
+                        edm::Handle<MtdHostCollection> inputTiming_h,
                         std::vector<Trackster> &resultTracksters,
                         std::vector<int> &resultCandidate) override;
 
