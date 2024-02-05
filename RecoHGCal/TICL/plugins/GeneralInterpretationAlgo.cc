@@ -13,8 +13,7 @@ GeneralInterpretationAlgo::GeneralInterpretationAlgo(const edm::ParameterSet &co
     : TICLInterpretationAlgoBase(conf, cc),
       del_tk_ts_layer1_(conf.getParameter<double>("delta_tk_ts_layer1")),
       del_tk_ts_int_(conf.getParameter<double>("delta_tk_ts_interface")),
-      del_ts_em_had_(conf.getParameter<double>("delta_ts_em_had")),
-      del_ts_had_had_(conf.getParameter<double>("delta_ts_had_had")) {}
+      timing_quality_threshold_(conf.getParameter<double>("timing_quality_threshold")) {}
 
 void GeneralInterpretationAlgo::initialize(const HGCalDDDConstants *hgcons,
                                            const hgcal::RecHitTools rhtools,
@@ -154,6 +153,7 @@ bool GeneralInterpretationAlgo::timeAndEnergyCompatible(float &total_raw_energy,
                                                         const Trackster &trackster,
                                                         const float &tkT,
                                                         const float &tkTErr,
+                                                        const float &tkQual,
                                                         const float &tkBeta,
                                                         const GlobalPoint &tkMtdPos,
                                                         bool useMTDTiming) {
@@ -171,7 +171,7 @@ bool GeneralInterpretationAlgo::timeAndEnergyCompatible(float &total_raw_energy,
   float tsTErr = trackster.timeError();
 
   bool timeCompatible = false;
-  if (tsT == -99. or tkTErr == -1)
+  if (tsT == -99. or tkTErr == -1 or tkQual < timing_quality_threshold_)
     timeCompatible = true;
   else {
     const auto &barycenter = trackster.barycenter();
@@ -320,11 +320,13 @@ void GeneralInterpretationAlgo::makeCandidates(const Inputs &input,
     auto tkRef = reco::TrackRef(tkH, i);
     float track_time = 0.f;
     float track_timeErr = 0.f;
+    float track_quality = 0.f;
     float track_beta = 0.f;
     GlobalPoint track_MtdPos{0.f, 0.f, 0.f};
     if (useMTDTiming) {
       track_time = (*inputTiming.tkTime_h)[tkRef];
       track_timeErr = (*inputTiming.tkTimeErr_h)[tkRef];
+      track_quality = (*inputTiming.tkQuality_h)[tkRef];
       track_beta = (*inputTiming.tkBeta_h)[tkRef];
       track_MtdPos = (*inputTiming.tkMtdPos_h)[tkRef];
     }
@@ -335,6 +337,7 @@ void GeneralInterpretationAlgo::makeCandidates(const Inputs &input,
                                                         tracksters[tsIdx],
                                                         track_time,
                                                         track_timeErr,
+                                                        track_quality,
                                                         track_beta,
                                                         track_MtdPos,
                                                         useMTDTiming)) {
@@ -348,6 +351,7 @@ void GeneralInterpretationAlgo::makeCandidates(const Inputs &input,
                                                         tracksters[tsIdx],
                                                         track_time,
                                                         track_timeErr,
+                                                        track_quality,
                                                         track_beta,
                                                         track_MtdPos,
                                                         useMTDTiming)) {
@@ -383,7 +387,6 @@ void GeneralInterpretationAlgo::fillPSetDescription(edm::ParameterSetDescription
                         "hitPattern().numberOfLostHits(\"MISSING_OUTER_HITS\") < 5");
   desc.add<double>("delta_tk_ts_layer1", 0.02);
   desc.add<double>("delta_tk_ts_interface", 0.03);
-  desc.add<double>("delta_ts_em_had", 0.03);
-  desc.add<double>("delta_ts_had_had", 0.03);
+  desc.add<double>("timing_quality_threshold", 0.5);
   TICLInterpretationAlgoBase::fillPSetDescription(desc);
 }

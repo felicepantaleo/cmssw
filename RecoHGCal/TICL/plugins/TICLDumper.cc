@@ -316,6 +316,7 @@ private:
   std::vector<int> candidate_charge;
   std::vector<int> candidate_pdgId;
   std::vector<float> candidate_energy;
+  std::vector<float> candidate_raw_energy;
   std::vector<double> candidate_px;
   std::vector<double> candidate_py;
   std::vector<double> candidate_pz;
@@ -424,6 +425,7 @@ private:
   std::vector<float> track_pt;
   std::vector<int> track_quality;
   std::vector<int> track_missing_outer_hits;
+  std::vector<int> track_missing_inner_hits;
   std::vector<int> track_charge;
   std::vector<double> track_time;
   std::vector<float> track_time_quality;
@@ -604,6 +606,7 @@ void TICLDumper::clearVariables() {
   candidate_charge.clear();
   candidate_pdgId.clear();
   candidate_energy.clear();
+  candidate_raw_energy.clear();
   candidate_px.clear();
   candidate_py.clear();
   candidate_pz.clear();
@@ -720,6 +723,7 @@ void TICLDumper::clearVariables() {
   track_quality.clear();
   track_pt.clear();
   track_missing_outer_hits.clear();
+  track_missing_inner_hits.clear();
   track_charge.clear();
   track_time.clear();
   track_time_quality.clear();
@@ -878,6 +882,7 @@ void TICLDumper::beginJob() {
     candidate_tree_->Branch("candidate_time", &candidate_time);
     candidate_tree_->Branch("candidate_timeErr", &candidate_time_err);
     candidate_tree_->Branch("candidate_energy", &candidate_energy);
+    candidate_tree_->Branch("candidate_raw_energy", &candidate_raw_energy);
     candidate_tree_->Branch("candidate_px", &candidate_px);
     candidate_tree_->Branch("candidate_py", &candidate_py);
     candidate_tree_->Branch("candidate_pz", &candidate_pz);
@@ -1092,6 +1097,7 @@ void TICLDumper::beginJob() {
     tracks_tree_->Branch("track_hgcal_pt", &track_hgcal_pt);
     tracks_tree_->Branch("track_pt", &track_pt);
     tracks_tree_->Branch("track_missing_outer_hits", &track_missing_outer_hits);
+    tracks_tree_->Branch("track_missing_inner_hits", &track_missing_inner_hits);
     tracks_tree_->Branch("track_quality", &track_quality);
     tracks_tree_->Branch("track_charge", &track_charge);
     tracks_tree_->Branch("track_time", &track_time);
@@ -1743,6 +1749,7 @@ void TICLDumper::analyze(const edm::Event& event, const edm::EventSetup& setup) 
     candidate_charge.push_back(candidate.charge());
     candidate_pdgId.push_back(candidate.pdgId());
     candidate_energy.push_back(candidate.energy());
+    candidate_raw_energy.push_back(candidate.rawEnergy());
     candidate_px.push_back(candidate.px());
     candidate_py.push_back(candidate.py());
     candidate_pz.push_back(candidate.pz());
@@ -2058,6 +2065,7 @@ void TICLDumper::analyze(const edm::Event& event, const edm::EventSetup& setup) 
       track_pt.push_back(track.pt());
       track_quality.push_back(track.quality(reco::TrackBase::highPurity));
       track_missing_outer_hits.push_back(track.missingOuterHits());
+      track_missing_inner_hits.push_back(track.missingInnerHits());
       track_charge.push_back(track.charge());
       track_time.push_back(trackTime[trackref]);
       track_time_quality.push_back(trackTimeQual[trackref]);
