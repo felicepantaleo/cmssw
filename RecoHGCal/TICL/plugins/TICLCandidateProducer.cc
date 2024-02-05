@@ -197,10 +197,10 @@ TICLCandidateProducer::TICLCandidateProducer(const edm::ParameterSet &ps)
     original_masks_tokens_.emplace_back(consumes<std::vector<float>>(tag));
   }
 
+  std::string detectorName_ = (detector_ == "HFNose") ? "HGCalHFNoseSensitive" : "HGCalEESensitive";
+  hdc_token_ =
+      esConsumes<HGCalDDDConstants, IdealGeometryRecord, edm::Transition::BeginRun>(edm::ESInputTag("", detectorName_));
   if (useMTDTiming_) {
-    std::string detectorName_ = (detector_ == "HFNose") ? "HGCalHFNoseSensitive" : "HGCalEESensitive";
-    hdc_token_ = esConsumes<HGCalDDDConstants, IdealGeometryRecord, edm::Transition::BeginRun>(
-        edm::ESInputTag("", detectorName_));
     inputTimingToken_ = consumes<MtdHostCollection>(ps.getParameter<edm::InputTag>("timingSoA"));
   }
 
