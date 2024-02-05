@@ -247,7 +247,7 @@ void TICLCandidateProducer::beginRun(edm::Run const &iEvent, edm::EventSetup con
 };
 
 void filterTracks(edm::Handle<std::vector<reco::Track>> tkH,
-                  const std::vector<reco::Muon> &muons,
+                  const edm::Handle<std::vector<reco::Muon>> &muons_h,
                   const StringCutObjectSelector<reco::Track> cutTk_,
                   const float tkEnergyCut_,
                   std::vector<bool> &maskTracks) {
@@ -257,9 +257,10 @@ void filterTracks(edm::Handle<std::vector<reco::Track>> tkH,
     reco::TrackRef trackref = reco::TrackRef(tkH, i);
 
     // veto tracks associated to muons
-    int muId = PFMuonAlgo::muAssocToTrack(trackref, muons);
+    int muId = PFMuonAlgo::muAssocToTrack(trackref, *muons_h);
+    const reco::MuonRef muonref = reco::MuonRef(muons_h, muId);
 
-    if (!cutTk_((tk)) or muId != -1) {
+    if (!cutTk_((tk)) or (muId != -1 and PFMuonAlgo::isMuon(muonref) and not (*muons_h)[muId].isTrackerMuon())) {
       maskTracks[i] = false;
       continue;
     }
@@ -283,7 +284,8 @@ void TICLCandidateProducer::produce(edm::Event &evt, const edm::EventSetup &es) 
 
   const auto &layerClusters = evt.get(clusters_token_);
   const auto &layerClustersTimes = evt.get(clustersTime_token_);
-  auto const &muons = evt.get(muons_token_);
+  edm::Handle<reco::MuonCollection> muons_h;
+  evt.getByToken(muons_token_, muons_h);
 
   edm::Handle<std::vector<reco::Track>> tracks_h;
   const auto &trjtrks = evt.get(trajTrackAssToken_);
@@ -351,7 +353,7 @@ void TICLCandidateProducer::produce(edm::Event &evt, const edm::EventSetup &es) 
 
   std::vector<bool> maskTracks;
   maskTracks.resize(tracks.size());
-  filterTracks(tracks_h, muons, cutTk_, tkEnergyCut_, maskTracks);
+  filterTracks(tracks_h, muons_h, cutTk_, tkEnergyCut_, maskTracks);
 
   const typename TICLInterpretationAlgoBase<reco::Track>::Inputs input(evt,
                                                                        es,
@@ -394,6 +396,13 @@ void TICLCandidateProducer::produce(edm::Event &evt, const edm::EventSetup &es) 
       //charged candidates track only
       edm::Ptr<Trackster> tracksterPtr;
       TICLCandidate chargedCandidate(trackPtr, tracksterPtr);
+      auto trackRef = edm::Ref<reco::TrackCollection>(tracks_h, iTrack);
+      const int muId = PFMuonAlgo::muAssocToTrack(trackRef, *muons_h);
+      const reco::MuonRef muonRef = reco::MuonRef(muons_h, muId);
+      if (muonRef.isNonnull() and muonRef->isGlobalMuon()) {
+        // create muon candidate
+        chargedCandidate.setPdgId(13 * trackPtr.get()->charge());
+      }
       resultCandidates->push_back(chargedCandidate);
     }
   }
