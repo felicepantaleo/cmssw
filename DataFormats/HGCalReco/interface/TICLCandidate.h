@@ -38,7 +38,7 @@ public:
       edm::LogError("TICLCandidate") << "At least one between track and trackster must be valid\n";
 
     if (tracksterPtr.isNonnull()) {
-      tracksters_.push_back(std::move(tracksterPtr));
+      tracksters_.push_back(tracksterPtr);
       auto const& trackster = tracksters_[0].get();
       idProbabilities_ = trackster->id_probabilities();
       if (trackPtr_.isNonnull()) {
@@ -81,12 +81,18 @@ public:
   inline float time() const { return time_; }
   inline float timeError() const { return timeError_; }
 
-  void setTime(float time, float timeError) { time_ = time; timeError_ = timeError;};
+  void setTime(float time, float timeError) {
+    time_ = time;
+    timeError_ = timeError;
+  };
 
   inline float MTDtime() const { return MTDtime_; }
   inline float MTDtimeError() const { return MTDtimeError_; }
 
-  void setMTDTime(float time, float timeError) { MTDtime_ = time; MTDtimeError_ = timeError; };
+  void setMTDTime(float time, float timeError) {
+    MTDtime_ = time;
+    MTDtimeError_ = timeError;
+  };
 
   inline const edm::Ptr<reco::Track> trackPtr() const { return trackPtr_; }
   void setTrackPtr(const edm::Ptr<reco::Track>& trackPtr) { trackPtr_ = trackPtr; }
@@ -132,6 +138,5 @@ private:
   float MTDtime_;
   float MTDtimeError_;
   float rawEnergy_;
-
 };
 #endif

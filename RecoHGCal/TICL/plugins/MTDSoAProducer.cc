@@ -80,7 +80,6 @@ void MTDSoAProducer::fillDescriptions(edm::ConfigurationDescriptions& descriptio
 }
 
 void MTDSoAProducer::produce(edm::Event& ev, const edm::EventSetup& es) {
-
   edm::Handle<reco::TrackCollection> tracksH;
   ev.getByToken(tracksToken_, tracksH);
   const auto& tracks = *tracksH;
@@ -142,11 +141,9 @@ void MTDSoAProducer::produce(edm::Event& ev, const edm::EventSetup& es) {
     MtdInfoView.probPi()[iTrack] = probPi[trackref];
     MtdInfoView.probK()[iTrack] = probK[trackref];
     MtdInfoView.probP()[iTrack] = probP[trackref];
-
   }
 
   ev.put(std::move(MtdInfo));
-
 }
 
 //define this as a plug-in

@@ -245,7 +245,7 @@ void filterTracks(edm::Handle<std::vector<reco::Track>> tkH,
     int muId = PFMuonAlgo::muAssocToTrack(trackref, *muons_h);
     const reco::MuonRef muonref = reco::MuonRef(muons_h, muId);
 
-    if (!cutTk_((tk)) or (muId != -1 and PFMuonAlgo::isMuon(muonref) and not (*muons_h)[muId].isTrackerMuon())) {
+    if (!cutTk_((tk)) or (muId != -1 and PFMuonAlgo::isMuon(muonref) and not(*muons_h)[muId].isTrackerMuon())) {
       maskTracks[i] = false;
       continue;
     }
@@ -438,8 +438,7 @@ void TICLCandidateProducer::produce(edm::Event &evt, const edm::EventSetup &es) 
         return 0.f;
       };
 
-  assignTimeToCandidates(
-      *resultCandidates, tracks_h, inputTiming_h, trjtrks, getPathLength);
+  assignTimeToCandidates(*resultCandidates, tracks_h, inputTiming_h, trjtrks, getPathLength);
 
   evt.put(std::move(resultCandidates));
 }
@@ -571,12 +570,11 @@ void TICLCandidateProducer::energyRegressionAndID(const std::vector<reco::CaloCl
 }
 
 template <typename F>
-void TICLCandidateProducer::assignTimeToCandidates(
-    std::vector<TICLCandidate> &resultCandidates,
-    edm::Handle<std::vector<reco::Track>> track_h,
-    edm::Handle<MtdHostCollection> inputTiming_h,
-    TrajTrackAssociationCollection trjtrks,
-    F func) const {
+void TICLCandidateProducer::assignTimeToCandidates(std::vector<TICLCandidate> &resultCandidates,
+                                                   edm::Handle<std::vector<reco::Track>> track_h,
+                                                   edm::Handle<MtdHostCollection> inputTiming_h,
+                                                   TrajTrackAssociationCollection trjtrks,
+                                                   F func) const {
   for (auto &cand : resultCandidates) {
     float beta = 1;
     float time = 0.f;
@@ -593,16 +591,17 @@ void TICLCandidateProducer::assignTimeToCandidates(
         if (cand.trackPtr().get() != nullptr) {
           const auto &trackIndex = cand.trackPtr().get() - (edm::Ptr<reco::Track>(track_h, 0)).get();
           if (useMTDTiming_) {
- auto const& inputTimingView = (*inputTiming_h).const_view();
-if( inputTimingView.timeErr()[trackIndex] > 0) {
-            const auto xMtd = inputTimingView.posInMTD_x()[trackIndex]; 
-            const auto yMtd = inputTimingView.posInMTD_y()[trackIndex]; 
-            const auto zMtd = inputTimingView.posInMTD_z()[trackIndex]; 
+            auto const &inputTimingView = (*inputTiming_h).const_view();
+            if (inputTimingView.timeErr()[trackIndex] > 0) {
+              const auto xMtd = inputTimingView.posInMTD_x()[trackIndex];
+              const auto yMtd = inputTimingView.posInMTD_y()[trackIndex];
+              const auto zMtd = inputTimingView.posInMTD_z()[trackIndex];
 
-            beta = inputTimingView.beta()[trackIndex];
-            path = std::sqrt((x - xMtd) * (x - xMtd) + (y - yMtd) * (y - yMtd) + (z - zMtd) * (z - zMtd)) +
-                   inputTimingView.pathLength()[trackIndex];
-}          } else {
+              beta = inputTimingView.beta()[trackIndex];
+              path = std::sqrt((x - xMtd) * (x - xMtd) + (y - yMtd) * (y - yMtd) + (z - zMtd) * (z - zMtd)) +
+                     inputTimingView.pathLength()[trackIndex];
+            }
+          } else {
             const auto &trackIndex = cand.trackPtr().get() - (edm::Ptr<reco::Track>(track_h, 0)).get();
             for (const auto &trj : trjtrks) {
               if (trj.val != edm::Ref<std::vector<reco::Track>>(track_h, trackIndex))
@@ -631,7 +630,7 @@ if( inputTimingView.timeErr()[trackIndex] > 0) {
 
     if (useMTDTiming_ and cand.charge()) {
       // Check MTD timing availability
- auto const& inputTimingView = (*inputTiming_h).const_view();
+      auto const &inputTimingView = (*inputTiming_h).const_view();
       const auto &trackIndex = cand.trackPtr().get() - (edm::Ptr<reco::Track>(track_h, 0)).get();
       const bool assocQuality = inputTimingView.MVAquality()[trackIndex] > timingQualityThreshold_;
       if (assocQuality) {

@@ -432,7 +432,7 @@ void SimTrackstersProducer::produce(edm::Event& evt, const edm::EventSetup& es) 
 
   // map between simTrack and Mtd SimTracksters to loop on them only one
   std::unordered_map<unsigned int, const MtdSimTrackster*> SimTrackToMtdST;
-  for (unsigned int i = 0; i < MTDSimTracksters_h->size(); ++i){
+  for (unsigned int i = 0; i < MTDSimTracksters_h->size(); ++i) {
     const auto& simTrack = (*MTDSimTracksters_h)[i].g4Tracks()[0];
     SimTrackToMtdST[simTrack.trackId()] = &((*MTDSimTracksters_h)[i]);
   }
@@ -474,7 +474,7 @@ void SimTrackstersProducer::produce(edm::Event& evt, const edm::EventSetup& es) 
 
     const auto& simTrack = cp.g4Tracks()[0];
     auto pos = SimTrackToMtdST.find(simTrack.trackId());
-    if (pos != SimTrackToMtdST.end()) { 
+    if (pos != SimTrackToMtdST.end()) {
       auto MTDst = pos->second;
       // TODO: once the associators have been implemented check if the MTDst is associated with a reco before adding the MTD time
       cand.setMTDTime(MTDst->time(), 0);

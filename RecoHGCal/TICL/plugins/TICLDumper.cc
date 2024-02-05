@@ -745,7 +745,8 @@ void TICLDumper::clearVariables() {
 
 TICLDumper::TICLDumper(const edm::ParameterSet& ps)
     : tracksters_token_(consumes<std::vector<ticl::Trackster>>(ps.getParameter<edm::InputTag>("trackstersclue3d"))),
-      tracksters_in_candidate_token_(consumes<std::vector<ticl::Trackster>>(ps.getParameter<edm::InputTag>("trackstersInCand"))),
+      tracksters_in_candidate_token_(
+          consumes<std::vector<ticl::Trackster>>(ps.getParameter<edm::InputTag>("trackstersInCand"))),
       layer_clusters_token_(consumes<std::vector<reco::CaloCluster>>(ps.getParameter<edm::InputTag>("layerClusters"))),
       ticl_candidates_token_(consumes<std::vector<TICLCandidate>>(ps.getParameter<edm::InputTag>("ticlcandidates"))),
       tracks_token_(consumes<std::vector<reco::Track>>(ps.getParameter<edm::InputTag>("tracks"))),
@@ -2096,13 +2097,13 @@ void TICLDumper::analyze(const edm::Event& event, const edm::EventSetup& setup) 
       track_pos_mtd.push_back(trackPosMtd[trackref]);
       track_nhits.push_back(tracks[i].recHitsSize());
       int muId = PFMuonAlgo::muAssocToTrack(trackref, *muons_h);
-      if (muId != -1 ) {
-      const reco::MuonRef muonref = reco::MuonRef(muons_h, muId);
-      track_isMuon.push_back(PFMuonAlgo::isMuon(muonref));
-      track_isTrackerMuon.push_back(muons[muId].isTrackerMuon());
+      if (muId != -1) {
+        const reco::MuonRef muonref = reco::MuonRef(muons_h, muId);
+        track_isMuon.push_back(PFMuonAlgo::isMuon(muonref));
+        track_isTrackerMuon.push_back(muons[muId].isTrackerMuon());
       } else {
-      track_isMuon.push_back(-1);
-      track_isTrackerMuon.push_back(-1);
+        track_isMuon.push_back(-1);
+        track_isTrackerMuon.push_back(-1);
       }
     }
   }

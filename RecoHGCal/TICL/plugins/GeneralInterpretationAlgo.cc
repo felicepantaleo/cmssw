@@ -324,12 +324,13 @@ void GeneralInterpretationAlgo::makeCandidates(const Inputs &input,
     float track_beta = 0.f;
     GlobalPoint track_MtdPos{0.f, 0.f, 0.f};
     if (useMTDTiming) {
-      auto const& inputTimingView = (*inputTiming_h).const_view();
+      auto const &inputTimingView = (*inputTiming_h).const_view();
       track_time = inputTimingView.time()[i];
       track_timeErr = inputTimingView.timeErr()[i];
       track_quality = inputTimingView.MVAquality()[i];
       track_beta = inputTimingView.beta()[i];
-      track_MtdPos = {inputTimingView.posInMTD_x()[i], inputTimingView.posInMTD_y()[i], inputTimingView.posInMTD_z()[i]};
+      track_MtdPos = {
+          inputTimingView.posInMTD_x()[i], inputTimingView.posInMTD_y()[i], inputTimingView.posInMTD_z()[i]};
     }
 
     for (auto const tsIdx : tsNearTk[i]) {
