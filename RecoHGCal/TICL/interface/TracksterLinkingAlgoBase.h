@@ -1,6 +1,3 @@
-// Author: Felice Pantaleo - felice.pantaleo@cern.ch
-// Date: 09/2018
-
 #ifndef RecoHGCal_TICL_PatternRecognitionAlgoBase_H__
 #define RecoHGCal_TICL_PatternRecognitionAlgoBase_H__
 
@@ -30,11 +27,22 @@ namespace edm {
   class EventSetup;
 }  // namespace edm
 
+namespace cms {
+  namespace Ort {
+    class ONNXRuntime;
+  }
+}  // namespace cms
+
 namespace ticl {
   class TracksterLinkingAlgoBase {
   public:
-    TracksterLinkingAlgoBase(const edm::ParameterSet& conf, edm::ConsumesCollector)
-        : algo_verbosity_(conf.getParameter<int>("algo_verbosity")) {}
+    /** \param conf the configuration of the plugin
+     * \param onnxRuntime the ONNXRuntime, if onnxModelPath was provided in plugin configuration (nullptr otherwise)
+    */
+    TracksterLinkingAlgoBase(const edm::ParameterSet& conf,
+                             edm::ConsumesCollector,
+                             cms::Ort::ONNXRuntime const* onnxRuntime = nullptr)
+        : algo_verbosity_(conf.getParameter<int>("algo_verbosity")), onnxRuntime_(onnxRuntime) {}
     virtual ~TracksterLinkingAlgoBase(){};
 
     struct Inputs {
@@ -66,6 +74,7 @@ namespace ticl {
 
   protected:
     int algo_verbosity_;
+    cms::Ort::ONNXRuntime const* onnxRuntime_;
   };
 }  // namespace ticl
 

@@ -24,6 +24,7 @@
 <use name="PhysicsTools/TensorFlow"/>
 <use name="PhysicsTools/UtilAlgos"/>
 <use name="RecoLocalCalo/HGCalRecAlgos"/>
+<use name="PhysicsTools/ONNXRuntime" />
 <use name="RecoLocalCalo/HGCalRecProducers"/>
 <use name="RecoHGCal/TICL"/>
 <use name="RecoParticleFlow/PFProducer"/>
