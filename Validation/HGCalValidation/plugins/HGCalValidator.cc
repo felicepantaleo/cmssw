@@ -72,9 +72,8 @@ HGCalValidator::HGCalValidator(const edm::ParameterSet& pset)
     edm::EDGetTokenT<hgcal::SimToRecoCollectionSimTracksters> associatorMapStRToken =
         consumes<hgcal::SimToRecoCollectionSimTracksters>(pset.getParameter<edm::InputTag>("mergeSimToRecoAssociator"));
     edm::EDGetTokenT<hgcal::RecoToSimCollectionSimTracksters> associatorMapRtSPUToken =
-        consumes<hgcal::SimToRecoCollectionSimTracksters>(pset.getParameter<edm::InputTag>("mergeRecoToSimAssociatorPU"));
-    edm::EDGetTokenT<hgcal::SimToRecoCollectionSimTracksters> associatorMapStRPUToken =
-        consumes<hgcal::SimToRecoCollectionSimTracksters>(pset.getParameter<edm::InputTag>("mergeSimToRecoAssociatorPU"));
+        consumes<hgcal::SimToRecoCollectionSimTracksters>(
+            pset.getParameter<edm::InputTag>("mergeRecoToSimAssociatorPU"));
 
     candidateVal = TICLCandidateValidator(TICLCandidatesToken,
                                           simTICLCandidatesToken,

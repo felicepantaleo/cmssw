@@ -41,11 +41,19 @@ void TICLCandidateValidator::bookCandidatesHistos(DQMStore::IBooker& ibook, std:
   for (long unsigned int i = 0; i < neutrals.size(); i++) {
     ibook.setCurrentFolder(baseDir + "/" + neutrals[i]);
 
-  h_neut_tracksters_in_candidate.push_back(ibook.book1D("N of tracksters in candidate for " + neutrals[i], "N of tracksters in candidate for " + neutrals[i], 100, 0, 99));
-  h_neut_candidate_regressed_energy.push_back(ibook.book1D(neutrals[i] +"candidates regressed energy", neutrals[i] + " candidates regressed energy;E (GeV)", 250, 0, 250));
-  h_neut_candidate_charge.push_back(ibook.book1D(neutrals[i] + " candidates charge", neutrals[i] + " candidates charge;Charge", 3, -1.5, 1.5));
-  h_neut_candidate_pdgId.push_back(ibook.book1D(neutrals[i] + " candidates PDG Id", neutrals[i] + " candidates PDG ID", 100, -220, 220));
-  h_neut_candidate_partType.push_back(ibook.book1D(neutrals[i] + " candidates type", neutrals[i] + " candidates type", 9, -0.5, 8.5));
+    h_neut_tracksters_in_candidate.push_back(ibook.book1D("N of tracksters in candidate for " + neutrals[i],
+                                                          "N of tracksters in candidate for " + neutrals[i],
+                                                          100,
+                                                          0,
+                                                          99));
+    h_neut_candidate_regressed_energy.push_back(ibook.book1D(
+        neutrals[i] + "candidates regressed energy", neutrals[i] + " candidates regressed energy;E (GeV)", 250, 0, 250));
+    h_neut_candidate_charge.push_back(
+        ibook.book1D(neutrals[i] + " candidates charge", neutrals[i] + " candidates charge;Charge", 3, -1.5, 1.5));
+    h_neut_candidate_pdgId.push_back(
+        ibook.book1D(neutrals[i] + " candidates PDG Id", neutrals[i] + " candidates PDG ID", 100, -220, 220));
+    h_neut_candidate_partType.push_back(
+        ibook.book1D(neutrals[i] + " candidates type", neutrals[i] + " candidates type", 9, -0.5, 8.5));
 
     h_den_fake_neut_energy_candidate.push_back(
         ibook.book1D("den_fake_cand_vs_energy_" + neutrals[i], neutrals[i] + " candidates energy;E (GeV)", 50, 0, 250));
@@ -119,8 +127,8 @@ void TICLCandidateValidator::bookCandidatesHistos(DQMStore::IBooker& ibook, std:
                      50,
                      -3,
                      3));
-    h_den_neut_phi_candidate.push_back(
-        ibook.book1D("den_cand_vs_phi_" + neutrals[i], neutrals[i] + " simCandidates phi;#phi (GeV)", 50, -3.14159, 3.14159));
+    h_den_neut_phi_candidate.push_back(ibook.book1D(
+        "den_cand_vs_phi_" + neutrals[i], neutrals[i] + " simCandidates phi;#phi (GeV)", 50, -3.14159, 3.14159));
     h_num_neut_phi_candidate_pdgId.push_back(ibook.book1D("num_pid_cand_vs_phi_" + neutrals[i],
                                                           neutrals[i] + " track and PID efficiency vs phi;#phi (GeV)",
                                                           50,
@@ -138,11 +146,16 @@ void TICLCandidateValidator::bookCandidatesHistos(DQMStore::IBooker& ibook, std:
   for (long unsigned int i = 0; i < charged.size(); i++) {
     ibook.setCurrentFolder(baseDir + "/" + charged[i]);
 
-  h_chg_tracksters_in_candidate.push_back(ibook.book1D("N of tracksters in candidate for " + charged[i], "N of tracksters in candidate for " + charged[i], 100, 0, 99));
-  h_chg_candidate_regressed_energy.push_back(ibook.book1D(charged[i] +"candidates regressed energy", charged[i] + " candidates regressed energy;E (GeV)", 250, 0, 250));
-  h_chg_candidate_charge.push_back(ibook.book1D(charged[i] + " candidates charge", charged[i] + " candidates charge;Charge", 3, -1.5, 1.5));
-  h_chg_candidate_pdgId.push_back(ibook.book1D(charged[i] + " candidates PDG Id", charged[i] + " candidates PDG ID", 100, -220, 220));
-  h_chg_candidate_partType.push_back(ibook.book1D(charged[i] + " candidates type", charged[i] + " candidates type", 9, -0.5, 8.5));
+    h_chg_tracksters_in_candidate.push_back(ibook.book1D(
+        "N of tracksters in candidate for " + charged[i], "N of tracksters in candidate for " + charged[i], 100, 0, 99));
+    h_chg_candidate_regressed_energy.push_back(ibook.book1D(
+        charged[i] + "candidates regressed energy", charged[i] + " candidates regressed energy;E (GeV)", 250, 0, 250));
+    h_chg_candidate_charge.push_back(
+        ibook.book1D(charged[i] + " candidates charge", charged[i] + " candidates charge;Charge", 3, -1.5, 1.5));
+    h_chg_candidate_pdgId.push_back(
+        ibook.book1D(charged[i] + " candidates PDG Id", charged[i] + " candidates PDG ID", 100, -220, 220));
+    h_chg_candidate_partType.push_back(
+        ibook.book1D(charged[i] + " candidates type", charged[i] + " candidates type", 9, -0.5, 8.5));
 
     h_den_fake_chg_energy_candidate.push_back(
         ibook.book1D("den_fake_cand_vs_energy_" + charged[i], charged[i] + " candidates energy;E (GeV)", 50, 0, 250));
@@ -180,8 +193,8 @@ void TICLCandidateValidator::bookCandidatesHistos(DQMStore::IBooker& ibook, std:
                      50,
                      -3,
                      3));
-    h_den_fake_chg_phi_candidate.push_back(
-        ibook.book1D("den_fake_cand_vs_phi_" + charged[i], charged[i] + " candidates phi;#phi (GeV)", 50, -3.14159, 3.14159));
+    h_den_fake_chg_phi_candidate.push_back(ibook.book1D(
+        "den_fake_cand_vs_phi_" + charged[i], charged[i] + " candidates phi;#phi (GeV)", 50, -3.14159, 3.14159));
     h_num_fake_chg_phi_candidate_track.push_back(ibook.book1D("num_fake_track_cand_vs_phi_" + charged[i],
                                                               charged[i] + " track fake vs phi;#phi (GeV)",
                                                               50,
@@ -203,11 +216,8 @@ void TICLCandidateValidator::bookCandidatesHistos(DQMStore::IBooker& ibook, std:
         ibook.book1D("den_cand_vs_energy_" + charged[i], charged[i] + " simCandidates energy;E (GeV)", 50, 0, 250));
     h_num_chg_energy_candidate_track.push_back(ibook.book1D(
         "num_track_cand_vs_energy_" + charged[i], charged[i] + " track efficiency vs energy;E (GeV)", 50, 0, 250));
-    h_num_chg_energy_candidate_pdgId.push_back(ibook.book1D("num_pid_cand_vs_energy_" + charged[i],
-                                                            charged[i] + " track and PID efficiency vs energy;E (GeV)",
-                                                            50,
-                                                            0,
-                                                            250));
+    h_num_chg_energy_candidate_pdgId.push_back(ibook.book1D(
+        "num_pid_cand_vs_energy_" + charged[i], charged[i] + " track and PID efficiency vs energy;E (GeV)", 50, 0, 250));
     h_num_chg_energy_candidate_energy.push_back(
         ibook.book1D("num_energy_cand_vs_energy_" + charged[i],
                      charged[i] + " track, PID and energy efficiency vs energy;E (GeV)",
@@ -238,8 +248,8 @@ void TICLCandidateValidator::bookCandidatesHistos(DQMStore::IBooker& ibook, std:
                      50,
                      -3,
                      3));
-    h_den_chg_phi_candidate.push_back(
-        ibook.book1D("den_cand_vs_phi_" + charged[i], charged[i] + " simCandidates phi;#phi (GeV)", 50, -3.14159, 3.14159));
+    h_den_chg_phi_candidate.push_back(ibook.book1D(
+        "den_cand_vs_phi_" + charged[i], charged[i] + " simCandidates phi;#phi (GeV)", 50, -3.14159, 3.14159));
     h_num_chg_phi_candidate_track.push_back(ibook.book1D("num_track_cand_vs_phi_" + charged[i],
                                                          charged[i] + " track efficiency vs phi;#phi (GeV)",
                                                          50,
@@ -381,7 +391,9 @@ void TICLCandidateValidator::fillCandidateHistos(const edm::Event& event,
     if (isTICLv5_) {
       // cand_idx is the tsMerge index, find the ts in the candidates collection
       auto const tsPtr = edm::Ptr<ticl::Trackster>(Tracksters_h, cand_idx);
-      auto cand_it = std::find_if(TICLCandidates.begin(), TICLCandidates.end(), [tsPtr](TICLCandidate const& cand){ return cand.tracksters()[0] == tsPtr;});
+      auto cand_it = std::find_if(TICLCandidates.begin(), TICLCandidates.end(), [tsPtr](TICLCandidate const& cand) {
+        return cand.tracksters()[0] == tsPtr;
+      });
       recoCand = *cand_it;
     }
 
@@ -465,7 +477,9 @@ void TICLCandidateValidator::fillCandidateHistos(const edm::Event& event,
     if (isTICLv5_) {
       // cand_idx is the tsMerge index, find the ts in the candidates collection
       auto const tsPtr = edm::Ptr<ticl::Trackster>(Tracksters_h, cand_idx);
-      auto cand_it = std::find_if(TICLCandidates.begin(), TICLCandidates.end(), [tsPtr](TICLCandidate const& cand){ return cand.tracksters()[0] == tsPtr;});
+      auto cand_it = std::find_if(TICLCandidates.begin(), TICLCandidates.end(), [tsPtr](TICLCandidate const& cand) {
+        return cand.tracksters()[0] == tsPtr;
+      });
       recoCand = *cand_it;
     }
 
@@ -527,14 +541,14 @@ void TICLCandidateValidator::fillCandidateHistos(const edm::Event& event,
     int32_t candTrackIdx = -1;
     candTrackIdx = cand.trackPtr().get() - edm::Ptr<reco::Track>(recoTracks_h, 0).get();
 
-    if (not cand.tracksters().size())
-		continue;
+    if (cand.tracksters().empty())
+      continue;
 
-	// i is the candidate idx == ts idx only in v4, find ts_idx in v5
-	auto mergeTs_id = i;
-	if (isTICLv5_) {
-        mergeTs_id = cand.tracksters()[0].get() - edm::Ptr<ticl::Trackster>(Tracksters_h, 0).get();
-	}
+    // i is the candidate idx == ts idx only in v4, find ts_idx in v5
+    auto mergeTs_id = i;
+    if (isTICLv5_) {
+      mergeTs_id = cand.tracksters()[0].get() - edm::Ptr<ticl::Trackster>(Tracksters_h, 0).get();
+    }
     // remove PU tracksters
     const edm::Ref<ticl::TracksterCollection> tsRef(Tracksters_h, mergeTs_id);
     auto const sts_iterPU = mergeTsRecoToSimPUMap.find(tsRef);
@@ -633,14 +647,14 @@ void TICLCandidateValidator::fillCandidateHistos(const edm::Event& event,
      * 130 (type 5) becomes 2
      */
 
-    if (not cand.tracksters().size())
-		continue;
+    if (cand.tracksters().empty())
+      continue;
 
-	// i is the candidate idx == ts idx only in v4, find ts_idx in v5
-	auto mergeTs_id = i;
-	if (isTICLv5_) {
-        mergeTs_id = cand.tracksters()[0].get() - edm::Ptr<ticl::Trackster>(Tracksters_h, 0).get();
-	}
+    // i is the candidate idx == ts idx only in v4, find ts_idx in v5
+    auto mergeTs_id = i;
+    if (isTICLv5_) {
+      mergeTs_id = cand.tracksters()[0].get() - edm::Ptr<ticl::Trackster>(Tracksters_h, 0).get();
+    }
     // remove PU tracksters
     const edm::Ref<ticl::TracksterCollection> tsRef(Tracksters_h, mergeTs_id);
     auto const sts_iterPU = mergeTsRecoToSimPUMap.find(tsRef);
