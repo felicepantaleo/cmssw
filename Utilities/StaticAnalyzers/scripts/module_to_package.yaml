@@ -158,7 +158,7 @@ RecoEgamma/EgammaPhotonProducers:
 RecoEgamma/Examples:
 - SiStripElectronAnalyzer
 - SimplePhotonAnalyzer
-RecoHGCal/TICL:
+RecoTICL/TrackstersProducers:
 - TrackstersProducer
 RecoHI/HiEgammaAlgos:
 - HiEgammaSCCorrectionMaker

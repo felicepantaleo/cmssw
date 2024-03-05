@@ -5,7 +5,7 @@ fragment = cms.ProcessFragment( "HLT" )
 ### Non HLT-specific event-setups
 fragment.load("CalibMuon/CSCCalibration/CSCChannelMapper_cfi")
 fragment.load("CalibMuon/CSCCalibration/CSCIndexer_cfi")
-fragment.load("RecoHGCal/TICL/tracksterSelectionTf_cfi")
+fragment.load("RecoTICL/TrackstersProducers/tracksterSelectionTf_cfi")
 fragment.load("RecoJets/Configuration/CaloTowersES_cfi")
 fragment.load("RecoLocalCalo/EcalRecAlgos/EcalSeverityLevelESProducer_cfi")
 fragment.load("RecoLocalCalo/HcalRecAlgos/hcalRecAlgoESProd_cfi")

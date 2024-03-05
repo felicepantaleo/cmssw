@@ -61,7 +61,7 @@ from RecoEgamma.Configuration.RecoEgamma_EventContent_cff import *
 from RecoParticleFlow.Configuration.RecoParticleFlow_EventContent_cff import *
 from RecoVertex.BeamSpotProducer.BeamSpot_EventContent_cff import *
 from RecoPPS.Configuration.RecoCTPPS_EventContent_cff import *
-from RecoHGCal.Configuration.RecoHGCal_EventContent_cff import *
+from RecoTICL.Configuration.RecoTICL_EventContent_cff import *
 
 # raw2digi that are already the final RECO/AOD products
 from EventFilter.ScalersRawToDigi.Scalers_EventContent_cff import *

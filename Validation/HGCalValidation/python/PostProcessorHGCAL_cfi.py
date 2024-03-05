@@ -1,6 +1,6 @@
 import FWCore.ParameterSet.Config as cms
 from DQMServices.Core.DQMEDHarvester import DQMEDHarvester
-from RecoHGCal.TICL.iterativeTICL_cff import ticlIterLabelsMerge
+from RecoTICL.CandidatesProducers.iterativeTICL_cff import ticlIterLabelsMerge
 from Validation.HGCalValidation.HGCalValidator_cfi import hgcalValidator
 
 tracksterLabels = ['ticlTracksters'+iteration for iteration in ticlIterLabelsMerge]

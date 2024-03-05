@@ -10,7 +10,7 @@ from RecoParticleFlow.PFClusterProducer.particleFlowCluster_cff import *
 from TrackingTools.Configuration.TrackingTools_cff import *
 from RecoTracker.MeasurementDet.MeasurementTrackerEventProducer_cfi import *
 from RecoTracker.PixelLowPtUtilities.siPixelClusterShapeCache_cfi import *
-from RecoHGCal.Configuration.recoHGCAL_cff import *
+from RecoTICL.Configuration.recoTICL_cff import *
 
 from Configuration.Eras.Modifier_fastSim_cff import fastSim
 
