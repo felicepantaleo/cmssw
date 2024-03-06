@@ -1,7 +1,7 @@
 import FWCore.ParameterSet.Config as cms
 
-particleFlowBlock = cms.EDProducer("PFBlockProducer",
-    debug = cms.untracked.bool(False),
+particleFlowBlock = cms.EDProducer("TICLPFBlockProducer",
+    debug = cms.untracked.bool(True),
     elementImporters = cms.VPSet(
         cms.PSet(
             importerName = cms.string('SuperClusterImporter'),
@@ -139,5 +139,5 @@ particleFlowBlock = cms.EDProducer("PFBlockProducer",
             useKDTree = cms.bool(True)
         )
     ),
-    verbose = cms.untracked.bool(False)
+    verbose = cms.untracked.bool(True)
 )
