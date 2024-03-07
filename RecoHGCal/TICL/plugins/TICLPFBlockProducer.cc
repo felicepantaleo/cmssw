@@ -8,7 +8,7 @@
 /**\class TICLPFBlockProducer 
 \brief Producer for particle flow blocks
 
-This producer makes use of PFBlockAlgo, the particle flow block algorithm.
+This producer makes use of TICLPFBlockAlgo, the particle flow block algorithm.
 Particle flow itself consists in reconstructing particles from the particle 
 flow blocks This is done at a later stage, see PFProducer and PFAlgo.
 
@@ -32,7 +32,7 @@ private:
   const edm::EDPutTokenT<reco::PFBlockCollection> putToken_;
 
   /// Particle flow block algorithm
-  PFBlockAlgo pfBlockAlgo_;
+  TICLPFBlockAlgo pfBlockAlgo_;
 };
 
 DEFINE_FWK_MODULE(TICLPFBlockProducer);

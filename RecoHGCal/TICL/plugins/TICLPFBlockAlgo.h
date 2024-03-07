@@ -31,16 +31,16 @@ namespace std {
   \date January 2006 (April 2014) 
 */
 
-class PFBlockAlgo {
+class TICLPFBlockAlgo {
 public:
   // the element list should **always** be a list of (smart) pointers
   typedef std::vector<std::unique_ptr<reco::PFBlockElement>> ElementList;
   //for skipping ranges
   typedef std::array<std::pair<unsigned int, unsigned int>, reco::PFBlockElement::kNBETypes> ElementRanges;
 
-  PFBlockAlgo();
+  TICLPFBlockAlgo();
 
-  ~PFBlockAlgo();
+  ~TICLPFBlockAlgo();
 
   void setLinkers(const std::vector<edm::ParameterSet>&);
 
@@ -74,7 +74,7 @@ private:
   /// if true, debug printouts activated
   bool debug_;
 
-  friend std::ostream& operator<<(std::ostream&, const PFBlockAlgo&);
+  friend std::ostream& operator<<(std::ostream&, const TICLPFBlockAlgo&);
   bool useHO_;
 
   std::vector<std::unique_ptr<BlockElementImporterBase>> importers_;

@@ -1,14 +1,14 @@
 #include "DataFormats/ParticleFlowReco/interface/PFCluster.h"
 #include "DataFormats/ParticleFlowReco/interface/PFBlockElement.h"
 #include "RecoParticleFlow/PFClusterTools/interface/LinkByRecHit.h"
-#include "RecoParticleFlow/PFProducer/interface/KDTreeLinkerBase.h"
+#include "RecoParticleFlow/PFProducer/interface/TICLTilesLinkerBase.h"
 #include "CommonTools/RecoAlgos/interface/KDTreeLinkerAlgo.h"
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
 
 // This class is used to find all links between Tracks and HCAL clusters
 // using a KDTree algorithm.
 // It is used in PFBlockAlgo.cc in the function links().
-class KDTreeLinkerTrackHcal : public KDTreeLinkerBase {
+class KDTreeLinkerTrackHcal : public TICLTilesLinkerBase {
 public:
   KDTreeLinkerTrackHcal(const edm::ParameterSet& conf);
   ~KDTreeLinkerTrackHcal() override;
@@ -67,10 +67,10 @@ private:
 
 // the text name is different so that we can easily
 // construct it when calling the factory
-DEFINE_EDM_PLUGIN(KDTreeLinkerFactory, KDTreeLinkerTrackHcal, "KDTreeTrackAndHCALLinker");
+DEFINE_EDM_PLUGIN(TICLTilesLinkerFactory, KDTreeLinkerTrackHcal, "KDTreeTrackAndHCALLinker");
 
 KDTreeLinkerTrackHcal::KDTreeLinkerTrackHcal(const edm::ParameterSet& conf)
-    : KDTreeLinkerBase(conf),
+    : TICLTilesLinkerBase(conf),
       trajectoryLayerEntranceString_(conf.getParameter<std::string>("trajectoryLayerEntrance")),
       trajectoryLayerExitString_(conf.getParameter<std::string>("trajectoryLayerExit")),
       nMaxHcalLinksPerTrack_(conf.getParameter<int>("nMaxHcalLinksPerTrack")) {

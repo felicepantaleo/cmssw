@@ -1,5 +1,5 @@
 #include "DataFormats/ParticleFlowReco/interface/PFCluster.h"
-#include "RecoParticleFlow/PFProducer/interface/KDTreeLinkerBase.h"
+#include "RecoParticleFlow/PFProducer/interface/TICLTilesLinkerBase.h"
 #include "CommonTools/RecoAlgos/interface/KDTreeLinkerAlgo.h"
 
 #include "TMath.h"
@@ -7,7 +7,7 @@
 // This class is used to find all links between PreShower clusters and ECAL clusters
 // using a KDTree algorithm.
 // It is used in PFBlockAlgo.cc in the function links().
-class KDTreeLinkerPSEcal : public KDTreeLinkerBase {
+class KDTreeLinkerPSEcal : public TICLTilesLinkerBase {
 public:
   KDTreeLinkerPSEcal(const edm::ParameterSet &conf);
   ~KDTreeLinkerPSEcal() override;
@@ -68,10 +68,10 @@ private:
 
 // the text name is different so that we can easily
 // construct it when calling the factory
-DEFINE_EDM_PLUGIN(KDTreeLinkerFactory, KDTreeLinkerPSEcal, "KDTreePreshowerAndECALLinker");
+DEFINE_EDM_PLUGIN(TICLTilesLinkerFactory, KDTreeLinkerPSEcal, "KDTreePreshowerAndECALLinker");
 
 KDTreeLinkerPSEcal::KDTreeLinkerPSEcal(const edm::ParameterSet &conf)
-    : KDTreeLinkerBase(conf), resPSpitch_(0.19), resPSlength_(6.1), ps1ToEcal_(1.072), ps2ToEcal_(1.057) {}
+    : TICLTilesLinkerBase(conf), resPSpitch_(0.19), resPSlength_(6.1), ps1ToEcal_(1.072), ps2ToEcal_(1.057) {}
 
 KDTreeLinkerPSEcal::~KDTreeLinkerPSEcal() { clear(); }
 

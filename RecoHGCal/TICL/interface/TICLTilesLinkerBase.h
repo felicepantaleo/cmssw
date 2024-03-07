@@ -1,5 +1,5 @@
-#ifndef KDTreeLinkerBase_h
-#define KDTreeLinkerBase_h
+#ifndef TICLTilesLinkerBase_h
+#define TICLTilesLinkerBase_h
 
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "DataFormats/ParticleFlowReco/interface/PFRecHitFraction.h"
@@ -101,6 +101,6 @@ protected:
 };
 
 #include "FWCore/PluginManager/interface/PluginFactory.h"
-typedef edmplugin::PluginFactory<TICLTilesLinkerBase *(const edm::ParameterSet &)> KDTreeLinkerFactory;
+typedef edmplugin::PluginFactory<TICLTilesLinkerBase *(const edm::ParameterSet &)> TICLTilesLinkerFactory;
 
-#endif /* !KDTreeLinkerBase_h */
+#endif 
