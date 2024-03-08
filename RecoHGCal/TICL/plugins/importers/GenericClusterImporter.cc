@@ -6,11 +6,13 @@ class GenericClusterImporter : public BlockElementImporterBase {
 public:
   GenericClusterImporter(const edm::ParameterSet& conf, edm::ConsumesCollector& cc)
       : BlockElementImporterBase(conf, cc),
-        _src(cc.consumes<reco::PFClusterCollection>(conf.getParameter<edm::InputTag>("source"))) {}
+        _src(cc.consumes<reco::PFClusterCollection>(conf.getParameter<edm::InputTag>("source"))),
+        _rechitsLabel(cc.consumes<reco::PFRecHitCollection>(conf.getParameter<edm::InputTag>("recHitsSource"))) {}
 
   void importToBlock(const edm::Event&, ElementList&) const override;
 
 private:
+  edm::EDGetTokenT<reco::PFRecHitCollection> _rechitsLabel;
   edm::EDGetTokenT<reco::PFClusterCollection> _src;
 };
 
@@ -18,6 +20,10 @@ DEFINE_EDM_PLUGIN(BlockElementImporterFactory, GenericClusterImporter, "GenericC
 
 void GenericClusterImporter::importToBlock(const edm::Event& e, BlockElementImporterBase::ElementList& elems) const {
   auto clusters = e.getHandle(_src);
+  auto rechits = e.getHandle(_rechitsLabel);
+  if(!rechits.isValid()){
+    std::cout << "rechits not valid" << std::endl;
+  }
   auto cbegin = clusters->cbegin();
   auto cend = clusters->cend();
   for (auto clus = cbegin; clus != cend; ++clus) {

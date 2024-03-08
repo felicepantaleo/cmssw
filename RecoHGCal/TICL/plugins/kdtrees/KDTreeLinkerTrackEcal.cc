@@ -2,7 +2,7 @@
 #include "DataFormats/ParticleFlowReco/interface/PFBlockElement.h"
 #include "RecoParticleFlow/PFProducer/interface/TICLTilesLinkerBase.h"
 #include "CommonTools/RecoAlgos/interface/KDTreeLinkerAlgo.h"
-
+#include "RecoLocalCalo/HGCalRecProducers/interface/HGCalLayerTiles.h"
 #include "TMath.h"
 
 // This class is used to find all links between Tracks and ECAL clusters
@@ -53,6 +53,8 @@ private:
 
   // KD trees
   KDTreeLinkerAlgo<reco::PFRecHit const *> tree_;
+
+  EBLayerTiles ebTICLTiles_;
 };
 
 // the text name is different so that we can easily
