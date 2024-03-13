@@ -31,4 +31,4 @@ typedef pflow::importers::TrackFromParentImporter<reco::PFDisplacedTrackerVertex
 
 DEFINE_EDM_PLUGIN(BlockElementImporterFactory,
                   LooseNuclearInteractionTrackImporter,
-                  "LooseNuclearInteractionTrackImporter");
+                  "TICLLooseNuclearInteractionTrackImporter");

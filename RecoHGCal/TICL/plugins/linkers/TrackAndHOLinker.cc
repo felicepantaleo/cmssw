@@ -17,7 +17,7 @@ private:
   bool useKDTree_, debug_;
 };
 
-DEFINE_EDM_PLUGIN(BlockElementLinkerFactory, TrackAndHOLinker, "TrackAndHOLinker");
+DEFINE_EDM_PLUGIN(BlockElementLinkerFactory, TrackAndHOLinker, "TICLTrackAndHOLinker");
 
 double TrackAndHOLinker::testLink(const reco::PFBlockElement* elem1, const reco::PFBlockElement* elem2) const {
   constexpr reco::PFTrajectoryPoint::LayerType HOLayer = reco::PFTrajectoryPoint::HOLayer;

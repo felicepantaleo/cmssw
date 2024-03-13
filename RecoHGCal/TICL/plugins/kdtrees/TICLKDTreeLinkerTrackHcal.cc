@@ -1,7 +1,7 @@
 #include "DataFormats/ParticleFlowReco/interface/PFCluster.h"
 #include "DataFormats/ParticleFlowReco/interface/PFBlockElement.h"
 #include "RecoParticleFlow/PFClusterTools/interface/LinkByRecHit.h"
-#include "RecoParticleFlow/PFProducer/interface/TICLTilesLinkerBase.h"
+#include "RecoHGCal/TICL/interface/TICLTilesLinkerBase.h"
 #include "CommonTools/RecoAlgos/interface/KDTreeLinkerAlgo.h"
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
 
@@ -67,7 +67,7 @@ private:
 
 // the text name is different so that we can easily
 // construct it when calling the factory
-DEFINE_EDM_PLUGIN(TICLTilesLinkerFactory, KDTreeLinkerTrackHcal, "KDTreeTrackAndHCALLinker");
+DEFINE_EDM_PLUGIN(TICLTilesLinkerFactory, KDTreeLinkerTrackHcal, "TICLTilesTrackAndHCALLinker");
 
 KDTreeLinkerTrackHcal::KDTreeLinkerTrackHcal(const edm::ParameterSet& conf)
     : TICLTilesLinkerBase(conf),

@@ -29,4 +29,4 @@ namespace {
 typedef pflow::importers::TrackFromParentImporter<reco::PFDisplacedTrackerVertexCollection, NuclAdaptor>
     NuclearInteractionTrackImporter;
 
-DEFINE_EDM_PLUGIN(BlockElementImporterFactory, NuclearInteractionTrackImporter, "NuclearInteractionTrackImporter");
+DEFINE_EDM_PLUGIN(BlockElementImporterFactory, NuclearInteractionTrackImporter, "TICLNuclearInteractionTrackImporter");

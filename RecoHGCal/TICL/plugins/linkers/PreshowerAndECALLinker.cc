@@ -18,7 +18,7 @@ private:
   bool useKDTree_, debug_;
 };
 
-DEFINE_EDM_PLUGIN(BlockElementLinkerFactory, PreshowerAndECALLinker, "PreshowerAndECALLinker");
+DEFINE_EDM_PLUGIN(BlockElementLinkerFactory, PreshowerAndECALLinker, "TICLPreshowerAndECALLinker");
 
 bool PreshowerAndECALLinker::linkPrefilter(const reco::PFBlockElement* elem1, const reco::PFBlockElement* elem2) const {
   bool result = false;

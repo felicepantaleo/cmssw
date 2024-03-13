@@ -17,7 +17,7 @@ private:
   bool useKDTree_, debug_;
 };
 
-DEFINE_EDM_PLUGIN(BlockElementLinkerFactory, GSFAndGSFLinker, "GSFAndGSFLinker");
+DEFINE_EDM_PLUGIN(BlockElementLinkerFactory, GSFAndGSFLinker, "TICLGSFAndGSFLinker");
 
 double GSFAndGSFLinker::testLink(const reco::PFBlockElement* elem1, const reco::PFBlockElement* elem2) const {
   constexpr reco::PFBlockElement::TrackType T_FROM_GAMMACONV = reco::PFBlockElement::T_FROM_GAMMACONV;

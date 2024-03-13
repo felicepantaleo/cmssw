@@ -40,7 +40,7 @@ private:
   const bool debug_;
 };
 
-DEFINE_EDM_PLUGIN(BlockElementImporterFactory, TrackTimingImporter, "TrackTimingImporter");
+DEFINE_EDM_PLUGIN(BlockElementImporterFactory, TrackTimingImporter, "TICLTrackTimingImporter");
 
 void TrackTimingImporter::importToBlock(const edm::Event& e, BlockElementImporterBase::ElementList& elems) const {
   typedef BlockElementImporterBase::ElementList::value_type ElementType;

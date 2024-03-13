@@ -12,11 +12,11 @@ public:
   void importToBlock(const edm::Event&, ElementList&) const override;
 
 private:
-  edm::EDGetTokenT<reco::PFRecHitCollection> _rechitsLabel;
   edm::EDGetTokenT<reco::PFClusterCollection> _src;
+  edm::EDGetTokenT<reco::PFRecHitCollection> _rechitsLabel;
 };
 
-DEFINE_EDM_PLUGIN(BlockElementImporterFactory, GenericClusterImporter, "GenericClusterImporter");
+DEFINE_EDM_PLUGIN(BlockElementImporterFactory, GenericClusterImporter, "TICLGenericClusterImporter");
 
 void GenericClusterImporter::importToBlock(const edm::Event& e, BlockElementImporterBase::ElementList& elems) const {
   auto clusters = e.getHandle(_src);

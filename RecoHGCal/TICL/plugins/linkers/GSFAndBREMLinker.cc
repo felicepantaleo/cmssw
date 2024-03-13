@@ -17,7 +17,7 @@ private:
   bool useKDTree_, debug_;
 };
 
-DEFINE_EDM_PLUGIN(BlockElementLinkerFactory, GSFAndBREMLinker, "GSFAndBREMLinker");
+DEFINE_EDM_PLUGIN(BlockElementLinkerFactory, GSFAndBREMLinker, "TICLGSFAndBREMLinker");
 
 double GSFAndBREMLinker::testLink(const reco::PFBlockElement* elem1, const reco::PFBlockElement* elem2) const {
   double dist = -1.0;

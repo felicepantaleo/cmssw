@@ -17,7 +17,7 @@ private:
   bool useKDTree_, debug_;
 };
 
-DEFINE_EDM_PLUGIN(BlockElementLinkerFactory, GSFAndHGCalLinker, "GSFAndHGCalLinker");
+DEFINE_EDM_PLUGIN(BlockElementLinkerFactory, GSFAndHGCalLinker, "TICLGSFAndHGCalLinker");
 
 double GSFAndHGCalLinker::testLink(const reco::PFBlockElement* elem1, const reco::PFBlockElement* elem2) const {
   constexpr reco::PFTrajectoryPoint::LayerType ECALShowerMax = reco::PFTrajectoryPoint::ECALShowerMax;

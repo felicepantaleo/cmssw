@@ -16,7 +16,7 @@ private:
   bool useKDTree_, debug_;
 };
 
-DEFINE_EDM_PLUGIN(BlockElementLinkerFactory, ECALAndHCALCaloJetLinker, "ECALAndHCALCaloJetLinker");
+DEFINE_EDM_PLUGIN(BlockElementLinkerFactory, ECALAndHCALCaloJetLinker, "TICLECALAndHCALCaloJetLinker");
 
 double ECALAndHCALCaloJetLinker::testLink(const reco::PFBlockElement* elem1, const reco::PFBlockElement* elem2) const {
   const reco::PFBlockElementCluster *hcalelem(nullptr), *ecalelem(nullptr);

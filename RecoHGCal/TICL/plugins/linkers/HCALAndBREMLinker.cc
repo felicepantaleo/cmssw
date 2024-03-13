@@ -17,7 +17,7 @@ private:
   bool useKDTree_, debug_;
 };
 
-DEFINE_EDM_PLUGIN(BlockElementLinkerFactory, HCALAndBREMLinker, "HCALAndBREMLinker");
+DEFINE_EDM_PLUGIN(BlockElementLinkerFactory, HCALAndBREMLinker, "TICLHCALAndBREMLinker");
 
 double HCALAndBREMLinker::testLink(const reco::PFBlockElement* elem1, const reco::PFBlockElement* elem2) const {
   constexpr reco::PFTrajectoryPoint::LayerType HCALEnt = reco::PFTrajectoryPoint::HCALEntrance;

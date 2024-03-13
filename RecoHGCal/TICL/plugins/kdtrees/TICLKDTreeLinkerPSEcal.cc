@@ -1,5 +1,5 @@
 #include "DataFormats/ParticleFlowReco/interface/PFCluster.h"
-#include "RecoParticleFlow/PFProducer/interface/TICLTilesLinkerBase.h"
+#include "RecoHGCal/TICL/interface/TICLTilesLinkerBase.h"
 #include "CommonTools/RecoAlgos/interface/KDTreeLinkerAlgo.h"
 
 #include "TMath.h"
@@ -68,7 +68,7 @@ private:
 
 // the text name is different so that we can easily
 // construct it when calling the factory
-DEFINE_EDM_PLUGIN(TICLTilesLinkerFactory, KDTreeLinkerPSEcal, "KDTreePreshowerAndECALLinker");
+DEFINE_EDM_PLUGIN(TICLTilesLinkerFactory, KDTreeLinkerPSEcal, "TICLKDTreePreshowerAndECALLinker");
 
 KDTreeLinkerPSEcal::KDTreeLinkerPSEcal(const edm::ParameterSet &conf)
     : TICLTilesLinkerBase(conf), resPSpitch_(0.19), resPSlength_(6.1), ps1ToEcal_(1.072), ps2ToEcal_(1.057) {}

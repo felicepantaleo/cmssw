@@ -90,7 +90,7 @@ void TICLPFBlockAlgo::setLinkers(const std::vector<edm::ParameterSet>& confs) {
   }
   linkTests_.resize(rowsize * rowsize);
   const std::string prefix("PFBlockElement::");
-  const std::string pfx_kdtree("KDTree");
+  const std::string pfx_kdtree("TICLTiles");
   for (const auto& conf : confs) {
     const std::string& linkerName = conf.getParameter<std::string>("linkerName");
     const std::string& linkTypeStr = conf.getParameter<std::string>("linkType");

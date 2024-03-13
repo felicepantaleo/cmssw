@@ -18,7 +18,7 @@ private:
   bool useKDTree_, debug_;
 };
 
-DEFINE_EDM_PLUGIN(BlockElementLinkerFactory, ECALAndECALLinker, "ECALAndECALLinker");
+DEFINE_EDM_PLUGIN(BlockElementLinkerFactory, ECALAndECALLinker, "TICLECALAndECALLinker");
 
 bool ECALAndECALLinker::linkPrefilter(const reco::PFBlockElement* elem1, const reco::PFBlockElement* elem2) const {
   const reco::PFBlockElementCluster* ecal1 = static_cast<const reco::PFBlockElementCluster*>(elem1);

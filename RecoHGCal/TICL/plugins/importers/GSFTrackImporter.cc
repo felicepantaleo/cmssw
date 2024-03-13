@@ -23,7 +23,7 @@ private:
   const bool _isSecondary, _superClustersArePF;
 };
 
-DEFINE_EDM_PLUGIN(BlockElementImporterFactory, GSFTrackImporter, "GSFTrackImporter");
+DEFINE_EDM_PLUGIN(BlockElementImporterFactory, GSFTrackImporter, "TICLGSFTrackImporter");
 
 void GSFTrackImporter::importToBlock(const edm::Event& e, BlockElementImporterBase::ElementList& elems) const {
   auto gsftracks = e.getHandle(_src);

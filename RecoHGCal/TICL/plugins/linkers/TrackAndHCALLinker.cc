@@ -43,7 +43,7 @@ private:
   bool checkExit_;
 };
 
-DEFINE_EDM_PLUGIN(BlockElementLinkerFactory, TrackAndHCALLinker, "TrackAndHCALLinker");
+DEFINE_EDM_PLUGIN(BlockElementLinkerFactory, TrackAndHCALLinker, "TICLTrackAndHCALLinker");
 
 bool TrackAndHCALLinker::linkPrefilter(const reco::PFBlockElement* elem1, const reco::PFBlockElement* elem2) const {
   bool result = false;

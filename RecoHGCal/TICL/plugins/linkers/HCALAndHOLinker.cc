@@ -16,7 +16,7 @@ private:
   bool useKDTree_, debug_;
 };
 
-DEFINE_EDM_PLUGIN(BlockElementLinkerFactory, HCALAndHOLinker, "HCALAndHOLinker");
+DEFINE_EDM_PLUGIN(BlockElementLinkerFactory, HCALAndHOLinker, "TICLHCALAndHOLinker");
 
 double HCALAndHOLinker::testLink(const reco::PFBlockElement* elem1, const reco::PFBlockElement* elem2) const {
   const reco::PFBlockElementCluster *hcalelem(nullptr), *hoelem(nullptr);

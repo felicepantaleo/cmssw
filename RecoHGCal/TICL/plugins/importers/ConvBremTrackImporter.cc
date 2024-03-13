@@ -16,4 +16,4 @@ namespace {
 
 typedef pflow::importers::TrackFromParentImporter<reco::GsfPFRecTrackCollection, ConvBremAdaptor> ConvBremTrackImporter;
 
-DEFINE_EDM_PLUGIN(BlockElementImporterFactory, ConvBremTrackImporter, "ConvBremTrackImporter");
+DEFINE_EDM_PLUGIN(BlockElementImporterFactory, ConvBremTrackImporter, "TICLConvBremTrackImporter");

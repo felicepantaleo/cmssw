@@ -17,7 +17,7 @@ private:
   bool useKDTree_, debug_;
 };
 
-DEFINE_EDM_PLUGIN(BlockElementLinkerFactory, ECALAndBREMLinker, "ECALAndBREMLinker");
+DEFINE_EDM_PLUGIN(BlockElementLinkerFactory, ECALAndBREMLinker, "TICLECALAndBREMLinker");
 
 double ECALAndBREMLinker::testLink(const reco::PFBlockElement* elem1, const reco::PFBlockElement* elem2) const {
   constexpr reco::PFTrajectoryPoint::LayerType ECALShowerMax = reco::PFTrajectoryPoint::ECALShowerMax;

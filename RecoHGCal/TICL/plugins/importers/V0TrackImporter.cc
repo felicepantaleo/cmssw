@@ -16,4 +16,4 @@ namespace {
 
 typedef pflow::importers::TrackFromParentImporter<reco::PFV0Collection, V0Adaptor> V0TrackImporter;
 
-DEFINE_EDM_PLUGIN(BlockElementImporterFactory, V0TrackImporter, "V0TrackImporter");
+DEFINE_EDM_PLUGIN(BlockElementImporterFactory, V0TrackImporter, "TICLV0TrackImporter");

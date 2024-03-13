@@ -18,7 +18,7 @@ private:
   bool useKDTree_, useConvertedBrems_, debug_;
 };
 
-DEFINE_EDM_PLUGIN(BlockElementLinkerFactory, TrackAndGSFLinker, "TrackAndGSFLinker");
+DEFINE_EDM_PLUGIN(BlockElementLinkerFactory, TrackAndGSFLinker, "TICLTrackAndGSFLinker");
 
 double TrackAndGSFLinker::testLink(const reco::PFBlockElement* elem1, const reco::PFBlockElement* elem2) const {
   constexpr reco::PFBlockElement::TrackType T_FROM_GAMMACONV = reco::PFBlockElement::T_FROM_GAMMACONV;

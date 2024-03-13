@@ -19,7 +19,7 @@ private:
   bool useKDTree_, debug_, superClusterMatchByRef_;
 };
 
-DEFINE_EDM_PLUGIN(BlockElementLinkerFactory, SCAndHGCalLinker, "SCAndHGCalLinker");
+DEFINE_EDM_PLUGIN(BlockElementLinkerFactory, SCAndHGCalLinker, "TICLSCAndHGCalLinker");
 
 double SCAndHGCalLinker::testLink(const reco::PFBlockElement* elem1, const reco::PFBlockElement* elem2) const {
   double dist = -1.0;

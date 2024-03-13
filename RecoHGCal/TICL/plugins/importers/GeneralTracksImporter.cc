@@ -58,7 +58,7 @@ private:
   edm::EDGetTokenT<reco::PFCandidateCollection> vetoPFCandidatesSrc_;
 };
 
-DEFINE_EDM_PLUGIN(BlockElementImporterFactory, GeneralTracksImporter, "GeneralTracksImporter");
+DEFINE_EDM_PLUGIN(BlockElementImporterFactory, GeneralTracksImporter, "TICLGeneralTracksImporter");
 
 void GeneralTracksImporter::importToBlock(const edm::Event& e, BlockElementImporterBase::ElementList& elems) const {
   typedef BlockElementImporterBase::ElementList::value_type ElementType;

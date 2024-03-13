@@ -19,7 +19,7 @@ private:
   bool useKDTree_, debug_;
 };
 
-DEFINE_EDM_PLUGIN(BlockElementLinkerFactory, TrackAndTrackLinker, "TrackAndTrackLinker");
+DEFINE_EDM_PLUGIN(BlockElementLinkerFactory, TrackAndTrackLinker, "TICLTrackAndTrackLinker");
 
 bool TrackAndTrackLinker::linkPrefilter(const reco::PFBlockElement* e1, const reco::PFBlockElement* e2) const {
   return (e1->isLinkedToDisplacedVertex() || e2->isLinkedToDisplacedVertex());

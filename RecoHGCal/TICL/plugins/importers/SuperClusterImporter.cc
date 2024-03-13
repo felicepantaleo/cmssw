@@ -60,7 +60,7 @@ private:
 
 const math::XYZPoint SuperClusterImporter::_zero = math::XYZPoint(0, 0, 0);
 
-DEFINE_EDM_PLUGIN(BlockElementImporterFactory, SuperClusterImporter, "SuperClusterImporter");
+DEFINE_EDM_PLUGIN(BlockElementImporterFactory, SuperClusterImporter, "TICLSuperClusterImporter");
 
 SuperClusterImporter::SuperClusterImporter(const edm::ParameterSet& conf, edm::ConsumesCollector& cc)
     : BlockElementImporterBase(conf, cc),

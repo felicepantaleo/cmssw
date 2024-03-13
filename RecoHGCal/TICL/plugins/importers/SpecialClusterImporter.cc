@@ -64,7 +64,7 @@ void SpecialClusterImporter<T>::importToBlock(const edm::Event& e, BlockElementI
 }
 
 typedef SpecialClusterImporter<reco::PFBlockElement::ECAL> ECALClusterImporter;
-DEFINE_EDM_PLUGIN(BlockElementImporterFactory, ECALClusterImporter, "ECALClusterImporter");
+DEFINE_EDM_PLUGIN(BlockElementImporterFactory, ECALClusterImporter, "TICLECALClusterImporter");
 
 typedef SpecialClusterImporter<reco::PFBlockElement::HGCAL> HGCalClusterImporter;
-DEFINE_EDM_PLUGIN(BlockElementImporterFactory, HGCalClusterImporter, "HGCalClusterImporter");
+DEFINE_EDM_PLUGIN(BlockElementImporterFactory, HGCalClusterImporter, "TICLHGCalClusterImporter");

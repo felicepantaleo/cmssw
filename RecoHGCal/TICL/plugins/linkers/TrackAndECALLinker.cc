@@ -19,7 +19,7 @@ private:
   const bool useKDTree_, debug_;
 };
 
-DEFINE_EDM_PLUGIN(BlockElementLinkerFactory, TrackAndECALLinker, "TrackAndECALLinker");
+DEFINE_EDM_PLUGIN(BlockElementLinkerFactory, TrackAndECALLinker, "TICLTrackAndECALLinker");
 
 bool TrackAndECALLinker::linkPrefilter(const reco::PFBlockElement* elem1, const reco::PFBlockElement* elem2) const {
   bool result = false;

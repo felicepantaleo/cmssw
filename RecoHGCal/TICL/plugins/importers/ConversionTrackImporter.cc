@@ -19,4 +19,4 @@ namespace {
 typedef pflow::importers::TrackFromParentImporter<reco::PFConversionCollection, ConversionAdaptor>
     ConversionTrackImporter;
 
-DEFINE_EDM_PLUGIN(BlockElementImporterFactory, ConversionTrackImporter, "ConversionTrackImporter");
+DEFINE_EDM_PLUGIN(BlockElementImporterFactory, ConversionTrackImporter, "TICLConversionTrackImporter");

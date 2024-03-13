@@ -17,7 +17,7 @@ private:
   bool useKDTree_, debug_;
 };
 
-DEFINE_EDM_PLUGIN(BlockElementLinkerFactory, GSFAndHCALLinker, "GSFAndHCALLinker");
+DEFINE_EDM_PLUGIN(BlockElementLinkerFactory, GSFAndHCALLinker, "TICLGSFAndHCALLinker");
 
 double GSFAndHCALLinker::testLink(const reco::PFBlockElement* elem1, const reco::PFBlockElement* elem2) const {
   constexpr reco::PFTrajectoryPoint::LayerType HCALEnt = reco::PFTrajectoryPoint::HCALEntrance;
