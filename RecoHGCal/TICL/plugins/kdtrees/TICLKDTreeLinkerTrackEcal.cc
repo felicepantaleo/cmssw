@@ -61,7 +61,7 @@ private:
 
 // the text name is different so that we can easily
 // construct it when calling the factory
-DEFINE_EDM_PLUGIN(TICLTilesLinkerFactory, KDTreeLinkerTrackEcal, "TICLTilesTrackAndECALLinker");
+DEFINE_EDM_PLUGIN(TICLTilesLinkerFactory, KDTreeLinkerTrackEcal, "TilesTICLTrackAndECALLinker");
 
 KDTreeLinkerTrackEcal::KDTreeLinkerTrackEcal(const edm::ParameterSet &conf) : TICLTilesLinkerBase(conf) {}
 
@@ -173,12 +173,13 @@ void KDTreeLinkerTrackEcal::searchLinks() {
       KDTreeBox trackBox(tracketa - range, tracketa + range, trackphi - range, trackphi + range);
       tree_.search(trackBox, recHits);
     }
+    else
     {
       auto tilesBox = ebTICLTiles_.getSearchBox(tracketa - range, tracketa + range, trackphi - range, trackphi + range);
       for (int i = tilesBox[0]; i < tilesBox[1]; ++i) {
         for (int j = tilesBox[2]; j < tilesBox[3]; ++j) {
           auto idx = ebTICLTiles_.getGlobalBinByBin(i, j);
-          for (const auto &rh : ebTICLTiles_.tiles_[idx]) {
+          for (const auto &rh : ebTICLTiles_[idx]) {
             if (rh->positionREP().eta() > tracketa - range && rh->positionREP().eta() < tracketa + range &&
                 rh->positionREP().phi() > trackphi - range && rh->positionREP().phi() < trackphi + range)
               recHits.push_back(rh);

@@ -151,6 +151,8 @@ TICLParticleFlowBlock = cms.EDProducer(
         )
 )
 
+print("puppa")
+
 for imp in TICLParticleFlowBlock.elementImporters:
   if imp.importerName.value() == "SuperClusterImporter":
     _scImporter = imp

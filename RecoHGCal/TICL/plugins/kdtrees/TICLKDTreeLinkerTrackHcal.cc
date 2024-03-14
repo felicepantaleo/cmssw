@@ -67,7 +67,7 @@ private:
 
 // the text name is different so that we can easily
 // construct it when calling the factory
-DEFINE_EDM_PLUGIN(TICLTilesLinkerFactory, KDTreeLinkerTrackHcal, "TICLTilesTrackAndHCALLinker");
+DEFINE_EDM_PLUGIN(TICLTilesLinkerFactory, KDTreeLinkerTrackHcal, "TilesTICLTrackAndHCALLinker");
 
 KDTreeLinkerTrackHcal::KDTreeLinkerTrackHcal(const edm::ParameterSet& conf)
     : TICLTilesLinkerBase(conf),

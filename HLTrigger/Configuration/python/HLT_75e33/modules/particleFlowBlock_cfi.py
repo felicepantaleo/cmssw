@@ -64,12 +64,12 @@ particleFlowBlock = cms.EDProducer("TICLPFBlockProducer",
     linkDefinitions = cms.VPSet(
         cms.PSet(
             linkType = cms.string('TRACK:ECAL'),
-            linkerName = cms.string('TrackAndECALLinker'),
+            linkerName = cms.string('TICLTrackAndECALLinker'),
             useKDTree = cms.bool(True)
         ),
         cms.PSet(
             linkType = cms.string('TRACK:HCAL'),
-            linkerName = cms.string('TrackAndHCALLinker'),
+            linkerName = cms.string('TICLTrackAndHCALLinker'),
             nMaxHcalLinksPerTrack = cms.int32(1),
             trajectoryLayerEntrance = cms.string('HCALEntrance'),
             trajectoryLayerExit = cms.string('HCALExit'),
@@ -77,54 +77,54 @@ particleFlowBlock = cms.EDProducer("TICLPFBlockProducer",
         ),
         cms.PSet(
             linkType = cms.string('TRACK:HO'),
-            linkerName = cms.string('TrackAndHOLinker'),
+            linkerName = cms.string('TICLTrackAndHOLinker'),
             useKDTree = cms.bool(False)
         ),
         cms.PSet(
             linkType = cms.string('ECAL:HCAL'),
-            linkerName = cms.string('ECALAndHCALLinker'),
+            linkerName = cms.string('TICLECALAndHCALLinker'),
             minAbsEtaEcal = cms.double(2.5),
             useKDTree = cms.bool(False)
         ),
         cms.PSet(
             linkType = cms.string('HCAL:HO'),
-            linkerName = cms.string('HCALAndHOLinker'),
+            linkerName = cms.string('TICLHCALAndHOLinker'),
             useKDTree = cms.bool(False)
         ),
         cms.PSet(
             linkType = cms.string('HFEM:HFHAD'),
-            linkerName = cms.string('HFEMAndHFHADLinker'),
+            linkerName = cms.string('TICLHFEMAndHFHADLinker'),
             useKDTree = cms.bool(False)
         ),
         cms.PSet(
             linkType = cms.string('TRACK:TRACK'),
-            linkerName = cms.string('TrackAndTrackLinker'),
+            linkerName = cms.string('TICLTrackAndTrackLinker'),
             useKDTree = cms.bool(False)
         ),
         cms.PSet(
             linkType = cms.string('ECAL:ECAL'),
-            linkerName = cms.string('ECALAndECALLinker'),
+            linkerName = cms.string('TICLECALAndECALLinker'),
             useKDTree = cms.bool(False)
         ),
         cms.PSet(
             linkType = cms.string('ECAL:BREM'),
-            linkerName = cms.string('ECALAndBREMLinker'),
+            linkerName = cms.string('TICLECALAndBREMLinker'),
             useKDTree = cms.bool(False)
         ),
         cms.PSet(
             linkType = cms.string('HCAL:BREM'),
-            linkerName = cms.string('HCALAndBREMLinker'),
+            linkerName = cms.string('TICLHCALAndBREMLinker'),
             useKDTree = cms.bool(False)
         ),
         cms.PSet(
             SuperClusterMatchByRef = cms.bool(True),
             linkType = cms.string('SC:ECAL'),
-            linkerName = cms.string('SCAndECALLinker'),
+            linkerName = cms.string('TICLSCAndECALLinker'),
             useKDTree = cms.bool(False)
         ),
         cms.PSet(
             linkType = cms.string('TRACK:HFEM'),
-            linkerName = cms.string('TrackAndHCALLinker'),
+            linkerName = cms.string('TICLTrackAndHCALLinker'),
             nMaxHcalLinksPerTrack = cms.int32(-1),
             trajectoryLayerEntrance = cms.string('VFcalEntrance'),
             trajectoryLayerExit = cms.string(''),
@@ -132,7 +132,7 @@ particleFlowBlock = cms.EDProducer("TICLPFBlockProducer",
         ),
         cms.PSet(
             linkType = cms.string('TRACK:HFHAD'),
-            linkerName = cms.string('TrackAndHCALLinker'),
+            linkerName = cms.string('TICLTrackAndHCALLinker'),
             nMaxHcalLinksPerTrack = cms.int32(-1),
             trajectoryLayerEntrance = cms.string('VFcalEntrance'),
             trajectoryLayerExit = cms.string(''),
