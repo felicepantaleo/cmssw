@@ -26,7 +26,7 @@ public:
      * @brief fill the tile 
      * 
      * @param[in] dim1 represents x or eta
-     * @param[in] dim2 represents y or phils
+     * @param[in] dim2 represents y or phi
      * 
     */
   void fill(const std::vector<float>& dim1, const std::vector<float>& dim2) {
@@ -39,7 +39,7 @@ public:
   /** 
     * @brief compute bin for dim1 (x or eta)
     * 
-    * @param[in] dim for bining
+    * @param[in] dim for binning
     * @return computed bin
     */
   int getDim1Bin(float dim) const {

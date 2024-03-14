@@ -20,7 +20,7 @@ struct EBTilesConstants {
   static constexpr int nColumns = reco::ceil((maxDim1 - minDim1) / tileSizeEtaPhi);
   static constexpr int nRows = reco::ceil(2. * M_PI / tileSizeEtaPhi);
   static constexpr int nTiles = nColumns * nRows;
-  static constexpr float showerSigma = 0.5f; // in unit of xtals
+  static constexpr float showerSigma = 0.5f;  // in unit of xtals
 };
 
 #endif

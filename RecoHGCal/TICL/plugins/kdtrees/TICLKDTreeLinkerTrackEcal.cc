@@ -2,7 +2,8 @@
 #include "DataFormats/ParticleFlowReco/interface/PFBlockElement.h"
 #include "RecoHGCal/TICL/interface/TICLTilesLinkerBase.h"
 #include "CommonTools/RecoAlgos/interface/KDTreeLinkerAlgo.h"
-#include "RecoLocalCalo/HGCalRecProducers/interface/HGCalLayerTiles.h"
+// #include "RecoLocalCalo/HGCalRecProducers/interface/HGCalLayerTiles.h"
+#include "DataFormats/TICL/interface/TICLTiles.h"
 #include "TMath.h"
 
 // This class is used to find all links between Tracks and ECAL clusters
@@ -54,7 +55,8 @@ private:
   // KD trees
   KDTreeLinkerAlgo<reco::PFRecHit const *> tree_;
 
-  EBLayerTiles ebTICLTiles_;
+  using EtaPhiTICLTiles = ticl::Tiles<ticl::TileConstantsGlobal_EtaPhi, reco::PFRecHit const *>;
+  EtaPhiTICLTiles ebTICLTiles_;
 };
 
 // the text name is different so that we can easily
@@ -110,6 +112,7 @@ void KDTreeLinkerTrackEcal::buildTree() {
 
     KDTreeNodeInfo<reco::PFRecHit const *, 2> rh1(*it, posrep.eta(), posrep.phi());
     eltList.push_back(rh1);
+    ebTICLTiles_.fill(posrep.eta(), posrep.phi(), *it);
 
     // Here we solve the problem of phi circular set by duplicating some rechits
     // too close to -Pi (or to Pi) and adding (substracting) to them 2 * Pi.
@@ -165,8 +168,25 @@ void KDTreeLinkerTrackEcal::searchLinks() {
 
     // We search for all candidate recHits, ie all recHits contained in the maximal size envelope.
     std::vector<reco::PFRecHit const *> recHits;
-    KDTreeBox trackBox(tracketa - range, tracketa + range, trackphi - range, trackphi + range);
-    tree_.search(trackBox, recHits);
+    bool useTiles = false;
+    if (useTiles) {
+      KDTreeBox trackBox(tracketa - range, tracketa + range, trackphi - range, trackphi + range);
+      tree_.search(trackBox, recHits);
+    }
+    {
+      auto tilesBox = ebTICLTiles_.getSearchBox(tracketa - range, tracketa + range, trackphi - range, trackphi + range);
+      for (int i = tilesBox[0]; i < tilesBox[1]; ++i) {
+        for (int j = tilesBox[2]; j < tilesBox[3]; ++j) {
+          auto idx = ebTICLTiles_.getGlobalBinByBin(i, j);
+          for (const auto &rh : ebTICLTiles_.tiles_[idx]) {
+            if (rh->positionREP().eta() > tracketa - range && rh->positionREP().eta() < tracketa + range &&
+                rh->positionREP().phi() > trackphi - range && rh->positionREP().phi() < trackphi + range)
+              recHits.push_back(rh);
+          }
+        }
+      }
+    }
+    std::cout << "tiles " << useTiles << " recHits.size() = " << recHits.size() << "\n";
 
     // Here we check all rechit candidates using the non-approximated method.
     for (auto const &recHit : recHits) {

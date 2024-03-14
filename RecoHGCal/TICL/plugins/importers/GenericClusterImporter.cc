@@ -21,7 +21,7 @@ DEFINE_EDM_PLUGIN(BlockElementImporterFactory, GenericClusterImporter, "TICLGene
 void GenericClusterImporter::importToBlock(const edm::Event& e, BlockElementImporterBase::ElementList& elems) const {
   auto clusters = e.getHandle(_src);
   auto rechits = e.getHandle(_rechitsLabel);
-  if(!rechits.isValid()){
+  if (!rechits.isValid()) {
     std::cout << "rechits not valid" << std::endl;
   }
   auto cbegin = clusters->cbegin();

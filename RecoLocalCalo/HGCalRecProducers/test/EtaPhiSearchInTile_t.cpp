@@ -60,7 +60,7 @@ TEST_CASE("Check the correct behaviour of searchBoxEtaPhi", "searchBoxEtaPhi") {
             << std::endl;
   std::cout << "Testing a Tile with " << etaBins << " eta bins with binwidth: " << eta_bin_width << std::endl;
 
-  std::cout << "-M_PI bin: " << t.mPiPhiBin << " M_PI bin: " << t.pPiPhiBin << std::endl;
+  std::cout << "-M_PI bin: " << t.getDim2Bin(-M_PI) << " M_PI bin: " << t.getDim2Bin(M_PI) << std::endl;
   std::cout << "Filling positive eta value: " << eta << " at bin: " << t.getDim1Bin(eta) << std::endl;
   std::cout << "Filling negative eta value: " << eta_neg << " at bin: " << t.getDim1Bin(eta_neg) << std::endl;
   std::cout << "Filling phi value: " << phi_transition_left << " at left-pi bin: " << t.getDim2Bin(phi_transition_left)

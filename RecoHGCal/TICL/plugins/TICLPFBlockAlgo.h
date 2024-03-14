@@ -83,7 +83,7 @@ private:
   std::vector<std::unique_ptr<BlockElementLinkerBase>> linkTests_;
   unsigned int linkTestSquare_[reco::PFBlockElement::kNBETypes][reco::PFBlockElement::kNBETypes];
 
-  std::vector<std::unique_ptr<TICLTilesLinkerBase>> kdtrees_; 
+  std::vector<std::unique_ptr<TICLTilesLinkerBase>> kdtrees_;
 };
 
 #endif

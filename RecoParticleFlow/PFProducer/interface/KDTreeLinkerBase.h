@@ -103,4 +103,4 @@ protected:
 #include "FWCore/PluginManager/interface/PluginFactory.h"
 typedef edmplugin::PluginFactory<KDTreeLinkerBase *(const edm::ParameterSet &)> KDTreeLinkerFactory;
 
-#endif 
+#endif

@@ -216,7 +216,7 @@ reco::PFBlockCollection TICLPFBlockAlgo::findBlocks() {
 }
 
 void TICLPFBlockAlgo::packLinks(reco::PFBlock& block,
-                            const std::unordered_map<std::pair<unsigned int, unsigned int>, double>& links) const {
+                                const std::unordered_map<std::pair<unsigned int, unsigned int>, double>& links) const {
   constexpr unsigned rowsize = reco::PFBlockElement::kNBETypes;
 
   const edm::OwnVector<reco::PFBlockElement>& els = block.elements();
@@ -259,7 +259,9 @@ void TICLPFBlockAlgo::packLinks(reco::PFBlock& block,
   }
 }
 
-inline void TICLPFBlockAlgo::link(const reco::PFBlockElement* el1, const reco::PFBlockElement* el2, double& dist) const {
+inline void TICLPFBlockAlgo::link(const reco::PFBlockElement* el1,
+                                  const reco::PFBlockElement* el2,
+                                  double& dist) const {
   constexpr unsigned rowsize = reco::PFBlockElement::kNBETypes;
   dist = -1.0;
   const PFBlockElement::Type type1 = el1->type();
