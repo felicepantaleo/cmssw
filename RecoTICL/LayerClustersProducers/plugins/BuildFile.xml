@@ -18,7 +18,6 @@
 <use name="MagneticField/Engine"/>
 <use name="MagneticField/Records"/>
 <use name="RecoLocalCalo/HGCalRecAlgos"/>
-<use name="RecoTICL/LayerClustersProducers"/>
 <use name="TrackingTools/GeomPropagators"/>
 <use name="TrackingTools/Records"/>
 <use name="TrackingTools/TrajectoryState"/>

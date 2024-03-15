@@ -24,7 +24,6 @@
 <use name="PhysicsTools/TensorFlow"/>
 <use name="RecoLocalCalo/HGCalRecAlgos"/>
 <use name="RecoTICL/TrackstersProducers"/>
-<use name="RecoTICL/CandidatesProducers"/>
 <use name="RecoParticleFlow/PFProducer"/>
 <use name="SimDataFormats/Associations"/>
 <use name="SimDataFormats/CaloAnalysis"/>

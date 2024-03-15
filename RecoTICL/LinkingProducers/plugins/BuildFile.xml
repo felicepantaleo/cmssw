@@ -21,7 +21,6 @@
 <use name="PhysicsTools/TensorFlow"/>
 <use name="RecoLocalCalo/HGCalRecAlgos"/>
 <use name="RecoParticleFlow/PFProducer"/>
-<use name="RecoTICL/LinkingProducers"/>
 <use name="RecoTICL/TrackstersProducers"/>
 <use name="TrackingTools/GeomPropagators"/>
 <use name="TrackingTools/Records"/>
