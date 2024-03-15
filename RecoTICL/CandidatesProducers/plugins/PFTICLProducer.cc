@@ -11,7 +11,7 @@
 #include "DataFormats/ParticleFlowCandidate/interface/PFCandidateFwd.h"
 #include "DataFormats/ParticleFlowCandidate/interface/PFCandidate.h"
 
-#include "DataFormats/HGCalReco/interface/TICLCandidate.h"
+#include "DataFormats/TICL/interface/TICLCandidate.h"
 
 #include "RecoParticleFlow/PFProducer/interface/PFMuonAlgo.h"
 

@@ -13,8 +13,8 @@
 #include "FWCore/Framework/interface/Frameworkfwd.h"
 
 #include "DataFormats/TrackReco/interface/Track.h"
-#include "DataFormats/HGCalReco/interface/Trackster.h"
-#include "DataFormats/HGCalReco/interface/TICLCandidate.h"
+#include "DataFormats/TICL/interface/Trackster.h"
+#include "DataFormats/TICL/interface/TICLCandidate.h"
 
 #include "SimDataFormats/Associations/interface/TracksterToSimTracksterHitLCAssociator.h"
 

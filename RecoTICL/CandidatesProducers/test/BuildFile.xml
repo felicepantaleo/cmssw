@@ -1,6 +1,6 @@
 <use name="FWCore/Framework"/>
 <use name="FWCore/ParameterSet"/>
-<use name="DataFormats/HGCalReco"/>
+<use name="DataFormats/TICL"/>
 <use name="DataFormats/TrackReco"/>
 <use name="DataFormats/Math"/>
 <use name="SimDataFormats/CaloAnalysis"/>

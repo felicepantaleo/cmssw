@@ -13,14 +13,14 @@
 
 #include "DataFormats/Math/interface/Vector3D.h"
 #include "DataFormats/GeometrySurface/interface/BoundDisk.h"
-#include "DataFormats/HGCalReco/interface/TICLLayerTile.h"
+#include "DataFormats/TICL/interface/TICLLayerTile.h"
 
 #include "TrackingTools/Records/interface/TrackingComponentsRecord.h"
 
 #include "CommonTools/Utils/interface/StringCutObjectSelector.h"
 
 #include "MagneticField/Records/interface/IdealMagneticFieldRecord.h"
-#include "DataFormats/HGCalReco/interface/Trackster.h"
+#include "DataFormats/TICL/interface/Trackster.h"
 
 namespace ticl {
   class LinkingAlgoByDirectionGeometric final : public LinkingAlgoBase {

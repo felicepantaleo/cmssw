@@ -5,7 +5,7 @@
 #ifndef DataFormats_HGCalReco_TICLSeedingRegion_h
 #define DataFormats_HGCalReco_TICLSeedingRegion_h
 
-#include "DataFormats/HGCalReco/interface/Common.h"
+#include "DataFormats/TICL/interface/Common.h"
 #include "DataFormats/Math/interface/normalizedPhi.h"
 #include "DataFormats/GeometryVector/interface/GlobalPoint.h"
 #include "DataFormats/GeometryVector/interface/GlobalVector.h"

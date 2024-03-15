@@ -1,7 +1,7 @@
 <use name="CommonTools/Utils"/>
 <use name="DataFormats/CaloRecHit"/>
 <use name="DataFormats/GeometrySurface"/>
-<use name="DataFormats/HGCalReco"/>
+<use name="DataFormats/TICL"/>
 <use name="DataFormats/HcalRecHit"/>
 <use name="DataFormats/L1TCorrelator"/>
 <use name="DataFormats/ParticleFlowReco"/>

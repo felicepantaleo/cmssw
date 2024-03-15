@@ -4,7 +4,7 @@
 #ifndef DataFormats_HGCalReco_TICLLayerTile_h
 #define DataFormats_HGCalReco_TICLLayerTile_h
 
-#include "DataFormats/HGCalReco/interface/Common.h"
+#include "DataFormats/TICL/interface/Common.h"
 #include "DataFormats/Math/interface/normalizedPhi.h"
 
 template <typename T>

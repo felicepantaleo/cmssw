@@ -1,7 +1,7 @@
 #ifndef RECOTICL_TRACKSTERSPRODUCERS_TRACKSTERSPCA_H
 #define RECOTICL_TRACKSTERSPRODUCERS_TRACKSTERSPCA_H
 
-#include "DataFormats/HGCalReco/interface/Trackster.h"
+#include "DataFormats/TICL/interface/Trackster.h"
 #include "DataFormats/CaloRecHit/interface/CaloCluster.h"
 #include <vector>
 

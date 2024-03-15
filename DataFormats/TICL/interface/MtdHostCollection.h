@@ -2,7 +2,7 @@
 #define DataFormats_HGCalReco_MtdHostCollection_h
 
 #include "DataFormats/Portable/interface/PortableHostCollection.h"
-#include "DataFormats/HGCalReco/interface/MtdSoA.h"
+#include "DataFormats/TICL/interface/MtdSoA.h"
 
 // MtdSoA in host memory
 using MtdHostCollection = PortableHostCollection<MtdSoA>;

@@ -13,8 +13,8 @@
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 
 #include "FWCore/Utilities/interface/transform.h"
-#include "DataFormats/HGCalReco/interface/Trackster.h"
-#include "DataFormats/HGCalReco/interface/TICLSeedingRegion.h"
+#include "DataFormats/TICL/interface/Trackster.h"
+#include "DataFormats/TICL/interface/TICLSeedingRegion.h"
 
 #include "DataFormats/CaloRecHit/interface/CaloCluster.h"
 #include "RecoLocalCalo/HGCalRecAlgos/interface/RecHitTools.h"

@@ -6,10 +6,10 @@
 #include "FWCore/Utilities/interface/ESGetToken.h"
 
 #include "DataFormats/CaloRecHit/interface/CaloCluster.h"
-#include "DataFormats/HGCalReco/interface/Common.h"
-#include "DataFormats/HGCalReco/interface/TICLLayerTile.h"
-#include "DataFormats/HGCalReco/interface/Trackster.h"
-#include "DataFormats/HGCalReco/interface/TICLSeedingRegion.h"
+#include "DataFormats/TICL/interface/Common.h"
+#include "DataFormats/TICL/interface/TICLLayerTile.h"
+#include "DataFormats/TICL/interface/Trackster.h"
+#include "DataFormats/TICL/interface/TICLSeedingRegion.h"
 #include "DataFormats/TrackReco/interface/Track.h"
 #include "RecoLocalCalo/HGCalRecAlgos/interface/RecHitTools.h"
 #include "RecoTICL/TrackstersProducers/interface/GlobalCache.h"
@@ -18,7 +18,7 @@
 #include "PhysicsTools/TensorFlow/interface/TensorFlow.h"
 #include "PhysicsTools/TensorFlow/interface/TfGraphDefWrapper.h"
 
-#include "DataFormats/HGCalReco/interface/TICLCandidate.h"
+#include "DataFormats/TICL/interface/TICLCandidate.h"
 
 #include "RecoTICL/TrackstersProducers/interface/TrackstersPCA.h"
 

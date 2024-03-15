@@ -3,7 +3,7 @@
 #include <vector>
 #include "DataFormats/Common/interface/Ref.h"
 #include "DataFormats/CaloRecHit/interface/CaloClusterFwd.h"
-#include "DataFormats/HGCalReco/interface/Trackster.h"
+#include "DataFormats/TICL/interface/Trackster.h"
 #include "RecoLocalCalo/HGCalRecAlgos/interface/RecHitTools.h"
 
 namespace ticl {
