@@ -137,7 +137,6 @@ TICLPFBlockAlgo::~TICLPFBlockAlgo() {
 }
 
 reco::PFBlockCollection TICLPFBlockAlgo::findBlocks() {
-  std::cout << "pippo" << std::endl;
   // Glowinski & Gouzevitch
   for (const auto& kdtree : kdtrees_) {
     kdtree->process();

@@ -1,7 +1,7 @@
 import FWCore.ParameterSet.Config as cms
 
 particleFlowBlock = cms.EDProducer("TICLPFBlockProducer",
-    debug = cms.untracked.bool(True),
+    debug = cms.untracked.bool(False),
     elementImporters = cms.VPSet(
         cms.PSet(
             importerName = cms.string('SuperClusterImporter'),
@@ -65,7 +65,8 @@ particleFlowBlock = cms.EDProducer("TICLPFBlockProducer",
         cms.PSet(
             linkType = cms.string('TRACK:ECAL'),
             linkerName = cms.string('TICLTrackAndECALLinker'),
-            useKDTree = cms.bool(True)
+            useKDTree = cms.bool(True),
+            useTiles = cms.bool(True),
         ),
         cms.PSet(
             linkType = cms.string('TRACK:HCAL'),
@@ -73,7 +74,8 @@ particleFlowBlock = cms.EDProducer("TICLPFBlockProducer",
             nMaxHcalLinksPerTrack = cms.int32(1),
             trajectoryLayerEntrance = cms.string('HCALEntrance'),
             trajectoryLayerExit = cms.string('HCALExit'),
-            useKDTree = cms.bool(True)
+            useKDTree = cms.bool(True),
+            useTiles = cms.bool(True),
         ),
         cms.PSet(
             linkType = cms.string('TRACK:HO'),
@@ -139,5 +141,5 @@ particleFlowBlock = cms.EDProducer("TICLPFBlockProducer",
             useKDTree = cms.bool(True)
         )
     ),
-    verbose = cms.untracked.bool(True)
+    verbose = cms.untracked.bool(False)
 )

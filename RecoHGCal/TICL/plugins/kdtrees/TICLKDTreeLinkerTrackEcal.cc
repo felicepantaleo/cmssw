@@ -54,7 +54,7 @@ private:
 
   // KD trees
   KDTreeLinkerAlgo<reco::PFRecHit const *> tree_;
-
+  bool useTiles_ = false;
   using EtaPhiTICLTiles = ticl::Tiles<ticl::TileConstantsGlobal_EtaPhi, reco::PFRecHit const *>;
   EtaPhiTICLTiles ebTICLTiles_;
 };
@@ -63,7 +63,9 @@ private:
 // construct it when calling the factory
 DEFINE_EDM_PLUGIN(TICLTilesLinkerFactory, KDTreeLinkerTrackEcal, "TilesTICLTrackAndECALLinker");
 
-KDTreeLinkerTrackEcal::KDTreeLinkerTrackEcal(const edm::ParameterSet &conf) : TICLTilesLinkerBase(conf) {}
+KDTreeLinkerTrackEcal::KDTreeLinkerTrackEcal(const edm::ParameterSet &conf) : TICLTilesLinkerBase(conf) {
+  useTiles_ = conf.getParameter<bool>("useTiles");
+}
 
 KDTreeLinkerTrackEcal::~KDTreeLinkerTrackEcal() { clear(); }
 
@@ -105,39 +107,57 @@ void KDTreeLinkerTrackEcal::insertFieldClusterElt(reco::PFBlockElement *ecalClus
 void KDTreeLinkerTrackEcal::buildTree() {
   // List of pseudo-rechits that will be used to create the KDTree
   std::vector<KDTreeNodeInfo<reco::PFRecHit const *, 2>> eltList;
-
-  // Filling of this list
-  for (RecHitSet::const_iterator it = rechitsSet_.begin(); it != rechitsSet_.end(); it++) {
-    const reco::PFRecHit::REPPoint &posrep = (*it)->positionREP();
-
-    KDTreeNodeInfo<reco::PFRecHit const *, 2> rh1(*it, posrep.eta(), posrep.phi());
-    eltList.push_back(rh1);
-    ebTICLTiles_.fill(posrep.eta(), posrep.phi(), *it);
-
-    // Here we solve the problem of phi circular set by duplicating some rechits
-    // too close to -Pi (or to Pi) and adding (substracting) to them 2 * Pi.
-    if (rh1.dims[1] > (M_PI - phiOffset_)) {
-      float phi = rh1.dims[1] - 2 * M_PI;
-      KDTreeNodeInfo<reco::PFRecHit const *, 2> rh2(*it, float(posrep.eta()), phi);
-      eltList.push_back(rh2);
-    }
-
-    if (rh1.dims[1] < (M_PI * -1.0 + phiOffset_)) {
-      float phi = rh1.dims[1] + 2 * M_PI;
-      KDTreeNodeInfo<reco::PFRecHit const *, 2> rh3(*it, float(posrep.eta()), phi);
-      eltList.push_back(rh3);
+  if (useTiles_)
+  {
+    for (RecHitSet::const_iterator it = rechitsSet_.begin(); it != rechitsSet_.end(); it++) 
+    {
+      const reco::PFRecHit::REPPoint &posrep = (*it)->positionREP();
+      ebTICLTiles_.fill(posrep.eta(), posrep.phi(), *it);
+      // std::cout << "filling tiles with rechit " << posrep.eta() << " " << posrep.phi() << "\n";
+      // std::cout << "the tile is " << ebTICLTiles_.getGlobalBin(posrep.eta(), posrep.phi()) << "\n";
     }
   }
+  else
+  {
+    for (RecHitSet::const_iterator it = rechitsSet_.begin(); it != rechitsSet_.end(); it++) 
+    {
+      const reco::PFRecHit::REPPoint &posrep = (*it)->positionREP();
 
-  // Here we define the upper/lower bounds of the 2D space (eta/phi).
-  float phimin = -1.0 * M_PI - phiOffset_;
-  float phimax = M_PI + phiOffset_;
+      KDTreeNodeInfo<reco::PFRecHit const *, 2> rh1(*it, posrep.eta(), posrep.phi());
+      eltList.push_back(rh1);
+      // std::cout << "filling kdtree with rechit " << posrep.eta() << " " << posrep.phi() << "\n";
 
-  // etamin-etamax, phimin-phimax
-  KDTreeBox region(-3.0f, 3.0f, phimin, phimax);
+      // Here we solve the problem of phi circular set by duplicating some rechits
+      // too close to -Pi (or to Pi) and adding (substracting) to them 2 * Pi.
+      if (rh1.dims[1] > (M_PI - phiOffset_)) {
+        float phi = rh1.dims[1] - 2 * M_PI;
+        KDTreeNodeInfo<reco::PFRecHit const *, 2> rh2(*it, float(posrep.eta()), phi);
+        eltList.push_back(rh2);
+        // std::cout << "filling kdtree also with rechit " << posrep.eta() << " " << phi << "\n";
 
-  // We may now build the KDTree
-  tree_.build(eltList, region);
+      }
+
+      if (rh1.dims[1] < (M_PI * -1.0 + phiOffset_)) {
+        float phi = rh1.dims[1] + 2 * M_PI;
+        KDTreeNodeInfo<reco::PFRecHit const *, 2> rh3(*it, float(posrep.eta()), phi);
+        eltList.push_back(rh3);
+        // std::cout << "filling kdtree also with rechit " << posrep.eta() << " " << phi << "\n";
+
+      }
+    }
+    // Here we define the upper/lower bounds of the 2D space (eta/phi).
+    float phimin = -1.0 * M_PI - phiOffset_;
+    float phimax = M_PI + phiOffset_;
+
+    // etamin-etamax, phimin-phimax
+    KDTreeBox region(-3.0f, 3.0f, phimin, phimax);
+
+    // We may now build the KDTree
+    tree_.build(eltList, region);
+  }
+  
+
+
 }
 
 void KDTreeLinkerTrackEcal::searchLinks() {
@@ -168,26 +188,38 @@ void KDTreeLinkerTrackEcal::searchLinks() {
 
     // We search for all candidate recHits, ie all recHits contained in the maximal size envelope.
     std::vector<reco::PFRecHit const *> recHits;
-    bool useTiles = false;
-    if (useTiles) {
-      KDTreeBox trackBox(tracketa - range, tracketa + range, trackphi - range, trackphi + range);
-      tree_.search(trackBox, recHits);
-    }
-    else
-    {
+    // std::cout << "searching around  " << tracketa << " " << trackphi << " with range " << range << "\n";
+
+    if (useTiles_) {
       auto tilesBox = ebTICLTiles_.getSearchBox(tracketa - range, tracketa + range, trackphi - range, trackphi + range);
-      for (int i = tilesBox[0]; i < tilesBox[1]; ++i) {
-        for (int j = tilesBox[2]; j < tilesBox[3]; ++j) {
-          auto idx = ebTICLTiles_.getGlobalBinByBin(i, j);
+      // std::cout << "tilesBox " << ebTICLTiles_.getGlobalBin(tracketa-range, trackphi-range) << " " << ebTICLTiles_.getGlobalBin(tracketa-range, trackphi+range) << " " << ebTICLTiles_.getGlobalBin(tracketa+range, trackphi-range) << " " << ebTICLTiles_.getGlobalBin(tracketa+range, trackphi+range) << "\n";
+      for (int i = tilesBox[0]; i <= tilesBox[1]; ++i) {
+        for (int j = tilesBox[2]; j <= tilesBox[3]; ++j) {
+          int phi = (j % ebTICLTiles_.nRows);
+          // std::cout << "searching around tile " << ebTICLTiles_.getGlobalBin(tracketa, trackphi) << "\n";
+          auto idx = ebTICLTiles_.getGlobalBinByBin(i, phi);
+          assert(idx >=0);
+          // std::cout << "searching in tile " << idx << "\n";
           for (const auto &rh : ebTICLTiles_[idx]) {
+            // std::cout << "found rechit " << rh->positionREP().eta() << " " << rh->positionREP().phi() << "\n";
             if (rh->positionREP().eta() > tracketa - range && rh->positionREP().eta() < tracketa + range &&
                 rh->positionREP().phi() > trackphi - range && rh->positionREP().phi() < trackphi + range)
-              recHits.push_back(rh);
+                {
+                  // std::cout << "the rechit found is in range " << rh->positionREP().eta() << " " << rh->positionREP().phi() << "\n";
+                  recHits.push_back(rh);
+                }
+                
           }
         }
       }
     }
-    std::cout << "tiles " << useTiles << " recHits.size() = " << recHits.size() << "\n";
+    else
+    {
+      KDTreeBox trackBox(tracketa - range, tracketa + range, trackphi - range, trackphi + range);
+      tree_.search(trackBox, recHits);
+      
+    }
+    // std::cout << "tiles " << useTiles_ << " recHits.size() = " << recHits.size() << "\n";
 
     // Here we check all rechit candidates using the non-approximated method.
     for (auto const &recHit : recHits) {
@@ -291,6 +323,10 @@ void KDTreeLinkerTrackEcal::clear() {
 
   rechit2ClusterLinks_.clear();
   cluster2TargetLinks_.clear();
-
-  tree_.clear();
+  if(useTiles_){
+    ebTICLTiles_.clear();
+  }
+  else {
+    tree_.clear();
+  }
 }
