@@ -64,7 +64,7 @@ public:
     * @return computed bin
     */
   int getDim2Bin(float dim2) const {
-    if constexpr (T::wrapped) {
+    if constexpr (not T::wrapped) {
       constexpr float dimRange = T::maxDim2 - T::minDim2;
       static_assert(dimRange >= 0.);
       constexpr float r = nRows / dimRange;
@@ -97,10 +97,10 @@ public:
         return std::array<int, 4>({{0, 0, 0, 0}});
       }
     }
-    int dim1BinMin = getDim1Bin(dim1Min);
-    int dim1BinMax = getDim1Bin(dim1Max);
-    int dim2BinMin = getDim2Bin(dim2Min);
-    int dim2BinMax = getDim2Bin(dim2Max);
+    int dim1BinMin = getDim1Bin(dim1Min); assert(dim1BinMin >= 0);
+    int dim1BinMax = getDim1Bin(dim1Max); assert(dim1BinMax >= 0);
+    int dim2BinMin = getDim2Bin(dim2Min); assert(dim2BinMin >= 0);
+    int dim2BinMax = getDim2Bin(dim2Max); assert(dim2BinMax >= 0);
     if constexpr (T::wrapped) {
       if (dim2BinMax < dim2BinMin) {
         dim2BinMax += nRows;
@@ -116,18 +116,16 @@ public:
   }
 
   const std::vector<objType>& operator[](int globalBinId) const { return tiles_[globalBinId]; }
-
-private:
   static constexpr int nColumns = reco::ceil((T::maxDim1 - T::minDim1) / T::tileSize);
   static constexpr int nRows = reco::ceil((T::maxDim2 - T::minDim2) / T::tileSize);
   static constexpr int nTiles = nColumns * nRows;
+private:
+
   std::array<std::vector<objType>, nTiles> tiles_;
 
 
 };
 
 }  // namespace ticl
-
-
 
 #endif
