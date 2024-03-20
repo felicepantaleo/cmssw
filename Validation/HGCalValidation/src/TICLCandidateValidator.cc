@@ -392,7 +392,10 @@ void TICLCandidateValidator::fillCandidateHistos(const edm::Event& event,
       // cand_idx is the tsMerge index, find the ts in the candidates collection
       auto const tsPtr = edm::Ptr<ticl::Trackster>(Tracksters_h, cand_idx);
       auto cand_it = std::find_if(TICLCandidates.begin(), TICLCandidates.end(), [tsPtr](TICLCandidate const& cand) {
-        return cand.tracksters()[0] == tsPtr;
+        if (cand.tracksters().size())
+          return cand.tracksters()[0] == tsPtr;
+        else
+          return false;
       });
       recoCand = *cand_it;
     }
@@ -478,7 +481,10 @@ void TICLCandidateValidator::fillCandidateHistos(const edm::Event& event,
       // cand_idx is the tsMerge index, find the ts in the candidates collection
       auto const tsPtr = edm::Ptr<ticl::Trackster>(Tracksters_h, cand_idx);
       auto cand_it = std::find_if(TICLCandidates.begin(), TICLCandidates.end(), [tsPtr](TICLCandidate const& cand) {
-        return cand.tracksters()[0] == tsPtr;
+        if (cand.tracksters().size())
+          return cand.tracksters()[0] == tsPtr;
+        else
+          return false;
       });
       recoCand = *cand_it;
     }
