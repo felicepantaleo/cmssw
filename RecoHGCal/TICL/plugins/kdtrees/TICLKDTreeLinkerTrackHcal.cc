@@ -369,7 +369,7 @@ void KDTreeLinkerTrackHcal::updatePFBlockEltWithLinks() {
 
       // Fill multitracks
       for (auto i : sort_indexes(vDist)) {
-        const BlockEltSet::iterator hcalEltIt = std::next(hcalEltSet.begin(), i);
+        auto hcalEltIt = std::next(hcalEltSet.begin(), i);
         reco::PFMultilink multiLink((*hcalEltIt)->clusterRef());
         multitracks.linkedPFObjects.push_back(multiLink);
         // We set the multilinks flag of the track (for links to ECAL) to true. It will allow us to

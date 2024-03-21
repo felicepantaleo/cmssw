@@ -10,7 +10,56 @@
 #include <map>
 #include <set>
 
-using BlockEltSet = std::set<reco::PFBlockElement *>;
+
+
+//reimplement std::set as a sorted vector
+template <typename T>
+class BlockEltSet_v : public std::vector<T> {
+  //implement the set interface
+  public:
+    using typename std::vector<T>::iterator;
+    using typename std::vector<T>::const_iterator;
+
+  bool insert(const T& value) {
+        auto it = std::lower_bound(this->begin(), this->end(), value);
+        if (it != this->end() && *it == value) {
+            // Element already exists, do not insert
+            return false;
+        }
+        this->std::vector<T>::insert(it, value);
+        return true;
+  }
+
+    size_t erase(const T& value) {
+        auto it = std::lower_bound(this->begin(), this->end(), value);
+        if (it != this->end() && *it == value) {
+            this->std::vector<T>::erase(it);
+            return 1; // One element erased
+        }
+        return 0; // No elements erased
+    }
+
+    iterator find(const T& value) {
+        auto it = std::lower_bound(this->begin(), this->end(), value);
+        if (it != this->end() && *it == value) {
+            return it;
+        }
+        return this->end();
+    }
+
+    const_iterator find(const T& value) const {
+        auto it = std::lower_bound(this->begin(), this->end(), value);
+        if (it != this->end() && *it == value) {
+            return it;
+        }
+        return this->end();
+    }
+
+};
+// using BlockEltSet = std::set<reco::PFBlockElement *>;
+using BlockEltSet = BlockEltSet_v<reco::PFBlockElement *>;
+
+
 using RecHitSet = std::set<const reco::PFRecHit *>;
 
 using RecHit2BlockEltMap = std::map<const reco::PFRecHit *, BlockEltSet>;
