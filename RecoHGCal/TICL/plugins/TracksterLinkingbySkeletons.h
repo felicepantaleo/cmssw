@@ -59,6 +59,7 @@ namespace ticl {
       iDesc.add<double>("min_distance_z", 10.);
       iDesc.add<double>("max_distance_closest_points", 50);
       iDesc.add<double>("max_z_distance_closest_ponts", 20.);
+      iDesc.add<double>("cylinder_radius", 10.);
       TracksterLinkingAlgoBase::fillPSetDescription(iDesc);
     }
 
@@ -79,6 +80,7 @@ namespace ticl {
     float min_distance_z_;
     float max_distance_closest_points_;
     float max_z_distance_closest_ponts_;
+    float cylinder_radius_;
 
     const HGCalDDDConstants* hgcons_;
 
