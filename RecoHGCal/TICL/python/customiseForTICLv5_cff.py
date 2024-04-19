@@ -93,6 +93,13 @@ def customiseForTICLv5(process, enableDumper = False):
     
 
     ''' For future separate iterations
+    process.tracksterSimTracksterAssociationLinkingbyCLUE3DEM = _tracksterSimTracksterAssociationLinkingbyCLUE3D.clone(
+        label_tst = cms.InputTag("ticlTrackstersCLUE3DEM")
+        )
+    process.tracksterSimTracksterAssociationPRbyCLUE3DEM = _tracksterSimTracksterAssociationPRbyCLUE3D.clone(
+        label_tst = cms.InputTag("ticlTrackstersCLUE3DEM")
+        )
+
     process.tracksterSimTracksterAssociationLinkingbyCLUE3DHAD = _tracksterSimTracksterAssociationLinkingbyCLUE3D.clone(
         label_tst = cms.InputTag("ticlTrackstersCLUE3DHAD")
         )
@@ -102,7 +109,7 @@ def customiseForTICLv5(process, enableDumper = False):
 
     process.mergedTrackstersProducer = _mergedTrackstersProducer.clone()
 
-    process.tracksterSimTracksterAssociationbyCLUE3D= _tracksterSimTracksterAssociationLinkingbyCLUE3D.clone(
+    process.tracksterSimTracksterAssociationLinkingbyCLUE3D = _tracksterSimTracksterAssociationLinkingbyCLUE3D.clone(
         label_tst = cms.InputTag("mergedTrackstersProducer")
         )
     process.tracksterSimTracksterAssociationPRbyCLUE3D = _tracksterSimTracksterAssociationPRbyCLUE3D.clone(
