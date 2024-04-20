@@ -107,7 +107,7 @@ def customiseTICLv5FromReco(process, enableDumper = False):
         label_tst = cms.InputTag("mergedTrackstersProducer")
         )
     '''
-    
+
 
     process.iterTICLTask = cms.Path(process.hgcalLayerClustersTask,
                             process.TFESSource,
@@ -126,7 +126,10 @@ def customiseTICLv5FromReco(process, enableDumper = False):
     process.tracksterSimTracksterAssociationLinkingPU.label_tst = cms.InputTag("ticlCandidate")
     process.tracksterSimTracksterAssociationPRPU.label_tst = cms.InputTag("ticlCandidate")
     process.mergeTICLTask = cms.Task()
-    process.pfTICL = _pfTICLProducerV5.clone()
+    process.pfTICL = _pfTICLProducer.clone(
+      ticlCandidateSrc = cms.InputTag('ticlCandidate'),
+      isTICLv5 = cms.bool(True)
+    )
     process.hgcalAssociators = cms.Task(process.hgcalRecHitMapProducer, process.lcAssocByEnergyScoreProducer, process.layerClusterCaloParticleAssociationProducer,
                             process.scAssocByEnergyScoreProducer, process.layerClusterSimClusterAssociationProducer,
                             process.lcSimTSAssocByEnergyScoreProducer, process.layerClusterSimTracksterAssociationProducer,
