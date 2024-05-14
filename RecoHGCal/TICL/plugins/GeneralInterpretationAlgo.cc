@@ -344,6 +344,7 @@ void GeneralInterpretationAlgo::makeCandidates(const Inputs &input,
                                                         useMTDTiming)) {
         chargedCandidate.push_back(tsIdx);
         chargedMask[tsIdx] = false;
+        total_raw_energy += tracksters[tsIdx].raw_energy();
       }
     }
     for (const unsigned tsIdx : tsNearTkAtInt[i]) {  // do the same for tk -> ts links at the interface
@@ -358,6 +359,7 @@ void GeneralInterpretationAlgo::makeCandidates(const Inputs &input,
                                                         useMTDTiming)) {
         chargedCandidate.push_back(tsIdx);
         chargedMask[tsIdx] = false;
+        total_raw_energy += tracksters[tsIdx].raw_energy();
       }
     }
     trackstersInTrackIndices[i] = chargedCandidate;
