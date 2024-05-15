@@ -367,13 +367,32 @@ void GeneralInterpretationAlgo::makeCandidates(const Inputs &input,
 
   for (size_t iTrack = 0; iTrack < trackstersInTrackIndices.size(); iTrack++) {
     if (!trackstersInTrackIndices[iTrack].empty()) {
-      Trackster outTrackster;
-      for (auto const tracksterId : trackstersInTrackIndices[iTrack]) {
-        //maskTracksters[tracksterId] = 0;
-        outTrackster.mergeTracksters(input.tracksters[tracksterId]);
+      if (trackstersInTrackIndices[iTrack].size() == 1) {
+        auto tracksterId = trackstersInTrackIndices[iTrack][0];
+        resultCandidate[iTrack] = resultTracksters.size();
+        resultTracksters.push_back(input.tracksters[tracksterId]);
+      } else {
+        // in this case mergeTracksters() clears the pid probabilities and the regressed energy is not set
+        // TODO: fix probabilities when CNN will be splitted
+        Trackster outTrackster;
+        float regr_en = 0.f;
+        bool isHadron = false;
+        for (auto const tracksterId : trackstersInTrackIndices[iTrack]) {
+          //maskTracksters[tracksterId] = 0;
+          outTrackster.mergeTracksters(input.tracksters[tracksterId]);
+          regr_en += input.tracksters[tracksterId].regressed_energy();
+          if (input.tracksters[tracksterId].isHadronic())
+            isHadron = true;
+        }
+        resultCandidate[iTrack] = resultTracksters.size();
+        resultTracksters.push_back(outTrackster);
+        resultTracksters.back().setRegressedEnergy(regr_en);
+        // since a track has been linked it can only be electron or charged hadron
+        if (isHadron)
+          resultTracksters.back().setIdProbability(ticl::Trackster::ParticleType::charged_hadron, 1.f);
+        else
+          resultTracksters.back().setIdProbability(ticl::Trackster::ParticleType::electron, 1.f);
       }
-      resultCandidate[iTrack] = resultTracksters.size();
-      resultTracksters.push_back(outTrackster);
     }
   }
 
