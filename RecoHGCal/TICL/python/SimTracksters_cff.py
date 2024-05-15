@@ -14,6 +14,7 @@ filteredLayerClustersSimTracksters = _filteredLayerClustersProducer.clone(
 )
 
 ticlSimTracksters = _simTrackstersProducer.clone(
+    computeLocalTime = cms.bool(False)
 )
 from Configuration.ProcessModifiers.ticl_v5_cff import ticl_v5
 ticl_v5.toModify(ticlSimTracksters, computeLocalTime = cms.bool(True))

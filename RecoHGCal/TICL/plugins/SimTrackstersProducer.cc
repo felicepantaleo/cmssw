@@ -80,7 +80,7 @@ public:
 private:
   std::string detector_;
   const bool doNose_ = false;
-  const bool computeLocalTime_ = false;
+  const bool computeLocalTime_;
   const edm::EDGetTokenT<std::vector<reco::CaloCluster>> clusters_token_;
   const edm::EDGetTokenT<edm::ValueMap<std::pair<float, float>>> clustersTime_token_;
   const edm::EDGetTokenT<std::vector<float>> filtered_layerclusters_mask_token_;
