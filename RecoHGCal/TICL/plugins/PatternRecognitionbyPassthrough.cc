@@ -16,52 +16,54 @@
 using namespace ticl;
 
 template <typename TILES>
-PatternRecognitionbyPassthrough<TILES>::PatternRecognitionbyPassthrough(const edm::ParameterSet &conf, edm::ConsumesCollector iC)
-    : PatternRecognitionAlgoBaseT<TILES>(conf, iC),
-      caloGeomToken_(iC.esConsumes<CaloGeometry, CaloGeometryRecord>()) {}
+PatternRecognitionbyPassthrough<TILES>::PatternRecognitionbyPassthrough(const edm::ParameterSet &conf,
+                                                                        edm::ConsumesCollector iC)
+    : PatternRecognitionAlgoBaseT<TILES>(conf, iC), caloGeomToken_(iC.esConsumes<CaloGeometry, CaloGeometryRecord>()) {}
 
 template <typename TILES>
 void PatternRecognitionbyPassthrough<TILES>::makeTracksters(
     const typename PatternRecognitionAlgoBaseT<TILES>::Inputs &input,
     std::vector<Trackster> &result,
     std::unordered_map<int, std::vector<int>> &seedToTracksterAssociation) {
-    
-    // Get the geometry setup
-    edm::EventSetup const &es = input.es;
-    const CaloGeometry &geom = es.getData(caloGeomToken_);
-    rhtools_.setGeometry(geom);
+  // Get the geometry setup
+  edm::EventSetup const &es = input.es;
+  const CaloGeometry &geom = es.getData(caloGeomToken_);
+  rhtools_.setGeometry(geom);
 
-    // Clear the result vector
-    result.clear();
+  // Clear the result vector
+  result.clear();
 
-    // Iterate over all layer clusters
-    for (size_t i = 0; i < input.layerClusters.size(); ++i) {
-        if (input.mask[i] == 0.) {
-            continue;  // Skip masked clusters
-        }
-
-        // Create a new trackster for each layer cluster
-        Trackster trackster;
-        trackster.vertices().push_back(i);
-        trackster.vertex_multiplicity().push_back(1);
-
-        // Add the trackster to the result vector
-        result.push_back(trackster);
+  // Iterate over all layer clusters
+  for (size_t i = 0; i < input.layerClusters.size(); ++i) {
+    if (input.mask[i] == 0.) {
+      continue;  // Skip masked clusters
     }
 
-    // Assign PCA to tracksters
-    ticl::assignPCAtoTracksters(result, input.layerClusters, input.layerClustersTime,
-                                rhtools_.getPositionLayer(rhtools_.lastLayerEE(false), false).z(), false);
+    // Create a new trackster for each layer cluster
+    Trackster trackster;
+    trackster.vertices().push_back(i);
+    trackster.vertex_multiplicity().push_back(1);
 
-    // Log the number of tracksters created
-    if (PatternRecognitionAlgoBaseT<TILES>::algo_verbosity_ > VerbosityLevel::Advanced) {
-        edm::LogVerbatim("PatternRecognitionbyPassthrough") << "Created " << result.size() << " tracksters";
-    }
+    // Add the trackster to the result vector
+    result.push_back(trackster);
+  }
+
+  // Assign PCA to tracksters
+  ticl::assignPCAtoTracksters(result,
+                              input.layerClusters,
+                              input.layerClustersTime,
+                              rhtools_.getPositionLayer(rhtools_.lastLayerEE(false), false).z(),
+                              false);
+
+  // Log the number of tracksters created
+  if (PatternRecognitionAlgoBaseT<TILES>::algo_verbosity_ > VerbosityLevel::Advanced) {
+    edm::LogVerbatim("PatternRecognitionbyPassthrough") << "Created " << result.size() << " tracksters";
+  }
 }
 
 template <typename TILES>
 void PatternRecognitionbyPassthrough<TILES>::fillPSetDescription(edm::ParameterSetDescription &iDesc) {
-    iDesc.add<int>("algo_verbosity", 0);
+  iDesc.add<int>("algo_verbosity", 0);
 }
 
 // Explicitly instantiate the templates
