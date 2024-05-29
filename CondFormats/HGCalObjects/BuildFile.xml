@@ -9,6 +9,7 @@
 <use name="HeterogeneousCore/AlpakaInterface"/>
 <use name="HeterogeneousCore/CUDACore"/>
 <flags ALPAKA_BACKENDS="1"/>
+<use   name="alpaka"/>
 <export>
   <lib name="1"/>
 </export>
