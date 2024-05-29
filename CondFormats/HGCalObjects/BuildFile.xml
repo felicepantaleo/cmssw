@@ -13,6 +13,7 @@
   <flags SKIP_FILES="T_EventSetup_HeterogeneousHGCalHEFCellPositionsConditions.cc"/>
 </iftool>
 <flags ALPAKA_BACKENDS="1"/>
+<use   name="alpaka"/>
 <export>
   <lib name="1"/>
 </export>
