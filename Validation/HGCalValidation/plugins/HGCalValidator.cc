@@ -30,6 +30,8 @@ HGCalValidator::HGCalValidator(const edm::ParameterSet& pset)
       label_TSToCPLinking_(pset.getParameter<std::string>("label_TSToCPLinking")),
       label_TSToSTSPR_(pset.getParameter<std::string>("label_TSToSTSPR")),
       label_clustersmask(pset.getParameter<std::vector<edm::InputTag>>("LayerClustersInputMask")),
+      doCandidatesPlots_(pset.getUntrackedParameter<bool>("doCandidatesPlots")),
+      label_candidates_(pset.getParameter<edm::InputTag>("ticlCandidates")),
       cummatbudinxo_(pset.getParameter<edm::FileInPath>("cummatbudinxo")),
       hits_label_(pset.getParameter<std::vector<edm::InputTag>>("hits")) {
   //In this way we can easily generalize to associations between other objects also.
@@ -59,6 +61,29 @@ HGCalValidator::HGCalValidator(const edm::ParameterSet& pset)
   simClusters_ = consumes<std::vector<SimCluster>>(pset.getParameter<edm::InputTag>("label_scl"));
 
   layerclusters_ = consumes<reco::CaloClusterCollection>(label_lcl);
+
+  if (doCandidatesPlots_) {
+    edm::EDGetTokenT<std::vector<TICLCandidate>> TICLCandidatesToken =
+        consumes<std::vector<TICLCandidate>>(pset.getParameter<edm::InputTag>("ticlTrackstersMerge"));
+    edm::EDGetTokenT<std::vector<TICLCandidate>> simTICLCandidatesToken =
+        consumes<std::vector<TICLCandidate>>(pset.getParameter<edm::InputTag>("simTiclCandidates"));
+    edm::EDGetTokenT<std::vector<reco::Track>> recoTracksToken =
+        consumes<std::vector<reco::Track>>(pset.getParameter<edm::InputTag>("recoTracks"));
+    edm::EDGetTokenT<std::vector<ticl::Trackster>> trackstersToken =
+        consumes<std::vector<ticl::Trackster>>(pset.getParameter<edm::InputTag>("ticlTrackstersMerge"));
+    //consumes<std::vector<ticl::Trackster>>(pset.getParameter<edm::InputTag>("trackstersclue3d"));
+    edm::EDGetTokenT<hgcal::RecoToSimCollectionSimTracksters> associatorMapRtSToken =
+        consumes<hgcal::SimToRecoCollectionSimTracksters>(pset.getParameter<edm::InputTag>("mergeRecoToSimAssociator"));
+    edm::EDGetTokenT<hgcal::SimToRecoCollectionSimTracksters> associatorMapStRToken =
+        consumes<hgcal::SimToRecoCollectionSimTracksters>(pset.getParameter<edm::InputTag>("mergeSimToRecoAssociator"));
+
+    candidateVal = TICLCandidateValidator(TICLCandidatesToken,
+                                          simTICLCandidatesToken,
+                                          recoTracksToken,
+                                          trackstersToken,
+                                          associatorMapRtSToken,
+                                          associatorMapStRToken);
+  }
 
   for (auto& itag : label_tst) {
     label_tstTokens.push_back(consumes<ticl::TracksterCollection>(itag));
@@ -224,6 +249,13 @@ void HGCalValidator::bookHistograms(DQMStore::IBooker& ibook,
           ibook, histograms.histoProducerAlgo, HGVHistoProducerAlgo::validationType::PatternRecognition);
     }
   }  //end of booking Tracksters loop
+
+  // Booking histograms concerning TICL candidates
+  if (doCandidatesPlots_) {
+    ibook.cd();
+    ibook.setCurrentFolder(dirName_ + label_candidates_.label());
+    candidateVal.bookCandidatesHistos(ibook, dirName_ + label_candidates_.label());
+  }
 }
 
 void HGCalValidator::cpParametersAndSelection(const Histograms& histograms,
@@ -449,4 +481,9 @@ void HGCalValidator::dqmAnalyze(const edm::Event& event,
                                                 hits);
     }
   }  //end of loop over Trackster input labels
+
+  // tracksters histograms
+  if (doCandidatesPlots_) {
+    candidateVal.fillCandidateHistos(event, simTracksterFromCPHandle);
+  }
 }

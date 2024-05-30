@@ -22,6 +22,7 @@
 
 #include "DQMServices/Core/interface/DQMGlobalEDAnalyzer.h"
 
+#include "Validation/HGCalValidation/interface/TICLCandidateValidator.h"
 #include "Validation/HGCalValidation/interface/HGVHistoProducerAlgo.h"
 #include "Validation/HGCalValidation/interface/CaloParticleSelector.h"
 #include "RecoLocalCalo/HGCalRecProducers/interface/HGCalClusteringAlgoBase.h"
@@ -76,6 +77,8 @@ protected:
   const bool doTrackstersPlots_;
   std::string label_TS_, label_TSToCPLinking_, label_TSToSTSPR_;
   std::vector<edm::InputTag> label_clustersmask;
+  const bool doCandidatesPlots_;
+  edm::InputTag label_candidates_;
   const edm::FileInPath cummatbudinxo_;
 
   std::vector<edm::EDGetTokenT<reco::CaloClusterCollection>> labelToken;
@@ -99,6 +102,7 @@ protected:
   std::vector<edm::EDGetTokenT<HGCRecHitCollection>> hits_token_;
 
 private:
+  mutable TICLCandidateValidator candidateVal;
   CaloParticleSelector cpSelector;
   std::shared_ptr<hgcal::RecHitTools> tools_;
   std::map<double, double> cummatbudg;
