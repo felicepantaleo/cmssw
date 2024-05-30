@@ -36,6 +36,9 @@ void ticl::assignPCAtoTracksters(std::vector<Trackster> &tracksters,
     trackster.setRawEmPt(0.f);
 
     size_t N = trackster.vertices().size();
+    if(N == 0){
+      continue;
+    }
     float weight = 1.f / N;
     float weights2_sum = 0.f;
     Eigen::Vector3d sigmas;
@@ -58,26 +61,11 @@ void ticl::assignPCAtoTracksters(std::vector<Trackster> &tracksters,
         barycenter[j] += point[j];
     }
 
-    if (energyWeight && trackster.raw_energy())
-      barycenter /= trackster.raw_energy();
-
-    // Compute the Covariance Matrix and the sum of the squared weights, used
-    // to compute the correct normalization.
-    // The barycenter has to be known.
-    for (size_t i = 0; i < N; ++i) {
-      fillPoint(layerClusters[trackster.vertices(i)]);
-      if (energyWeight && trackster.raw_energy())
-        weight =
-            (layerClusters[trackster.vertices(i)].energy() / trackster.vertex_multiplicity(i)) / trackster.raw_energy();
-      weights2_sum += weight * weight;
-      for (size_t x = 0; x < 3; ++x)
-        for (size_t y = 0; y <= x; ++y) {
-          covM(x, y) += weight * (point[x] - barycenter[x]) * (point[y] - barycenter[y]);
-          covM(y, x) = covM(x, y);
-        }
-    }
-    covM *= 1.f / (1.f - weights2_sum);
-
+    float raw_energy = trackster.raw_energy();
+    float inv_raw_energy = 1.f / raw_energy;
+    if (energyWeight)
+      barycenter *= inv_raw_energy;
+    trackster.setBarycenter(ticl::Trackster::Vector(barycenter));
     std::pair<float, float> timeTrackster;
     if (computeLocalTime)
       timeTrackster = ticl::computeLocalTracksterTime(trackster, layerClusters, layerClustersTime, barycenter, N);
