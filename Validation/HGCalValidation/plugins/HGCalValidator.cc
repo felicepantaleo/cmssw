@@ -33,8 +33,8 @@ HGCalValidator::HGCalValidator(const edm::ParameterSet& pset)
       doCandidatesPlots_(pset.getUntrackedParameter<bool>("doCandidatesPlots")),
       label_candidates_(pset.getParameter<std::string>("ticlCandidates")),
       cummatbudinxo_(pset.getParameter<edm::FileInPath>("cummatbudinxo")),
-      hits_label_(pset.getParameter<std::vector<edm::InputTag>>("hits")),
-      isTICLv5_(pset.getUntrackedParameter<bool>("isticlv5")) {
+      isTICLv5_(pset.getUntrackedParameter<bool>("isticlv5")),
+      hits_label_(pset.getParameter<std::vector<edm::InputTag>>("hits")){
   //In this way we can easily generalize to associations between other objects also.
   const edm::InputTag& label_cp_effic_tag = pset.getParameter<edm::InputTag>("label_cp_effic");
   const edm::InputTag& label_cp_fake_tag = pset.getParameter<edm::InputTag>("label_cp_fake");
@@ -72,12 +72,12 @@ HGCalValidator::HGCalValidator(const edm::ParameterSet& pset)
         consumes<std::vector<reco::Track>>(pset.getParameter<edm::InputTag>("recoTracks"));
     edm::EDGetTokenT<std::vector<ticl::Trackster>> trackstersToken =
         consumes<std::vector<ticl::Trackster>>(pset.getParameter<edm::InputTag>("ticlTrackstersMerge"));
-    edm::EDGetTokenT<hgcal::RecoToSimCollectionSimTracksters> associatorMapRtSToken =
-        consumes<hgcal::SimToRecoCollectionSimTracksters>(pset.getParameter<edm::InputTag>("mergeRecoToSimAssociator"));
-    edm::EDGetTokenT<hgcal::SimToRecoCollectionSimTracksters> associatorMapStRToken =
-        consumes<hgcal::SimToRecoCollectionSimTracksters>(pset.getParameter<edm::InputTag>("mergeSimToRecoAssociator"));
-    edm::EDGetTokenT<hgcal::RecoToSimCollectionSimTracksters> associatorMapRtSPUToken =
-        consumes<hgcal::SimToRecoCollectionSimTracksters>(
+    edm::EDGetTokenT<ticl::RecoToSimCollectionSimTracksters> associatorMapRtSToken =
+        consumes<ticl::SimToRecoCollectionSimTracksters>(pset.getParameter<edm::InputTag>("mergeRecoToSimAssociator"));
+    edm::EDGetTokenT<ticl::SimToRecoCollectionSimTracksters> associatorMapStRToken =
+        consumes<ticl::SimToRecoCollectionSimTracksters>(pset.getParameter<edm::InputTag>("mergeSimToRecoAssociator"));
+    edm::EDGetTokenT<ticl::RecoToSimCollectionSimTracksters> associatorMapRtSPUToken =
+        consumes<ticl::SimToRecoCollectionSimTracksters>(
             pset.getParameter<edm::InputTag>("mergeRecoToSimAssociatorPU"));
 
     candidateVal_ = std::make_unique<TICLCandidateValidator>(TICLCandidatesToken,
@@ -127,7 +127,7 @@ HGCalValidator::HGCalValidator(const edm::ParameterSet& pset)
   double mbg = 0.;
   for (unsigned ilayer = 1; ilayer <= totallayers_to_monitor_; ++ilayer) {
     fmb >> thelay >> mbg;
-    cummatbudg.insert(std::pair<double, double>(thelay, mbg));
+    cumulative_material_budget.insert(std::pair<double, double>(thelay, mbg));
   }
 
   fmb.close();
@@ -438,7 +438,7 @@ void HGCalValidator::dqmAnalyze(const edm::Event& event,
                                                     cPIndices,
                                                     selected_cPeff,
                                                     *hitMap,
-                                                    cummatbudg,
+                                                    cumulative_material_budget,
                                                     totallayers_to_monitor_,
                                                     thicknesses_to_monitor_,
                                                     recSimColl,

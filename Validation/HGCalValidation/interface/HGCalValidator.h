@@ -107,7 +107,7 @@ protected:
 private:
   CaloParticleSelector cpSelector;
   std::shared_ptr<hgcal::RecHitTools> tools_;
-  std::map<double, double> cummatbudg;
+  std::map<double, double> cumulative_material_budget;
   std::vector<int> particles_to_monitor_;
   unsigned totallayers_to_monitor_;
   std::vector<int> thicknesses_to_monitor_;

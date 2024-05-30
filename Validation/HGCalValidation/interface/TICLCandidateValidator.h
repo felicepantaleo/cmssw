@@ -112,9 +112,9 @@ public:
                          edm::EDGetTokenT<std::vector<TICLCandidate>> simTICLCandidatesToken,
                          edm::EDGetTokenT<std::vector<reco::Track>> recoTracksToken,
                          edm::EDGetTokenT<std::vector<ticl::Trackster>> trackstersToken,
-                         edm::EDGetTokenT<hgcal::RecoToSimCollectionSimTracksters> associatorMapRtSToken,
-                         edm::EDGetTokenT<hgcal::SimToRecoCollectionSimTracksters> associatorMapStRToken,
-                         edm::EDGetTokenT<hgcal::RecoToSimCollectionSimTracksters> associatorMapRtSPUToken,
+                         edm::EDGetTokenT<ticl::RecoToSimCollectionSimTracksters> associatorMapRtSToken,
+                         edm::EDGetTokenT<ticl::SimToRecoCollectionSimTracksters> associatorMapStRToken,
+                         edm::EDGetTokenT<ticl::RecoToSimCollectionSimTracksters> associatorMapRtSPUToken,
                          bool isTICLv5);
   ~TICLCandidateValidator();
 
@@ -131,9 +131,9 @@ private:
   edm::EDGetTokenT<std::vector<TICLCandidate>> simTICLCandidatesToken_;
   edm::EDGetTokenT<std::vector<reco::Track>> recoTracksToken_;
   edm::EDGetTokenT<std::vector<ticl::Trackster>> trackstersToken_;
-  edm::EDGetTokenT<hgcal::RecoToSimCollectionSimTracksters> associatorMapRtSToken_;
-  edm::EDGetTokenT<hgcal::SimToRecoCollectionSimTracksters> associatorMapStRToken_;
-  edm::EDGetTokenT<hgcal::RecoToSimCollectionSimTracksters> associatorMapRtSPUToken_;
+  edm::EDGetTokenT<ticl::RecoToSimCollectionSimTracksters> associatorMapRtSToken_;
+  edm::EDGetTokenT<ticl::SimToRecoCollectionSimTracksters> associatorMapStRToken_;
+  edm::EDGetTokenT<ticl::RecoToSimCollectionSimTracksters> associatorMapRtSPUToken_;
   bool isTICLv5_ = false;
 };
 

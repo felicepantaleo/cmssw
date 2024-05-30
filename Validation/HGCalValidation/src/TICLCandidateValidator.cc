@@ -10,9 +10,9 @@ TICLCandidateValidator::TICLCandidateValidator(
     edm::EDGetTokenT<std::vector<TICLCandidate>> simTICLCandidatesToken,
     edm::EDGetTokenT<std::vector<reco::Track>> recoTracksToken,
     edm::EDGetTokenT<std::vector<ticl::Trackster>> trackstersToken,
-    edm::EDGetTokenT<hgcal::RecoToSimCollectionSimTracksters> associatorMapRtSToken,
-    edm::EDGetTokenT<hgcal::SimToRecoCollectionSimTracksters> associatorMapStRToken,
-    edm::EDGetTokenT<hgcal::RecoToSimCollectionSimTracksters> associatorMapRtSPUToken,
+    edm::EDGetTokenT<ticl::RecoToSimCollectionSimTracksters> associatorMapRtSToken,
+    edm::EDGetTokenT<ticl::SimToRecoCollectionSimTracksters> associatorMapStRToken,
+    edm::EDGetTokenT<ticl::RecoToSimCollectionSimTracksters> associatorMapRtSPUToken,
     bool isTICLv5)
     : TICLCandidatesToken_(ticlCandidates),
       simTICLCandidatesToken_(simTICLCandidatesToken),
@@ -296,15 +296,15 @@ void TICLCandidateValidator::fillCandidateHistos(const edm::Event& event,
   event.getByToken(trackstersToken_, Tracksters_h);
   auto trackstersMerged = *Tracksters_h;
 
-  edm::Handle<hgcal::RecoToSimCollectionSimTracksters> mergeTsRecoToSim_h;
+  edm::Handle<ticl::RecoToSimCollectionSimTracksters> mergeTsRecoToSim_h;
   event.getByToken(associatorMapRtSToken_, mergeTsRecoToSim_h);
   auto const& mergeTsRecoToSimMap = *mergeTsRecoToSim_h;
 
-  edm::Handle<hgcal::SimToRecoCollectionSimTracksters> mergeTsSimToReco_h;
+  edm::Handle<ticl::SimToRecoCollectionSimTracksters> mergeTsSimToReco_h;
   event.getByToken(associatorMapStRToken_, mergeTsSimToReco_h);
   auto const& mergeTsSimToRecoMap = *mergeTsSimToReco_h;
 
-  edm::Handle<hgcal::RecoToSimCollectionSimTracksters> mergeTsRecoToSimPU_h;
+  edm::Handle<ticl::RecoToSimCollectionSimTracksters> mergeTsRecoToSimPU_h;
   event.getByToken(associatorMapRtSPUToken_, mergeTsRecoToSimPU_h);
   auto const& mergeTsRecoToSimPUMap = *mergeTsRecoToSimPU_h;
 
