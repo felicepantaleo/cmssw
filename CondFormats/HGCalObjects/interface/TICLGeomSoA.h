@@ -1,9 +1,9 @@
-#ifndef CondFormats_HGCalReco_HGCalGeomSoA_h
-#define CondFormats_HGCalReco_HGCalGeomSoA_h
+#ifndef CondFormats_HGCalReco_TICLGeomSoA_h
+#define CondFormats_HGCalReco_TICLGeomSoA_h
 
 #include "DataFormats/SoATemplate/interface/SoALayout.h"
 
-GENERATE_SOA_LAYOUT(HGCalGeomSoALayout,
+GENERATE_SOA_LAYOUT(TICLGeomSoALayout,
                     SOA_COLUMN(uint32_t, rawDetId),
                     SOA_COLUMN(float, x),
                     SOA_COLUMN(float, y),
@@ -16,8 +16,8 @@ GENERATE_SOA_LAYOUT(HGCalGeomSoALayout,
 
 )
 
-using HGCalGeomSoA = HGCalGeomSoALayout<>;
-using HGCalGeomSoAView = HGCalGeomSoA::View;
-using HGCalGeomSoAConstView = HGCalGeomSoA::ConstView;
+using TICLGeomSoA = TICLGeomSoALayout<>;
+using TICLGeomSoAView = TICLGeomSoA::View;
+using TICLGeomSoAConstView = TICLGeomSoA::ConstView;
 
 #endif
