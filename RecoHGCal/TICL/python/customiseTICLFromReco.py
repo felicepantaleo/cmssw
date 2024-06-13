@@ -2,7 +2,7 @@
 from RecoHGCal.TICL.iterativeTICL_cff import *
 from RecoLocalCalo.HGCalRecProducers.hgcalLayerClusters_cff import hgcalLayerClustersEE, hgcalLayerClustersHSi, hgcalLayerClustersHSci
 from RecoLocalCalo.HGCalRecProducers.hgcalMergeLayerClusters_cfi import hgcalMergeLayerClusters
-from RecoHGCal.TICL.ticlDumper_cfi import ticlDumper
+from RecoHGCal.TICL.ticlDumper_cff import ticlDumper
 # Validation
 from Validation.HGCalValidation.HGCalValidator_cfi import *
 from RecoLocalCalo.HGCalRecProducers.recHitMapProducer_cfi import recHitMapProducer
@@ -15,6 +15,7 @@ from RecoHGCal.Configuration.RecoHGCal_EventContent_cff import customiseHGCalOnl
 from SimCalorimetry.HGCalAssociatorProducers.simTracksterAssociatorByEnergyScore_cfi import simTracksterAssociatorByEnergyScore as simTsAssocByEnergyScoreProducer
 from SimCalorimetry.HGCalAssociatorProducers.TSToSimTSAssociation_cfi import tracksterSimTracksterAssociationLinking, tracksterSimTracksterAssociationPR, tracksterSimTracksterAssociationLinkingbyCLUE3D, tracksterSimTracksterAssociationPRbyCLUE3D, tracksterSimTracksterAssociationLinkingPU, tracksterSimTracksterAssociationPRPU
 
+from Configuration.ProcessModifiers.ticl_v5_cff import ticl_v5
 
 def customiseTICLFromReco(process):
     # TensorFlow ESSource
@@ -31,20 +32,11 @@ def customiseTICLFromReco(process):
                             process.ticlLayerTileTask,
                             process.ticlIterationsTask,
                             process.ticlTracksterMergeTask)
+    ticl_v5.toModify(process.TICL, func=lambda x : x.associate(process.ticlTracksterLinksTask))
+
 # Validation
     process.TICL_ValidationProducers = cms.Task(process.recHitMapProducer,
-                                                process.lcAssocByEnergyScoreProducer,
-                                                process.layerClusterCaloParticleAssociationProducer,
-                                                process.scAssocByEnergyScoreProducer,
-                                                process.layerClusterSimClusterAssociationProducer,
-                                                process.simTsAssocByEnergyScoreProducer,
-                                                process.simTracksterHitLCAssociatorByEnergyScoreProducer,
-                                                process.tracksterSimTracksterAssociationLinking,
-                                                process.tracksterSimTracksterAssociationPR,
-                                                process.tracksterSimTracksterAssociationLinkingbyCLUE3D,
-                                                process.tracksterSimTracksterAssociationPRbyCLUE3D,
-                                                process.tracksterSimTracksterAssociationLinkingPU,
-                                                process.tracksterSimTracksterAssociationPRPU
+                                                process.hgcalAssociators
                                                 )
 
     process.TICL_Validator = cms.Task(process.hgcalValidator)
@@ -68,25 +60,7 @@ def customiseTICLFromReco(process):
 
 def customiseTICLForDumper(process):
 
-    process.ticlDumper = ticlDumper.clone(
-        saveLCs=True,
-        saveCLUE3DTracksters=True,
-        saveTrackstersMerged=True,
-        saveSimTrackstersSC=True,
-        saveSimTrackstersCP=True,
-        saveTICLCandidate=True,
-        saveSimTICLCandidate=True,
-        saveTracks=True,
-        saveAssociations=True,
-    )
-
-    from Configuration.ProcessModifiers.ticl_v5_cff import ticl_v5
-    ticl_v5.toModify(process.ticlDumper,
-                     # trackstersclue3d = cms.InputTag('mergedTrackstersProducer'), # For future separate iterations
-                     trackstersclue3d = cms.InputTag('ticlTrackstersCLUE3DHigh'),
-                     ticlcandidates = cms.InputTag("ticlCandidate"),
-                     trackstersmerged = cms.InputTag("ticlCandidate"),
-                     trackstersInCand = cms.InputTag("ticlCandidate"))
+    process.ticlDumper = ticlDumper.clone()
 
     process.TFileService = cms.Service("TFileService",
                                        fileName=cms.string("histo.root")
