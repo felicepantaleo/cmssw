@@ -1861,17 +1861,14 @@ void TICLDumper::analyze(const edm::Event& event, const edm::EventSetup& setup) 
   trackstersCLUE3D_recoToSim_SC_score.resize(tracksters.size());
   trackstersCLUE3D_recoToSim_SC_sharedE.resize(tracksters.size());
   for (size_t i = 0; i < tracksters.size(); ++i) {
-    const edm::Ref<ticl::TracksterCollection> tsRef(tracksters_handle, i);
 
     // CLUE3D -> STS-SC
-    const auto stsSC_iter = tsRecoSimSCMap.find(tsRef);
-    if (stsSC_iter != tsRecoSimSCMap.end()) {
-      const auto& stsSCassociated = stsSC_iter->val;
-      for (auto& sts : stsSCassociated) {
-        auto sts_id = (sts.first).get() - (edm::Ref<ticl::TracksterCollection>(simTrackstersSC_h, 0)).get();
+    const auto stsSC_vec = tsRecoSimSCMap[i];
+    if (!stsSC_vec.empty()) {
+      for (const auto& [sts_id, sharedEnergyAndScore] : stsSC_vec) {
         trackstersCLUE3D_recoToSim_SC[i].push_back(sts_id);
-        trackstersCLUE3D_recoToSim_SC_score[i].push_back(sts.second.second);
-        trackstersCLUE3D_recoToSim_SC_sharedE[i].push_back(sts.second.first);
+        trackstersCLUE3D_recoToSim_SC_score[i].push_back(sharedEnergyAndScore.second);
+        trackstersCLUE3D_recoToSim_SC_sharedE[i].push_back(sharedEnergyAndScore.first);
       }
     }
   }
@@ -1882,17 +1879,14 @@ void TICLDumper::analyze(const edm::Event& event, const edm::EventSetup& setup) 
   trackstersCLUE3D_simToReco_SC_score.resize(nsimTrackstersSC);
   trackstersCLUE3D_simToReco_SC_sharedE.resize(nsimTrackstersSC);
   for (size_t i = 0; i < nsimTrackstersSC; ++i) {
-    const edm::Ref<ticl::TracksterCollection> stsSCRef(simTrackstersSC_h, i);
 
     // STS-SC -> CLUE3D
-    const auto ts_iter = tsSimToRecoSCMap.find(stsSCRef);
-    if (ts_iter != tsSimToRecoSCMap.end()) {
-      const auto& tsAssociated = ts_iter->val;
-      for (auto& ts : tsAssociated) {
-        auto ts_idx = (ts.first).get() - (edm::Ref<ticl::TracksterCollection>(tracksters_handle, 0)).get();
-        trackstersCLUE3D_simToReco_SC[i].push_back(ts_idx);
-        trackstersCLUE3D_simToReco_SC_score[i].push_back(ts.second.second);
-        trackstersCLUE3D_simToReco_SC_sharedE[i].push_back(ts.second.first);
+    const auto ts_vec = tsSimToRecoSCMap[i];
+    if (!ts_vec.empty()) {
+      for (const auto& [ts_id, sharedEnergyAndScore] : ts_vec) {
+        trackstersCLUE3D_simToReco_SC[i].push_back(ts_id);
+        trackstersCLUE3D_simToReco_SC_score[i].push_back(sharedEnergyAndScore.second);
+        trackstersCLUE3D_simToReco_SC_sharedE[i].push_back(sharedEnergyAndScore.first);
       }
     }
   }
@@ -1902,17 +1896,14 @@ void TICLDumper::analyze(const edm::Event& event, const edm::EventSetup& setup) 
   trackstersCLUE3D_recoToSim_CP_score.resize(tracksters.size());
   trackstersCLUE3D_recoToSim_CP_sharedE.resize(tracksters.size());
   for (size_t i = 0; i < tracksters.size(); ++i) {
-    const edm::Ref<ticl::TracksterCollection> tsRef(tracksters_handle, i);
 
     // CLUE3D -> STS-CP
-    const auto stsCP_iter = tsRecoSimCPMap.find(tsRef);
-    if (stsCP_iter != tsRecoSimCPMap.end()) {
-      const auto& stsCPassociated = stsCP_iter->val;
-      for (auto& sts : stsCPassociated) {
-        auto sts_id = (sts.first).get() - (edm::Ref<ticl::TracksterCollection>(simTrackstersCP_h, 0)).get();
+    const auto stsCP_vec = tsRecoSimCPMap[i];
+    if (!stsCP_vec.empty()) {
+      for (const auto& [sts_id, sharedEnergyAndScore] : stsCP_vec) {
         trackstersCLUE3D_recoToSim_CP[i].push_back(sts_id);
-        trackstersCLUE3D_recoToSim_CP_score[i].push_back(sts.second.second);
-        trackstersCLUE3D_recoToSim_CP_sharedE[i].push_back(sts.second.first);
+        trackstersCLUE3D_recoToSim_CP_score[i].push_back(sharedEnergyAndScore.second);
+        trackstersCLUE3D_recoToSim_CP_sharedE[i].push_back(sharedEnergyAndScore.first);
       }
     }
   }
@@ -1923,17 +1914,14 @@ void TICLDumper::analyze(const edm::Event& event, const edm::EventSetup& setup) 
   trackstersCLUE3D_simToReco_CP_score.resize(nsimTrackstersCP);
   trackstersCLUE3D_simToReco_CP_sharedE.resize(nsimTrackstersCP);
   for (size_t i = 0; i < nsimTrackstersCP; ++i) {
-    const edm::Ref<ticl::TracksterCollection> stsCPRef(simTrackstersCP_h, i);
 
     // STS-CP -> CLUE3D
-    const auto ts_iter = tsSimToRecoCPMap.find(stsCPRef);
-    if (ts_iter != tsSimToRecoCPMap.end()) {
-      const auto& tsAssociated = ts_iter->val;
-      for (auto& ts : tsAssociated) {
-        auto ts_idx = (ts.first).get() - (edm::Ref<ticl::TracksterCollection>(tracksters_handle, 0)).get();
-        trackstersCLUE3D_simToReco_CP[i].push_back(ts_idx);
-        trackstersCLUE3D_simToReco_CP_score[i].push_back(ts.second.second);
-        trackstersCLUE3D_simToReco_CP_sharedE[i].push_back(ts.second.first);
+    const auto ts_vec = tsSimToRecoCPMap[i];
+    if (!ts_vec.empty()) {
+      for (const auto& [ts_id, sharedEnergyAndScore] : ts_vec) {
+        trackstersCLUE3D_simToReco_CP[i].push_back(ts_id);
+        trackstersCLUE3D_simToReco_CP_score[i].push_back(sharedEnergyAndScore.second);
+        trackstersCLUE3D_simToReco_CP_sharedE[i].push_back(sharedEnergyAndScore.first);
       }
     }
   }
@@ -1943,17 +1931,14 @@ void TICLDumper::analyze(const edm::Event& event, const edm::EventSetup& setup) 
   MergeTracksters_recoToSim_SC_score.resize(trackstersmerged.size());
   MergeTracksters_recoToSim_SC_sharedE.resize(trackstersmerged.size());
   for (size_t i = 0; i < trackstersmerged.size(); ++i) {
-    const edm::Ref<ticl::TracksterCollection> tsRef(tracksters_merged_h, i);
 
     // CLUE3D -> STS-SC
-    const auto stsSC_iter = MergetsRecoSimSCMap.find(tsRef);
-    if (stsSC_iter != MergetsRecoSimSCMap.end()) {
-      const auto& stsSCassociated = stsSC_iter->val;
-      for (auto& sts : stsSCassociated) {
-        auto sts_id = (sts.first).get() - (edm::Ref<ticl::TracksterCollection>(simTrackstersSC_h, 0)).get();
+    const auto stsSC_vec = MergetsRecoSimSCMap[i];
+    if (!stsSC_vec.empty()) {
+      for (const auto& [sts_id, sharedEnergyAndScore] : stsSC_vec) {
         MergeTracksters_recoToSim_SC[i].push_back(sts_id);
-        MergeTracksters_recoToSim_SC_score[i].push_back(sts.second.second);
-        MergeTracksters_recoToSim_SC_sharedE[i].push_back(sts.second.first);
+        MergeTracksters_recoToSim_SC_score[i].push_back(sharedEnergyAndScore.second);
+        MergeTracksters_recoToSim_SC_sharedE[i].push_back(sharedEnergyAndScore.first);
       }
     }
   }
@@ -1964,17 +1949,14 @@ void TICLDumper::analyze(const edm::Event& event, const edm::EventSetup& setup) 
   MergeTracksters_simToReco_SC_score.resize(nsimTrackstersSC);
   MergeTracksters_simToReco_SC_sharedE.resize(nsimTrackstersSC);
   for (size_t i = 0; i < nsimTrackstersSC; ++i) {
-    const edm::Ref<ticl::TracksterCollection> stsSCRef(simTrackstersSC_h, i);
 
     // STS-SC -> CLUE3D
-    const auto ts_iter = MergetsSimToRecoSCMap.find(stsSCRef);
-    if (ts_iter != MergetsSimToRecoSCMap.end()) {
-      const auto& tsAssociated = ts_iter->val;
-      for (auto& ts : tsAssociated) {
-        auto ts_idx = (ts.first).get() - (edm::Ref<ticl::TracksterCollection>(tracksters_merged_h, 0)).get();
-        MergeTracksters_simToReco_SC[i].push_back(ts_idx);
-        MergeTracksters_simToReco_SC_score[i].push_back(ts.second.second);
-        MergeTracksters_simToReco_SC_sharedE[i].push_back(ts.second.first);
+    const auto ts_vec = MergetsSimToRecoSCMap[i];
+    if (!ts_vec.empty()) {
+      for (const auto& [ts_id, sharedEnergyAndScore] : ts_vec) {
+        MergeTracksters_simToReco_SC[i].push_back(ts_id);
+        MergeTracksters_simToReco_SC_score[i].push_back(sharedEnergyAndScore.second);
+        MergeTracksters_simToReco_SC_sharedE[i].push_back(sharedEnergyAndScore.first);
       }
     }
   }
@@ -1984,17 +1966,14 @@ void TICLDumper::analyze(const edm::Event& event, const edm::EventSetup& setup) 
   MergeTracksters_recoToSim_CP_score.resize(trackstersmerged.size());
   MergeTracksters_recoToSim_CP_sharedE.resize(trackstersmerged.size());
   for (size_t i = 0; i < trackstersmerged.size(); ++i) {
-    const edm::Ref<ticl::TracksterCollection> tsRef(tracksters_merged_h, i);
 
     // CLUE3D -> STS-CP
-    const auto stsCP_iter = MergetsRecoSimCPMap.find(tsRef);
-    if (stsCP_iter != MergetsRecoSimCPMap.end()) {
-      const auto& stsCPassociated = stsCP_iter->val;
-      for (auto& sts : stsCPassociated) {
-        auto sts_id = (sts.first).get() - (edm::Ref<ticl::TracksterCollection>(simTrackstersCP_h, 0)).get();
+    const auto stsCP_vec = MergetsRecoSimCPMap[i];
+    if (!stsCP_vec.empty()) {
+      for (const auto& [sts_id, sharedEnergyAndScore] : stsCP_vec) {
         MergeTracksters_recoToSim_CP[i].push_back(sts_id);
-        MergeTracksters_recoToSim_CP_score[i].push_back(sts.second.second);
-        MergeTracksters_recoToSim_CP_sharedE[i].push_back(sts.second.first);
+        MergeTracksters_recoToSim_CP_score[i].push_back(sharedEnergyAndScore.second);
+        MergeTracksters_recoToSim_CP_sharedE[i].push_back(sharedEnergyAndScore.first);
       }
     }
   }
@@ -2013,8 +1992,8 @@ void TICLDumper::analyze(const edm::Event& event, const edm::EventSetup& setup) 
       for (auto& sts : stsPUassociated) {
         auto sts_id = (sts.first).get() - (edm::Ref<ticl::TracksterCollection>(simTrackstersPU_h, 0)).get();
         MergeTracksters_recoToSim_PU[i].push_back(sts_id);
-        MergeTracksters_recoToSim_PU_score[i].push_back(sts.second.second);
-        MergeTracksters_recoToSim_PU_sharedE[i].push_back(sts.second.first);
+        MergeTracksters_recoToSim_PU_score[i].push_back(sharedEnergyAndScore.second);
+        MergeTracksters_recoToSim_PU_sharedE[i].push_back(sharedEnergyAndScore.first);
       }
     }
   }
