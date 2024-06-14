@@ -22,6 +22,17 @@ from RecoHGCal.TICL.ticlCandidateProducer_cfi import ticlCandidateProducer as _t
 from RecoHGCal.TICL.mtdSoAProducer_cfi import mtdSoAProducer as _mtdSoAProducer
 
 from Configuration.ProcessModifiers.ticl_v5_cff import ticl_v5
+from SimCalorimetry.HGCalAssociatorProducers.LCToTSAssociator_cfi import layerClusterToTracksterAssociation
+
+
+layerClusterToTracksterMergeAssociation = layerClusterToTracksterAssociation.clone(
+    tracksters = cms.InputTag("ticlTrackstersMerge")
+)
+
+layerClusterToSimTracksterAssociation = layerClusterToTracksterAssociation.clone(
+    tracksters = cms.InputTag("ticlSimTracksters")
+)
+
 
 ticlLayerTileTask = cms.Task(ticlLayerTileProducer)
 
