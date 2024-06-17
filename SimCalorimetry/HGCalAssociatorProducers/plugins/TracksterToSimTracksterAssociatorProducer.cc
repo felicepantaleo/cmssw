@@ -2,19 +2,33 @@
 #include "SimDataFormats/Associations/interface/TICLAssociationMap.h"
 
 TracksterToSimTracksterAssociatorProducer::TracksterToSimTracksterAssociatorProducer(const edm::ParameterSet& pset)
-    : recoTracksterCollectionToken_(consumes<std::vector<ticl::Trackster>>(pset.getParameter<edm::InputTag>("tracksters"))),
-      simTracksterCollectionToken_(consumes<std::vector<ticl::Trackster>>(pset.getParameter<edm::InputTag>("simTracksters"))),
-      layerClustersCollectionToken_(consumes<std::vector<reco::CaloCluster>>(pset.getParameter<edm::InputTag>("layerClusters"))),
-      LayerClusterToTracksterMapToken_(consumes<ticl::AssociationMap<ticl::mapWithFraction, std::vector<reco::CaloCluster>, std::vector<ticl::Trackster>>>(pset.getParameter<edm::InputTag>("tracksterMap"))),
-      LayerClusterToSimTracksterMapToken_(consumes<ticl::AssociationMap<ticl::mapWithFraction, std::vector<reco::CaloCluster>, std::vector<ticl::Trackster>>>(pset.getParameter<edm::InputTag>("simTracksterMap"))) {
-  produces<ticl::AssociationMap<ticl::mapWithFractionAndScore, std::vector<ticl::Trackster>, std::vector<ticl::Trackster>>>("tracksterToSimTracksterMap");
-  produces<ticl::AssociationMap<ticl::mapWithFractionAndScore, std::vector<ticl::Trackster>, std::vector<ticl::Trackster>>>("simTracksterToTracksterMap");
+    : recoTracksterCollectionToken_(
+          consumes<std::vector<ticl::Trackster>>(pset.getParameter<edm::InputTag>("tracksters"))),
+      simTracksterCollectionToken_(
+          consumes<std::vector<ticl::Trackster>>(pset.getParameter<edm::InputTag>("simTracksters"))),
+      layerClustersCollectionToken_(
+          consumes<std::vector<reco::CaloCluster>>(pset.getParameter<edm::InputTag>("layerClusters"))),
+      LayerClusterToTracksterMapToken_(
+          consumes<
+              ticl::AssociationMap<ticl::mapWithFraction, std::vector<reco::CaloCluster>, std::vector<ticl::Trackster>>>(
+              pset.getParameter<edm::InputTag>("tracksterMap"))),
+      LayerClusterToSimTracksterMapToken_(
+          consumes<
+              ticl::AssociationMap<ticl::mapWithFraction, std::vector<reco::CaloCluster>, std::vector<ticl::Trackster>>>(
+              pset.getParameter<edm::InputTag>("simTracksterMap"))) {
+  produces<
+      ticl::AssociationMap<ticl::mapWithFractionAndScore, std::vector<ticl::Trackster>, std::vector<ticl::Trackster>>>(
+      "tracksterToSimTracksterMap");
+  produces<
+      ticl::AssociationMap<ticl::mapWithFractionAndScore, std::vector<ticl::Trackster>, std::vector<ticl::Trackster>>>(
+      "simTracksterToTracksterMap");
 }
 
 TracksterToSimTracksterAssociatorProducer::~TracksterToSimTracksterAssociatorProducer() {}
 
-void TracksterToSimTracksterAssociatorProducer::produce(edm::StreamID, edm::Event& iEvent, const edm::EventSetup& iSetup) const {
-
+void TracksterToSimTracksterAssociatorProducer::produce(edm::StreamID,
+                                                        edm::Event& iEvent,
+                                                        const edm::EventSetup& iSetup) const {
   edm::Handle<std::vector<ticl::Trackster>> recoTrackstersHandle;
   iEvent.getByToken(recoTracksterCollectionToken_, recoTrackstersHandle);
   const auto& recoTracksters = *recoTrackstersHandle;
@@ -27,17 +41,23 @@ void TracksterToSimTracksterAssociatorProducer::produce(edm::StreamID, edm::Even
   iEvent.getByToken(layerClustersCollectionToken_, layerClustersHandle);
   const auto& layerClusters = *layerClustersHandle;
 
-  edm::Handle<ticl::AssociationMap<ticl::mapWithFraction, std::vector<reco::CaloCluster>, std::vector<ticl::Trackster>>> layerClusterToTracksterMapHandle;
+  edm::Handle<ticl::AssociationMap<ticl::mapWithFraction, std::vector<reco::CaloCluster>, std::vector<ticl::Trackster>>>
+      layerClusterToTracksterMapHandle;
   iEvent.getByToken(LayerClusterToTracksterMapToken_, layerClusterToTracksterMapHandle);
   const auto& layerClusterToTracksterMap = *layerClusterToTracksterMapHandle;
 
-  edm::Handle<ticl::AssociationMap<ticl::mapWithFraction, std::vector<reco::CaloCluster>, std::vector<ticl::Trackster>>> layerClusterToSimTracksterMapHandle;
+  edm::Handle<ticl::AssociationMap<ticl::mapWithFraction, std::vector<reco::CaloCluster>, std::vector<ticl::Trackster>>>
+      layerClusterToSimTracksterMapHandle;
   iEvent.getByToken(LayerClusterToSimTracksterMapToken_, layerClusterToSimTracksterMapHandle);
   const auto& layerClusterToSimTracksterMap = *layerClusterToSimTracksterMapHandle;
 
-  auto tracksterToSimTracksterMap = std::make_unique<ticl::AssociationMap<ticl::mapWithFractionAndScore, std::vector<ticl::Trackster>, std::vector<ticl::Trackster>>>(recoTrackstersHandle.id(), simTrackstersHandle.id(), iEvent);
-  auto simTracksterToTracksterMap = std::make_unique<ticl::AssociationMap<ticl::mapWithFractionAndScore, std::vector<ticl::Trackster>, std::vector<ticl::Trackster>>>(simTrackstersHandle.id(), recoTrackstersHandle.id(), iEvent);
-  
+  auto tracksterToSimTracksterMap = std::make_unique<
+      ticl::AssociationMap<ticl::mapWithFractionAndScore, std::vector<ticl::Trackster>, std::vector<ticl::Trackster>>>(
+      recoTrackstersHandle.id(), simTrackstersHandle.id(), iEvent);
+  auto simTracksterToTracksterMap = std::make_unique<
+      ticl::AssociationMap<ticl::mapWithFractionAndScore, std::vector<ticl::Trackster>, std::vector<ticl::Trackster>>>(
+      simTrackstersHandle.id(), recoTrackstersHandle.id(), iEvent);
+
   for (unsigned int tracksterIndex = 0; tracksterIndex < recoTracksters.size(); ++tracksterIndex) {
     const auto& recoTrackster = recoTracksters[tracksterIndex];
     edm::Ref<std::vector<ticl::Trackster>> recoTracksterRef(recoTrackstersHandle, tracksterIndex);
@@ -67,7 +87,9 @@ void TracksterToSimTracksterAssociatorProducer::produce(edm::StreamID, edm::Even
         edm::Ref<std::vector<ticl::Trackster>> simTracksterRef(simTrackstersHandle, simTracksterIndex);
         float sharedEnergy = std::min(simSharedEnergy, recoSharedEnergy);
         float simFraction = simSharedEnergy * invLayerClusterEnergy;
-        float score = invDenominator * std::min(squaredRecoFraction, (recoFraction - simFraction) * (recoFraction - simFraction)) * squaredLayerClusterEnergy;
+        float score = invDenominator *
+                      std::min(squaredRecoFraction, (recoFraction - simFraction) * (recoFraction - simFraction)) *
+                      squaredLayerClusterEnergy;
         tracksterToSimTracksterMap->insert(recoTracksterRef, simTracksterRef, sharedEnergy, score);
       }
     }
@@ -78,6 +100,8 @@ void TracksterToSimTracksterAssociatorProducer::produce(edm::StreamID, edm::Even
     edm::Ref<std::vector<ticl::Trackster>> simTracksterRef(simTrackstersHandle, tracksterIndex);
     const auto& layerClustersIds = simTrackster.vertices();
     float simToRecoScoresDenominator = 0.f;
+    ticl::mapWithFraction layerClusterToAssociatedTracksterMap(layerClustersIds.size());
+    std::vector<unsigned int> associatedRecoTracksterIndices;
     for (unsigned int i = 0; i < layerClustersIds.size(); ++i) {
       unsigned int layerClusterId = layerClustersIds[i];
       const auto& layerCluster = layerClusters[layerClusterId];
@@ -85,6 +109,28 @@ void TracksterToSimTracksterAssociatorProducer::produce(edm::StreamID, edm::Even
       float squaredSimFraction = simFraction * simFraction;
       float squaredLayerClusterEnergy = layerCluster.energy() * layerCluster.energy();
       simToRecoScoresDenominator += squaredLayerClusterEnergy * squaredSimFraction;
+      const auto& recoTracksterVec = layerClusterToTracksterMap[layerClusterId];
+      for (const auto& [recoTracksterIndex, recoSharedEnergy] : recoTracksterVec) {
+        layerClusterToAssociatedTracksterMap[i].push_back({recoTracksterIndex, recoSharedEnergy});
+        associatedRecoTracksterIndices.push_back(recoTracksterIndex);
+      }
+    }
+    // keep only unique associatedRecoTracksterIndices
+    std::sort(associatedRecoTracksterIndices.begin(), associatedRecoTracksterIndices.end());
+    associatedRecoTracksterIndices.erase(
+        std::unique(associatedRecoTracksterIndices.begin(), associatedRecoTracksterIndices.end()),
+        associatedRecoTracksterIndices.end());
+    // for each layer cluster, loop over associatedRecoTracksterIndices and add the missing reco tracksters with 0 shared energy to layerClusterToAssociatedTracksterMap
+    for (unsigned int i = 0; i < layerClustersIds.size(); ++i) {
+      unsigned int layerClusterId = layerClustersIds[i];
+      const auto& recoTracksterVec = layerClusterToTracksterMap[layerClusterId];
+      for (unsigned int recoTracksterIndex : associatedRecoTracksterIndices) {
+        if (std::find_if(recoTracksterVec.begin(), recoTracksterVec.end(), [recoTracksterIndex](const auto& pair) {
+              return pair.first == recoTracksterIndex;
+            }) == recoTracksterVec.end()) {
+          layerClusterToAssociatedTracksterMap[i].push_back({recoTracksterIndex, 0.f});
+        }
+      }
     }
 
     const float invDenominator = 1.f / simToRecoScoresDenominator;
@@ -97,13 +143,15 @@ void TracksterToSimTracksterAssociatorProducer::produce(edm::StreamID, edm::Even
       float squaredLayerClusterEnergy = layerCluster.energy() * layerCluster.energy();
       float simSharedEnergy = layerCluster.energy() * simFraction;
       float invLayerClusterEnergy = 1.f / layerCluster.energy();
-      const auto& recoTracksterVec = layerClusterToTracksterMap[layerClusterId];
+      const auto& recoTracksterVec = layerClusterToAssociatedTracksterMap[i];
       for (const auto& [recoTracksterIndex, recoSharedEnergy] : recoTracksterVec) {
         edm::Ref<std::vector<ticl::Trackster>> recoTracksterRef(recoTrackstersHandle, recoTracksterIndex);
         float sharedEnergy = std::min(recoSharedEnergy, simSharedEnergy);
         float recoFraction = recoSharedEnergy * invLayerClusterEnergy;
-        float score = invDenominator * std::min(squaredSimFraction, (simFraction - recoFraction) * (simFraction - recoFraction)) * squaredLayerClusterEnergy;
-        simTracksterToTracksterMap->insert(simTracksterRef, recoTracksterRef, sharedEnergy, score);
+        float score = invDenominator *
+                      std::min(squaredSimFraction, (simFraction - recoFraction) * (simFraction - recoFraction)) *
+                      squaredLayerClusterEnergy;
+        simTracksterToTracksterMap->insert(tracksterIndex, recoTracksterIndex, sharedEnergy, score);
       }
     }
   }
