@@ -18,7 +18,8 @@
 
 LCToTSAssociatorProducer::LCToTSAssociatorProducer(const edm::ParameterSet &pset)
     : LCCollectionToken_(consumes<std::vector<reco::CaloCluster>>(pset.getParameter<edm::InputTag>("layer_clusters"))),
-      tracksterCollectionToken_(consumes<std::vector<ticl::Trackster>>(pset.getParameter<edm::InputTag>("tracksters"))) {
+      tracksterCollectionToken_(
+          consumes<std::vector<ticl::Trackster>>(pset.getParameter<edm::InputTag>("tracksters"))) {
   produces<ticl::AssociationMap<ticl::mapWithFraction, std::vector<reco::CaloCluster>, std::vector<ticl::Trackster>>>();
 }
 
@@ -39,15 +40,17 @@ void LCToTSAssociatorProducer::produce(edm::StreamID, edm::Event &iEvent, const 
   iEvent.getByToken(tracksterCollectionToken_, tracksters);
 
   // Create association map
-  auto lcToTracksterMap = std::make_unique<ticl::AssociationMap<ticl::mapWithFraction, std::vector<reco::CaloCluster>, std::vector<ticl::Trackster>>>(layer_clusters.id(), tracksters.id(), iEvent);
+  auto lcToTracksterMap = std::make_unique<
+      ticl::AssociationMap<ticl::mapWithFraction, std::vector<reco::CaloCluster>, std::vector<ticl::Trackster>>>(
+      layer_clusters.id(), tracksters.id(), iEvent);
 
   // Loop over tracksters
   for (unsigned int tracksterId = 0; tracksterId < tracksters->size(); ++tracksterId) {
-    const auto& trackster = (*tracksters)[tracksterId];
+    const auto &trackster = (*tracksters)[tracksterId];
     // Loop over vertices in trackster
     for (unsigned int i = 0; i < trackster.vertices().size(); ++i) {
       // Get layerCluster
-      const auto& lc = (*layer_clusters)[trackster.vertices()[i]];
+      const auto &lc = (*layer_clusters)[trackster.vertices()[i]];
       float sharedEnergy = lc.energy() / trackster.vertex_multiplicity()[i];
       edm::Ref<std::vector<reco::CaloCluster>> lcRef(layer_clusters, trackster.vertices()[i]);
       edm::Ref<std::vector<ticl::Trackster>> tracksterRef(tracksters, tracksterId);
