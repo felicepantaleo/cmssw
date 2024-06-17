@@ -63,6 +63,8 @@ void TracksterToSimTracksterAssociatorProducer::produce(edm::StreamID,
     edm::Ref<std::vector<ticl::Trackster>> recoTracksterRef(recoTrackstersHandle, tracksterIndex);
     const auto& layerClustersIds = recoTrackster.vertices();
     float recoToSimScoresDenominator = 0.f;
+    ticl::mapWithFraction layerClusterToAssociatedSimTracksterMap(layerClustersIds.size());
+    std::vector<unsigned int> associatedSimTracksterIndices;
     for (unsigned int i = 0; i < layerClustersIds.size(); ++i) {
       unsigned int layerClusterId = layerClustersIds[i];
       const auto& layerCluster = layerClusters[layerClusterId];
@@ -70,6 +72,30 @@ void TracksterToSimTracksterAssociatorProducer::produce(edm::StreamID,
       float squaredRecoFraction = recoFraction * recoFraction;
       float squaredLayerClusterEnergy = layerCluster.energy() * layerCluster.energy();
       recoToSimScoresDenominator += squaredLayerClusterEnergy * squaredRecoFraction;
+      const auto& simTracksterVec = layerClusterToSimTracksterMap[layerClusterId];
+      for (const auto& [simTracksterIndex, simSharedEnergy] : simTracksterVec) {
+        layerClusterToAssociatedSimTracksterMap[i].push_back({simTracksterIndex, simSharedEnergy});
+        associatedSimTracksterIndices.push_back(simTracksterIndex);
+      }
+    }
+
+    // Keep only unique associatedSimTracksterIndices
+    std::sort(associatedSimTracksterIndices.begin(), associatedSimTracksterIndices.end());
+    associatedSimTracksterIndices.erase(
+        std::unique(associatedSimTracksterIndices.begin(), associatedSimTracksterIndices.end()),
+        associatedSimTracksterIndices.end());
+
+    // Add missing sim tracksters with 0 shared energy to layerClusterToAssociatedSimTracksterMap
+    for (unsigned int i = 0; i < layerClustersIds.size(); ++i) {
+      unsigned int layerClusterId = layerClustersIds[i];
+      const auto& simTracksterVec = layerClusterToSimTracksterMap[layerClusterId];
+      for (unsigned int simTracksterIndex : associatedSimTracksterIndices) {
+        if (std::find_if(simTracksterVec.begin(), simTracksterVec.end(), [simTracksterIndex](const auto& pair) {
+              return pair.first == simTracksterIndex;
+            }) == simTracksterVec.end()) {
+          layerClusterToAssociatedSimTracksterMap[i].push_back({simTracksterIndex, 0.f});
+        }
+      }
     }
 
     const float invDenominator = 1.f / recoToSimScoresDenominator;
