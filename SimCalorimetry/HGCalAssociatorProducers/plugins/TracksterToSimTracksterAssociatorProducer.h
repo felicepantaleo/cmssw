@@ -31,8 +31,12 @@ private:
   edm::EDGetTokenT<std::vector<ticl::Trackster>> recoTracksterCollectionToken_;
   edm::EDGetTokenT<std::vector<ticl::Trackster>> simTracksterCollectionToken_;
   edm::EDGetTokenT<std::vector<reco::CaloCluster>> layerClustersCollectionToken_;
-  edm::EDGetTokenT<ticl::AssociationMap<ticl::mapWithFraction, std::vector<reco::CaloCluster>, std::vector<ticl::Trackster>>> LayerClusterToTracksterMapToken_;
-  edm::EDGetTokenT<ticl::AssociationMap<ticl::mapWithFraction, std::vector<reco::CaloCluster>, std::vector<ticl::Trackster>>> LayerClusterToSimTracksterMapToken_;
+  edm::EDGetTokenT<
+      ticl::AssociationMap<ticl::mapWithFraction, std::vector<reco::CaloCluster>, std::vector<ticl::Trackster>>>
+      LayerClusterToTracksterMapToken_;
+  edm::EDGetTokenT<
+      ticl::AssociationMap<ticl::mapWithFraction, std::vector<reco::CaloCluster>, std::vector<ticl::Trackster>>>
+      LayerClusterToSimTracksterMapToken_;
 };
 
 #endif
