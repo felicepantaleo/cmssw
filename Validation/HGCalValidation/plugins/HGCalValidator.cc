@@ -72,13 +72,10 @@ HGCalValidator::HGCalValidator(const edm::ParameterSet& pset)
         consumes<std::vector<reco::Track>>(pset.getParameter<edm::InputTag>("recoTracks"));
     edm::EDGetTokenT<std::vector<ticl::Trackster>> trackstersToken =
         consumes<std::vector<ticl::Trackster>>(pset.getParameter<edm::InputTag>("ticlTrackstersMerge"));
-    edm::EDGetTokenT<ticl::RecoToSimCollectionSimTracksters> associatorMapRtSToken =
-        consumes<ticl::SimToRecoCollectionSimTracksters>(pset.getParameter<edm::InputTag>("mergeRecoToSimAssociator"));
-    edm::EDGetTokenT<ticl::SimToRecoCollectionSimTracksters> associatorMapStRToken =
-        consumes<ticl::SimToRecoCollectionSimTracksters>(pset.getParameter<edm::InputTag>("mergeSimToRecoAssociator"));
-    edm::EDGetTokenT<ticl::RecoToSimCollectionSimTracksters> associatorMapRtSPUToken =
-        consumes<ticl::SimToRecoCollectionSimTracksters>(
-            pset.getParameter<edm::InputTag>("mergeRecoToSimAssociatorPU"));
+    edm::EDGetTokenT<ticl::TracksterToTracksterMap> associatorMapRtSToken =
+        consumes<ticl::TracksterToTracksterMap>(pset.getParameter<edm::InputTag>("mergeRecoToSimAssociator"));
+    edm::EDGetTokenT<ticl::TracksterToTracksterMap> associatorMapStRToken =
+        consumes<ticl::TracksterToTracksterMap>(pset.getParameter<edm::InputTag>("mergeSimToRecoAssociator"));
 
     candidateVal_ = std::make_unique<TICLCandidateValidator>(TICLCandidatesToken,
                                                              simTICLCandidatesToken,
@@ -86,7 +83,6 @@ HGCalValidator::HGCalValidator(const edm::ParameterSet& pset)
                                                              trackstersToken,
                                                              associatorMapRtSToken,
                                                              associatorMapStRToken,
-                                                             associatorMapRtSPUToken,
                                                              isTICLv5_);
   }
 
