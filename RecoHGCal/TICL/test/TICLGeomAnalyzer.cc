@@ -18,7 +18,7 @@ private:
 };
 
 TICLGeomAnalyzer::TICLGeomAnalyzer(const edm::ParameterSet& iConfig)
-    : ticlGeomToken_(esConsumes<TICLGeom, CaloGeometryRecord>()) {}
+    : ticlGeomToken_(esConsumes<TICLGeom, CaloGeometryRecord>(edm::ESInputTag("",iConfig.getParameter<std::string>("label")))) {}
 
 void TICLGeomAnalyzer::analyze(const edm::Event&, const edm::EventSetup& iSetup) {
   auto const& ticlGeom = iSetup.getData(ticlGeomToken_);
@@ -39,7 +39,7 @@ void TICLGeomAnalyzer::analyze(const edm::Event&, const edm::EventSetup& iSetup)
 
 void TICLGeomAnalyzer::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
   edm::ParameterSetDescription desc;
-  // You can add default parameters here if needed
+  desc.add<std::string>("label", "all");
   descriptions.add("TICLGeomAnalyzer", desc);
 }
 // Define this as a plug-in
