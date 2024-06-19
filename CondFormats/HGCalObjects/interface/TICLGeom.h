@@ -2,7 +2,7 @@
 #define CondFormats_HGCalObjects_TICLGeom_h
 
 #include "CondFormats/HGCalObjects/interface/TICLGeomHostCollection.h"
-#include "CondFormats/HGCalObjects/interface/alpaka/TICLGeomDeviceCollection.h"
+// #include "CondFormats/HGCalObjects/interface/alpaka/TICLGeomDeviceCollection.h"
 #include "HeterogeneousCore/AlpakaInterface/interface/host.h"
 #include <map>
 #include <cstdint>
