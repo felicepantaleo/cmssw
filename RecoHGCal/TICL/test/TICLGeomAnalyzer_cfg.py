@@ -6,7 +6,7 @@ process = cms.Process("TICLGeomAnalyze", Phase2C17I13M9)
 process.load("FWCore.MessageService.MessageLogger_cfi")
 process.load('Configuration.Geometry.GeometryExtended2026D98Reco_cff')
 process.load('Configuration.StandardSequences.FrontierConditions_GlobalTag_cff')
-
+process.load("Geometry.HGCalGeometry.TICLGeom_cff")
 process.maxEvents = cms.untracked.PSet(input = cms.untracked.int32(1))
 
 process.source = cms.Source("PoolSource",
@@ -15,14 +15,38 @@ process.source = cms.Source("PoolSource",
     )
 )
 
-from Geometry.HGCalGeometry.TICLGeomESProducer_cfi import TICLGeomESProducer
-process.TICLGeomESProducer = TICLGeomESProducer.clone()
 
-process.TICLGeomAnalyzer = cms.EDAnalyzer("TICLGeomAnalyzer",
-    label = cms.string("all")
+# Analyzers
+process.TICLGeomAnalyzerECAL = cms.EDAnalyzer("TICLGeomAnalyzer",
+    label = cms.string("ECAL")
 )
 
-process.TICLGeomESTask = cms.Task(process.TICLGeomESProducer)
+process.TICLGeomAnalyzerHCAL = cms.EDAnalyzer("TICLGeomAnalyzer",
+    label = cms.string("HCAL")
+)
 
-process.TICLGeomAnalyzePath = cms.Path(process.TICLGeomAnalyzer, process.TICLGeomESTask)
+process.TICLGeomAnalyzerHGCal = cms.EDAnalyzer("TICLGeomAnalyzer",
+    label = cms.string("HGCal")
+)
+
+process.TICLGeomAnalyzerHFNose = cms.EDAnalyzer("TICLGeomAnalyzer",
+    label = cms.string("HFNose")
+)
+# Tasks and Paths
+process.TICLGeomESTask = cms.Task(
+    process.ticlGeomESProducerECAL,
+    process.ticlGeomESProducerHCAL,
+    process.ticlGeomESProducerHGCal,
+    process.ticlGeomESProducerHFNose
+)
+
+process.TICLGeomAnalyzePath = cms.Path(
+    process.TICLGeomAnalyzerECAL +
+    process.TICLGeomAnalyzerHCAL +
+    process.TICLGeomAnalyzerHGCal +
+    process.TICLGeomAnalyzerHFNose
+)
+
+
 process.schedule = cms.Schedule(process.TICLGeomAnalyzePath)
+process.add_(process.TICLGeomESTask)
