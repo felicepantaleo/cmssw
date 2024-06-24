@@ -1,19 +1,17 @@
 #ifndef SimDataFormats_Associations_TICLAssociationMap_h
 #define SimDataFormats_Associations_TICLAssociationMap_h
+
 #include <vector>
 #include <utility>
 #include <algorithm>
 #include <stdexcept>
+#include <type_traits>
+
+// CMSSW specific includes
 #include "DataFormats/Common/interface/Ref.h"
 #include "DataFormats/Provenance/interface/ProductID.h"
 #include "FWCore/Framework/interface/Event.h"
-#include <vector>
-#include <utility>
-#include <algorithm>
-#include <stdexcept>
-#include "DataFormats/Common/interface/Ref.h"
-#include "DataFormats/Provenance/interface/ProductID.h"
-#include "FWCore/Framework/interface/Event.h"
+
 namespace ticl {
 
   // Define the possible map types
@@ -22,31 +20,53 @@ namespace ticl {
   using oneToOneMapWithFraction = std::vector<std::pair<unsigned int, float> >;
   using oneToOneMapWithFractionAndScore = std::vector<std::pair<unsigned int, std::pair<float, float> > >;
 
-  template <typename MapType, typename Collection1, typename Collection2>
+  template <typename MapType, typename Collection1 = void, typename Collection2 = void>
   class AssociationMap {
   public:
     AssociationMap() : collectionIDs(edm::ProductID(), edm::ProductID()) {}
+    // Constructor for generic use
+    template <typename C1 = Collection1,
+              typename C2 = Collection2,
+              typename std::enable_if_t<std::is_void_v<C1> && std::is_void_v<C2>, int> = 0>
+    AssociationMap(const unsigned int size1 = 0) {
+      map_.resize(size1);
+    }
 
+    // Constructor for CMSSW-specific use
+    template <typename C1 = Collection1,
+              typename C2 = Collection2,
+              typename std::enable_if_t<!std::is_void_v<C1> && !std::is_void_v<C2>, int> = 0>
     AssociationMap(const edm::ProductID& id1, const edm::ProductID& id2, const edm::Event& event)
         : collectionIDs(std::make_pair(id1, id2)) {
       resize(event);
     }
 
-    AssociationMap(const unsigned int size1) : collectionIDs(edm::ProductID(), edm::ProductID()) { map_.resize(size1); }
-
     MapType& getMap() { return map_; }
 
     const MapType& getMap() const { return map_; }
 
-    edm::Ref<Collection1> getRefFirst(unsigned int index) const {
-      return edm::Ref<Collection1>(collectionIDs.first, index);
+    // CMSSW-specific method to get references
+    template <typename C1 = Collection1,
+              typename C2 = Collection2,
+              typename std::enable_if_t<!std::is_void_v<C1> && !std::is_void_v<C2>, int> = 0>
+    edm::Ref<C1> getRefFirst(unsigned int index) const {
+      return edm::Ref<C1>(collectionIDs.first, index);
     }
 
-    edm::Ref<Collection2> getRefSecond(unsigned int index) const {
-      return edm::Ref<Collection2>(collectionIDs.second, index);
+    template <typename C1 = Collection1,
+              typename C2 = Collection2,
+              typename std::enable_if_t<!std::is_void_v<C1> && !std::is_void_v<C2>, int> = 0>
+    edm::Ref<C2> getRefSecond(unsigned int index) const {
+      return edm::Ref<C2>(collectionIDs.second, index);
     }
 
-    std::pair<const edm::ProductID&, const edm::ProductID&> getCollectionIDs() const { return collectionIDs; }
+    // Method to get collection IDs for CMSSW-specific use
+    template <typename C1 = Collection1,
+              typename C2 = Collection2,
+              typename std::enable_if_t<!std::is_void_v<C1> && !std::is_void_v<C2>, int> = 0>
+    std::pair<const edm::ProductID&, const edm::ProductID&> getCollectionIDs() const {
+      return collectionIDs;
+    }
 
     void insert(unsigned int index1, unsigned int index2, float fraction, float score = 0.0f) {
       if constexpr (std::is_same<MapType, mapWithFraction>::value) {
@@ -90,10 +110,11 @@ namespace ticl {
       }
     }
 
-    void insert(const edm::Ref<Collection1>& ref1,
-                const edm::Ref<Collection2>& ref2,
-                float fraction,
-                float score = 0.0f) {
+    // Overload of insert for CMSSW-specific use
+    template <typename C1 = Collection1,
+              typename C2 = Collection2,
+              typename std::enable_if_t<!std::is_void_v<C1> && !std::is_void_v<C2>, int> = 0>
+    void insert(const edm::Ref<C1>& ref1, const edm::Ref<C2>& ref2, float fraction, float score = 0.0f) {
       insert(ref1.key(), ref2.key(), fraction, score);
     }
 
@@ -119,39 +140,34 @@ namespace ticl {
       }
     }
 
-    auto& operator[](unsigned int index1) {
-      if constexpr (std::is_same_v<MapType, mapWithFraction> || std::is_same_v<MapType, mapWithFractionAndScore>) {
-        if (index1 >= map_.size()) {
-          throw std::out_of_range("Index out of range");
-        }
-        return map_[index1];
-      } else if constexpr (std::is_same_v<MapType, oneToOneMapWithFraction> ||
-                           std::is_same_v<MapType, oneToOneMapWithFractionAndScore>) {
-        auto it = std::find_if(map_.begin(), map_.end(), [&](const auto& pair) { return pair.first == index1; });
-        if (it == map_.end()) {
-          throw std::out_of_range("Index not found");
-        }
-        return *it;
-      }
-    }
+    auto& operator[](unsigned int index1) { return map_[index1]; }
 
     const auto& operator[](unsigned int index1) const {
-      if constexpr (std::is_same_v<MapType, mapWithFraction> || std::is_same_v<MapType, mapWithFractionAndScore>) {
-        if (index1 >= map_.size()) {
-          throw std::out_of_range("Index out of range");
-        }
-        return map_[index1];
-      } else if constexpr (std::is_same_v<MapType, oneToOneMapWithFraction> ||
-                           std::is_same_v<MapType, oneToOneMapWithFractionAndScore>) {
-        auto it = std::find_if(map_.begin(), map_.end(), [&](const auto& pair) { return pair.first == index1; });
-        if (it == map_.end()) {
-          throw std::out_of_range("Index not found");
-        }
-        return *it;
+      if (index1 >= map_.size()) {
+        throw std::out_of_range("Index out of range");
       }
+      return map_[index1];
+    }
+
+    const auto& at(unsigned int index1) const {
+      if (index1 >= map_.size()) {
+        throw std::out_of_range("Index out of range");
+      }
+      return map_[index1];
+    }
+
+    auto& at(unsigned int index1) {
+      if (index1 >= map_.size()) {
+        throw std::out_of_range("Index out of range");
+      }
+      return map_[index1];
     }
 
   private:
+    // CMSSW-specific resize method
+    template <typename C1 = Collection1,
+              typename C2 = Collection2,
+              typename std::enable_if_t<!std::is_void_v<C1> && !std::is_void_v<C2>, int> = 0>
     void resize(const edm::Event& event) {
       edm::Handle<Collection1> handle1;
       event.get(collectionIDs.first, handle1);
@@ -160,6 +176,7 @@ namespace ticl {
       map_.resize(handle1->size());
     }
 
+    // For CMSSW-specific use
     std::pair<edm::ProductID, edm::ProductID> collectionIDs;
     MapType map_;  // Store the map directly
   };
