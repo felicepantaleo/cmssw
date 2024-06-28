@@ -20,7 +20,6 @@
 #include "CommonTools/RecoAlgos/interface/MultiVectorManager.h"
 #include "DataFormats/HGCRecHit/interface/HGCRecHitCollections.h"
 
-
 class HitToTracksterAssociatorProducer : public edm::global::EDProducer<> {
 public:
   explicit HitToTracksterAssociatorProducer(const edm::ParameterSet &);

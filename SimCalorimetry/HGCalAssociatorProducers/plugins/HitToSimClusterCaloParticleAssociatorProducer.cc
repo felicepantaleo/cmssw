@@ -15,38 +15,40 @@
 #include "SimDataFormats/CaloAnalysis/interface/CaloParticle.h"
 #include "SimDataFormats/CaloAnalysis/interface/SimCluster.h"
 
-HitToSimClusterCaloParticleAssociatorProducer::HitToSimClusterCaloParticleAssociatorProducer(const edm::ParameterSet &pset)
+HitToSimClusterCaloParticleAssociatorProducer::HitToSimClusterCaloParticleAssociatorProducer(
+    const edm::ParameterSet &pset)
     : simClusterToken_(consumes<std::vector<SimCluster>>(pset.getParameter<edm::InputTag>("simClusters"))),
       caloParticleToken_(consumes<std::vector<CaloParticle>>(pset.getParameter<edm::InputTag>("caloParticles"))),
       hitMapToken_(consumes<std::unordered_map<DetId, unsigned int>>(pset.getParameter<edm::InputTag>("hitMap"))) {
   auto hitsTags = pset.getParameter<std::vector<edm::InputTag>>("hits");
-  for (const auto& tag : hitsTags) {
+  for (const auto &tag : hitsTags) {
     hitsTokens_.push_back(consumes<HGCRecHitCollection>(tag));
   }
   produces<ticl::AssociationMap<ticl::mapWithFraction>>("hitToSimClusterMap");
   produces<ticl::AssociationMap<ticl::mapWithFraction>>("hitToCaloParticleMap");
   // produces<ticl::AssociationMap<ticl::mapWithFraction>>("simClusterToHitMap");
   // produces<ticl::AssociationMap<ticl::mapWithFraction>>("caloParticleToHitMap");
-
 }
 
 HitToSimClusterCaloParticleAssociatorProducer::~HitToSimClusterCaloParticleAssociatorProducer() {}
 
-void HitToSimClusterCaloParticleAssociatorProducer::produce(edm::StreamID, edm::Event &iEvent, const edm::EventSetup &iSetup) const {
+void HitToSimClusterCaloParticleAssociatorProducer::produce(edm::StreamID,
+                                                            edm::Event &iEvent,
+                                                            const edm::EventSetup &iSetup) const {
   using namespace edm;
 
   Handle<std::vector<CaloParticle>> caloParticlesHandle;
   iEvent.getByToken(caloParticleToken_, caloParticlesHandle);
-  const auto& caloParticles = *caloParticlesHandle;
+  const auto &caloParticles = *caloParticlesHandle;
 
-    Handle<std::vector<SimCluster>> simClustersHandle;
+  Handle<std::vector<SimCluster>> simClustersHandle;
   iEvent.getByToken(simClusterToken_, simClustersHandle);
-const auto& simClusters = *simClustersHandle;
+  const auto &simClusters = *simClustersHandle;
   Handle<std::unordered_map<DetId, unsigned int>> hitMap;
   iEvent.getByToken(hitMapToken_, hitMap);
 
   MultiVectorManager<HGCRecHit> rechitManager;
-  for (const auto& token : hitsTokens_) {
+  for (const auto &token : hitsTokens_) {
     Handle<HGCRecHitCollection> hitsHandle;
     iEvent.getByToken(token, hitsHandle);
     rechitManager.addVector(*hitsHandle);
@@ -60,7 +62,7 @@ const auto& simClusters = *simClustersHandle;
 
   // Loop over caloParticles
   for (unsigned int cpId = 0; cpId < caloParticles.size(); ++cpId) {
-    const auto& caloParticle = caloParticles[cpId];
+    const auto &caloParticle = caloParticles[cpId];
     // Loop over simClusters in caloParticle
     for (const auto &simCluster : caloParticle.simClusters()) {
       // Loop over hits in simCluster

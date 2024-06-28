@@ -20,7 +20,7 @@ HitToLayerClusterAssociatorProducer::HitToLayerClusterAssociatorProducer(const e
     : LCCollectionToken_(consumes<std::vector<reco::CaloCluster>>(pset.getParameter<edm::InputTag>("layer_clusters"))),
       hitMapToken_(consumes<std::unordered_map<DetId, unsigned int>>(pset.getParameter<edm::InputTag>("hitMap"))) {
   auto hitsTags = pset.getParameter<std::vector<edm::InputTag>>("hits");
-  for (const auto& tag : hitsTags) {
+  for (const auto &tag : hitsTags) {
     hitsTokens_.push_back(consumes<HGCRecHitCollection>(tag));
   }
   produces<ticl::AssociationMap<ticl::mapWithFraction>>("hitToLayerClusterMap");
@@ -28,7 +28,9 @@ HitToLayerClusterAssociatorProducer::HitToLayerClusterAssociatorProducer(const e
 
 HitToLayerClusterAssociatorProducer::~HitToLayerClusterAssociatorProducer() {}
 
-void HitToLayerClusterAssociatorProducer::produce(edm::StreamID, edm::Event &iEvent, const edm::EventSetup &iSetup) const {
+void HitToLayerClusterAssociatorProducer::produce(edm::StreamID,
+                                                  edm::Event &iEvent,
+                                                  const edm::EventSetup &iSetup) const {
   using namespace edm;
 
   Handle<std::vector<reco::CaloCluster>> layer_clusters;
@@ -38,7 +40,7 @@ void HitToLayerClusterAssociatorProducer::produce(edm::StreamID, edm::Event &iEv
   iEvent.getByToken(hitMapToken_, hitMap);
 
   MultiVectorManager<HGCRecHit> rechitManager;
-  for (const auto& token : hitsTokens_) {
+  for (const auto &token : hitsTokens_) {
     Handle<HGCRecHitCollection> hitsHandle;
     iEvent.getByToken(token, hitsHandle);
     rechitManager.addVector(*hitsHandle);

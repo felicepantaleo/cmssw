@@ -22,12 +22,11 @@ HitToTracksterAssociatorProducer::HitToTracksterAssociatorProducer(const edm::Pa
       tracksterCollectionToken_(consumes<std::vector<ticl::Trackster>>(pset.getParameter<edm::InputTag>("tracksters"))),
       hitMapToken_(consumes<std::unordered_map<DetId, unsigned int>>(pset.getParameter<edm::InputTag>("hitMap"))) {
   auto hitsTags = pset.getParameter<std::vector<edm::InputTag>>("hits");
-  for (const auto& tag : hitsTags) {
+  for (const auto &tag : hitsTags) {
     hitsTokens_.push_back(consumes<HGCRecHitCollection>(tag));
   }
   produces<ticl::AssociationMap<ticl::mapWithFraction>>("hitToTracksterMap");
   produces<ticl::AssociationMap<ticl::mapWithFraction>>("tracksterToHitMap");
-
 }
 
 HitToTracksterAssociatorProducer::~HitToTracksterAssociatorProducer() {}
@@ -45,12 +44,11 @@ void HitToTracksterAssociatorProducer::produce(edm::StreamID, edm::Event &iEvent
   iEvent.getByToken(hitMapToken_, hitMap);
 
   MultiVectorManager<HGCRecHit> rechitManager;
-  for (const auto& token : hitsTokens_) {
+  for (const auto &token : hitsTokens_) {
     Handle<HGCRecHitCollection> hitsHandle;
     iEvent.getByToken(token, hitsHandle);
     rechitManager.addVector(*hitsHandle);
   }
-  
 
   // Create association map
   auto hitToTracksterMap = std::make_unique<ticl::AssociationMap<ticl::mapWithFraction>>(rechitManager.size());
@@ -85,7 +83,7 @@ void HitToTracksterAssociatorProducer::fillDescriptions(edm::ConfigurationDescri
   desc.add<edm::InputTag>("layer_clusters", edm::InputTag("hgcalLayerClusters"));
   desc.add<edm::InputTag>("tracksters", edm::InputTag("ticlTracksters"));
   desc.add<edm::InputTag>("hitMapTag", edm::InputTag("recHitMapProducer", "hgcalRecHitMap"));
-  desc.add<std::vector<edm::InputTag>>("hits", 
+  desc.add<std::vector<edm::InputTag>>("hits",
                                        {edm::InputTag("HGCalRecHit", "HGCEERecHits"),
                                         edm::InputTag("HGCalRecHit", "HGCHEFRecHits"),
                                         edm::InputTag("HGCalRecHit", "HGCHEBRecHits")});

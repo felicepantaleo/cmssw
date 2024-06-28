@@ -33,7 +33,7 @@ private:
   edm::EDGetTokenT<std::vector<ticl::Trackster>> simTracksterFromCPCollectionToken_;
   edm::EDGetTokenT<ticl::AssociationMap<ticl::mapWithFraction>> hitToTracksterMapToken_;
   edm::EDGetTokenT<ticl::AssociationMap<ticl::mapWithFraction>> hitToSimTracksterMapToken_;
-  edm::EDGetTokenT<ticl::AssociationMap<ticl::mapWithFraction>> hitToSimTracksterFromCPMapToken_;  
+  edm::EDGetTokenT<ticl::AssociationMap<ticl::mapWithFraction>> hitToSimTracksterFromCPMapToken_;
   edm::EDGetTokenT<ticl::AssociationMap<ticl::mapWithFraction>> hitToSimClusterMapToken_;
   edm::EDGetTokenT<ticl::AssociationMap<ticl::mapWithFraction>> hitToCaloParticleMapToken_;
   edm::EDGetTokenT<ticl::AssociationMap<ticl::mapWithFraction>> tracksterToHitMapToken_;
