@@ -57,8 +57,6 @@ void HitToSimClusterCaloParticleAssociatorProducer::produce(edm::StreamID,
   // Create association maps
   auto hitToSimClusterMap = std::make_unique<ticl::AssociationMap<ticl::mapWithFraction>>(rechitManager.size());
   auto hitToCaloParticleMap = std::make_unique<ticl::AssociationMap<ticl::mapWithFraction>>(rechitManager.size());
-  // auto SimClusterToHitMap = std::make_unique<ticl::AssociationMap<ticl::mapWithFraction>>(simClusters.size());
-  // auto CaloParticleToHitMap = std::make_unique<ticl::AssociationMap<ticl::mapWithFraction>>(caloParticles.size());
 
   // Loop over caloParticles
   for (unsigned int cpId = 0; cpId < caloParticles.size(); ++cpId) {
@@ -87,8 +85,8 @@ void HitToSimClusterCaloParticleAssociatorProducer::produce(edm::StreamID,
 
 void HitToSimClusterCaloParticleAssociatorProducer::fillDescriptions(edm::ConfigurationDescriptions &descriptions) {
   edm::ParameterSetDescription desc;
-  // desc.add<edm::InputTag>("caloParticles", edm::InputTag("mix", "MergedCaloTruth"));
-  // desc.add<edm::InputTag>("simClusters", edm::InputTag("mix", "MergedCaloTruth"));
+  desc.add<edm::InputTag>("caloParticles", edm::InputTag("mix", "MergedCaloTruth"));
+  desc.add<edm::InputTag>("simClusters", edm::InputTag("mix", "MergedCaloTruth"));
 
   desc.add<edm::InputTag>("hitMap", edm::InputTag("recHitMapProducer", "hgcalRecHitMap"));
   desc.add<std::vector<edm::InputTag>>("hits",

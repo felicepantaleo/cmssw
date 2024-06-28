@@ -73,8 +73,8 @@ void HitToTracksterAssociatorProducer::produce(edm::StreamID, edm::Event &iEvent
       }
     }
   }
-  iEvent.put(std::move(hitToTracksterMap));
-  iEvent.put(std::move(tracksterToHitMap));
+  iEvent.put(std::move(hitToTracksterMap), "hitToTracksterMap");
+  iEvent.put(std::move(tracksterToHitMap), "tracksterToHitMap");
 }
 
 void HitToTracksterAssociatorProducer::fillDescriptions(edm::ConfigurationDescriptions &descriptions) {
