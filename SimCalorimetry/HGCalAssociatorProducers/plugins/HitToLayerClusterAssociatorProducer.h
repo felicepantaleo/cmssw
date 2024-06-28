@@ -1,5 +1,6 @@
 #ifndef SimCalorimetry_HGCalAssociatorProducers_HitToLayerClusterAssociatorProducer_h
 #define SimCalorimetry_HGCalAssociatorProducers_HitToLayerClusterAssociatorProducer_h
+// Author: Felice Pantaleo, felice.pantaleo@cern.ch 06/2024
 
 // system include files
 #include <memory>

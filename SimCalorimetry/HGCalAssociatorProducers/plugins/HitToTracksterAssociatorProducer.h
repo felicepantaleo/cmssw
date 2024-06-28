@@ -1,9 +1,8 @@
 #ifndef SimCalorimetry_HGCalAssociatorProducers_HitToTracksterAssociatorProducer_h
 #define SimCalorimetry_HGCalAssociatorProducers_HitToTracksterAssociatorProducer_h
 
-// system include files
-#include <memory>
-#include <string>
+// Author: Felice Pantaleo, felice.pantaleo@cern.ch 06/2024
+
 
 // user include files
 #include "FWCore/Framework/interface/global/EDProducer.h"

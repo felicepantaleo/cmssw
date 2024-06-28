@@ -1,4 +1,4 @@
-// user include files
+// Author: Felice Pantaleo, felice.pantaleo@cern.ch 06/2024
 #include "HitToSimClusterCaloParticleAssociatorProducer.h"
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/Framework/interface/MakerMacros.h"

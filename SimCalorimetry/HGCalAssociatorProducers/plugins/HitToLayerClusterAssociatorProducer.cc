@@ -1,7 +1,5 @@
-// system include files
-#include <memory>
-#include <string>
-#include <unordered_map>
+// Author: Felice Pantaleo, felice.pantaleo@cern.ch 06/2024
+
 
 // user include files
 #include "HitToLayerClusterAssociatorProducer.h"

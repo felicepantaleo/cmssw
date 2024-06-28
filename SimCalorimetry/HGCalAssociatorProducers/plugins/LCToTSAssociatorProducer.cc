@@ -1,6 +1,5 @@
-// system include files
-#include <memory>
-#include <string>
+// Author: Felice Pantaleo, felice.pantaleo@cern.ch 06/2024
+
 
 // user include files
 #include "FWCore/Framework/interface/global/EDProducer.h"
@@ -58,6 +57,14 @@ void LCToTSAssociatorProducer::produce(edm::StreamID, edm::Event &iEvent, const 
     }
   }
   iEvent.put(std::move(lcToTracksterMap));
+}
+
+
+void LCToTSAssociatorProducer::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
+  edm::ParameterSetDescription desc;
+  desc.add<edm::InputTag>("layer_clusters", edm::InputTag("hgcalMergeLayerClusters"));
+  desc.add<edm::InputTag>("tracksters", edm::InputTag("ticlTracksters"));
+  descriptions.add("LCToTSAssociatorProducer", desc);
 }
 
 DEFINE_FWK_MODULE(LCToTSAssociatorProducer);

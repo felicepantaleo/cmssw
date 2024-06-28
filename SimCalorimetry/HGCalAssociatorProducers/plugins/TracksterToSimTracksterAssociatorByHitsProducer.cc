@@ -1,4 +1,4 @@
-// user include files
+// Author: Felice Pantaleo, felice.pantaleo@cern.ch 06/2024
 #include "TracksterToSimTracksterAssociatorByHitsProducer.h"
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/Framework/interface/MakerMacros.h"
@@ -363,7 +363,10 @@ void TracksterToSimTracksterAssociatorByHitsProducer::fillDescriptions(edm::Conf
   desc.add<edm::InputTag>("caloParticleToHitMap", edm::InputTag("caloParticleToHitAssociatorProducer"));
   desc.add<edm::InputTag>("tracksterToHitMap", edm::InputTag("tracksterToHitAssociatorProducer"));
   desc.add<edm::InputTag>("simTracksterToHitMap", edm::InputTag("simTracksterToHitAssociatorProducer"));
-  desc.add<std::vector<edm::InputTag>>("hits", std::vector<edm::InputTag>{});
+  desc.add<std::vector<edm::InputTag>>("hits",
+                                       {edm::InputTag("HGCalRecHit", "HGCEERecHits"),
+                                        edm::InputTag("HGCalRecHit", "HGCHEFRecHits"),
+                                        edm::InputTag("HGCalRecHit", "HGCHEBRecHits")});
   descriptions.add("tracksterToSimTracksterAssociatorByHitsProducer", desc);
 }
 

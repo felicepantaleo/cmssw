@@ -1,6 +1,5 @@
-// system include files
-#include <memory>
-#include <string>
+// Author: Felice Pantaleo, felice.pantaleo@cern.ch 06/2024
+
 
 // user include files
 #include "HitToTracksterAssociatorProducer.h"

@@ -1,72 +1,68 @@
 import FWCore.ParameterSet.Config as cms
+from SimCalorimetry.HGCalAssociatorProducers.LCToTSAssociator_cfi import layerClusterToCLUE3DTracksterAssociation, layerClusterToTracksterMergeAssociation, layerClusterToSimTracksterAssociation2
+from SimCalorimetry.HGCalAssociatorProducers.tracksterToSimTracksterAssociatorProducer_cfi import tracksterToSimTracksterAssociatorProducer
 
-tracksterSimTracksterAssociationLinking = cms.EDProducer("TSToSimTSHitLCAssociatorEDProducer",
-    associator = cms.InputTag('simTracksterHitLCAssociatorByEnergyScoreProducer'),
-    label_tst = cms.InputTag("ticlTrackstersMerge"),
-    label_simTst = cms.InputTag("ticlSimTracksters", "fromCPs"),
-    label_lcl = cms.InputTag("hgcalMergeLayerClusters"),
-    label_scl = cms.InputTag("mix", "MergedCaloTruth"),
-    label_cp = cms.InputTag("mix","MergedCaloTruth"),
+tracksterSimTracksterAssociationLinking = tracksterToSimTracksterAssociatorProducer.clone(
+    tracksters = cms.InputTag("ticlTrackstersMerge"),
+    simTracksters = cms.InputTag("ticlSimTracksters", "fromCPs"),
+    layerClusters = cms.InputTag("hgcalMergeLayerClusters"),
+    tracksterMap = cms.InputTag("layerClusterToTracksterMergeAssociation"),
+    simTracksterMap = cms.InputTag("layerClusterToSimTracksterAssociation2")
 )
 
-tracksterSimTracksterAssociationPR = cms.EDProducer("TSToSimTSHitLCAssociatorEDProducer",
-    associator = cms.InputTag('simTracksterHitLCAssociatorByEnergyScoreProducer'),
-    label_tst = cms.InputTag("ticlTrackstersMerge"),
-    label_simTst = cms.InputTag("ticlSimTracksters"),
-    label_lcl = cms.InputTag("hgcalMergeLayerClusters"),
-    label_scl = cms.InputTag("mix", "MergedCaloTruth"),
-    label_cp = cms.InputTag("mix","MergedCaloTruth"),
+tracksterSimTracksterAssociationPR = tracksterToSimTracksterAssociatorProducer.clone(
+    tracksters = cms.InputTag("ticlTrackstersMerge"),
+    simTracksters = cms.InputTag("ticlSimTracksters"),
+    layerClusters = cms.InputTag("hgcalMergeLayerClusters"),
+    tracksterMap = cms.InputTag("layerClusterToTracksterMergeAssociation"),
+    simTracksterMap = cms.InputTag("layerClusterToSimTracksterAssociation2")
 )
 
 
-tracksterSimTracksterAssociationLinkingbyCLUE3D = cms.EDProducer("TSToSimTSHitLCAssociatorEDProducer",
-    associator = cms.InputTag('simTracksterHitLCAssociatorByEnergyScoreProducer'),
-    label_tst = cms.InputTag("ticlTrackstersCLUE3DHigh"),
-    label_simTst = cms.InputTag("ticlSimTracksters", "fromCPs"),
-    label_lcl = cms.InputTag("hgcalMergeLayerClusters"),
-    label_scl = cms.InputTag("mix", "MergedCaloTruth"),
-    label_cp = cms.InputTag("mix","MergedCaloTruth"),
+tracksterSimTracksterAssociationLinkingbyCLUE3D = tracksterToSimTracksterAssociatorProducer.clone(
+    tracksters = cms.InputTag("ticlTrackstersCLUE3DHigh"),
+    simTracksters = cms.InputTag("ticlSimTracksters", "fromCPs"),
+    layerClusters = cms.InputTag("hgcalMergeLayerClusters"),
+    tracksterMap = cms.InputTag("layerClusterToCLUE3DTracksterAssociation"),
+    simTracksterMap = cms.InputTag("layerClusterToSimTracksterAssociation2")
 )
 
-tracksterSimTracksterAssociationPRbyCLUE3D = cms.EDProducer("TSToSimTSHitLCAssociatorEDProducer",
-    associator = cms.InputTag('simTracksterHitLCAssociatorByEnergyScoreProducer'),
-    label_tst = cms.InputTag("ticlTrackstersCLUE3DHigh"),
-    label_simTst = cms.InputTag("ticlSimTracksters"),
-    label_lcl = cms.InputTag("hgcalMergeLayerClusters"),
-    label_scl = cms.InputTag("mix", "MergedCaloTruth"),
-    label_cp = cms.InputTag("mix","MergedCaloTruth"),
+tracksterSimTracksterAssociationPRbyCLUE3D = tracksterToSimTracksterAssociatorProducer.clone(
+    tracksters = cms.InputTag("ticlTrackstersCLUE3DHigh"),
+    simTracksters = cms.InputTag("ticlSimTracksters"),
+    layerClusters = cms.InputTag("hgcalMergeLayerClusters"),
+    tracksterMap = cms.InputTag("layerClusterToCLUE3DTracksterAssociation"),
+    simTracksterMap = cms.InputTag("layerClusterToSimTracksterAssociation2")
 )
 
-tracksterSimTracksterAssociationLinkingPU = cms.EDProducer("TSToSimTSHitLCAssociatorEDProducer",
-    associator = cms.InputTag('simTracksterHitLCAssociatorByEnergyScoreProducer'),
-    label_tst = cms.InputTag("ticlTrackstersMerge"),
-    label_simTst = cms.InputTag("ticlSimTracksters", "PU"),
-    label_lcl = cms.InputTag("hgcalMergeLayerClusters"),
-    label_scl = cms.InputTag("mix", "MergedCaloTruth"),
-    label_cp = cms.InputTag("mix","MergedCaloTruth"),
+tracksterSimTracksterAssociationLinkingPU = tracksterToSimTracksterAssociatorProducer.clone(
+    tracksters = cms.InputTag("ticlTrackstersMerge"),
+    simTracksters = cms.InputTag("ticlSimTracksters", "PU"),
+    layerClusters = cms.InputTag("hgcalMergeLayerClusters"),
+    tracksterMap = cms.InputTag("layerClusterToTracksterMergeAssociation"),
+    simTracksterMap = cms.InputTag("layerClusterToSimTracksterAssociation2")
 )
 
-tracksterSimTracksterAssociationPRPU = cms.EDProducer("TSToSimTSHitLCAssociatorEDProducer",
-    associator = cms.InputTag('simTracksterHitLCAssociatorByEnergyScoreProducer'),
-    label_tst = cms.InputTag("ticlTrackstersMerge"),
-    label_simTst = cms.InputTag("ticlSimTracksters", "PU"),
-    label_lcl = cms.InputTag("hgcalMergeLayerClusters"),
-    label_scl = cms.InputTag("mix", "MergedCaloTruth"),
-    label_cp = cms.InputTag("mix","MergedCaloTruth"),
+tracksterSimTracksterAssociationPRPU = tracksterToSimTracksterAssociatorProducer.clone(
+    tracksters = cms.InputTag("ticlTrackstersMerge"),
+    simTracksters = cms.InputTag("ticlSimTracksters", "PU"),
+    layerClusters = cms.InputTag("hgcalMergeLayerClusters"),
+    tracksterMap = cms.InputTag("layerClusterToTracksterMergeAssociation"),
+    simTracksterMap = cms.InputTag("layerClusterToSimTracksterAssociation2")
 )
 
 from Configuration.ProcessModifiers.ticl_v5_cff import ticl_v5
 ''' For future separate iterations
-ticl_v5.toModify(tracksterSimTracksterAssociationLinkingbyCLUE3D, label_tst = cms.InputTag("mergedTrackstersProducer"))
-tracksterSimTracksterAssociationLinkingbyCLUE3DEM = tracksterSimTracksterAssociationLinkingbyCLUE3D.clone(label_tst = cms.InputTag("ticlTrackstersCLUE3DEM"))
-tracksterSimTracksterAssociationLinkingbyCLUE3DHAD = tracksterSimTracksterAssociationLinkingbyCLUE3D.clone(label_tst = cms.InputTag("ticlTrackstersCLUE3DHAD"))
+ticl_v5.toModify(tracksterSimTracksterAssociationLinkingbyCLUE3D, tracksters = cms.InputTag("mergedTrackstersProducer"))
+tracksterSimTracksterAssociationLinkingbyCLUE3DEM = tracksterSimTracksterAssociationLinkingbyCLUE3D.clone(tracksters = cms.InputTag("ticlTrackstersCLUE3DEM"))
+tracksterSimTracksterAssociationLinkingbyCLUE3DHAD = tracksterSimTracksterAssociationLinkingbyCLUE3D.clone(tracksters = cms.InputTag("ticlTrackstersCLUE3DHAD"))
 
-ticl_v5.toModify(tracksterSimTracksterAssociationPRbyCLUE3D, label_tst = cms.InputTag("mergedTrackstersProducer"))
-tracksterSimTracksterAssociationPRbyCLUE3DEM = tracksterSimTracksterAssociationPRbyCLUE3D.clone(label_tst = cms.InputTag("ticlTrackstersCLUE3DEM"))
-tracksterSimTracksterAssociationPRbyCLUE3DHAD = tracksterSimTracksterAssociationPRbyCLUE3D.clone(label_tst = cms.InputTag("ticlTrackstersCLUE3DHAD"))
+ticl_v5.toModify(tracksterSimTracksterAssociationPRbyCLUE3D, tracksters = cms.InputTag("mergedTrackstersProducer"))
+tracksterSimTracksterAssociationPRbyCLUE3DEM = tracksterSimTracksterAssociationPRbyCLUE3D.clone(tracksters = cms.InputTag("ticlTrackstersCLUE3DEM"))
+tracksterSimTracksterAssociationPRbyCLUE3DHAD = tracksterSimTracksterAssociationPRbyCLUE3D.clone(tracksters = cms.InputTag("ticlTrackstersCLUE3DHAD"))
 '''
 
-ticl_v5.toModify(tracksterSimTracksterAssociationLinking, label_tst = cms.InputTag("ticlCandidate"))
-ticl_v5.toModify(tracksterSimTracksterAssociationPR, label_tst = cms.InputTag("ticlCandidate"))
-ticl_v5.toModify(tracksterSimTracksterAssociationLinkingPU, label_tst = cms.InputTag("ticlCandidate"))
-ticl_v5.toModify(tracksterSimTracksterAssociationPRPU, label_tst = cms.InputTag("ticlCandidate"))
+ticl_v5.toModify(tracksterSimTracksterAssociationLinking, tracksters = cms.InputTag("ticlCandidate"))
+ticl_v5.toModify(tracksterSimTracksterAssociationPR, tracksters = cms.InputTag("ticlCandidate"))
+ticl_v5.toModify(tracksterSimTracksterAssociationLinkingPU, tracksters = cms.InputTag("ticlCandidate"))
+ticl_v5.toModify(tracksterSimTracksterAssociationPRPU, tracksters = cms.InputTag("ticlCandidate"))

@@ -1,3 +1,5 @@
+// Author: Felice Pantaleo, felice.pantaleo@cern.ch 06/2024
+
 #include "TracksterToSimTracksterAssociatorProducer.h"
 #include "SimDataFormats/Associations/interface/TICLAssociationMap.h"
 

@@ -1,3 +1,5 @@
+// Author: Felice Pantaleo, felice.pantaleo@cern.ch 06/2024
+
 #ifndef TracksterToSimTracksterAssociatorProducer_h
 #define TracksterToSimTracksterAssociatorProducer_h
 
