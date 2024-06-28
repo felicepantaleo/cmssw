@@ -108,7 +108,7 @@ void TracksterToSimTracksterAssociatorProducer::produce(edm::StreamID,
       float squaredLayerClusterEnergy = layerCluster.energy() * layerCluster.energy();
       float recoSharedEnergy = layerCluster.energy() * recoFraction;
       float invLayerClusterEnergy = 1.f / layerCluster.energy();
-      const auto& simTracksterVec = layerClusterToSimTracksterMap[layerClusterId];
+      const auto& simTracksterVec = layerClusterToAssociatedSimTracksterMap[i];
       for (const auto& [simTracksterIndex, simSharedEnergy] : simTracksterVec) {
         edm::Ref<std::vector<ticl::Trackster>> simTracksterRef(simTrackstersHandle, simTracksterIndex);
         float sharedEnergy = std::min(simSharedEnergy, recoSharedEnergy);
