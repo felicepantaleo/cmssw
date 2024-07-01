@@ -65,7 +65,7 @@ void HitToLayerClusterAssociatorProducer::produce(edm::StreamID,
 
 void HitToLayerClusterAssociatorProducer::fillDescriptions(edm::ConfigurationDescriptions &descriptions) {
   edm::ParameterSetDescription desc;
-  desc.add<edm::InputTag>("layer_clusters", edm::InputTag("hgcalLayerClusters"));
+  desc.add<edm::InputTag>("layer_clusters", edm::InputTag("hgcalMergeLayerClusters"));
   desc.add<edm::InputTag>("hitMap", edm::InputTag("recHitMapProducer", "hgcalRecHitMap"));
   desc.add<std::vector<edm::InputTag>>("hits",
                                        {edm::InputTag("HGCalRecHit", "HGCEERecHits"),

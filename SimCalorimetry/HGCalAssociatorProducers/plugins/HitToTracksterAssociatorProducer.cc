@@ -19,7 +19,7 @@
 HitToTracksterAssociatorProducer::HitToTracksterAssociatorProducer(const edm::ParameterSet &pset)
     : LCCollectionToken_(consumes<std::vector<reco::CaloCluster>>(pset.getParameter<edm::InputTag>("layer_clusters"))),
       tracksterCollectionToken_(consumes<std::vector<ticl::Trackster>>(pset.getParameter<edm::InputTag>("tracksters"))),
-      hitMapToken_(consumes<std::unordered_map<DetId, unsigned int>>(pset.getParameter<edm::InputTag>("hitMap"))) {
+      hitMapToken_(consumes<std::unordered_map<DetId, const unsigned int>>(pset.getParameter<edm::InputTag>("hitMapTag"))) {
   auto hitsTags = pset.getParameter<std::vector<edm::InputTag>>("hits");
   for (const auto &tag : hitsTags) {
     hitsTokens_.push_back(consumes<HGCRecHitCollection>(tag));
@@ -39,7 +39,7 @@ void HitToTracksterAssociatorProducer::produce(edm::StreamID, edm::Event &iEvent
   Handle<std::vector<ticl::Trackster>> tracksters;
   iEvent.getByToken(tracksterCollectionToken_, tracksters);
 
-  Handle<std::unordered_map<DetId, unsigned int>> hitMap;
+  Handle<std::unordered_map<DetId, const unsigned int>> hitMap;
   iEvent.getByToken(hitMapToken_, hitMap);
 
   MultiVectorManager<HGCRecHit> rechitManager;
@@ -79,7 +79,7 @@ void HitToTracksterAssociatorProducer::produce(edm::StreamID, edm::Event &iEvent
 
 void HitToTracksterAssociatorProducer::fillDescriptions(edm::ConfigurationDescriptions &descriptions) {
   edm::ParameterSetDescription desc;
-  desc.add<edm::InputTag>("layer_clusters", edm::InputTag("hgcalLayerClusters"));
+  desc.add<edm::InputTag>("layer_clusters", edm::InputTag("hgcalMergeLayerClusters"));
   desc.add<edm::InputTag>("tracksters", edm::InputTag("ticlTracksters"));
   desc.add<edm::InputTag>("hitMapTag", edm::InputTag("recHitMapProducer", "hgcalRecHitMap"));
   desc.add<std::vector<edm::InputTag>>("hits",

@@ -34,7 +34,7 @@ private:
   edm::EDGetTokenT<std::vector<SimCluster>> simClusterToken_;
   edm::EDGetTokenT<std::vector<CaloParticle>> caloParticleToken_;
 
-  edm::EDGetTokenT<std::unordered_map<DetId, unsigned int>> hitMapToken_;
+  edm::EDGetTokenT<std::unordered_map<DetId, const unsigned int>> hitMapToken_;
   std::vector<edm::EDGetTokenT<HGCRecHitCollection>> hitsTokens_;
 };
 

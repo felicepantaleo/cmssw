@@ -31,7 +31,7 @@ private:
 
   edm::EDGetTokenT<std::vector<reco::CaloCluster>> LCCollectionToken_;
   edm::EDGetTokenT<std::vector<ticl::Trackster>> tracksterCollectionToken_;
-  edm::EDGetTokenT<std::unordered_map<DetId, unsigned int>> hitMapToken_;
+  edm::EDGetTokenT<std::unordered_map<DetId, const unsigned int>> hitMapToken_;
   std::vector<edm::EDGetTokenT<HGCRecHitCollection>> hitsTokens_;
 };
 
