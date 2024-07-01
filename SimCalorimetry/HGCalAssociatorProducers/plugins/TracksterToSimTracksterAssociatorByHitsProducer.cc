@@ -35,7 +35,9 @@ TracksterToSimTracksterAssociatorByHitsProducer::TracksterToSimTracksterAssociat
       tracksterToHitMapToken_(
           consumes<ticl::AssociationMap<ticl::mapWithFraction>>(pset.getParameter<edm::InputTag>("tracksterToHitMap"))),
       simTracksterToHitMapToken_(consumes<ticl::AssociationMap<ticl::mapWithFraction>>(
-          pset.getParameter<edm::InputTag>("simTracksterToHitMap"))) {
+          pset.getParameter<edm::InputTag>("simTracksterToHitMap"))),
+      simTracksterFromCPToHitMapToken_(consumes<ticl::AssociationMap<ticl::mapWithFraction>>(
+          pset.getParameter<edm::InputTag>("simTracksterFromCPToHitMap"))) {
   auto hitsTags = pset.getParameter<std::vector<edm::InputTag>>("hits");
   for (const auto& tag : hitsTags) {
     hitsTokens_.push_back(consumes<HGCRecHitCollection>(tag));
@@ -359,12 +361,12 @@ void TracksterToSimTracksterAssociatorByHitsProducer::fillDescriptions(edm::Conf
 
   desc.add<edm::InputTag>("hitToTracksterMap", edm::InputTag("hitToTracksterAssociator","hitToTracksterMap"));
   desc.add<edm::InputTag>("hitToSimTracksterMap", edm::InputTag("hitToSimTracksterAssociation","hitToTracksterMap"));
-  desc.add<edm::InputTag>("hitToSimTracksterFromCPMap", edm::InputTag("hitToSimTracksterFromCPAssociation","hitToTracksterMap"));
+  desc.add<edm::InputTag>("hitToSimTracksterFromCPMap", edm::InputTag("hitToSimTracksterFromCPsAssociation","hitToTracksterMap"));
   desc.add<edm::InputTag>("hitToSimClusterMap", edm::InputTag("hitToSimClusterCaloParticleAssociator","hitToSimClusterMap"));
   desc.add<edm::InputTag>("hitToCaloParticleMap", edm::InputTag("hitToSimClusterCaloParticleAssociator","hitToCaloParticleMap"));
   desc.add<edm::InputTag>("tracksterToHitMap", edm::InputTag("hitToTrackstersAssociationPR", "tracksterToHitMap"));
   desc.add<edm::InputTag>("simTracksterToHitMap", edm::InputTag("hitToSimTracksterAssociation", "tracksterToHitMap"));
-  desc.add<edm::InputTag>("simTracksterFromCPToHitMap", edm::InputTag("hitToSimTracksterFromCPAssociation", "tracksterToHitMap"));
+  desc.add<edm::InputTag>("simTracksterFromCPToHitMap", edm::InputTag("hitToSimTracksterFromCPsAssociation", "tracksterToHitMap"));
 
   desc.add<std::vector<edm::InputTag>>("hits",
                                        {edm::InputTag("HGCalRecHit", "HGCEERecHits"),

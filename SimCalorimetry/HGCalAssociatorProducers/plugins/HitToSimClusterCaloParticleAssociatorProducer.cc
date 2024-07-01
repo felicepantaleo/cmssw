@@ -19,7 +19,7 @@ HitToSimClusterCaloParticleAssociatorProducer::HitToSimClusterCaloParticleAssoci
     const edm::ParameterSet &pset)
     : simClusterToken_(consumes<std::vector<SimCluster>>(pset.getParameter<edm::InputTag>("simClusters"))),
       caloParticleToken_(consumes<std::vector<CaloParticle>>(pset.getParameter<edm::InputTag>("caloParticles"))),
-      hitMapToken_(consumes<std::unordered_map<DetId, unsigned int>>(pset.getParameter<edm::InputTag>("hitMap"))) {
+      hitMapToken_(consumes<std::unordered_map<DetId, const unsigned int>>(pset.getParameter<edm::InputTag>("hitMap"))) {
   auto hitsTags = pset.getParameter<std::vector<edm::InputTag>>("hits");
   for (const auto &tag : hitsTags) {
     hitsTokens_.push_back(consumes<HGCRecHitCollection>(tag));
@@ -44,7 +44,7 @@ void HitToSimClusterCaloParticleAssociatorProducer::produce(edm::StreamID,
   Handle<std::vector<SimCluster>> simClustersHandle;
   iEvent.getByToken(simClusterToken_, simClustersHandle);
   const auto &simClusters = *simClustersHandle;
-  Handle<std::unordered_map<DetId, unsigned int>> hitMap;
+  Handle<std::unordered_map<DetId, const unsigned int>> hitMap;
   iEvent.getByToken(hitMapToken_, hitMap);
 
   MultiVectorManager<HGCRecHit> rechitManager;

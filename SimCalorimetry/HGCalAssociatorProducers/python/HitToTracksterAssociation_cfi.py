@@ -1,20 +1,20 @@
 import FWCore.ParameterSet.Config as cms
-from SimCalorimetry.HGCalAssociatorProducers.HitToTracksterAssociatorProducer_cfi import hitToTracksterAssociatorProducer
+from SimCalorimetry.HGCalAssociatorProducers.hitToTracksterAssociator_cfi import hitToTracksterAssociator
 
-hitToTrackstersAssociationLinking = hitToTracksterAssociatorProducer.clone(
+hitToTrackstersAssociationLinking = hitToTracksterAssociator.clone(
     tracksters = cms.InputTag("ticlTrackstersMerge"),
 )
 
 
-hitToTrackstersAssociationPR = hitToTracksterAssociatorProducer.clone(
+hitToTrackstersAssociationPR = hitToTracksterAssociator.clone(
     tracksters = cms.InputTag("ticlTrackstersCLUE3DHigh"),
 )
 
-hitToSimTracksterAssociation = hitToTracksterAssociatorProducer.clone(
+hitToSimTracksterAssociation = hitToTracksterAssociator.clone(
     tracksters = cms.InputTag("ticlSimTracksters"),
 )
 
-hitToSimTracksterFromCPsAssociation = hitToTracksterAssociatorProducer.clone(
+hitToSimTracksterFromCPsAssociation = hitToTracksterAssociator.clone(
     tracksters = cms.InputTag("ticlSimTracksters", "fromCPs"),
 )
 
