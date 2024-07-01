@@ -1889,7 +1889,7 @@ void TICLDumper::analyze(const edm::Event& event, const edm::EventSetup& setup) 
   MergeTracksters_recoToSim_SC_sharedE.resize(trackstersmerged.size());
   for (size_t i = 0; i < trackstersmerged.size(); ++i) {
 
-    // CLUE3D -> STS-SC
+    // merged -> STS-SC
     const auto stsSC_vec = MergetsRecoSimSCMap.at(i);
     if (!stsSC_vec.empty()) {
       for (const auto& [sts_id, sharedEnergyAndScore] : stsSC_vec) {
@@ -1907,7 +1907,7 @@ void TICLDumper::analyze(const edm::Event& event, const edm::EventSetup& setup) 
   MergeTracksters_simToReco_SC_sharedE.resize(nsimTrackstersSC);
   for (size_t i = 0; i < nsimTrackstersSC; ++i) {
 
-    // STS-SC -> CLUE3D
+    // STS-SC -> merged
     const auto ts_vec = MergetsSimToRecoSCMap.at(i);
     if (!ts_vec.empty()) {
       for (const auto& [ts_id, sharedEnergyAndScore] : ts_vec) {
@@ -1924,7 +1924,7 @@ void TICLDumper::analyze(const edm::Event& event, const edm::EventSetup& setup) 
   MergeTracksters_recoToSim_CP_sharedE.resize(trackstersmerged.size());
   for (size_t i = 0; i < trackstersmerged.size(); ++i) {
 
-    // CLUE3D -> STS-CP
+    // merged -> STS-CP
     const auto stsCP_vec = MergetsRecoSimCPMap.at(i);
     if (!stsCP_vec.empty()) {
       for (const auto& [sts_id, sharedEnergyAndScore] : stsCP_vec) {
