@@ -69,14 +69,6 @@ def customiseTICLFromReco(process):
 def customiseTICLForDumper(process):
 
     process.ticlDumper = ticlDumper.clone(
-        recoToSimAssociatorSC = cms.InputTag('tracksterSimTracksterAssociationByHitsPR:tracksterToSimTracksterMap'),
-        simToRecoAssociatorSC = cms.InputTag('tracksterSimTracksterAssociationByHitsPR:simTracksterToTracksterMap'),
-        recoToSimAssociatorCP = cms.InputTag('tracksterSimTracksterAssociationByHitsPR:tracksterToSimTracksterFromCPMap'),
-        simToRecoAssociatorCP = cms.InputTag('tracksterSimTracksterAssociationByHitsPR:simTracksterFromCPToTracksterMap'),
-        MergerecoToSimAssociatorSC = cms.InputTag('tracksterSimTracksterAssociationByHitsLinking:tracksterToSimTracksterMap'),
-        MergesimToRecoAssociatorSC = cms.InputTag('tracksterSimTracksterAssociationByHitsLinking:simTracksterToTracksterMap'),
-        MergerecoToSimAssociatorCP = cms.InputTag('tracksterSimTracksterAssociationByHitsLinking:tracksterToSimTracksterFromCPMap'),
-        MergesimToRecoAssociatorCP = cms.InputTag('tracksterSimTracksterAssociationByHitsLinking:simTracksterFromCPToTracksterMap'),
         saveLCs=True,
         saveCLUE3DTracksters=True,
         saveTrackstersMerged=True,
