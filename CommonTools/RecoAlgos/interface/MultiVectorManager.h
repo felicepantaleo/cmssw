@@ -6,12 +6,13 @@
 #include <cassert>
 #include <algorithm>
 #include <iterator>
+#include <functional>  // for std::reference_wrapper
 
 template <typename T>
 class MultiVectorManager {
 public:
   void addVector(const std::vector<T>& vec) {
-    vectors.emplace_back(vec.begin(), vec.end());
+    vectors.emplace_back(vec);
     offsets.push_back(totalSize);
     totalSize += vec.size();
   }
@@ -27,19 +28,17 @@ public:
     size_t vectorIndex = std::distance(offsets.begin(), it) - 1;
     size_t localIndex = globalIndex - offsets[vectorIndex];
 
-    return vectors[vectorIndex][localIndex];
+    return vectors[vectorIndex].get()[localIndex];
   }
 
   size_t getGlobalIndex(size_t vectorIndex, size_t localIndex) const {
     assert(vectorIndex < vectors.size() && "Vector index out of range");
 
-    const auto& vec = vectors[vectorIndex];
+    const auto& vec = vectors[vectorIndex].get();
     assert(localIndex < vec.size() && "Local index out of range");
 
     return offsets[vectorIndex] + localIndex;
   }
-
-  size_t size() const { return totalSize; }
 
   std::pair<size_t, size_t> getVectorAndLocalIndex(size_t globalIndex) const {
     assert(globalIndex < totalSize && "Global index out of range");
@@ -50,6 +49,8 @@ public:
 
     return {vectorIndex, localIndex};
   }
+
+  size_t size() const { return totalSize; }
 
   class Iterator {
   public:
@@ -71,7 +72,7 @@ public:
   Iterator end() const { return Iterator(*this, totalSize); }
 
 private:
-  std::vector<std::vector<T>> vectors;
+  std::vector<std::reference_wrapper<const std::vector<T>>> vectors;
   std::vector<size_t> offsets;
   size_t totalSize = 0;
 };
