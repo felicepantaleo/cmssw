@@ -23,11 +23,6 @@ from RecoHGCal.TICL.mtdSoAProducer_cfi import mtdSoAProducer as _mtdSoAProducer
 
 from Configuration.ProcessModifiers.ticl_v5_cff import ticl_v5
 
-from SimCalorimetry.HGCalAssociatorProducers.LCToTSAssociator_cfi import layerClusterToCLUE3DTracksterAssociation, layerClusterToTracksterMergeAssociation, layerClusterToSimTracksterAssociation
-from SimCalorimetry.HGCalAssociatorProducers.HitToTracksterAssociation_cfi import hitToTrackstersAssociationLinking, hitToTrackstersAssociationPR, hitToSimTracksterAssociation, hitToSimTracksterFromCPsAssociation
-from SimCalorimetry.HGCalAssociatorProducers.TSToSimTSAssociationByHits_cfi import tracksterSimTracksterAssociationByHitsLinking, tracksterSimTracksterAssociationByHitsPR
-from SimCalorimetry.HGCalAssociatorProducers.hitToSimClusterCaloParticleAssociator_cfi import hitToSimClusterCaloParticleAssociator
-
 ticlLayerTileTask = cms.Task(ticlLayerTileProducer)
 
 ticlTrackstersMerge = _trackstersMergeProducer.clone()
@@ -71,12 +66,9 @@ ticlIterLabels = ["CLUE3DHigh"]
 ticlTracksterMergeTask = cms.Task(ticlTrackstersMerge)
 ticlTracksterLinksTask = cms.Task(ticlTracksterLinks)
 
-ticlAssocTask = cms.Task(layerClusterToCLUE3DTracksterAssociation, layerClusterToTracksterMergeAssociation, layerClusterToSimTracksterAssociation, hitToTrackstersAssociationLinking, hitToTrackstersAssociationPR, hitToSimTracksterAssociation, hitToSimTracksterFromCPsAssociation, tracksterSimTracksterAssociationByHitsLinking, tracksterSimTracksterAssociationByHitsPR, hitToSimClusterCaloParticleAssociator)
-
 mergeTICLTask = cms.Task(ticlLayerTileTask
     ,ticlIterationsTask
     ,ticlTracksterMergeTask
-    ,ticlAssocTask
 )
 ticl_v5.toReplaceWith(mergeTICLTask, mergeTICLTask.copyAndExclude([ticlTracksterMergeTask]))
 ticl_v5.toModify(mergeTICLTask, func=lambda x : x.add(ticlTracksterLinksTask))
