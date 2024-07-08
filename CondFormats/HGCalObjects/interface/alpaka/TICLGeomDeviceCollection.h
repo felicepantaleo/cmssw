@@ -11,5 +11,5 @@ using TICLGeomDeviceCollection = PortableDeviceCollection<TICLGeomSoA>;
 using TICLGeomDeviceCollectionView = PortableDeviceCollection<TICLGeomSoA>::View;
 using TICLGeomDeviceCollectionConstView = PortableDeviceCollection<TICLGeomSoA>::ConstView;
 }
-
+}
 #endif  // CondFormats_HGCalObjects_TICLGeomDeviceCollection_h

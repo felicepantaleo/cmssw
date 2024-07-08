@@ -3,6 +3,12 @@ from Configuration.Eras.Era_Phase2C17I13M9_cff import Phase2C17I13M9
 
 process = cms.Process("TICLGeomAnalyze", Phase2C17I13M9)
 
+
+process.options = cms.untracked.PSet(
+    wantSummary = cms.untracked.bool(False),
+    numberOfThreads = cms.untracked.uint32(1),
+)
+
 process.load("FWCore.MessageService.MessageLogger_cfi")
 process.load('Configuration.Geometry.GeometryExtended2026D98Reco_cff')
 process.load('Configuration.StandardSequences.FrontierConditions_GlobalTag_cff')
@@ -14,7 +20,6 @@ process.source = cms.Source("PoolSource",
         'file:step3.root'
     )
 )
-
 
 # Analyzers
 process.TICLGeomAnalyzerECAL = cms.EDAnalyzer("TICLGeomAnalyzer",
@@ -32,13 +37,16 @@ process.TICLGeomAnalyzerHGCal = cms.EDAnalyzer("TICLGeomAnalyzer",
 process.TICLGeomAnalyzerHFNose = cms.EDAnalyzer("TICLGeomAnalyzer",
     label = cms.string("HFNose")
 )
+
 # Tasks and Paths
-process.TICLGeomESTask = cms.Task(
+ticlGeometryTask = cms.Task(
     process.ticlGeomESProducerECAL,
     process.ticlGeomESProducerHCAL,
     process.ticlGeomESProducerHGCal,
     process.ticlGeomESProducerHFNose
 )
+
+process.ticlGeometry = cms.Path(ticlGeometryTask)
 
 process.TICLGeomAnalyzePath = cms.Path(
     process.TICLGeomAnalyzerECAL +
@@ -47,6 +55,5 @@ process.TICLGeomAnalyzePath = cms.Path(
     process.TICLGeomAnalyzerHFNose
 )
 
+process.schedule = cms.Schedule(process.ticlGeometry, process.TICLGeomAnalyzePath)
 
-process.schedule = cms.Schedule(process.TICLGeomAnalyzePath)
-process.add_(process.TICLGeomESTask)
