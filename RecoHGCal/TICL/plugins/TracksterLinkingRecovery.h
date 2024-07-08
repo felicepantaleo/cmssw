@@ -1,5 +1,5 @@
-#ifndef RecoHGCal_TICL_TracksterLinkingPassthrough_H
-#define RecoHGCal_TICL_TracksterLinkingPassthrough_H
+#ifndef RecoHGCal_TICL_TracksterLinkingRecovery_H
+#define RecoHGCal_TICL_TracksterLinkingRecovery_H
 
 #include "FWCore/Framework/interface/Frameworkfwd.h"
 #include "FWCore/Framework/interface/ESHandle.h"
@@ -9,12 +9,12 @@
 
 namespace ticl {
 
-  class TracksterLinkingPassthrough : public TracksterLinkingAlgoBase {
+  class TracksterLinkingRecovery : public TracksterLinkingAlgoBase {
   public:
-    TracksterLinkingPassthrough(const edm::ParameterSet& conf, edm::ConsumesCollector iC)
+    TracksterLinkingRecovery(const edm::ParameterSet& conf, edm::ConsumesCollector iC)
         : TracksterLinkingAlgoBase(conf, iC) {}
 
-    ~TracksterLinkingPassthrough() override {}
+    ~TracksterLinkingRecovery() override {}
 
     void linkTracksters(const Inputs& input,
                         std::vector<Trackster>& resultTracksters,
