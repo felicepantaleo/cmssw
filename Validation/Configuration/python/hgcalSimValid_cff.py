@@ -13,6 +13,7 @@ from SimCalorimetry.HGCalAssociatorProducers.SimTauProducer_cfi import *
 from SimCalorimetry.HGCalAssociatorProducers.LCToTSAssociator_cfi import layerClusterToCLUE3DTracksterAssociation, layerClusterToTracksterMergeAssociation, layerClusterToSimTracksterAssociation
 from SimCalorimetry.HGCalAssociatorProducers.HitToTracksterAssociation_cfi import hitToTrackstersAssociationLinking, hitToTrackstersAssociationPR, hitToSimTracksterAssociation, hitToSimTracksterFromCPsAssociation
 from SimCalorimetry.HGCalAssociatorProducers.TSToSimTSAssociationByHits_cfi import tracksterSimTracksterAssociationByHitsLinking, tracksterSimTracksterAssociationByHitsPR
+from SimCalorimetry.HGCalAssociatorProducers.TSToSimTSAssociation_cfi import tracksterSimTracksterFromCPsAssociationLinking, tracksterSimTracksterAssociationLinking, tracksterSimTracksterFromCPsAssociationPR, tracksterSimTracksterAssociationPR
 from SimCalorimetry.HGCalAssociatorProducers.hitToSimClusterCaloParticleAssociator_cfi import hitToSimClusterCaloParticleAssociator
 
 
@@ -46,6 +47,7 @@ hgcalAssociators = cms.Task(lcAssocByEnergyScoreProducer, layerClusterCaloPartic
                             hitToTrackstersAssociationLinking, hitToTrackstersAssociationPR,
                             hitToSimTracksterAssociation, hitToSimTracksterFromCPsAssociation,
                             tracksterSimTracksterAssociationByHitsLinking, tracksterSimTracksterAssociationByHitsPR,
+                            tracksterSimTracksterFromCPsAssociationLinking, tracksterSimTracksterAssociationLinking, tracksterSimTracksterFromCPsAssociationPR, tracksterSimTracksterAssociationPR,
                             hitToSimClusterCaloParticleAssociator
                             )
 

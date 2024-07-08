@@ -80,11 +80,14 @@ def customiseTICLv5FromReco(process, enableDumper = False):
     )
     process.hgcalAssociators = cms.Task(process.recHitMapProducer, process.lcAssocByEnergyScoreProducer, process.layerClusterCaloParticleAssociationProducer,
                             process.scAssocByEnergyScoreProducer, process.layerClusterSimClusterAssociationProducer,
-                            process.lcSimTSAssocByEnergyScoreProducer, process.layerClusterSimTracksterAssociationProducer,
-                            process.simTsAssocByEnergyScoreProducer,  process.simTracksterHitLCAssociatorByEnergyScoreProducer,
-                            process.tracksterSimTracksterAssociationLinking, process.tracksterSimTracksterAssociationPR,
-                            process.tracksterSimTracksterFromCPsAssociationPR, process.tracksterSimTracksterAssociationPR,
-                            process.tracksterSimTracksterAssociationLinkingPU, process.tracksterSimTracksterAssociationPRPU
+                            # FP 07/2024 new associators:
+                            layerClusterToCLUE3DTracksterAssociation, layerClusterToTracksterMergeAssociation,
+                            layerClusterToSimTracksterAssociation,
+                            hitToTrackstersAssociationLinking, hitToTrackstersAssociationPR,
+                            hitToSimTracksterAssociation, hitToSimTracksterFromCPsAssociation,
+                            tracksterSimTracksterAssociationByHitsLinking, tracksterSimTracksterAssociationByHitsPR,
+                            tracksterSimTracksterFromCPsAssociationLinking, tracksterSimTracksterAssociationLinking, tracksterSimTracksterFromCPsAssociationPR, tracksterSimTracksterAssociationPR,
+                            hitToSimClusterCaloParticleAssociator
                             )
 
     if(enableDumper):
