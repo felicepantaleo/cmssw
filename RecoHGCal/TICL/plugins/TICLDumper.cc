@@ -2030,24 +2030,43 @@ void TICLDumper::fillDescriptions(edm::ConfigurationDescriptions& descriptions) 
   desc.add<edm::InputTag>("simtrackstersSC", edm::InputTag("ticlSimTracksters"));
   desc.add<edm::InputTag>("simtrackstersCP", edm::InputTag("ticlSimTracksters", "fromCPs"));
   desc.add<edm::InputTag>("simTICLCandidates", edm::InputTag("ticlSimTracksters"));
+
   desc.add<edm::InputTag>("recoToSimAssociatorSC",
-                          edm::InputTag("tracksterSimTracksterAssociationByHitsPR", "tracksterToSimTracksterMap"));
+                          edm::InputTag("tracksterSimTracksterAssociationPR", "tracksterToSimTracksterMap"));
   desc.add<edm::InputTag>("simToRecoAssociatorSC",
-                          edm::InputTag("tracksterSimTracksterAssociationByHitsPR", "simTracksterToTracksterMap"));
+                          edm::InputTag("tracksterSimTracksterAssociationPR", "simTracksterToTracksterMap"));
   desc.add<edm::InputTag>(
       "recoToSimAssociatorCP",
-      edm::InputTag("tracksterSimTracksterAssociationByHitsPR", "tracksterToSimTracksterFromCPMap"));
+      edm::InputTag("tracksterSimTracksterFromCPsAssociationPR", "tracksterToSimTracksterMap"));
   desc.add<edm::InputTag>(
       "simToRecoAssociatorCP",
-      edm::InputTag("tracksterSimTracksterAssociationByHitsPR", "simTracksterFromCPToTracksterMap"));
+      edm::InputTag("tracksterSimTracksterFromCPsAssociationPR", "simTracksterToTracksterMap"));
   desc.add<edm::InputTag>("MergerecoToSimAssociatorSC",
-                          edm::InputTag("tracksterSimTracksterAssociationByHitsLinking", "tracksterToSimTracksterMap"));
+                          edm::InputTag("tracksterSimTracksterAssociationLinking", "tracksterToSimTracksterMap"));
   desc.add<edm::InputTag>("MergesimToRecoAssociatorSC",
-                          edm::InputTag("tracksterSimTracksterAssociationByHitsLinking", "simTracksterToTracksterMap"));
+                          edm::InputTag("tracksterSimTracksterAssociationLinking", "simTracksterToTracksterMap"));
   desc.add<edm::InputTag>("MergerecoToSimAssociatorCP",
-                          edm::InputTag("tracksterSimTracksterAssociationByHitsLinking", "tracksterToSimTracksterFromCPMap"));
+                          edm::InputTag("tracksterSimTracksterFromCPsAssociationLinking", "tracksterToSimTracksterMap"));
   desc.add<edm::InputTag>("MergesimToRecoAssociatorCP",
-                          edm::InputTag("tracksterSimTracksterAssociationByHitsLinking", "simTracksterFromCPToTracksterMap"));
+                          edm::InputTag("tracksterSimTracksterFromCPsAssociationLinking", "simTracksterToTracksterMap"));
+  //desc.add<edm::InputTag>("recoToSimAssociatorSC",
+  //                        edm::InputTag("tracksterSimTracksterAssociationByHitsPR", "tracksterToSimTracksterMap"));
+  //desc.add<edm::InputTag>("simToRecoAssociatorSC",
+  //                        edm::InputTag("tracksterSimTracksterAssociatioByHitsPR", "simTracksterToTracksterMap"));
+  //desc.add<edm::InputTag>(
+  //    "recoToSimAssociatorCP",
+  //    edm::InputTag("tracksterSimTracksterAssociationByHitsPR", "tracksterToSimTracksterFromCPMap"));
+  //desc.add<edm::InputTag>(
+  //    "simToRecoAssociatorCP",
+  //    edm::InputTag("tracksterSimTracksterAssociationByHitsPR", "simTracksterFromCPToTracksterMap"));
+  //desc.add<edm::InputTag>("MergerecoToSimAssociatorSC",
+  //                        edm::InputTag("tracksterSimTracksterAssociationByHitsLinking", "tracksterToSimTracksterMap"));
+  //desc.add<edm::InputTag>("MergesimToRecoAssociatorSC",
+  //                        edm::InputTag("tracksterSimTracksterAssociationByHitsLinking", "simTracksterToTracksterMap"));
+  //desc.add<edm::InputTag>("MergerecoToSimAssociatorCP",
+  //                        edm::InputTag("tracksterSimTracksterAssociationByHitsLinking", "tracksterToSimTracksterFromCPMap"));
+  //desc.add<edm::InputTag>("MergesimToRecoAssociatorCP",
+  //                        edm::InputTag("tracksterSimTracksterAssociationByHitsLinking", "simTracksterFromCPToTracksterMap"));
   desc.add<edm::InputTag>("simclusters", edm::InputTag("mix", "MergedCaloTruth"));
   desc.add<edm::InputTag>("caloparticles", edm::InputTag("mix", "MergedCaloTruth"));
   desc.add<std::string>("detector", "HGCAL");
