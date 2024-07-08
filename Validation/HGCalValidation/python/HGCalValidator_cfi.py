@@ -60,8 +60,8 @@ hgcalValidator = DQMEDAnalyzer(
     ticlTrackstersMerge = cms.InputTag("ticlTrackstersMerge"),
     simTiclCandidates = cms.InputTag("ticlSimTracksters"),
     recoTracks = cms.InputTag("generalTracks"),
-    mergeRecoToSimAssociator = cms.InputTag("tracksterSimTracksterAssociationByHitsLinking", "tracksterToSimTracksterFromCPMap"),
-    mergeSimToRecoAssociator = cms.InputTag("tracksterSimTracksterAssociationByHitsLinking", "simTracksterFromCPToTracksterMap"),
+    mergeRecoToSimAssociator = cms.InputTag("tracksterSimTracksterFromCPsAssociationLinking", "tracksterToSimTracksterMap"),
+    mergeSimToRecoAssociator = cms.InputTag("tracksterSimTracksterFromCPsAssociationLinking", "simTracksterToTracksterMap"),
 
     #The cumulative material budget in front of each layer. To be more specific, it
     #is the material budget just in front of the active material (not including it).
