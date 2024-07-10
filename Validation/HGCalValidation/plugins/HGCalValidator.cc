@@ -5,6 +5,9 @@
 #include "FWCore/Framework/interface/MakerMacros.h"
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
 
+#include "FWCore/ParameterSet/interface/ConfigurationDescriptions.h"
+#include "FWCore/ParameterSet/interface/ParameterSetDescription.h"
+
 using namespace std;
 using namespace edm;
 
@@ -513,4 +516,211 @@ void HGCalValidator::dqmAnalyze(const edm::Event& event,
   if (doCandidatesPlots_) {
     candidateVal_->fillCandidateHistos(event, histograms.histoTICLCandidates, simTracksterFromCPHandle);
   }
+}
+
+void HGCalValidator::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
+  // hgcalValidator
+  edm::ParameterSetDescription desc;
+  desc.add<double>("ptMinCP", 0.5);
+  desc.add<double>("ptMaxCP", 300.0);
+  desc.add<double>("minRapidityCP", -3.1);
+  desc.add<double>("maxRapidityCP", 3.1);
+  desc.add<double>("lipCP", 30.0);
+  desc.add<double>("tipCP", 60);
+  desc.add<bool>("chargedOnlyCP", false);
+  desc.add<bool>("stableOnlyCP", false);
+  desc.add<bool>("notConvertedOnlyCP", true);
+  desc.add<std::vector<int>>("pdgIdCP",
+                         {
+                             11,
+                             -11,
+                             13,
+                             -13,
+                             22,
+                             111,
+                             211,
+                             -211,
+                             321,
+                             -321,
+                             311,
+                             130,
+                             310,
+                         });
+  desc.add<bool>("signalOnlyCP", true);
+  desc.add<bool>("intimeOnlyCP", true);
+  desc.add<int>("minHitCP", 0);
+  desc.add<int>("maxSimClustersCP", -1);
+  {
+    edm::ParameterSetDescription psd1;
+    psd1.add<double>("minEta", -4.5);
+    psd1.add<double>("maxEta", 4.5);
+    psd1.add<int>("nintEta", 100);
+    psd1.add<bool>("useFabsEta", false);
+    psd1.add<double>("minEne", 0.0);
+    psd1.add<double>("maxEne", 500.0);
+    psd1.add<int>("nintEne", 250);
+    psd1.add<double>("minPt", 0.0);
+    psd1.add<double>("maxPt", 100.0);
+    psd1.add<int>("nintPt", 100);
+    psd1.add<double>("minPhi", -3.2);
+    psd1.add<double>("maxPhi", 3.2);
+    psd1.add<int>("nintPhi", 80);
+    psd1.add<double>("minMixedHitsSimCluster", 0.0);
+    psd1.add<double>("maxMixedHitsSimCluster", 800.0);
+    psd1.add<int>("nintMixedHitsSimCluster", 100);
+    psd1.add<double>("minMixedHitsCluster", 0.0);
+    psd1.add<double>("maxMixedHitsCluster", 800.0);
+    psd1.add<int>("nintMixedHitsCluster", 100);
+    psd1.add<double>("minEneCl", 0.0);
+    psd1.add<double>("maxEneCl", 110.0);
+    psd1.add<int>("nintEneCl", 110);
+    psd1.add<double>("minLongDepBary", 0.0);
+    psd1.add<double>("maxLongDepBary", 110.0);
+    psd1.add<int>("nintLongDepBary", 110);
+    psd1.add<double>("minZpos", -550.0);
+    psd1.add<double>("maxZpos", 550.0);
+    psd1.add<int>("nintZpos", 1100);
+    psd1.add<double>("minTotNsimClsperlay", 0.0);
+    psd1.add<double>("maxTotNsimClsperlay", 50.0);
+    psd1.add<int>("nintTotNsimClsperlay", 50);
+    psd1.add<double>("minTotNClsperlay", 0.0);
+    psd1.add<double>("maxTotNClsperlay", 50.0);
+    psd1.add<int>("nintTotNClsperlay", 50);
+    psd1.add<double>("minEneClperlay", 0.0);
+    psd1.add<double>("maxEneClperlay", 110.0);
+    psd1.add<int>("nintEneClperlay", 110);
+    psd1.add<double>("minScore", 0.0);
+    psd1.add<double>("maxScore", 1.02);
+    psd1.add<int>("nintScore", 51);
+    psd1.add<double>("minSharedEneFrac", 0.0);
+    psd1.add<double>("maxSharedEneFrac", 1.02);
+    psd1.add<int>("nintSharedEneFrac", 51);
+    psd1.add<double>("minTSTSharedEneFracEfficiency", 0.5);
+    psd1.add<double>("minTSTSharedEneFrac", 0.0);
+    psd1.add<double>("maxTSTSharedEneFrac", 1.01);
+    psd1.add<int>("nintTSTSharedEneFrac", 101);
+    psd1.add<double>("minTotNsimClsperthick", 0.0);
+    psd1.add<double>("maxTotNsimClsperthick", 800.0);
+    psd1.add<int>("nintTotNsimClsperthick", 100);
+    psd1.add<double>("minTotNClsperthick", 0.0);
+    psd1.add<double>("maxTotNClsperthick", 800.0);
+    psd1.add<int>("nintTotNClsperthick", 100);
+    psd1.add<double>("minTotNcellsperthickperlayer", 0.0);
+    psd1.add<double>("maxTotNcellsperthickperlayer", 500.0);
+    psd1.add<int>("nintTotNcellsperthickperlayer", 100);
+    psd1.add<double>("minDisToSeedperthickperlayer", 0.0);
+    psd1.add<double>("maxDisToSeedperthickperlayer", 300.0);
+    psd1.add<int>("nintDisToSeedperthickperlayer", 100);
+    psd1.add<double>("minDisToSeedperthickperlayerenewei", 0.0);
+    psd1.add<double>("maxDisToSeedperthickperlayerenewei", 10.0);
+    psd1.add<int>("nintDisToSeedperthickperlayerenewei", 50);
+    psd1.add<double>("minDisToMaxperthickperlayer", 0.0);
+    psd1.add<double>("maxDisToMaxperthickperlayer", 300.0);
+    psd1.add<int>("nintDisToMaxperthickperlayer", 100);
+    psd1.add<double>("minDisToMaxperthickperlayerenewei", 0.0);
+    psd1.add<double>("maxDisToMaxperthickperlayerenewei", 50.0);
+    psd1.add<int>("nintDisToMaxperthickperlayerenewei", 50);
+    psd1.add<double>("minDisSeedToMaxperthickperlayer", 0.0);
+    psd1.add<double>("maxDisSeedToMaxperthickperlayer", 300.0);
+    psd1.add<int>("nintDisSeedToMaxperthickperlayer", 100);
+    psd1.add<double>("minClEneperthickperlayer", 0.0);
+    psd1.add<double>("maxClEneperthickperlayer", 10.0);
+    psd1.add<int>("nintClEneperthickperlayer", 100);
+    psd1.add<double>("minCellsEneDensperthick", 0.0);
+    psd1.add<double>("maxCellsEneDensperthick", 100.0);
+    psd1.add<int>("nintCellsEneDensperthick", 200);
+    psd1.add<double>("minTotNTSTs", 0.0);
+    psd1.add<double>("maxTotNTSTs", 50.0);
+    psd1.add<int>("nintTotNTSTs", 50);
+    psd1.add<double>("minTotNClsinTSTs", 0.0);
+    psd1.add<double>("maxTotNClsinTSTs", 400.0);
+    psd1.add<int>("nintTotNClsinTSTs", 100);
+
+    psd1.add<double>("minTotNClsinTSTsperlayer", 0.0);
+    psd1.add<double>("maxTotNClsinTSTsperlayer", 50.0);
+    psd1.add<int>("nintTotNClsinTSTsperlayer", 50);
+    psd1.add<double>("minMplofLCs", 0.0);
+    psd1.add<double>("maxMplofLCs", 20.0);
+    psd1.add<int>("nintMplofLCs", 20);
+    psd1.add<double>("minSizeCLsinTSTs", 0.0);
+    psd1.add<double>("maxSizeCLsinTSTs", 50.0);
+    psd1.add<int>("nintSizeCLsinTSTs", 50);
+    psd1.add<double>("minClEnepermultiplicity", 0.0);
+    psd1.add<double>("maxClEnepermultiplicity", 10.0);
+    psd1.add<int>("nintClEnepermultiplicity", 10);
+    psd1.add<double>("minX", -300.0);
+    psd1.add<double>("maxX", 300.0);
+    psd1.add<int>("nintX", 100);
+    psd1.add<double>("minY", -300.0);
+    psd1.add<double>("maxY", 300.0);
+    psd1.add<int>("nintY", 100);
+    psd1.add<double>("minZ", -550.0);
+    psd1.add<double>("maxZ", 550.0);
+    psd1.add<int>("nintZ", 1100);
+    desc.add<edm::ParameterSetDescription>("histoProducerAlgoBlock", psd1);
+  }
+  desc.add<std::vector<edm::InputTag>>("hits",
+                                       {
+                                           edm::InputTag("HGCalRecHit", "HGCEERecHits"),
+                                           edm::InputTag("HGCalRecHit", "HGCHEFRecHits"),
+                                           edm::InputTag("HGCalRecHit", "HGCHEBRecHits"),
+                                       });
+  desc.add<edm::InputTag>("label_lcl", edm::InputTag("hgcalMergeLayerClusters"));
+  desc.add<std::vector<edm::InputTag>>("label_tst",
+                                       {
+                                           edm::InputTag("ticlTrackstersCLUE3DHigh"),
+                                           edm::InputTag("ticlTrackstersMerge"),
+                                           edm::InputTag("ticlSimTracksters", "fromCPs"),
+                                           edm::InputTag("ticlSimTracksters"),
+                                       });
+  desc.add<edm::InputTag>("label_simTS", edm::InputTag("ticlSimTracksters"));
+  desc.add<edm::InputTag>("label_simTSFromCP", edm::InputTag("ticlSimTracksters", "fromCPs"));
+  desc.addUntracked<edm::InputTag>("associator", edm::InputTag("layerClusterCaloParticleAssociationProducer"));
+  desc.addUntracked<edm::InputTag>("associatorSim", edm::InputTag("layerClusterSimClusterAssociationProducer"));
+  desc.addUntracked<bool>("SaveGeneralInfo", true);
+  desc.addUntracked<bool>("doCaloParticlePlots", true);
+  desc.addUntracked<bool>("doCaloParticleSelection", true);
+  desc.addUntracked<bool>("doSimClustersPlots", true);
+  desc.add<edm::InputTag>("label_SimClusters", edm::InputTag("SimClusters"));
+  desc.add<edm::InputTag>("label_SimClustersLevel", edm::InputTag("ClusterLevel"));
+  desc.addUntracked<bool>("doLayerClustersPlots", true);
+  desc.add<edm::InputTag>("label_layerClusterPlots", edm::InputTag("hgcalMergeLayerClusters"));
+  desc.add<edm::InputTag>("label_LCToCPLinking", edm::InputTag("LCToCP_association"));
+  desc.addUntracked<bool>("doTrackstersPlots", true);
+  desc.add<std::string>("label_TS", "Morphology");
+  desc.add<std::string>("label_TSToCPLinking", "TSToCP_linking");
+  desc.add<std::string>("label_TSToSTSPR", "TSToSTS_patternRecognition");
+  desc.addUntracked<bool>("doCandidatesPlots", true);
+  desc.add<std::string>("ticlCandidates", "ticlCandidates");
+  desc.add<edm::InputTag>("ticlTrackstersMerge", edm::InputTag("ticlTrackstersMerge"));
+  desc.add<edm::InputTag>("simTiclCandidates", edm::InputTag("ticlSimTracksters"));
+  desc.add<edm::InputTag>("recoTracks", edm::InputTag("generalTracks"));
+  desc.add<edm::InputTag>("mergeRecoToSimAssociator",
+                          edm::InputTag("tracksterSimTracksterAssociationLinking", "recoToSim"));
+  desc.add<edm::InputTag>("mergeSimToRecoAssociator",
+                          edm::InputTag("tracksterSimTracksterAssociationLinking", "simToReco"));
+  desc.add<edm::InputTag>("mergeRecoToSimAssociatorPU",
+                          edm::InputTag("tracksterSimTracksterAssociationLinkingPU", "recoToSim"));
+  desc.add<edm::FileInPath>("cummatbudinxo", edm::FileInPath("Validation/HGCalValidation/data/D41.cumulative.xo"));
+  desc.add<edm::InputTag>("label_cp_effic", edm::InputTag("mix", "MergedCaloTruth"));
+  desc.add<edm::InputTag>("label_cp_fake", edm::InputTag("mix", "MergedCaloTruth"));
+  desc.add<edm::InputTag>("label_scl", edm::InputTag("mix", "MergedCaloTruth"));
+  desc.add<edm::InputTag>("simVertices", edm::InputTag("g4SimHits"));
+  desc.add<std::vector<edm::InputTag>>("LayerClustersInputMask",
+                                       {
+                                           edm::InputTag("ticlTrackstersCLUE3DHigh"),
+                                           edm::InputTag("ticlSimTracksters", "fromCPs"),
+                                           edm::InputTag("ticlSimTracksters"),
+                                       });
+  desc.add<int>("totallayers_to_monitor", 52);
+  desc.add<std::vector<int>>("thicknesses_to_monitor",
+                             {
+                                 120,
+                                 200,
+                                 300,
+                                 -1,
+                             });
+  desc.add<std::string>("dirName", "HGCAL/HGCalValidator/");
+  desc.addUntracked<bool>("isticlv5", false);
+  descriptions.add("hgcalValidator", desc);
 }
