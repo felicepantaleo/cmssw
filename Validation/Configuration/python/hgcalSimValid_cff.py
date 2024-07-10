@@ -24,7 +24,7 @@ from Validation.HGCalValidation.hgcalHitValidation_cff  import *
 from RecoHGCal.TICL.SimTracksters_cff import *
 
 
-from Validation.HGCalValidation.HGCalValidator_cfi import hgcalValidator
+from Validation.HGCalValidation.HGCalValidator_cff import hgcalValidator
 from Validation.RecoParticleFlow.PFJetValidation_cff import pfJetValidation1 as _hgcalPFJetValidation
 
 from Validation.HGCalValidation.ticlPFValidation_cfi import ticlPFValidation

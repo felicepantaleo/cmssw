@@ -8,6 +8,7 @@
  */
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
+#include "FWCore/ParameterSet/interface/ConfigurationDescriptions.h"
 #include "FWCore/Utilities/interface/EDGetToken.h"
 #include "FWCore/Framework/interface/Frameworkfwd.h"
 #include "FWCore/ParameterSet/interface/FileInPath.h"
@@ -62,6 +63,8 @@ public:
                                 unsigned int layers,
                                 std::unordered_map<DetId, const unsigned int> const&,
                                 std::vector<HGCRecHit> const& hits) const;
+
+  static void fillDescriptions(edm::ConfigurationDescriptions& descriptions);
 
 protected:
   edm::ESGetToken<CaloGeometry, CaloGeometryRecord> caloGeomToken_;
