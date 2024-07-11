@@ -12,6 +12,9 @@ HGCalValidator::HGCalValidator(const edm::ParameterSet& pset)
     : caloGeomToken_(esConsumes<CaloGeometry, CaloGeometryRecord>()),
       label_lcl(pset.getParameter<edm::InputTag>("label_lcl")),
       label_tst(pset.getParameter<std::vector<edm::InputTag>>("label_tst")),
+      allTracksterTracksterAssociatorsLabels_(pset.getParameter<std::vector<edm::InputTag>>("allTracksterTracksterAssociatorsLabels")),
+      allTracksterTracksterByHitsAssociatorsLabels_(pset.getParameter<std::vector<edm::InputTag>>("allTracksterTracksterByHitsAssociatorsLabels")),
+      scToCpMap_(pset.getParameter<edm::InputTag>("scToCpMap")),
       label_simTS(pset.getParameter<edm::InputTag>("label_simTS")),
       label_simTSFromCP(pset.getParameter<edm::InputTag>("label_simTSFromCP")),
       associator_(pset.getUntrackedParameter<edm::InputTag>("associator")),
@@ -367,6 +370,24 @@ void HGCalValidator::dqmAnalyze(const edm::Event& event,
   event.getByToken(layerclusters_, clusterHandle);
   const reco::CaloClusterCollection& clusters = *clusterHandle;
 
+  std::vector<edm::Handle<TracksterToTracksterMap>> tracksterToTracksterMapsHandles;
+  for (auto& token : tracksterToTracksterAssociatorsTokens_) {
+    edm::Handle<TracksterToTracksterMap> tracksterToTracksterMapHandle;
+    event.getByToken(token, tracksterToTracksterMapHandle);
+    tracksterToTracksterMapsHandles.push_back(tracksterToTracksterMapHandle);
+  }
+
+  std::vector<edm::Handle<TracksterToTracksterMap>> tracksterToTracksterByHitsMapsHandles;
+  for (auto& token : tracksterToTracksterByHitsAssociatorTokens_) {
+    edm::Handle<TracksterToTracksterMap> tracksterToTracksterByHitsMapHandle;
+    event.getByToken(token, tracksterToTracksterByHitsMapHandle);
+    tracksterToTracksterMapsHandles.push_back(tracksterToTracksterByHitsMapHandle);
+  }
+
+  edm::Handle<SimClusterToCaloParticleMap> scToCpMapHandle;
+  event.getByToken(scToCpMapToken_, scToCpMapHandle);
+  const SimClusterToCaloParticleMap& scToCpMap = *scToCpMapHandle;
+
   auto nSimClusters = simClusters.size();
   std::vector<size_t> sCIndices;
   //There shouldn't be any SimTracks from different crossings, but maybe they will be added later.
@@ -479,7 +500,12 @@ void HGCalValidator::dqmAnalyze(const edm::Event& event,
                                                 selected_cPeff,
                                                 *hitMap,
                                                 totallayers_to_monitor_,
-                                                hits);
+                                                hits,
+                                                trackstersToSimTrackstersMap,
+                                               simTrackstersToTrackstersMap,
+    trackstersToSimTrackstersFromCPsMap,
+    simTrackstersFromCPsToTrackstersMap,
+   scToCpMap);
     }
   }  //end of loop over Trackster input labels
 
