@@ -8,7 +8,7 @@ from time import time
 from Validation.HGCalValidation.PostProcessorHGCAL_cfi import tracksterLabels as trackstersIters
 
 from Validation.RecoTrack.plotting.validation import SeparateValidation, SimpleValidation, SimpleSample
-from Validation.HGCalValidation.HGCalValidator_cfi import hgcalValidator
+from Validation.HGCalValidation.HGCalValidator_cff import hgcalValidator
 import Validation.HGCalValidation.hgcalPlots as hgcalPlots
 import Validation.RecoTrack.plotting.plotting as plotting
 

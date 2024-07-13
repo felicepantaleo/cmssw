@@ -16,7 +16,7 @@ import Validation.RecoTrack.plotting.plotting as plotting
 import Validation.RecoTrack.plotting.validation as validation
 import Validation.RecoTrack.plotting.html as html
 
-from Validation.HGCalValidation.HGCalValidator_cfi import hgcalValidator
+from Validation.HGCalValidation.HGCalValidator_cff import hgcalValidator
 from Validation.HGCalValidation.PostProcessorHGCAL_cfi import lcToCP_linking, simDict, tsToCP_linking, tsToSTS_patternRec, variables
 
 hgcVal_dqm = "DQMData/Run 1/HGCAL/Run summary/HGCalValidator/"

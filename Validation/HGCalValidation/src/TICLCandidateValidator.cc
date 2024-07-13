@@ -5,14 +5,13 @@
 #include "Validation/HGCalValidation/interface/TICLCandidateValidator.h"
 #include "DataFormats/HGCalReco/interface/Common.h"
 
-TICLCandidateValidator::TICLCandidateValidator(
-    edm::EDGetTokenT<std::vector<TICLCandidate>> ticlCandidates,
-    edm::EDGetTokenT<std::vector<TICLCandidate>> simTICLCandidatesToken,
-    edm::EDGetTokenT<std::vector<reco::Track>> recoTracksToken,
-    edm::EDGetTokenT<std::vector<ticl::Trackster>> trackstersToken,
-    edm::EDGetTokenT<ticl::TracksterToTracksterMap> associatorMapRtSToken,
-    edm::EDGetTokenT<ticl::TracksterToTracksterMap> associatorMapStRToken,
-    bool isTICLv5)
+TICLCandidateValidator::TICLCandidateValidator(edm::EDGetTokenT<std::vector<TICLCandidate>> ticlCandidates,
+                                               edm::EDGetTokenT<std::vector<TICLCandidate>> simTICLCandidatesToken,
+                                               edm::EDGetTokenT<std::vector<reco::Track>> recoTracksToken,
+                                               edm::EDGetTokenT<std::vector<ticl::Trackster>> trackstersToken,
+                                               edm::EDGetTokenT<ticl::TracksterToTracksterMap> associatorMapRtSToken,
+                                               edm::EDGetTokenT<ticl::TracksterToTracksterMap> associatorMapStRToken,
+                                               bool isTICLv5)
     : TICLCandidatesToken_(ticlCandidates),
       simTICLCandidatesToken_(simTICLCandidatesToken),
       recoTracksToken_(recoTracksToken),
@@ -364,8 +363,11 @@ void TICLCandidateValidator::fillCandidateHistos(const edm::Event& event,
     float shared_energy = 0.;
     const auto ts_vec = mergeTsSimToRecoMap[i];
     if (!ts_vec.empty()) {
-      auto min_elem = std::min_element(ts_vec.begin(), ts_vec.end(), [](auto const& ts1_id_pair, auto const& ts2_id_pair){ return ts1_id_pair.second.second < ts2_id_pair.second.second;});
-      shared_energy =  min_elem->second.first;
+      auto min_elem =
+          std::min_element(ts_vec.begin(), ts_vec.end(), [](auto const& ts1_id_pair, auto const& ts2_id_pair) {
+            return ts1_id_pair.second.second < ts2_id_pair.second.second;
+          });
+      shared_energy = min_elem->second.first;
       cand_idx = min_elem->first;
     }
     // no reco associated to sim
@@ -438,8 +440,11 @@ void TICLCandidateValidator::fillCandidateHistos(const edm::Event& event,
     float shared_energy = 0.;
     const auto ts_vec = mergeTsSimToRecoMap[i];
     if (!ts_vec.empty()) {
-      auto min_elem = std::min_element(ts_vec.begin(), ts_vec.end(), [](auto const& ts1_id_pair, auto const& ts2_id_pair){ return ts1_id_pair.second.second < ts2_id_pair.second.second;});
-      shared_energy =  min_elem->second.first;
+      auto min_elem =
+          std::min_element(ts_vec.begin(), ts_vec.end(), [](auto const& ts1_id_pair, auto const& ts2_id_pair) {
+            return ts1_id_pair.second.second < ts2_id_pair.second.second;
+          });
+      shared_energy = min_elem->second.first;
       cand_idx = min_elem->first;
     }
 
@@ -548,8 +553,11 @@ void TICLCandidateValidator::fillCandidateHistos(const edm::Event& event,
     float shared_energy = 0.;
     // search for reco cand associated
     if (!sts_vec.empty()) {
-      auto min_elem = std::min_element(sts_vec.begin(), sts_vec.end(), [](auto const& sts1_id_pair, auto const& sts2_id_pair){ return sts1_id_pair.second.second < sts2_id_pair.second.second;});
-      shared_energy =  min_elem->second.first;
+      auto min_elem =
+          std::min_element(sts_vec.begin(), sts_vec.end(), [](auto const& sts1_id_pair, auto const& sts2_id_pair) {
+            return sts1_id_pair.second.second < sts2_id_pair.second.second;
+          });
+      shared_energy = min_elem->second.first;
       simCand_idx = min_elem->first;
     }
 
@@ -631,8 +639,11 @@ void TICLCandidateValidator::fillCandidateHistos(const edm::Event& event,
     float shared_energy = 0.;
     // search for reco cand associated
     if (!sts_vec.empty()) {
-      auto min_elem = std::min_element(sts_vec.begin(), sts_vec.end(), [](auto const& sts1_id_pair, auto const& sts2_id_pair){ return sts1_id_pair.second.second < sts2_id_pair.second.second;});
-      shared_energy =  min_elem->second.first;
+      auto min_elem =
+          std::min_element(sts_vec.begin(), sts_vec.end(), [](auto const& sts1_id_pair, auto const& sts2_id_pair) {
+            return sts1_id_pair.second.second < sts2_id_pair.second.second;
+          });
+      shared_energy = min_elem->second.first;
       simCand_idx = min_elem->first;
     }
 

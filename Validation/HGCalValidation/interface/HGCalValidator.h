@@ -30,6 +30,7 @@
 
 #include "SimDataFormats/Associations/interface/LayerClusterToCaloParticleAssociator.h"
 #include "SimDataFormats/Associations/interface/LayerClusterToSimClusterAssociator.h"
+#include "SimDataFormats/Associations/interface/TICLAssociationMap.h"
 
 class PileupSummaryInfo;
 
@@ -42,10 +43,12 @@ struct HGCalValidatorHistograms {
 class HGCalValidator : public DQMGlobalEDAnalyzer<HGCalValidatorHistograms> {
 public:
   using Histograms = HGCalValidatorHistograms;
-  using TracksterToTracksterMap = ticl::AssociationMap<ticl::mapWithFractionAndScore, std::vector<ticl::Trackster>, std::vector<ticl::Trackster>>;
-  using SimClusterToCaloParticleMap = ticl::AssociationMap<ticl::oneToOneMapWithFraction, std::vector<SimCluster>, std::vector<CaloParticle>>;
-  
-    /// Constructor
+  using TracksterToTracksterMap =
+      ticl::AssociationMap<ticl::mapWithFractionAndScore, std::vector<ticl::Trackster>, std::vector<ticl::Trackster>>;
+  using SimClusterToCaloParticleMap =
+      ticl::AssociationMap<ticl::oneToOneMapWithFraction, std::vector<SimCluster>, std::vector<CaloParticle>>;
+
+  /// Constructor
   HGCalValidator(const edm::ParameterSet& pset);
 
   /// Destructor
@@ -72,7 +75,6 @@ protected:
   std::vector<edm::InputTag> label_tst;
   std::vector<edm::InputTag> allTracksterTracksterAssociatorsLabels_;
   std::vector<edm::InputTag> allTracksterTracksterByHitsAssociatorsLabels_;
-  edm::EDGetTokenT<SimClusterToCaloParticleMap> scToCpMap_;
   edm::InputTag label_simTS, label_simTSFromCP;
   edm::InputTag associator_;
   edm::InputTag associatorSim_;
@@ -114,7 +116,7 @@ protected:
   std::vector<edm::EDGetTokenT<TracksterToTracksterMap>> tracksterToTracksterAssociatorsTokens_;
   std::vector<edm::EDGetTokenT<TracksterToTracksterMap>> tracksterToTracksterByHitsAssociatorsTokens_;
   edm::EDGetTokenT<SimClusterToCaloParticleMap> scToCpMapToken_;
-  
+
 private:
   CaloParticleSelector cpSelector;
   std::shared_ptr<hgcal::RecHitTools> tools_;
