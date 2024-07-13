@@ -55,10 +55,10 @@ void TracksterToSimTracksterAssociatorProducer::produce(edm::StreamID,
 
   auto tracksterToSimTracksterMap = std::make_unique<
       ticl::AssociationMap<ticl::mapWithFractionAndScore, std::vector<ticl::Trackster>, std::vector<ticl::Trackster>>>(
-      recoTrackstersHandle.id(), simTrackstersHandle.id(), iEvent);
+      recoTrackstersHandle, simTrackstersHandle, iEvent);
   auto simTracksterToTracksterMap = std::make_unique<
       ticl::AssociationMap<ticl::mapWithFractionAndScore, std::vector<ticl::Trackster>, std::vector<ticl::Trackster>>>(
-      simTrackstersHandle.id(), recoTrackstersHandle.id(), iEvent);
+      simTrackstersHandle, recoTrackstersHandle, iEvent);
 
   for (unsigned int tracksterIndex = 0; tracksterIndex < recoTracksters.size(); ++tracksterIndex) {
     const auto& recoTrackster = recoTracksters[tracksterIndex];
