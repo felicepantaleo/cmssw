@@ -40,7 +40,7 @@ void LCToTSAssociatorProducer::produce(edm::StreamID, edm::Event &iEvent, const 
   // Create association map
   auto lcToTracksterMap = std::make_unique<
       ticl::AssociationMap<ticl::mapWithFraction, std::vector<reco::CaloCluster>, std::vector<ticl::Trackster>>>(
-      layer_clusters.id(), tracksters.id(), iEvent);
+      layer_clusters, tracksters, iEvent);
 
   // Loop over tracksters
   for (unsigned int tracksterId = 0; tracksterId < tracksters->size(); ++tracksterId) {

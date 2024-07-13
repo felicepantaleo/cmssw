@@ -120,17 +120,17 @@ void TracksterToSimTracksterAssociatorByHitsProducer::produce(edm::StreamID,
 
   auto tracksterToSimTracksterMap = std::make_unique<
       ticl::AssociationMap<ticl::mapWithFractionAndScore, std::vector<ticl::Trackster>, std::vector<ticl::Trackster>>>(
-      recoTrackstersHandle.id(), simTrackstersHandle.id(), iEvent);
+      recoTrackstersHandle, simTrackstersHandle, iEvent);
   auto tracksterToSimTracksterFromCPMap = std::make_unique<
       ticl::AssociationMap<ticl::mapWithFractionAndScore, std::vector<ticl::Trackster>, std::vector<ticl::Trackster>>>(
-      recoTrackstersHandle.id(), simTrackstersFromCPHandle.id(), iEvent);
+      recoTrackstersHandle, simTrackstersFromCPHandle, iEvent);
 
   auto simTracksterToTracksterMap = std::make_unique<
       ticl::AssociationMap<ticl::mapWithFractionAndScore, std::vector<ticl::Trackster>, std::vector<ticl::Trackster>>>(
-      simTrackstersHandle.id(), recoTrackstersHandle.id(), iEvent);
+      simTrackstersHandle, recoTrackstersHandle, iEvent);
   auto simTracksterFromCPToTracksterMap = std::make_unique<
       ticl::AssociationMap<ticl::mapWithFractionAndScore, std::vector<ticl::Trackster>, std::vector<ticl::Trackster>>>(
-      simTrackstersFromCPHandle.id(), recoTrackstersHandle.id(), iEvent);
+      simTrackstersFromCPHandle, recoTrackstersHandle, iEvent);
   for (unsigned int tracksterIndex = 0; tracksterIndex < recoTracksters.size(); ++tracksterIndex) {
     edm::Ref<std::vector<ticl::Trackster>> recoTracksterRef(recoTrackstersHandle, tracksterIndex);
     float recoToSimScoresDenominator = 0.f;
