@@ -27,8 +27,9 @@
 #include "RecoLocalCalo/HGCalRecProducers/interface/HGCalClusteringAlgoBase.h"
 #include "SimDataFormats/Associations/interface/LayerClusterToCaloParticleAssociatorBaseImpl.h"
 #include "SimDataFormats/Associations/interface/LayerClusterToSimClusterAssociatorBaseImpl.h"
-
 #include "DQMServices/Core/interface/DQMStore.h"
+
+#include "SimDataFormats/Associations/interface/TICLAssociationMap.h"
 
 struct HGVHistoProducerAlgoHistograms {
   //Info
@@ -226,6 +227,10 @@ class HGVHistoProducerAlgo {
 public:
   typedef dqm::legacy::DQMStore DQMStore;
   typedef dqm::legacy::MonitorElement MonitorElement;
+  using TracksterToTracksterMap =
+      ticl::AssociationMap<ticl::mapWithFractionAndScore, std::vector<ticl::Trackster>, std::vector<ticl::Trackster>>;
+  using SimClusterToCaloParticleMap =
+      ticl::AssociationMap<ticl::oneToOneMapWithFraction, std::vector<SimCluster>, std::vector<CaloParticle>>;
 
   HGVHistoProducerAlgo(const edm::ParameterSet& pset);
   ~HGVHistoProducerAlgo();
@@ -303,6 +308,17 @@ public:
                                    std::unordered_map<DetId, const unsigned int> const&,
                                    unsigned int layers,
                                    std::vector<HGCRecHit> const& hits) const;
+
+  void tracksters_to_SimTracksters_fp(const Histograms& histograms,
+                                      const int count,
+                                      const TracksterToTracksterMap& trackstersToSimTrackstersMap,
+                                      const TracksterToTracksterMap& simTrackstersToTrackstersMap,
+                                      const validationType valType,
+                                      const SimClusterToCaloParticleMap& scToCpMap,
+                                      const std::vector<size_t>& cPIndices,
+                                      const std::vector<size_t>& cPSelectedIndices,
+                                      const edm::ProductID& cPHandle_id) const;
+
   void fill_info_histos(const Histograms& histograms, unsigned int layers) const;
   void fill_caloparticle_histos(const Histograms& histograms,
                                 int pdgid,
@@ -346,19 +362,28 @@ public:
   void fill_cluster_histos(const Histograms& histograms, const int count, const reco::CaloCluster& cluster) const;
   void fill_trackster_histos(const Histograms& histograms,
                              const int count,
-                             const ticl::TracksterCollection& Tracksters,
+                             const ticl::TracksterCollection& tracksters,
                              const reco::CaloClusterCollection& layerClusters,
-                             const ticl::TracksterCollection& simTS,
-                             const ticl::TracksterCollection& simTS_fromCP,
-                             std::map<uint, std::vector<uint>> const& simTrackstersMap,
+                             const ticl::TracksterCollection& simTSs,
+                             const ticl::TracksterCollection& simTSs_fromCP,
+                             const std::map<unsigned int, std::vector<unsigned int>>& cpToSc_SimTrackstersMap,
                              std::vector<SimCluster> const& sC,
                              const edm::ProductID& cPHandle_id,
                              std::vector<CaloParticle> const& cP,
                              std::vector<size_t> const& cPIndices,
                              std::vector<size_t> const& cPSelectedIndices,
-                             std::unordered_map<DetId, const unsigned int> const&,
+                             std::unordered_map<DetId, const unsigned int> const& hitMap,
                              unsigned int layers,
-                             std::vector<HGCRecHit> const& hits) const;
+                             std::vector<HGCRecHit> const& hits,
+                             const TracksterToTracksterMap& trackstersToSimTrackstersMap,
+                             const TracksterToTracksterMap& simTrackstersToTrackstersMap,
+                             const TracksterToTracksterMap& trackstersToSimTrackstersFromCPsMap,
+                             const TracksterToTracksterMap& simTrackstersFromCPsToTrackstersMap,
+                             const TracksterToTracksterMap& trackstersToSimTrackstersByHitsMap,
+                             const TracksterToTracksterMap& simTrackstersToTrackstersByHitsMap,
+                             const TracksterToTracksterMap& trackstersToSimTrackstersFromCPsByHitsMap,
+                             const TracksterToTracksterMap& simTrackstersFromCPsToTrackstersByHitsMap,
+                             const SimClusterToCaloParticleMap& scToCpMap) const;
   double distance2(const double x1, const double y1, const double x2, const double y2) const;
   double distance(const double x1, const double y1, const double x2, const double y2) const;
 

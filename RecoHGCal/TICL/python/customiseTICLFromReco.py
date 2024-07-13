@@ -4,7 +4,7 @@ from RecoLocalCalo.HGCalRecProducers.hgcalLayerClusters_cff import hgcalLayerClu
 from RecoLocalCalo.HGCalRecProducers.hgcalMergeLayerClusters_cfi import hgcalMergeLayerClusters
 from RecoHGCal.TICL.ticlDumper_cfi import ticlDumper
 # Validation
-from Validation.HGCalValidation.HGCalValidator_cfi import *
+from Validation.HGCalValidation.HGCalValidator_cff import *
 from RecoLocalCalo.HGCalRecProducers.recHitMapProducer_cfi import recHitMapProducer
 
 # Load DNN ESSource
@@ -14,6 +14,7 @@ from RecoTracker.IterativeTracking.iterativeTk_cff import trackdnn_source
 from RecoHGCal.Configuration.RecoHGCal_EventContent_cff import customiseHGCalOnlyEventContent
 from SimCalorimetry.HGCalAssociatorProducers.simTracksterAssociatorByEnergyScore_cfi import simTracksterAssociatorByEnergyScore as simTsAssocByEnergyScoreProducer
 from SimCalorimetry.HGCalAssociatorProducers.TSToSimTSAssociation_cfi import tracksterSimTracksterAssociationLinking, tracksterSimTracksterAssociationPR, tracksterSimTracksterFromCPsAssociationPR, tracksterSimTracksterAssociationPR
+from SimCalorimetry.HGCalAssociatorProducers.SimClusterToCaloParticleAssociation_cfi import SimClusterToCaloParticleAssociation
 
 
 def customiseTICLFromReco(process):
@@ -43,6 +44,7 @@ def customiseTICLFromReco(process):
                                                 process.tracksterSimTracksterAssociationPR,
                                                 process.tracksterSimTracksterFromCPsAssociationPR,
                                                 process.tracksterSimTracksterFromCPsAssociationLinking,
+                                                process.SimClusterToCaloParticleAssociation,
                                                 )
 
     process.TICL_Validator = cms.Task(process.hgcalValidator)

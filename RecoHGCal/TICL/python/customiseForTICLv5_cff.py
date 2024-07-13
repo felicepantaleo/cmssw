@@ -22,6 +22,7 @@ from RecoHGCal.TICL.ticlDumper_cfi import ticlDumper
 from RecoHGCal.TICL.mergedTrackstersProducer_cfi import mergedTrackstersProducer as _mergedTrackstersProducer
 from SimCalorimetry.HGCalAssociatorProducers.TSToSimTSAssociation_cfi import tracksterSimTracksterFromCPsAssociationPR as _tracksterSimTracksterFromCPsAssociationPR
 from SimCalorimetry.HGCalAssociatorProducers.TSToSimTSAssociation_cfi import tracksterSimTracksterAssociationPR  as _tracksterSimTracksterAssociationPR
+from SimCalorimetry.HGCalAssociatorProducers.SimClusterToCaloParticleAssociation_cfi import SimClusterToCaloParticleAssociation
 from Validation.HGCalValidation.HGCalValidator_cff import hgcalValidator
 from RecoLocalCalo.HGCalRecProducers.HGCalUncalibRecHit_cfi import HGCalUncalibRecHit
 from RecoHGCal.TICL.SimTracksters_cff import ticlSimTracksters, ticlSimTrackstersTask
@@ -39,7 +40,7 @@ from RecoHGCal.TICL.TrkEMStep_cff import ticlTrackstersTrkEM, filteredLayerClust
 from RecoHGCal.TICL.mtdSoAProducer_cfi import mtdSoAProducer as _mtdSoAProducer
 
 def customiseTICLv5FromReco(process, enableDumper = False):
-    # TensorFlow ESSource
+    # TensorFlow ESSourcppe
 
     process.TFESSource = cms.Task(process.trackdnn_source)
 
@@ -116,7 +117,7 @@ def customiseTICLv5FromReco(process, enableDumper = False):
                             hitToSimTracksterAssociation, hitToSimTracksterFromCPsAssociation,
                             tracksterSimTracksterAssociationByHitsLinking, tracksterSimTracksterAssociationByHitsPR,
                             tracksterSimTracksterFromCPsAssociationLinking, tracksterSimTracksterAssociationLinking, tracksterSimTracksterFromCPsAssociationPR, tracksterSimTracksterAssociationPR,
-                            hitToSimClusterCaloParticleAssociator
+                            hitToSimClusterCaloParticleAssociator, SimClusterToCaloParticleAssociation,
                             )
 
     if(enableDumper):
