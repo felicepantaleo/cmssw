@@ -10,21 +10,28 @@
 
 // CMSSW specific includes
 #include "DataFormats/Common/interface/Ref.h"
-#include "DataFormats/Provenance/interface/ProductID.h"
+#include "DataFormats/Common/interface/RefProd.h"
 #include "FWCore/Framework/interface/Event.h"
 
 namespace ticl {
 
   // Define the possible map types
-  using mapWithFraction = std::vector<std::vector<std::pair<unsigned int, float> > >;
-  using mapWithFractionAndScore = std::vector<std::vector<std::pair<unsigned int, std::pair<float, float> > > >;
-  using oneToOneMapWithFraction = std::vector<std::pair<unsigned int, float> >;
-  using oneToOneMapWithFractionAndScore = std::vector<std::pair<unsigned int, std::pair<float, float> > >;
+  using mapWithFraction = std::vector<std::vector<std::pair<unsigned int, float>>>;
+  using mapWithFractionAndScore = std::vector<std::vector<std::pair<unsigned int, std::pair<float, float>>>>;
+  using oneToOneMapWithFraction = std::vector<std::pair<unsigned int, float>>;
+  using oneToOneMapWithFractionAndScore = std::vector<std::pair<unsigned int, std::pair<float, float>>>;
 
   template <typename MapType, typename Collection1 = void, typename Collection2 = void>
   class AssociationMap {
+  private:
+    // Type alias for conditionally including collectionRefProds
+    using CollectionRefProdType =
+        typename std::conditional_t<std::is_void_v<Collection1> || std::is_void_v<Collection2>,
+                                    std::monostate,
+                                    std::pair<edm::RefProd<Collection1>, edm::RefProd<Collection2>>>;
+
   public:
-    AssociationMap() : collectionIDs(edm::ProductID(), edm::ProductID()) {}
+    AssociationMap() : collectionRefProds() {}
     // Constructor for generic use
     template <typename C1 = Collection1,
               typename C2 = Collection2,
@@ -37,8 +44,17 @@ namespace ticl {
     template <typename C1 = Collection1,
               typename C2 = Collection2,
               typename std::enable_if_t<!std::is_void_v<C1> && !std::is_void_v<C2>, int> = 0>
-    AssociationMap(const edm::ProductID& id1, const edm::ProductID& id2, const edm::Event& event)
-        : collectionIDs(std::make_pair(id1, id2)) {
+    AssociationMap(const edm::RefProd<C1>& id1, const edm::RefProd<C2>& id2, const edm::Event& event)
+        : collectionRefProds(std::make_pair(id1, id2)) {
+      resize(event);
+    }
+
+    // Constructor for CMSSW-specific use
+    template <typename C1 = Collection1,
+              typename C2 = Collection2,
+              typename std::enable_if_t<!std::is_void_v<C1> && !std::is_void_v<C2>, int> = 0>
+    AssociationMap(const edm::Handle<C1>& handle1, const edm::Handle<C2>& handle2, const edm::Event& event)
+        : collectionRefProds(std::make_pair(edm::RefProd<C1>(handle1), edm::RefProd<C2>(handle2))) {
       resize(event);
     }
 
@@ -51,22 +67,22 @@ namespace ticl {
               typename C2 = Collection2,
               typename std::enable_if_t<!std::is_void_v<C1> && !std::is_void_v<C2>, int> = 0>
     edm::Ref<C1> getRefFirst(unsigned int index) const {
-      return edm::Ref<C1>(collectionIDs.first, index);
+      return edm::Ref<C1>(collectionRefProds.first, index);
     }
 
     template <typename C1 = Collection1,
               typename C2 = Collection2,
               typename std::enable_if_t<!std::is_void_v<C1> && !std::is_void_v<C2>, int> = 0>
     edm::Ref<C2> getRefSecond(unsigned int index) const {
-      return edm::Ref<C2>(collectionIDs.second, index);
+      return edm::Ref<C2>(collectionRefProds.second, index);
     }
 
     // Method to get collection IDs for CMSSW-specific use
     template <typename C1 = Collection1,
               typename C2 = Collection2,
               typename std::enable_if_t<!std::is_void_v<C1> && !std::is_void_v<C2>, int> = 0>
-    std::pair<const edm::ProductID&, const edm::ProductID&> getCollectionIDs() const {
-      return collectionIDs;
+    std::pair<const edm::RefProd<C1>, const edm::RefProd<C2>> getCollectionIDs() const {
+      return collectionRefProds;
     }
 
     void insert(unsigned int index1, unsigned int index2, float fraction, float score = 0.0f) {
@@ -163,9 +179,7 @@ namespace ticl {
               typename C2 = Collection2,
               typename std::enable_if_t<!std::is_void_v<C1> && !std::is_void_v<C2>, int> = 0>
     void resize(const edm::Event& event) {
-      edm::Handle<Collection1> handle1;
-      event.get(collectionIDs.first, handle1);
-      map_.resize(handle1->size());
+      map_.resize(collectionRefProds.first->size());
     }
     // Constructor for generic use
     template <typename C1 = Collection1,
@@ -194,7 +208,7 @@ namespace ticl {
 
   private:
     // For CMSSW-specific use
-    std::pair<edm::ProductID, edm::ProductID> collectionIDs;
+    CollectionRefProdType collectionRefProds;
     MapType map_;  // Store the map directly
   };
 
