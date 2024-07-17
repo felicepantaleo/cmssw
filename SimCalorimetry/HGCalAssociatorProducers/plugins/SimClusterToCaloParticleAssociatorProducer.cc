@@ -41,7 +41,7 @@ void SimClusterToCaloParticleAssociatorProducer::produce(edm::StreamID, edm::Eve
     }
   }
 std::cout << "I'm running" << std::endl;
-  iEvent.put(std::move(simClusterToCaloParticleMap));
+  iEvent.put(std::move(simClusterToCaloParticleMap), "simClusterToCaloParticleMap");
 }
 
 void SimClusterToCaloParticleAssociatorProducer::fillDescriptions(edm::ConfigurationDescriptions &descriptions) {
