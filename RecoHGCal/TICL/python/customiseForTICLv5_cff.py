@@ -111,13 +111,14 @@ def customiseTICLv5FromReco(process, enableDumper = False):
     process.hgcalAssociators = cms.Task(process.hgcalRecHitMapProducer, process.lcAssocByEnergyScoreProducer, process.layerClusterCaloParticleAssociationProducer,
                             process.scAssocByEnergyScoreProducer, process.layerClusterSimClusterAssociationProducer,
                             # FP 07/2024 new associators:
-                            layerClusterToCLUE3DTracksterAssociation, layerClusterToTracksterMergeAssociation,
-                            layerClusterToSimTracksterAssociation,
-                            hitToTrackstersAssociationLinking, hitToTrackstersAssociationPR,
-                            hitToSimTracksterAssociation, hitToSimTracksterFromCPsAssociation,
-                            tracksterSimTracksterAssociationByHitsLinking, tracksterSimTracksterAssociationByHitsPR,
-                            tracksterSimTracksterFromCPsAssociationLinking, tracksterSimTracksterAssociationLinking, tracksterSimTracksterFromCPsAssociationPR, tracksterSimTracksterAssociationPR,
-                            hitToSimClusterCaloParticleAssociator, SimClusterToCaloParticleAssociation,
+                            process.layerClusterToCLUE3DTracksterAssociation, process.layerClusterToTracksterMergeAssociation,
+                            process.layerClusterToSimTracksterAssociation, process.layerClusterToSimTracksterFromCPsAssociation,
+                            process.hitToTrackstersAssociationLinking, process.hitToTrackstersAssociationPR,
+                            process.hitToSimTracksterAssociation, process.hitToSimTracksterFromCPsAssociation,
+                            process.tracksterSimTracksterAssociationByHitsLinking, process.tracksterSimTracksterAssociationByHitsPR,
+                            process.tracksterSimTracksterFromCPsAssociationLinking, process.tracksterSimTracksterAssociationLinking,
+                            process.tracksterSimTracksterFromCPsAssociationPR, process.tracksterSimTracksterAssociationPR,
+                            process.hitToSimClusterCaloParticleAssociator, process.SimClusterToCaloParticleAssociation,
                             )
 
     if(enableDumper):

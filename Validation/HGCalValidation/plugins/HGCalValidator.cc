@@ -75,7 +75,7 @@ HGCalValidator::HGCalValidator(const edm::ParameterSet& pset)
       cummatbudinxo_(pset.getParameter<edm::FileInPath>("cummatbudinxo")),
       isTICLv5_(pset.getUntrackedParameter<bool>("isticlv5")),
       hits_label_(pset.getParameter<std::vector<edm::InputTag>>("hits")),
-      scToCpMapToken_(consumes<SimClusterToCaloParticleMap>(pset.getParameter<edm::InputTag>("SimClustersToCaloParticlesMap")))
+      scToCpMapToken_(consumes<SimClusterToCaloParticleMap>(pset.getParameter<edm::InputTag>("simClustersToCaloParticlesMap")))
  {
 
   std::cout << "scToCpMapToken_: " << scToCpMapToken_.index() << " " << scToCpMapToken_.isUninitialized() << std::endl;
@@ -762,7 +762,7 @@ void HGCalValidator::fillDescriptions(edm::ConfigurationDescriptions& descriptio
   desc.add<std::string>("label_TS", "Morphology");
   desc.add<std::string>("label_TSToCPLinking", "TSToCP_linking");
   desc.add<std::string>("label_TSToSTSPR", "TSToSTS_patternRecognition");
-  desc.add<edm::InputTag>("SimClustersToCaloParticlesMap", edm::InputTag("SimClusterToCaloParticleAssociation"));
+  desc.add<edm::InputTag>("simClustersToCaloParticlesMap", edm::InputTag("SimClusterToCaloParticleAssociation","simClusterToCaloParticleMap"));
   desc.add<std::vector<edm::InputTag>>(
       "allTracksterTracksterAssociatorsLabels",
       {
