@@ -1,5 +1,5 @@
 import FWCore.ParameterSet.Config as cms
-from SimCalorimetry.HGCalAssociatorProducers.LCToTSAssociator_cfi import layerClusterToCLUE3DTracksterAssociation, layerClusterToTracksterMergeAssociation, layerClusterToSimTracksterAssociation
+from SimCalorimetry.HGCalAssociatorProducers.LCToTSAssociator_cfi import layerClusterToCLUE3DTracksterAssociation, layerClusterToTracksterMergeAssociation, layerClusterToSimTracksterAssociation, layerClusterToSimTracksterFromCPsAssociation
 from SimCalorimetry.HGCalAssociatorProducers.tracksterToSimTracksterAssociatorProducer_cfi import tracksterToSimTracksterAssociatorProducer
 
 tracksterSimTracksterFromCPsAssociationLinking = tracksterToSimTracksterAssociatorProducer.clone(
@@ -7,7 +7,7 @@ tracksterSimTracksterFromCPsAssociationLinking = tracksterToSimTracksterAssociat
     simTracksters = cms.InputTag("ticlSimTracksters", "fromCPs"),
     layerClusters = cms.InputTag("hgcalMergeLayerClusters"),
     tracksterMap = cms.InputTag("layerClusterToTracksterMergeAssociation"),
-    simTracksterMap = cms.InputTag("layerClusterToSimTracksterAssociation")
+    simTracksterMap = cms.InputTag("layerClusterToSimTracksterFromCPsAssociation")
 )
 
 tracksterSimTracksterAssociationLinking = tracksterToSimTracksterAssociatorProducer.clone(
@@ -24,7 +24,7 @@ tracksterSimTracksterFromCPsAssociationPR = tracksterToSimTracksterAssociatorPro
     simTracksters = cms.InputTag("ticlSimTracksters", "fromCPs"),
     layerClusters = cms.InputTag("hgcalMergeLayerClusters"),
     tracksterMap = cms.InputTag("layerClusterToCLUE3DTracksterAssociation"),
-    simTracksterMap = cms.InputTag("layerClusterToSimTracksterAssociation")
+    simTracksterMap = cms.InputTag("layerClusterToSimTracksterFromCPsAssociation")
 )
 
 tracksterSimTracksterAssociationPR = tracksterToSimTracksterAssociatorProducer.clone(
