@@ -1,7 +1,7 @@
 import FWCore.ParameterSet.Config as cms
-from SimCalorimetry.HGCalAssociatorProducers.simClusterToCaloParticleAssociator_cfi import simClusterToCaloParticleAssociator
+from SimCalorimetry.HGCalAssociatorProducers.SimClusterToCaloParticleAssociatorProducer_cfi import SimClusterToCaloParticleAssociatorProducer as SimClusterToCaloParticleAssociator
 
-SimClusterToCaloParticleAssociation = simClusterToCaloParticleAssociator.clone(
+SimClusterToCaloParticleAssociation = SimClusterToCaloParticleAssociator.clone(
     caloParticles = "mix:MergedCaloTruth",
     simClusters = "mix:MergedCaloTruth"
 )
