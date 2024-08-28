@@ -2,7 +2,7 @@
 #include "PatternRecognitionbyCA.h"
 #include "PatternRecognitionbyCLUE3D.h"
 #include "PatternRecognitionbyFastJet.h"
-#include "PatternRecognitionbyPassthrough.h"
+#include "PatternRecognitionbyRecovery.h"
 #include "FWCore/ParameterSet/interface/ValidatedPluginFactoryMacros.h"
 #include "FWCore/ParameterSet/interface/ValidatedPluginMacros.h"
 
@@ -12,6 +12,6 @@ DEFINE_EDM_VALIDATED_PLUGIN(PatternRecognitionFactory, ticl::PatternRecognitionb
 DEFINE_EDM_VALIDATED_PLUGIN(PatternRecognitionFactory, ticl::PatternRecognitionbyCLUE3D<TICLLayerTiles>, "CLUE3D");
 DEFINE_EDM_VALIDATED_PLUGIN(PatternRecognitionFactory, ticl::PatternRecognitionbyFastJet<TICLLayerTiles>, "FastJet");
 DEFINE_EDM_VALIDATED_PLUGIN(PatternRecognitionFactory,
-                            ticl::PatternRecognitionbyPassthrough<TICLLayerTiles>,
-                            "Passthrough");
+                            ticl::PatternRecognitionbyRecovery<TICLLayerTiles>,
+                            "Recovery");
 DEFINE_EDM_VALIDATED_PLUGIN(PatternRecognitionHFNoseFactory, ticl::PatternRecognitionbyCA<TICLLayerTilesHFNose>, "CA");

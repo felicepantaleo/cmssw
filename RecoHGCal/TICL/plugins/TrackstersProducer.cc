@@ -136,8 +136,8 @@ void TrackstersProducer::fillDescriptions(edm::ConfigurationDescriptions& descri
 
   // PassThrough Plugin
   edm::ParameterSetDescription pluginDescPassThrough;
-  pluginDescPassThrough.addNode(edm::PluginDescription<PatternRecognitionFactory>("type", "Passthrough", true));
-  desc.add<edm::ParameterSetDescription>("pluginPatternRecognitionByPassthrough", pluginDescPassThrough);
+  pluginDescPassThrough.addNode(edm::PluginDescription<PatternRecognitionFactory>("type", "Recovery", true));
+  desc.add<edm::ParameterSetDescription>("pluginPatternRecognitionByRecovery", pluginDescPassThrough);
 
   descriptions.add("trackstersProducer", desc);
 }
