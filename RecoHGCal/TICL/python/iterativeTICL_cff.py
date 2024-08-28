@@ -9,7 +9,7 @@ from RecoHGCal.TICL.EMStep_cff import *
 from RecoHGCal.TICL.HADStep_cff import *
 from RecoHGCal.TICL.CLUE3DEM_cff import *
 from RecoHGCal.TICL.CLUE3DHAD_cff import *
-from RecoHGCal.TICL.PRbyPassthrough_cff import *
+from RecoHGCal.TICL.PRbyRecovery_cff import *
 
 from RecoHGCal.TICL.ticlLayerTileProducer_cfi import ticlLayerTileProducer
 from RecoHGCal.TICL.pfTICLProducer_cfi import pfTICLProducer as _pfTICLProducer
@@ -29,7 +29,7 @@ ticlTrackstersMerge = _trackstersMergeProducer.clone()
 ticlTracksterLinks = _tracksterLinksProducer.clone(
     tracksters_collections = cms.VInputTag(
         'ticlTrackstersCLUE3DHigh',
-        'ticlTrackstersPassthrough'
+        'ticlTrackstersRecovery'
     ),
     regressionAndPid = cms.bool(True)
 )
@@ -45,7 +45,7 @@ ticlIterationsTask = cms.Task(
     ticlCLUE3DHighStepTask
 )
 
-ticl_v5.toModify(ticlIterationsTask , func=lambda x : x.add(ticlPassthroughStepTask))
+ticl_v5.toModify(ticlIterationsTask , func=lambda x : x.add(ticlRecoveryStepTask))
 ''' For future separate iterations
 ,ticlCLUE3DEMStepTask,
 ,ticlCLUE3DHADStepTask
@@ -58,7 +58,9 @@ ticl_v5.toReplaceWith(ticlIterationsTask, ticlIterationsTask.copyAndExclude([tic
 from Configuration.ProcessModifiers.fastJetTICL_cff import fastJetTICL
 fastJetTICL.toModify(ticlIterationsTask, func=lambda x : x.add(ticlFastJetStepTask))
 
-ticlIterLabels = ["CLUE3DHigh"]
+ticlIterLabels = ["ticlTrackstersCLUE3DHigh", "ticlTrackstersMerge"]
+ticlIterLabels_v5 = ["ticlTrackstersCLUE3DHigh", "ticlTracksterLinks", "ticlCandidate"]
+
 ''' For future separate iterations
 "CLUE3DEM", "CLUE3DHAD",
 '''
@@ -70,17 +72,26 @@ mergeTICLTask = cms.Task(ticlLayerTileTask
     ,ticlIterationsTask
     ,ticlTracksterMergeTask
 )
+
 ticl_v5.toReplaceWith(mergeTICLTask, mergeTICLTask.copyAndExclude([ticlTracksterMergeTask]))
 ticl_v5.toModify(mergeTICLTask, func=lambda x : x.add(ticlTracksterLinksTask))
 
-ticlIterLabelsMerge = ticlIterLabels + ["Merge"]
 
 mtdSoATask = cms.Task(mtdSoA)
 ticlCandidateTask = cms.Task(ticlCandidate)
 
+def replace_ticlIterLabelsForV5(obj):
+    obj = ticlIterLabels_v5.copy()
+
+if ticl_v5._isChosen():
+    ticlIterLabels = ticlIterLabels_v5.copy()
+
+
 iterTICLTask = cms.Task(mergeTICLTask,
     ticlPFTask)
+
 ticl_v5.toModify(iterTICLTask, func=lambda x : x.add(mtdSoATask, ticlCandidateTask))
+
 
 ticlLayerTileHFNose = ticlLayerTileProducer.clone(
     detector = 'HFNose'

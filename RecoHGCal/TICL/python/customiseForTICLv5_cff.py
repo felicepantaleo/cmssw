@@ -17,11 +17,18 @@ from RecoHGCal.TICL.tracksterSelectionTf_cfi import *
 from RecoHGCal.TICL.tracksterLinksProducer_cfi import tracksterLinksProducer as _tracksterLinksProducer
 from RecoHGCal.TICL.ticlCandidateProducer_cfi import ticlCandidateProducer as _ticlCandidateProducer
 from RecoHGCal.Configuration.RecoHGCal_EventContent_cff import customiseForTICLv5EventContent
-from RecoHGCal.TICL.iterativeTICL_cff import ticlIterLabels, ticlIterLabelsMerge
+from RecoHGCal.TICL.iterativeTICL_cff import ticlIterLabels
 from RecoHGCal.TICL.ticlDumper_cfi import ticlDumper
 from RecoHGCal.TICL.mergedTrackstersProducer_cfi import mergedTrackstersProducer as _mergedTrackstersProducer
 from SimCalorimetry.HGCalAssociatorProducers.TSToSimTSAssociation_cfi import tracksterSimTracksterFromCPsAssociationPR as _tracksterSimTracksterFromCPsAssociationPR
 from SimCalorimetry.HGCalAssociatorProducers.TSToSimTSAssociation_cfi import tracksterSimTracksterAssociationPR  as _tracksterSimTracksterAssociationPR
+from SimCalorimetry.HGCalAssociatorProducers.TSToSimTSAssociation_cfi import tracksterSimTracksterAssociationSkeletonsPR as _tracksterSimTracksterAssociationSkeletonsPR
+from SimCalorimetry.HGCalAssociatorProducers.TSToSimTSAssociation_cfi import tracksterSimTracksterAssociationSkeletonsLinking as _tracksterSimTracksterAssociationSkeletonsLinking
+from SimCalorimetry.HGCalAssociatorProducers.TSToSimTSAssociation_cfi import tracksterSimTracksterAssociationRecoveryPR as _tracksterSimTracksterAssociationRecoveryPR
+from SimCalorimetry.HGCalAssociatorProducers.TSToSimTSAssociation_cfi import tracksterSimTracksterAssociationLinking as _tracksterSimTracksterAssociationLinking
+from SimCalorimetry.HGCalAssociatorProducers.TSToSimTSAssociation_cfi import allTrackstersToSimTrackstersAssociationsByLCs  as _allTrackstersToSimTrackstersAssociationsByLCs
+from SimCalorimetry.HGCalAssociatorProducers.TSToSimTSAssociationByHits_cfi import allTrackstersToSimTrackstersAssociationsByHits  as _allTrackstersToSimTrackstersAssociationsByHits
+
 from SimCalorimetry.HGCalAssociatorProducers.SimClusterToCaloParticleAssociation_cfi import SimClusterToCaloParticleAssociation
 from Validation.HGCalValidation.HGCalValidator_cff import hgcalValidator
 from RecoLocalCalo.HGCalRecProducers.HGCalUncalibRecHit_cfi import HGCalUncalibRecHit
@@ -85,7 +92,18 @@ def customiseTICLv5FromReco(process, enableDumper = False):
     process.tracksterSimTracksterAssociationPRHigh = _tracksterSimTracksterAssociationPR.clone(
         label_tst = cms.InputTag("ticlTrackstersCLUE3DHigh")
         )
+    
+    process.tracksterSimTracksterAssociationSkeletonsPR = _tracksterSimTracksterAssociationSkeletonsPR.clone(
+        label_tst = cms.InputTag("ticlTrackstersLinks")
+        )
+    
+    process.tracksterSimTracksterAssociationSkeletonsLinking = _tracksterSimTracksterAssociationSkeletonsLinking.clone(
+        label_tst = cms.InputTag("ticlTrackstersLinks")
+        )
+    
+    process.allTrackstersToSimTrackstersAssociationsByLCs = _allTrackstersToSimTrackstersAssociationsByLCs.clone()
 
+    process.allTrackstersToSimTrackstersAssociationsByHits = _allTrackstersToSimTrackstersAssociationsByHits.clone()
 
     process.iterTICLTask = cms.Path(process.hgcalLayerClustersTask,
                             process.TFESSource,
@@ -101,8 +119,6 @@ def customiseTICLv5FromReco(process, enableDumper = False):
     process.tracksterSimTracksterAssociationLinking.label_tst = cms.InputTag("ticlCandidate")
     process.tracksterSimTracksterAssociationPR.label_tst = cms.InputTag("ticlCandidate")
 
-    process.tracksterSimTracksterAssociationLinkingPU.label_tst = cms.InputTag("ticlCandidate")
-    process.tracksterSimTracksterAssociationPRPU.label_tst = cms.InputTag("ticlCandidate")
     process.mergeTICLTask = cms.Task()
     process.pfTICL = _pfTICLProducer.clone(
       ticlCandidateSrc = cms.InputTag('ticlCandidate'),
@@ -111,13 +127,12 @@ def customiseTICLv5FromReco(process, enableDumper = False):
     process.hgcalAssociators = cms.Task(process.hgcalRecHitMapProducer, process.lcAssocByEnergyScoreProducer, process.layerClusterCaloParticleAssociationProducer,
                             process.scAssocByEnergyScoreProducer, process.layerClusterSimClusterAssociationProducer,
                             # FP 07/2024 new associators:
-                            process.layerClusterToCLUE3DTracksterAssociation, process.layerClusterToTracksterMergeAssociation,
-                            process.layerClusterToSimTracksterAssociation, process.layerClusterToSimTracksterFromCPsAssociation,
-                            process.hitToTrackstersAssociationLinking, process.hitToTrackstersAssociationPR,
-                            process.hitToSimTracksterAssociation, process.hitToSimTracksterFromCPsAssociation,
+                            process.allLayerClusterToTracksterAssociations, process.allHitToTracksterAssociations,
+                            process.allTrackstersToSimTrackstersAssociationsByLCs, process.allTrackstersToSimTrackstersAssociationsByHits,
                             process.tracksterSimTracksterAssociationByHitsLinking, process.tracksterSimTracksterAssociationByHitsPR,
                             process.tracksterSimTracksterFromCPsAssociationLinking, process.tracksterSimTracksterAssociationLinking,
                             process.tracksterSimTracksterFromCPsAssociationPR, process.tracksterSimTracksterAssociationPR,
+                            process.tracksterSimTracksterAssociationSkeletonsPR, process.tracksterSimTracksterAssociationSkeletonsLinking,
                             process.hitToSimClusterCaloParticleAssociator, process.SimClusterToCaloParticleAssociation,
                             )
 

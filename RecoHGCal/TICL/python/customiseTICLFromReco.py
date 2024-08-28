@@ -13,7 +13,8 @@ from RecoTracker.IterativeTracking.iterativeTk_cff import trackdnn_source
 # Automatic addition of the customisation function from RecoHGCal.Configuration.RecoHGCal_EventContent_cff
 from RecoHGCal.Configuration.RecoHGCal_EventContent_cff import customiseHGCalOnlyEventContent
 from SimCalorimetry.HGCalAssociatorProducers.simTracksterAssociatorByEnergyScore_cfi import simTracksterAssociatorByEnergyScore as simTsAssocByEnergyScoreProducer
-from SimCalorimetry.HGCalAssociatorProducers.TSToSimTSAssociation_cfi import tracksterSimTracksterAssociationLinking, tracksterSimTracksterAssociationPR, tracksterSimTracksterFromCPsAssociationPR, tracksterSimTracksterAssociationPR
+from SimCalorimetry.HGCalAssociatorProducers.TSToSimTSAssociation_cfi import tracksterSimTracksterAssociationLinking, tracksterSimTracksterAssociationPR, tracksterSimTracksterFromCPsAssociationPR, tracksterSimTracksterAssociationPR, allTrackstersToSimTrackstersAssociationsByLCs
+from SimCalorimetry.HGCalAssociatorProducers.TSToSimTSAssociationByHits_cfi import allTrackstersToSimTrackstersAssociationsByHits
 from SimCalorimetry.HGCalAssociatorProducers.SimClusterToCaloParticleAssociation_cfi import SimClusterToCaloParticleAssociation
 
 
@@ -42,6 +43,8 @@ def customiseTICLFromReco(process):
                                                 process.simTracksterHitLCAssociatorByEnergyScoreProducer,
                                                 process.tracksterSimTracksterAssociationLinking,
                                                 process.tracksterSimTracksterAssociationPR,
+                                                process.allTrackstersToSimTrackstersAssociationsByLCs,
+                                                process.allTrackstersToSimTrackstersAssociationsByHits,
                                                 process.tracksterSimTracksterFromCPsAssociationPR,
                                                 process.tracksterSimTracksterFromCPsAssociationLinking,
                                                 process.SimClusterToCaloParticleAssociation,
