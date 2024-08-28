@@ -193,7 +193,7 @@ void TracksterToSimTracksterAssociatorProducer::fillDescriptions(edm::Configurat
   edm::ParameterSetDescription desc;
   desc.add<edm::InputTag>("tracksters", edm::InputTag("trackstersProducer"));
   desc.add<edm::InputTag>("simTracksters", edm::InputTag("simTrackstersProducer"));
-  desc.add<edm::InputTag>("layerClusters", edm::InputTag("layerClustersProducer"));
+  desc.add<edm::InputTag>("layerClusters", edm::InputTag("hgcalMergeLayerClusters"));
   desc.add<edm::InputTag>("tracksterMap", edm::InputTag("tracksterAssociatorProducer"));
   desc.add<edm::InputTag>("simTracksterMap", edm::InputTag("simTracksterAssociatorProducer"));
   descriptions.add("tracksterToSimTracksterAssociatorProducer", desc);

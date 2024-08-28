@@ -9,12 +9,15 @@
 SimClusterToCaloParticleAssociatorProducer::SimClusterToCaloParticleAssociatorProducer(const edm::ParameterSet &pset)
     : simClusterToken_(consumes<std::vector<SimCluster>>(pset.getParameter<edm::InputTag>("simClusters"))),
       caloParticleToken_(consumes<std::vector<CaloParticle>>(pset.getParameter<edm::InputTag>("caloParticles"))) {
-  produces<ticl::AssociationMap<ticl::oneToOneMapWithFraction, std::vector<SimCluster>, std::vector<CaloParticle>>>("simClusterToCaloParticleMap");
+  produces<ticl::AssociationMap<ticl::oneToOneMapWithFraction, std::vector<SimCluster>, std::vector<CaloParticle>>>(
+      "simClusterToCaloParticleMap");
 }
 
 SimClusterToCaloParticleAssociatorProducer::~SimClusterToCaloParticleAssociatorProducer() {}
 
-void SimClusterToCaloParticleAssociatorProducer::produce(edm::StreamID, edm::Event &iEvent, const edm::EventSetup &iSetup) const {
+void SimClusterToCaloParticleAssociatorProducer::produce(edm::StreamID,
+                                                         edm::Event &iEvent,
+                                                         const edm::EventSetup &iSetup) const {
   using namespace edm;
 
   Handle<std::vector<CaloParticle>> caloParticlesHandle;
@@ -25,7 +28,9 @@ void SimClusterToCaloParticleAssociatorProducer::produce(edm::StreamID, edm::Eve
   iEvent.getByToken(simClusterToken_, simClustersHandle);
 
   // Create association map
-  auto simClusterToCaloParticleMap = std::make_unique<ticl::AssociationMap<ticl::oneToOneMapWithFraction, std::vector<SimCluster>, std::vector<CaloParticle>>>(simClustersHandle, caloParticlesHandle, iEvent);
+  auto simClusterToCaloParticleMap = std::make_unique<
+      ticl::AssociationMap<ticl::oneToOneMapWithFraction, std::vector<SimCluster>, std::vector<CaloParticle>>>(
+      simClustersHandle, caloParticlesHandle, iEvent);
 
   // Loop over caloParticles
   for (unsigned int cpId = 0; cpId < caloParticles.size(); ++cpId) {
@@ -40,7 +45,6 @@ void SimClusterToCaloParticleAssociatorProducer::produce(edm::StreamID, edm::Eve
       simClusterToCaloParticleMap->insert(scId, cpId, fraction);
     }
   }
-std::cout << "I'm running" << std::endl;
   iEvent.put(std::move(simClusterToCaloParticleMap), "simClusterToCaloParticleMap");
 }
 

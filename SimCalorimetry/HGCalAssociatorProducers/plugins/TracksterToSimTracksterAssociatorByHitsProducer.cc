@@ -419,18 +419,18 @@ void TracksterToSimTracksterAssociatorByHitsProducer::fillDescriptions(edm::Conf
   desc.add<edm::InputTag>("simTracksters", edm::InputTag("ticlSimTracksters"));
   desc.add<edm::InputTag>("simTrackstersFromCP", edm::InputTag("ticlSimTracksters", "fromCPs"));
 
-  desc.add<edm::InputTag>("hitToTracksterMap", edm::InputTag("hitToTracksterAssociator", "hitToTracksterMap"));
-  desc.add<edm::InputTag>("hitToSimTracksterMap", edm::InputTag("hitToSimTracksterAssociation", "hitToTracksterMap"));
+  desc.add<edm::InputTag>("hitToTracksterMap", edm::InputTag("hitToTracksterAssociator", "hitToTracksterMap"));  
+  desc.add<edm::InputTag>("hitToSimTracksterMap", edm::InputTag("allHitToTracksterAssociations", "hitToticlSimTracksters"));
   desc.add<edm::InputTag>("hitToSimTracksterFromCPMap",
-                          edm::InputTag("hitToSimTracksterFromCPsAssociation", "hitToTracksterMap"));
+                          edm::InputTag("allHitToTracksterAssociations", "hitToticlSimTrackstersfromCPs"));
   desc.add<edm::InputTag>("hitToSimClusterMap",
                           edm::InputTag("hitToSimClusterCaloParticleAssociator", "hitToSimClusterMap"));
   desc.add<edm::InputTag>("hitToCaloParticleMap",
                           edm::InputTag("hitToSimClusterCaloParticleAssociator", "hitToCaloParticleMap"));
   desc.add<edm::InputTag>("tracksterToHitMap", edm::InputTag("hitToTrackstersAssociationPR", "tracksterToHitMap"));
-  desc.add<edm::InputTag>("simTracksterToHitMap", edm::InputTag("hitToSimTracksterAssociation", "tracksterToHitMap"));
+  desc.add<edm::InputTag>("simTracksterToHitMap", edm::InputTag("allHitToTracksterAssociations", "ticlSimTrackstersToHit"));
   desc.add<edm::InputTag>("simTracksterFromCPToHitMap",
-                          edm::InputTag("hitToSimTracksterFromCPsAssociation", "tracksterToHitMap"));
+                          edm::InputTag("allHitToTracksterAssociations", "ticlSimTrackstersfromCPsToHit"));
   desc.add<edm::InputTag>("caloParticles", edm::InputTag("mix", "MergedCaloTruth"));
 
   desc.add<std::vector<edm::InputTag>>("hits",

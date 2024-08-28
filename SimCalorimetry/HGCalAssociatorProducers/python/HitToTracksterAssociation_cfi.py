@@ -22,3 +22,16 @@ hitToSimTracksterFromCPsAssociation = hitToTracksterAssociator.clone(
 from Configuration.ProcessModifiers.ticl_v5_cff import ticl_v5
 
 ticl_v5.toModify(hitToTrackstersAssociationLinking, tracksters = cms.InputTag("ticlCandidate"))
+
+from SimCalorimetry.HGCalAssociatorProducers.AllHitToTracksterAssociatorsProducer_cfi import AllHitToTracksterAssociatorsProducer
+from RecoHGCal.TICL.iterativeTICL_cff import ticlIterLabels
+
+allHitToTracksterAssociations = AllHitToTracksterAssociatorsProducer.clone(    
+    tracksterCollections = cms.VInputTag(
+        *[cms.InputTag(label) for label in ticlIterLabels],
+        cms.InputTag("ticlSimTracksters"),
+        cms.InputTag("ticlSimTracksters", "fromCPs"),
+    )
+)
+
+
