@@ -13,10 +13,10 @@ using namespace edm;
 using namespace ticl;
 
 namespace {
-  void assignTracksterMaps(const edm::Handle<std::vector<ticl::Trackster>>& tracksterHandle,
+  bool assignTracksterMaps(const edm::Handle<std::vector<ticl::Trackster>>& tracksterHandle,
                            const edm::Handle<std::vector<ticl::Trackster>>& simTracksterHandle,
                            const edm::Handle<std::vector<ticl::Trackster>>& simTracksterFromCPHandle,
-                           std::vector<edm::Handle<TracksterToTracksterMap>>& tracksterToTracksterMapsHandles,
+                           const std::vector<edm::Handle<TracksterToTracksterMap>>& tracksterToTracksterMapsHandles,
                            edm::Handle<TracksterToTracksterMap>& trackstersToSimTrackstersMap,
                            edm::Handle<TracksterToTracksterMap>& simTrackstersToTrackstersMap,
                            edm::Handle<TracksterToTracksterMap>& trackstersToSimTrackstersFromCPsMap,
@@ -37,11 +37,27 @@ namespace {
         trackstersToSimTrackstersFromCPsMap = handle;
       } else if (firstID == simTrackstersFromCPsProductId && secondID == recoTrackstersProductId) {
         simTrackstersFromCPsToTrackstersMap = handle;
-      } else {
-        edm::LogError("MissingProduct") << "Unexpected TracksterToTracksterMap collection IDs";
       }
     }
+    if (not trackstersToSimTrackstersMap.isValid()) {
+      edm::LogError("MissingProduct") << "trackstersToSimTrackstersMap is not valid";
+      return false;
+    }
+    if (not simTrackstersToTrackstersMap.isValid()) {
+      edm::LogError("MissingProduct") << "simTrackstersToTrackstersMap is not valid";
+      return false;
+    }
+    if (not trackstersToSimTrackstersFromCPsMap.isValid()) {
+      edm::LogError("MissingProduct") << "trackstersToSimTrackstersFromCPsMap is not valid";
+      return false;
+    }
+    if (not simTrackstersFromCPsToTrackstersMap.isValid()) {
+      edm::LogError("MissingProduct") << "simTrackstersFromCPsToTrackstersMap is not valid";
+      return false;
+    }
+    return true;
   }
+
 }  // namespace
 
 HGCalValidator::HGCalValidator(const edm::ParameterSet& pset)
@@ -67,18 +83,18 @@ HGCalValidator::HGCalValidator(const edm::ParameterSet& pset)
       label_LCToCPLinking_(pset.getParameter<edm::InputTag>("label_LCToCPLinking")),
       doTrackstersPlots_(pset.getUntrackedParameter<bool>("doTrackstersPlots")),
       label_TS_(pset.getParameter<std::string>("label_TS")),
-      label_TSToCPLinking_(pset.getParameter<std::string>("label_TSToCPLinking")),
-      label_TSToSTSPR_(pset.getParameter<std::string>("label_TSToSTSPR")),
+      label_TSbyHitsCP_(pset.getParameter<std::string>("label_TSbyHitsCP")),
+      label_TSbyHits_(pset.getParameter<std::string>("label_TSbyHits")),
+      label_TSbyLCsCP_(pset.getParameter<std::string>("label_TSbyLCsCP")),
+      label_TSbyLCs_(pset.getParameter<std::string>("label_TSbyLCs")),
       label_clustersmask(pset.getParameter<std::vector<edm::InputTag>>("LayerClustersInputMask")),
       doCandidatesPlots_(pset.getUntrackedParameter<bool>("doCandidatesPlots")),
       label_candidates_(pset.getParameter<std::string>("ticlCandidates")),
       cummatbudinxo_(pset.getParameter<edm::FileInPath>("cummatbudinxo")),
       isTICLv5_(pset.getUntrackedParameter<bool>("isticlv5")),
       hits_label_(pset.getParameter<std::vector<edm::InputTag>>("hits")),
-      scToCpMapToken_(consumes<SimClusterToCaloParticleMap>(pset.getParameter<edm::InputTag>("simClustersToCaloParticlesMap")))
- {
-
-  std::cout << "scToCpMapToken_: " << scToCpMapToken_.index() << " " << scToCpMapToken_.isUninitialized() << std::endl;
+      scToCpMapToken_(
+          consumes<SimClusterToCaloParticleMap>(pset.getParameter<edm::InputTag>("simClustersToCaloParticlesMap"))) {
   //In this way we can easily generalize to associations between other objects also.
   const edm::InputTag& label_cp_effic_tag = pset.getParameter<edm::InputTag>("label_cp_effic");
   const edm::InputTag& label_cp_fake_tag = pset.getParameter<edm::InputTag>("label_cp_fake");
@@ -106,7 +122,6 @@ HGCalValidator::HGCalValidator(const edm::ParameterSet& pset)
   simClusters_ = consumes<std::vector<SimCluster>>(pset.getParameter<edm::InputTag>("label_scl"));
 
   layerclusters_ = consumes<reco::CaloClusterCollection>(label_lcl);
-
   for (const auto& tag : allTracksterTracksterAssociatorsLabels_) {
     tracksterToTracksterAssociatorsTokens_.emplace_back(consumes<TracksterToTracksterMap>(tag));
   }
@@ -283,8 +298,6 @@ void HGCalValidator::bookHistograms(DQMStore::IBooker& ibook,
       dirName.resize(dirName.size() - 1);
     }
 
-    LogDebug("HGCalValidator") << dirName << "\n";
-
     ibook.setCurrentFolder(dirName);
 
     // Booking histograms concerning HGCal tracksters
@@ -292,14 +305,23 @@ void HGCalValidator::bookHistograms(DQMStore::IBooker& ibook,
       // Generic histos
       ibook.setCurrentFolder(dirName + "/" + label_TS_);
       histoProducerAlgo_->bookTracksterHistos(ibook, histograms.histoProducerAlgo, totallayers_to_monitor_);
-      // CP Linking
-      ibook.setCurrentFolder(dirName + "/" + label_TSToCPLinking_);
+      // CP Linking by Hits
+      ibook.setCurrentFolder(dirName + "/" + label_TSbyHitsCP_);
       histoProducerAlgo_->bookTracksterSTSHistos(
-          ibook, histograms.histoProducerAlgo, HGVHistoProducerAlgo::validationType::Linking);
-      // SimTracksters Pattern Recognition
-      ibook.setCurrentFolder(dirName + "/" + label_TSToSTSPR_);
+          ibook, histograms.histoProducerAlgo, HGVHistoProducerAlgo::validationType::byHits_CP);
+      // CP Linking by LCs
+      ibook.setCurrentFolder(dirName + "/" + label_TSbyLCsCP_);
+
       histoProducerAlgo_->bookTracksterSTSHistos(
-          ibook, histograms.histoProducerAlgo, HGVHistoProducerAlgo::validationType::PatternRecognition);
+          ibook, histograms.histoProducerAlgo, HGVHistoProducerAlgo::validationType::byLCs_CP);
+      // SimTracksters Linking by Hits
+      ibook.setCurrentFolder(dirName + "/" + label_TSbyHits_);
+      histoProducerAlgo_->bookTracksterSTSHistos(
+          ibook, histograms.histoProducerAlgo, HGVHistoProducerAlgo::validationType::byHits);
+      // SimTracksters Linking by LCs
+      ibook.setCurrentFolder(dirName + "/" + label_TSbyLCs_);
+      histoProducerAlgo_->bookTracksterSTSHistos(
+          ibook, histograms.histoProducerAlgo, HGVHistoProducerAlgo::validationType::byLCs);
     }
   }  //end of booking Tracksters loop
 
@@ -528,33 +550,30 @@ void HGCalValidator::dqmAnalyze(const edm::Event& event,
       edm::Handle<ticl::TracksterCollection> tracksterHandle;
       event.getByToken(label_tstTokens[wml], tracksterHandle);
       const ticl::TracksterCollection& tracksters = *tracksterHandle;
+      if (tracksterHandle.id() == simTracksterHandle.id() or tracksterHandle.id() == simTracksterFromCPHandle.id())
+        continue;
       edm::Handle<TracksterToTracksterMap> trackstersToSimTrackstersMapH, simTrackstersToTrackstersMapH,
           trackstersToSimTrackstersFromCPsMapH, simTrackstersFromCPsToTrackstersMapH,
           trackstersToSimTrackstersByHitsMapH, simTrackstersToTrackstersByHitsMapH,
           trackstersToSimTrackstersFromCPsByHitsMapH, simTrackstersFromCPsToTrackstersByHitsMapH;
 
-      assignTracksterMaps(tracksterHandle,
-                          simTracksterHandle,
-                          simTracksterFromCPHandle,
-                          tracksterToTracksterMapsHandles,
-                          trackstersToSimTrackstersMapH,
-                          simTrackstersToTrackstersMapH,
-                          trackstersToSimTrackstersFromCPsMapH,
-                          simTrackstersFromCPsToTrackstersMapH);
+      bool mapsFound = assignTracksterMaps(tracksterHandle,
+                                           simTracksterHandle,
+                                           simTracksterFromCPHandle,
+                                           tracksterToTracksterMapsHandles,
+                                           trackstersToSimTrackstersMapH,
+                                           simTrackstersToTrackstersMapH,
+                                           trackstersToSimTrackstersFromCPsMapH,
+                                           simTrackstersFromCPsToTrackstersMapH);
 
-      assignTracksterMaps(tracksterHandle,
-                          simTracksterHandle,
-                          simTracksterFromCPHandle,
-                          tracksterToTracksterMapsHandles,
-                          trackstersToSimTrackstersByHitsMapH,
-                          simTrackstersToTrackstersByHitsMapH,
-                          trackstersToSimTrackstersFromCPsByHitsMapH,
-                          simTrackstersFromCPsToTrackstersByHitsMapH);
-      //General Info on Tracksters
-      LogTrace("HGCalValidator") << "\n# of Tracksters from " << label_tst[wml].process() << ":"
-                                 << label_tst[wml].label() << ":" << label_tst[wml].instance() << ": "
-                                 << tracksters.size() << "\n"
-                                 << std::endl;
+      mapsFound = mapsFound and assignTracksterMaps(tracksterHandle,
+                                                    simTracksterHandle,
+                                                    simTracksterFromCPHandle,
+                                                    tracksterToTracksterByHitsMapsHandles,
+                                                    trackstersToSimTrackstersByHitsMapH,
+                                                    simTrackstersToTrackstersByHitsMapH,
+                                                    trackstersToSimTrackstersFromCPsByHitsMapH,
+                                                    simTrackstersFromCPsToTrackstersByHitsMapH);
 
       histoProducerAlgo_->fill_trackster_histos(histograms.histoProducerAlgo,
                                                 wml,
@@ -571,15 +590,15 @@ void HGCalValidator::dqmAnalyze(const edm::Event& event,
                                                 *hitMap,
                                                 totallayers_to_monitor_,
                                                 hits,
-                                                *trackstersToSimTrackstersMapH,
-                                                *simTrackstersToTrackstersMapH,
-                                                *trackstersToSimTrackstersFromCPsMapH,
-                                                *simTrackstersFromCPsToTrackstersMapH,
-                                                *trackstersToSimTrackstersByHitsMapH,
-                                                *simTrackstersToTrackstersByHitsMapH,
-                                                *trackstersToSimTrackstersFromCPsByHitsMapH,
-                                                *simTrackstersFromCPsToTrackstersByHitsMapH,
-
+                                                mapsFound,
+                                                trackstersToSimTrackstersMapH,
+                                                simTrackstersToTrackstersMapH,
+                                                trackstersToSimTrackstersFromCPsMapH,
+                                                simTrackstersFromCPsToTrackstersMapH,
+                                                trackstersToSimTrackstersByHitsMapH,
+                                                simTrackstersToTrackstersByHitsMapH,
+                                                trackstersToSimTrackstersFromCPsByHitsMapH,
+                                                simTrackstersFromCPsToTrackstersByHitsMapH,
                                                 scToCpMap);
     }
   }  //end of loop over Trackster input labels
@@ -760,34 +779,43 @@ void HGCalValidator::fillDescriptions(edm::ConfigurationDescriptions& descriptio
   desc.add<edm::InputTag>("label_LCToCPLinking", edm::InputTag("LCToCP_association"));
   desc.addUntracked<bool>("doTrackstersPlots", true);
   desc.add<std::string>("label_TS", "Morphology");
-  desc.add<std::string>("label_TSToCPLinking", "TSToCP_linking");
-  desc.add<std::string>("label_TSToSTSPR", "TSToSTS_patternRecognition");
-  desc.add<edm::InputTag>("simClustersToCaloParticlesMap", edm::InputTag("SimClusterToCaloParticleAssociation","simClusterToCaloParticleMap"));
+  desc.add<std::string>("label_TSbyHitsCP", "TSbyHits_CP");
+  desc.add<std::string>("label_TSbyHits", "TSbyHits");
+  desc.add<std::string>("label_TSbyLCs", "TSbyLCs");
+  desc.add<std::string>("label_TSbyLCsCP", "TSbyLCs_CP");
+  desc.add<edm::InputTag>("simClustersToCaloParticlesMap",
+                          edm::InputTag("SimClusterToCaloParticleAssociation", "simClusterToCaloParticleMap"));
   desc.add<std::vector<edm::InputTag>>(
       "allTracksterTracksterAssociatorsLabels",
       {
-          edm::InputTag("tracksterSimTracksterAssociationPR", "tracksterToSimTracksterMap"),
-          edm::InputTag("tracksterSimTracksterAssociationPR", "simTracksterToTracksterMap"),
-          edm::InputTag("tracksterSimTracksterFromCPsAssociationPR", "tracksterToSimTracksterMap"),
-          edm::InputTag("tracksterSimTracksterFromCPsAssociationPR", "simTracksterToTracksterMap"),
-          edm::InputTag("tracksterSimTracksterAssociationLinking", "tracksterToSimTracksterMap"),
-          edm::InputTag("tracksterSimTracksterAssociationLinking", "simTracksterToTracksterMap"),
-          edm::InputTag("tracksterSimTracksterFromCPsAssociationLinking", "tracksterToSimTracksterMap"),
-          edm::InputTag("tracksterSimTracksterFromCPsAssociationLinking", "simTracksterToTracksterMap"),
-
+          edm::InputTag("allTrackstersToSimTrackstersAssociationsByLCs", "ticlTrackstersCLUE3DHighToticlSimTracksters"),
+          edm::InputTag("allTrackstersToSimTrackstersAssociationsByLCs", "ticlSimTrackstersToticlTrackstersCLUE3DHigh"),
+          edm::InputTag("allTrackstersToSimTrackstersAssociationsByLCs", "ticlTrackstersCLUE3DHighToticlSimTrackstersfromCPs"),
+          edm::InputTag("allTrackstersToSimTrackstersAssociationsByLCs", "ticlSimTrackstersfromCPsToticlTrackstersCLUE3DHigh"),
+          edm::InputTag("allTrackstersToSimTrackstersAssociationsByLCs", "ticlTracksterLinksToticlSimTracksters"),
+          edm::InputTag("allTrackstersToSimTrackstersAssociationsByLCs", "ticlSimTrackstersToticlTracksterLinks"),
+          edm::InputTag("allTrackstersToSimTrackstersAssociationsByLCs", "ticlTracksterLinksToticlSimTrackstersfromCPs"),
+          edm::InputTag("allTrackstersToSimTrackstersAssociationsByLCs", "ticlSimTrackstersfromCPsToticlTracksterLinks"),
+          edm::InputTag("allTrackstersToSimTrackstersAssociationsByLCs", "ticlCandidateToticlSimTracksters"),
+          edm::InputTag("allTrackstersToSimTrackstersAssociationsByLCs", "ticlSimTrackstersToticlCandidate"),
+          edm::InputTag("allTrackstersToSimTrackstersAssociationsByLCs", "ticlCandidateToticlSimTrackstersfromCPs"),
+          edm::InputTag("allTrackstersToSimTrackstersAssociationsByLCs", "ticlSimTrackstersfromCPsToticlCandidate"),          
       });
   desc.add<std::vector<edm::InputTag>>(
       "allTracksterTracksterByHitsAssociatorsLabels",
       {
-          edm::InputTag("tracksterSimTracksterAssociationByHitsPR", "tracksterToSimTracksterMap"),
-          edm::InputTag("tracksterSimTracksterAssociationByHitsPR", "simTracksterToTracksterMap"),
-          edm::InputTag("tracksterSimTracksterAssociationByHitsPR", "tracksterToSimTracksterFromCPMap"),
-          edm::InputTag("tracksterSimTracksterAssociationByHitsPR", "simTracksterFromCPToTracksterMap"),
-          edm::InputTag("tracksterSimTracksterAssociationByHitsLinking", "tracksterToSimTracksterMap"),
-          edm::InputTag("tracksterSimTracksterAssociationByHitsLinking", "simTracksterToTracksterMap"),
-          edm::InputTag("tracksterSimTracksterAssociationByHitsLinking", "tracksterToSimTracksterFromCPMap"),
-          edm::InputTag("tracksterSimTracksterAssociationByHitsLinking", "simTracksterFromCPToTracksterMap"),
-
+          edm::InputTag("allTrackstersToSimTrackstersAssociationsByHits", "ticlTrackstersCLUE3DHighToticlSimTracksters"),
+          edm::InputTag("allTrackstersToSimTrackstersAssociationsByHits", "ticlSimTrackstersToticlTrackstersCLUE3DHigh"),
+          edm::InputTag("allTrackstersToSimTrackstersAssociationsByHits", "ticlTrackstersCLUE3DHighToticlSimTrackstersfromCPs"),
+          edm::InputTag("allTrackstersToSimTrackstersAssociationsByHits", "ticlSimTrackstersfromCPsToticlTrackstersCLUE3DHigh"),
+          edm::InputTag("allTrackstersToSimTrackstersAssociationsByHits", "ticlTracksterLinksToticlSimTracksters"),
+          edm::InputTag("allTrackstersToSimTrackstersAssociationsByHits", "ticlSimTrackstersToticlTracksterLinks"),
+          edm::InputTag("allTrackstersToSimTrackstersAssociationsByHits", "ticlTracksterLinksToticlSimTrackstersfromCPs"),
+          edm::InputTag("allTrackstersToSimTrackstersAssociationsByHits", "ticlSimTrackstersfromCPsToticlTracksterLinks"),
+          edm::InputTag("allTrackstersToSimTrackstersAssociationsByHits", "ticlCandidateToticlSimTracksters"),
+          edm::InputTag("allTrackstersToSimTrackstersAssociationsByHits", "ticlSimTrackstersToticlCandidate"),
+          edm::InputTag("allTrackstersToSimTrackstersAssociationsByHits", "ticlCandidateToticlSimTrackstersfromCPs"),
+          edm::InputTag("allTrackstersToSimTrackstersAssociationsByHits", "ticlSimTrackstersfromCPsToticlCandidate"),       
       });
   desc.addUntracked<bool>("doCandidatesPlots", true);
   desc.add<std::string>("ticlCandidates", "ticlCandidates");
@@ -795,11 +823,9 @@ void HGCalValidator::fillDescriptions(edm::ConfigurationDescriptions& descriptio
   desc.add<edm::InputTag>("simTiclCandidates", edm::InputTag("ticlSimTracksters"));
   desc.add<edm::InputTag>("recoTracks", edm::InputTag("generalTracks"));
   desc.add<edm::InputTag>("mergeRecoToSimAssociator",
-                          edm::InputTag("tracksterSimTracksterAssociationLinking", "recoToSim"));
+                          edm::InputTag("tracksterSimTracksterAssociationLinking", "tracksterToSimTracksterMap"));
   desc.add<edm::InputTag>("mergeSimToRecoAssociator",
-                          edm::InputTag("tracksterSimTracksterAssociationLinking", "simToReco"));
-  desc.add<edm::InputTag>("mergeRecoToSimAssociatorPU",
-                          edm::InputTag("tracksterSimTracksterAssociationLinkingPU", "recoToSim"));
+                          edm::InputTag("tracksterSimTracksterAssociationLinking", "simTracksterToTracksterMap"));
   desc.add<edm::FileInPath>("cummatbudinxo", edm::FileInPath("Validation/HGCalValidation/data/D41.cumulative.xo"));
   desc.add<edm::InputTag>("label_cp_effic", edm::InputTag("mix", "MergedCaloTruth"));
   desc.add<edm::InputTag>("label_cp_fake", edm::InputTag("mix", "MergedCaloTruth"));

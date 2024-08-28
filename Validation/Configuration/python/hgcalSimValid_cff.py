@@ -10,10 +10,11 @@ from SimCalorimetry.HGCalAssociatorProducers.SimTauProducer_cfi import *
 
 
 # FP 07/2024: new associators:
-from SimCalorimetry.HGCalAssociatorProducers.LCToTSAssociator_cfi import layerClusterToCLUE3DTracksterAssociation, layerClusterToTracksterMergeAssociation, layerClusterToSimTracksterAssociation, layerClusterToSimTracksterFromCPsAssociation
-from SimCalorimetry.HGCalAssociatorProducers.HitToTracksterAssociation_cfi import hitToTrackstersAssociationLinking, hitToTrackstersAssociationPR, hitToSimTracksterAssociation, hitToSimTracksterFromCPsAssociation
+from SimCalorimetry.HGCalAssociatorProducers.LCToTSAssociator_cfi import allLayerClusterToTracksterAssociations
+from SimCalorimetry.HGCalAssociatorProducers.HitToTracksterAssociation_cfi import allHitToTracksterAssociations
 from SimCalorimetry.HGCalAssociatorProducers.TSToSimTSAssociationByHits_cfi import tracksterSimTracksterAssociationByHitsLinking, tracksterSimTracksterAssociationByHitsPR
-from SimCalorimetry.HGCalAssociatorProducers.TSToSimTSAssociation_cfi import tracksterSimTracksterFromCPsAssociationLinking, tracksterSimTracksterAssociationLinking, tracksterSimTracksterFromCPsAssociationPR, tracksterSimTracksterAssociationPR
+from SimCalorimetry.HGCalAssociatorProducers.TSToSimTSAssociation_cfi import tracksterSimTracksterFromCPsAssociationLinking, tracksterSimTracksterAssociationLinking, tracksterSimTracksterFromCPsAssociationPR, tracksterSimTracksterAssociationPR, allTrackstersToSimTrackstersAssociationsByLCs
+from SimCalorimetry.HGCalAssociatorProducers.TSToSimTSAssociationByHits_cfi import allTrackstersToSimTrackstersAssociationsByHits
 from SimCalorimetry.HGCalAssociatorProducers.hitToSimClusterCaloParticleAssociator_cfi import hitToSimClusterCaloParticleAssociator
 from SimCalorimetry.HGCalAssociatorProducers.SimClusterToCaloParticleAssociation_cfi import SimClusterToCaloParticleAssociation
 
@@ -43,10 +44,11 @@ hgcalAssociators = cms.Task(lcAssocByEnergyScoreProducer, layerClusterCaloPartic
                             scAssocByEnergyScoreProducer, layerClusterSimClusterAssociationProducer,
                             SimTauProducer,
                             # FP 07/2024 new associators:
-                            layerClusterToCLUE3DTracksterAssociation, layerClusterToTracksterMergeAssociation,
-                            layerClusterToSimTracksterAssociation, layerClusterToSimTracksterFromCPsAssociation,
-                            hitToTrackstersAssociationLinking, hitToTrackstersAssociationPR,
-                            hitToSimTracksterAssociation, hitToSimTracksterFromCPsAssociation,
+                            # layerClusterToCLUE3DTracksterAssociation, layerClusterToTracksterMergeAssociation,
+                            # layerClusterToSimTracksterAssociation, layerClusterToSimTracksterFromCPsAssociation,
+                            allLayerClusterToTracksterAssociations, allHitToTracksterAssociations, allTrackstersToSimTrackstersAssociationsByLCs, allTrackstersToSimTrackstersAssociationsByHits,
+                            # hitToTrackstersAssociationLinking, hitToTrackstersAssociationPR,
+                            # hitToSimTracksterAssociation, hitToSimTracksterFromCPsAssociation,
                             tracksterSimTracksterAssociationByHitsLinking, tracksterSimTracksterAssociationByHitsPR,
                             tracksterSimTracksterFromCPsAssociationLinking, tracksterSimTracksterAssociationLinking, tracksterSimTracksterFromCPsAssociationPR, tracksterSimTracksterAssociationPR,
                             hitToSimClusterCaloParticleAssociator,

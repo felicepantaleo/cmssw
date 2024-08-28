@@ -86,7 +86,7 @@ protected:
   const bool doLayerClustersPlots_;
   edm::InputTag label_layerClustersPlots_, label_LCToCPLinking_;
   const bool doTrackstersPlots_;
-  std::string label_TS_, label_TSToCPLinking_, label_TSToSTSPR_;
+  std::string label_TS_, label_TSbyHitsCP_, label_TSbyHits_, label_TSbyLCsCP_, label_TSbyLCs_;
   std::vector<edm::InputTag> label_clustersmask;
   const bool doCandidatesPlots_;
   std::string label_candidates_;
