@@ -58,6 +58,10 @@ CloseByParticleGunProducer::CloseByParticleGunProducer(const ParameterSet& pset)
     if (fRMax <= fRMin)
       throw cms::Exception("CloseByParticleGunProducer") << " Please fix RMin and RMax values in the configuration";
   }
+  
+  if (fFixedR)
+    fRMin = pgun_params.getParameter<double>("RMin");
+
   if (!fControlledByREta) {
     fZMax = pgun_params.getParameter<double>("ZMax");
     fZMin = pgun_params.getParameter<double>("ZMin");
@@ -120,6 +124,7 @@ void CloseByParticleGunProducer::fillDescriptions(ConfigurationDescriptions& des
     psd0.add<bool>("Pointing", true);
     psd0.add<double>("RMax", 120);
     psd0.add<double>("RMin", 60);
+    psd0.add<bool>("FixedR", false);
     psd0.add<bool>("RandomShoot", false);
     psd0.add<double>("ZMax", 321);
     psd0.add<double>("ZMin", 320);
@@ -154,6 +159,9 @@ void CloseByParticleGunProducer::produce(Event& e, const EventSetup& es) {
   double fR, fEta;
   double fT;
 
+  if (fFixedR)
+    fR = fRMin;
+
   if (!fControlledByREta) {
     fZ = CLHEP::RandFlat::shoot(engine, fZMin, fZMax);
 
@@ -169,6 +177,11 @@ void CloseByParticleGunProducer::produce(Event& e, const EventSetup& es) {
     fEta = CLHEP::RandFlat::shoot(engine, fEtaMin, fEtaMax);
     fZ = sinh(fEta) / fR;
   }
+
+  if (fFixedR) 
+    fZ = fR * sinh(fEta);
+  else 
+    fR = (fZ / sinh(fEta));
 
   if (fUseDeltaT) {
     fT = CLHEP::RandFlat::shoot(engine, fTMin, fTMax);
@@ -241,7 +254,7 @@ void CloseByParticleGunProducer::produce(Event& e, const EventSetup& es) {
 
     // compute correct path assuming uniform magnetic field in CMS
     double pathLength = 0.;
-    const double speed = p.pz() / p.e() * c_light / CLHEP::cm;
+    const double speed = std::sqrt(p.px() * p.px() + p.py() * p.py() + p.pz() * p.pz()) / p.e() * c_light / CLHEP::cm;
     if (PData->charge()) {
       // Radius [cm] = P[GeV/c] * 10^9 / (c[mm/ns] * 10^6 * q[C] * B[T]) * 100[cm/m]
       const double radius = std::sqrt(p.px() * p.px() + p.py() * p.py()) * std::pow(10, 5) /
