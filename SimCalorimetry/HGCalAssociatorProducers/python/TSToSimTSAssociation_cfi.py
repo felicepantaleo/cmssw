@@ -18,23 +18,11 @@ allTrackstersToSimTrackstersAssociationsByLCs = AllTracksterToSimTracksterAssoci
     ),
 )
 
-### Barrel associatord
-
-barrelTracksterSimTracksterAssociationPR = cms.EDProducer("TSToSimTSHitLCAssociatorEDProducer",
-    associator = cms.InputTag("barrelSimTracksterHitLCAssociatorByEnergyScoreProducer"),
-    label_tst = cms.InputTag("ticlBarrelTracksters"),
-    label_simTst = cms.InputTag("ticlBarrelSimTracksters"),
-    label_lcl = cms.InputTag("barrelLayerClusters"),
-    label_scl = cms.InputTag("mix", "MergedCaloTruth"),
-    label_cp = cms.InputTag("mix", "MergedCaloTruth")
-)
-
-barrelTracksterSimTracksterAssociationLinkingPR = cms.EDProducer("TSToSimTSHitLCAssociatorEDProducer",
-    associator = cms.InputTag("barrelSimTracksterHitLCAssociatorByEnergyScoreProducer"),
-    label_tst = cms.InputTag("ticlBarrelTracksters"),
-    label_simTst = cms.InputTag("ticlBarrelSimTracksters", "fromCPs"),
-    label_lcl = cms.InputTag("barrelLayerClusters"),
-    label_scl = cms.InputTag("mix", "MergedCaloTruth"),
-    label_cp = cms.InputTag("mix", "MergedCaloTruth")
+### Barrel associatosd
+allBarrelTrackstersToSimTrackstersAssociationsByLCs = AllTracksterToSimTracksterAssociatorsByLCsProducer.clone(
+    layerClusterToTracksterMap = cms.string("allBarrelLayerClusterToTracksterAssociations"),
+    tracksterCollections = cms.VInputTag(['ticlBarrelTracksters']),
+    layerClusters = cms.InputTag('barrelLayerClusters'),
+    simTracksterCollections = cms.VInputTag(['ticlBarrelSimTracksters', 'ticlBarrelSimTracksters:fromCPs'])
 )
 
