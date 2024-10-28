@@ -10,8 +10,10 @@
 #include "DataFormats/CaloRecHit/interface/CaloCluster.h"
 #include "SimDataFormats/Associations/interface/TICLAssociationMap.h"
 #include "DataFormats/HGCRecHit/interface/HGCRecHitCollections.h"
+#include "DataFormats/ParticleFlowReco/interface/PFRecHit.h"
 #include "CommonTools/RecoAlgos/interface/MultiVectorManager.h"
 
+template <typename HIT>
 class AllHitToTracksterAssociatorsProducer : public edm::global::EDProducer<> {
 public:
   explicit AllHitToTracksterAssociatorsProducer(const edm::ParameterSet&);
@@ -25,10 +27,11 @@ private:
   std::vector<std::pair<std::string, edm::EDGetTokenT<std::vector<ticl::Trackster>>>> tracksterCollectionTokens_;
   edm::EDGetTokenT<std::vector<reco::CaloCluster>> layerClustersToken_;
   edm::EDGetTokenT<std::unordered_map<DetId, const unsigned int>> hitMapToken_;
-  std::vector<edm::EDGetTokenT<HGCRecHitCollection>> hitsTokens_;
+  std::vector<edm::EDGetTokenT<std::vector<HIT>>> hitsTokens_;
 };
 
-AllHitToTracksterAssociatorsProducer::AllHitToTracksterAssociatorsProducer(const edm::ParameterSet& pset)
+template <typename HIT>
+AllHitToTracksterAssociatorsProducer<HIT>::AllHitToTracksterAssociatorsProducer(const edm::ParameterSet& pset)
     : layerClustersToken_(consumes<std::vector<reco::CaloCluster>>(pset.getParameter<edm::InputTag>("layerClusters"))),
       hitMapToken_(
           consumes<std::unordered_map<DetId, const unsigned int>>(pset.getParameter<edm::InputTag>("hitMapTag"))) {
@@ -38,7 +41,7 @@ AllHitToTracksterAssociatorsProducer::AllHitToTracksterAssociatorsProducer(const
   }
 
   for (const auto& tag : pset.getParameter<std::vector<edm::InputTag>>("hits")) {
-    hitsTokens_.emplace_back(consumes<HGCRecHitCollection>(tag));
+    hitsTokens_.emplace_back(consumes<std::vector<HIT>>(tag));
   }
 
   for (const auto& tracksterToken : tracksterCollectionTokens_) {
@@ -47,7 +50,8 @@ AllHitToTracksterAssociatorsProducer::AllHitToTracksterAssociatorsProducer(const
   }
 }
 
-void AllHitToTracksterAssociatorsProducer::produce(edm::StreamID, edm::Event& iEvent, const edm::EventSetup&) const {
+template <typename HIT>
+void AllHitToTracksterAssociatorsProducer<HIT>::produce(edm::StreamID, edm::Event& iEvent, const edm::EventSetup&) const {
   using namespace edm;
 
   Handle<std::vector<reco::CaloCluster>> layer_clusters;
@@ -56,9 +60,9 @@ void AllHitToTracksterAssociatorsProducer::produce(edm::StreamID, edm::Event& iE
   Handle<std::unordered_map<DetId, const unsigned int>> hitMap;
   iEvent.getByToken(hitMapToken_, hitMap);
 
-  MultiVectorManager<HGCRecHit> rechitManager;
+  MultiVectorManager<HIT> rechitManager;
   for (const auto& token : hitsTokens_) {
-    Handle<HGCRecHitCollection> hitsHandle;
+    Handle<std::vector<HIT>> hitsHandle;
     iEvent.getByToken(token, hitsHandle);
     rechitManager.addVector(*hitsHandle);
   }
@@ -93,20 +97,38 @@ void AllHitToTracksterAssociatorsProducer::produce(edm::StreamID, edm::Event& iE
   }
 }
 
-void AllHitToTracksterAssociatorsProducer::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
+template <typename HIT>
+void AllHitToTracksterAssociatorsProducer<HIT>::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
   edm::ParameterSetDescription desc;
-  desc.add<std::vector<edm::InputTag>>("tracksterCollections",
-                                       {edm::InputTag("ticlTrackstersCLUE3DHigh"),
-                                        edm::InputTag("ticlTrackstersLinks"),
-                                        edm::InputTag("ticlCandidate")});
-  desc.add<edm::InputTag>("layerClusters", edm::InputTag("hgcalMergeLayerClusters"));
-  desc.add<edm::InputTag>("hitMapTag", edm::InputTag("recHitMapProducer", "hgcalRecHitMap"));
-  desc.add<std::vector<edm::InputTag>>("hits",
-                                       {edm::InputTag("HGCalRecHit", "HGCEERecHits"),
-                                        edm::InputTag("HGCalRecHit", "HGCHEFRecHits"),
-                                        edm::InputTag("HGCalRecHit", "HGCHEBRecHits")});
-  descriptions.add("AllHitToTracksterAssociatorsProducer", desc);
+  if constexpr (std::is_same_v<HIT, HGCRecHit>) {
+    desc.add<std::vector<edm::InputTag>>("tracksterCollections",
+                                         {edm::InputTag("ticlTrackstersCLUE3DHigh"),
+                                          edm::InputTag("ticlTrackstersLinks"),
+                                          edm::InputTag("ticlCandidate")});
+    desc.add<edm::InputTag>("layerClusters", edm::InputTag("hgcalMergeLayerClusters"));
+    desc.add<edm::InputTag>("hitMapTag", edm::InputTag("recHitMapProducer", "hgcalRecHitMap"));
+    desc.add<std::vector<edm::InputTag>>("hits",
+                                         {edm::InputTag("HGCalRecHit", "HGCEERecHits"),
+                                          edm::InputTag("HGCalRecHit", "HGCHEFRecHits"),
+                                          edm::InputTag("HGCalRecHit", "HGCHEBRecHits")});
+    descriptions.add("AllHitToHGCalTracksterAssociatorsProducer", desc);
+  } else if constexpr (std::is_same_v<HIT, reco::PFRecHit>) {
+    desc.add<std::vector<edm::InputTag>>("tracksterCollections",
+                                         {edm::InputTag("ticlBarrelTracksters")});
+    desc.add<edm::InputTag>("layerClusters", edm::InputTag("barrelLayerClusters"));
+    desc.add<edm::InputTag>("hitMapTag", edm::InputTag("recHitMapProducer", "barrelRecHitMap"));
+    desc.add<std::vector<edm::InputTag>>("hits",                                                 
+                                         {edm::InputTag("particleFlowRecHitECAL"),
+                                          edm::InputTag("particleFlowRecHitHBHE")});
+    descriptions.add("AllHitToBarrelTracksterAssociatorsProducer", desc);
+  }
 }
 
+template class AllHitToTracksterAssociatorsProducer<HGCRecHit>;
+template class AllHitToTracksterAssociatorsProducer<reco::PFRecHit>;
+
 // Define this as a plug-in
-DEFINE_FWK_MODULE(AllHitToTracksterAssociatorsProducer);
+using AllHitToHGCalTracksterAssociatorsProducer = AllHitToTracksterAssociatorsProducer<HGCRecHit>;
+DEFINE_FWK_MODULE(AllHitToHGCalTracksterAssociatorsProducer);
+using AllHitToBarrelTracksterAssociatorsProducer = AllHitToTracksterAssociatorsProducer<reco::PFRecHit>;
+DEFINE_FWK_MODULE(AllHitToBarrelTracksterAssociatorsProducer);

@@ -1,20 +1,20 @@
 import FWCore.ParameterSet.Config as cms
-from SimCalorimetry.HGCalAssociatorProducers.hitToTracksterAssociator_cfi import hitToTracksterAssociator
+from SimCalorimetry.HGCalAssociatorProducers.hitToHGCalTracksterAssociator_cfi import hitToHGCalTracksterAssociator
 
-hitToTrackstersAssociationLinking = hitToTracksterAssociator.clone(
+hitToTrackstersAssociationLinking = hitToHGCalTracksterAssociator.clone(
     tracksters = cms.InputTag("ticlTrackstersMerge"),
 )
 
 
-hitToTrackstersAssociationPR = hitToTracksterAssociator.clone(
+hitToTrackstersAssociationPR = hitToHGCalTracksterAssociator.clone(
     tracksters = cms.InputTag("ticlTrackstersCLUE3DHigh"),
 )
 
-hitToSimTracksterAssociation = hitToTracksterAssociator.clone(
+hitToSimTracksterAssociation = hitToHGCalTracksterAssociator.clone(
     tracksters = cms.InputTag("ticlSimTracksters"),
 )
 
-hitToSimTracksterFromCPsAssociation = hitToTracksterAssociator.clone(
+hitToSimTracksterFromCPsAssociation = hitToHGCalTracksterAssociator.clone(
     tracksters = cms.InputTag("ticlSimTracksters", "fromCPs"),
 )
 
@@ -23,10 +23,10 @@ from Configuration.ProcessModifiers.ticl_v5_cff import ticl_v5
 
 ticl_v5.toModify(hitToTrackstersAssociationLinking, tracksters = cms.InputTag("ticlCandidate"))
 
-from SimCalorimetry.HGCalAssociatorProducers.AllHitToTracksterAssociatorsProducer_cfi import AllHitToTracksterAssociatorsProducer
+from SimCalorimetry.HGCalAssociatorProducers.AllHitToHGCalTracksterAssociatorsProducer_cfi import AllHitToHGCalTracksterAssociatorsProducer
 from RecoHGCal.TICL.iterativeTICL_cff import ticlIterLabels
 
-allHitToTracksterAssociations = AllHitToTracksterAssociatorsProducer.clone(    
+allHitToTracksterAssociations = AllHitToHGCalTracksterAssociatorsProducer.clone(    
     tracksterCollections = cms.VInputTag(
         *[cms.InputTag(label) for label in ticlIterLabels],
         cms.InputTag("ticlSimTracksters"),

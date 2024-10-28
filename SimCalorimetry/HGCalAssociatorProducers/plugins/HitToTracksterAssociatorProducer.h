@@ -17,7 +17,9 @@
 #include "DataFormats/Provenance/interface/ProductID.h"
 #include "CommonTools/RecoAlgos/interface/MultiVectorManager.h"
 #include "DataFormats/HGCRecHit/interface/HGCRecHitCollections.h"
+#include "DataFormats/ParticleFlowReco/interface/PFRecHit.h"
 
+template <typename HIT>
 class HitToTracksterAssociatorProducer : public edm::global::EDProducer<> {
 public:
   explicit HitToTracksterAssociatorProducer(const edm::ParameterSet &);
@@ -31,7 +33,7 @@ private:
   edm::EDGetTokenT<std::vector<reco::CaloCluster>> LCCollectionToken_;
   edm::EDGetTokenT<std::vector<ticl::Trackster>> tracksterCollectionToken_;
   edm::EDGetTokenT<std::unordered_map<DetId, const unsigned int>> hitMapToken_;
-  std::vector<edm::EDGetTokenT<HGCRecHitCollection>> hitsTokens_;
+  std::vector<edm::EDGetTokenT<std::vector<HIT>>> hitsTokens_;
 };
 
 #endif
