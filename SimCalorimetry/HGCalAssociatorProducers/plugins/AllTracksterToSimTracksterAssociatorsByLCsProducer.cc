@@ -41,6 +41,7 @@ AllTracksterToSimTracksterAssociatorsByLCsProducer::AllTracksterToSimTracksterAs
     const edm::ParameterSet& pset)
     : layerClustersToken_(consumes<std::vector<reco::CaloCluster>>(pset.getParameter<edm::InputTag>("layerClusters"))) {
   const auto& tracksterCollections = pset.getParameter<std::vector<edm::InputTag>>("tracksterCollections");
+  const auto& layerClusterToTracksterMapTag = pset.getParameter<std::string>("layerClusterToTracksterMap");
   for (const auto& tag : tracksterCollections) {
     std::string label = tag.label();
     if (tag.instance() != "") {
@@ -79,7 +80,7 @@ AllTracksterToSimTracksterAssociatorsByLCsProducer::AllTracksterToSimTracksterAs
       produces<ticl::AssociationMap<ticl::mapWithSharedEnergyAndScore,
                                     std::vector<ticl::Trackster>,
                                     std::vector<ticl::Trackster>>>(reverseInstanceLabel);
-    }
+    } 
   }
 }
 
@@ -282,6 +283,7 @@ void AllTracksterToSimTracksterAssociatorsByLCsProducer::produce(edm::StreamID,
 
 void AllTracksterToSimTracksterAssociatorsByLCsProducer::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
   edm::ParameterSetDescription desc;
+  desc.add<std::string>("layerClusterToTracksterMap", "allLayerClusterToTracksterAssociations");
   desc.add<std::vector<edm::InputTag>>(
       "tracksterCollections", {edm::InputTag("ticlTrackstersCLUE3DHigh"), edm::InputTag("ticlTrackstersLinks")});
   desc.add<std::vector<edm::InputTag>>(
