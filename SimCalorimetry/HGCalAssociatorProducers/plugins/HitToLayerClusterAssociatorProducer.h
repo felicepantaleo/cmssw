@@ -17,9 +17,11 @@
 #include "FWCore/Utilities/interface/EDGetToken.h"
 #include "DataFormats/CaloRecHit/interface/CaloCluster.h"
 #include "DataFormats/HGCRecHit/interface/HGCRecHitCollections.h"
+#include "DataFormats/ParticleFlowReco/interface/PFRecHit.h"
 #include "SimDataFormats/Associations/interface/TICLAssociationMap.h"
 #include "CommonTools/RecoAlgos/interface/MultiVectorManager.h"
 
+template <typename HIT>
 class HitToLayerClusterAssociatorProducer : public edm::global::EDProducer<> {
 public:
   explicit HitToLayerClusterAssociatorProducer(const edm::ParameterSet &);
@@ -32,7 +34,14 @@ private:
 
   edm::EDGetTokenT<std::vector<reco::CaloCluster>> LCCollectionToken_;
   edm::EDGetTokenT<std::unordered_map<DetId, unsigned int>> hitMapToken_;
-  std::vector<edm::EDGetTokenT<HGCRecHitCollection>> hitsTokens_;
+  std::vector<edm::EDGetTokenT<std::vector<HIT>>> hitsTokens_;
 };
 
+template class HitToLayerClusterAssociatorProducer<HGCRecHit>;
+template class HitToLayerClusterAssociatorProducer<reco::PFRecHit>;
+
+using HitToHGCalLayerClusterAssociatorProducer = HitToLayerClusterAssociatorProducer<HGCRecHit>;
+DEFINE_FWK_MODULE(HitToHGCalLayerClusterAssociatorProducer);
+using HitToBarrelLayerClusterAssociatorProducer = HitToLayerClusterAssociatorProducer<reco::PFRecHit>;
+DEFINE_FWK_MODULE(HitToBarrelLayerClusterAssociatorProducer);
 #endif
