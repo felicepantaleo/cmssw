@@ -16,10 +16,13 @@
 #include "SimDataFormats/Associations/interface/TICLAssociationMap.h"
 #include "DataFormats/Provenance/interface/ProductID.h"
 #include "DataFormats/HGCRecHit/interface/HGCRecHitCollections.h"
+#include "DataFormats/ParticleFlowReco/interface/PFRecHit.h"
 #include "CommonTools/RecoAlgos/interface/MultiVectorManager.h"
 #include "SimDataFormats/CaloAnalysis/interface/CaloParticle.h"
 #include "SimDataFormats/CaloAnalysis/interface/SimCluster.h"
 
+
+template <typename HIT>
 class HitToSimClusterCaloParticleAssociatorProducer : public edm::global::EDProducer<> {
 public:
   explicit HitToSimClusterCaloParticleAssociatorProducer(const edm::ParameterSet &);
@@ -34,7 +37,7 @@ private:
   edm::EDGetTokenT<std::vector<CaloParticle>> caloParticleToken_;
 
   edm::EDGetTokenT<std::unordered_map<DetId, const unsigned int>> hitMapToken_;
-  std::vector<edm::EDGetTokenT<HGCRecHitCollection>> hitsTokens_;
+  std::vector<edm::EDGetTokenT<std::vector<HIT>>> hitsTokens_;
 };
 
 #endif
