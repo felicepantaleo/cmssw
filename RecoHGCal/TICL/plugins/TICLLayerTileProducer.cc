@@ -85,8 +85,7 @@ void TICLLayerTileProducer::produce(edm::Event &evt, const edm::EventSetup &) {
     const auto firstHitDetId = lc.hitsAndFractions()[0].first;
     int layer = rhtools_.getLayerWithOffset(firstHitDetId);
     if (!doBarrel_)
-    layer += rhtools_.getLayerWithOffset(firstHitDetId) +
-             rhtools_.lastLayer(doNose_) * ((rhtools_.zside(firstHitDetId) + 1) >> 1) - 1;
+      layer += rhtools_.lastLayer(doNose_) * ((rhtools_.zside(firstHitDetId) + 1) >> 1) - 1;
 
     assert(layer >= 0);
 
