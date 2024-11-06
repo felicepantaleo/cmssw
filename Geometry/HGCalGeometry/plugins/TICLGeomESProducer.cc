@@ -57,7 +57,7 @@ std::unique_ptr<TICLGeom> TICLGeomESProducer::produce(const CaloGeometryRecord& 
   for (const auto& group : detectors_) {
     if (detGroups.find(group) != detGroups.end()) {
       for (const auto& det : detGroups[group]) {
-        auto ids = geom.getValidDetIds((DetId::Detector)(detMap[det].first), detMap[det].second);
+        const auto& ids = geom.getValidDetIds((DetId::Detector)(detMap[det].first), detMap[det].second);
         validIds.insert(validIds.end(), ids.begin(), ids.end());
       }
     }
