@@ -6,7 +6,6 @@
 #include "FWCore/Framework/interface/ESHandle.h"
 #include "FWCore/Utilities/interface/ESGetToken.h"
 #include "Geometry/CaloGeometry/interface/CaloGeometry.h"
-#include "Geometry/Records/interface/HGCalGeometryRecord.h"
 #include "Geometry/Records/interface/CaloGeometryRecord.h"
 #include "Geometry/CaloGeometry/interface/CaloGeometry.h"
 
@@ -98,9 +97,10 @@ std::unique_ptr<TICLGeom> TICLGeomESProducer::produce(const CaloGeometryRecord& 
 
 void TICLGeomESProducer::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
   edm::ParameterSetDescription desc;
-  desc.add<std::vector<std::string>>("detectors", {"ECAL", "HCAL", "HGCal", "HFNose"})->
-      setComment("List of detectors or subdetectors to include in the TICL geometry (valid options: ECAL, HCAL, HGCal, "
-                 "HFNose, EB, EE, ES, HB, HE, HF, HO, HGCEE, HGCHESil, HGCHESci)");
+  desc.add<std::vector<std::string>>("detectors", {"ECAL", "HCAL", "HGCal", "HFNose"})
+      ->setComment(
+          "List of detectors or subdetectors to include in the TICL geometry (valid options: ECAL, HCAL, HGCal, "
+          "HFNose, EB, EE, ES, HB, HE, HF, HO, HGCEE, HGCHESil, HGCHESci)");
   desc.add<std::string>("label", "all");
   descriptions.add("TICLGeomESProducer", desc);
 }
