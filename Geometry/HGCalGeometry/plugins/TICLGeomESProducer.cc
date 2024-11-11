@@ -32,25 +32,31 @@ private:
 };
 
 TICLGeomESProducer::TICLGeomESProducer(const edm::ParameterSet& p)
-    :  detectors_(p.getParameter<std::vector<std::string>>("detectors")) {
-          myLabel_ = p.getParameter<std::string>("label");
-          geomToken_ = setWhatProduced(this,myLabel_).consumes<CaloGeometry>(edm::ESInputTag{""});
-      }
+    : detectors_(p.getParameter<std::vector<std::string>>("detectors")) {
+  myLabel_ = p.getParameter<std::string>("label");
+  geomToken_ = setWhatProduced(this, myLabel_).consumes<CaloGeometry>(edm::ESInputTag{""});
+}
 
 std::unique_ptr<TICLGeom> TICLGeomESProducer::produce(const CaloGeometryRecord& iRecord) {
   const auto& geom = iRecord.get(geomToken_);
 
   // Map of detector names to pair of DetId::Detector and subdet id
-  std::map<std::string, std::pair<int, int>> detMap = {{"EB", {3, 1}}, {"EE", {3, 2}}, {"ES", {3, 3}},
-                                                       {"HB", {4, 1}}, {"HE", {4, 2}}, {"HF", {4, 4}}, {"HO", {4, 3}},
-                                                       {"HGCEE", {8, 0}}, {"HGCHESil", {9, 0}}, {"HGCHESci", {10, 0}},
+  std::map<std::string, std::pair<int, int>> detMap = {{"EB", {3, 1}},
+                                                       {"EE", {3, 2}},
+                                                       {"ES", {3, 3}},
+                                                       {"HB", {4, 1}},
+                                                       {"HE", {4, 2}},
+                                                       {"HF", {4, 4}},
+                                                       {"HO", {4, 3}},
+                                                       {"HGCEE", {8, 0}},
+                                                       {"HGCHESil", {9, 0}},
+                                                       {"HGCHESci", {10, 0}},
                                                        {"HFNose", {6, 6}}};
 
-  std::map<std::string, std::vector<std::string>> detGroups = {
-      {"ECAL", {"EB", "EE", "ES"}},
-      {"HCAL", {"HB", "HE", "HF", "HO"}},
-      {"HGCal", {"HGCEE", "HGCHESil", "HGCHESci"}},
-      {"HFNose", {"HFNose"}}};
+  std::map<std::string, std::vector<std::string>> detGroups = {{"ECAL", {"EB", "EE", "ES"}},
+                                                               {"HCAL", {"HB", "HE", "HF", "HO"}},
+                                                               {"HGCal", {"HGCEE", "HGCHESil", "HGCHESci"}},
+                                                               {"HFNose", {"HFNose"}}};
 
   std::vector<DetId> validIds;
 
