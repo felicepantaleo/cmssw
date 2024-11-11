@@ -61,11 +61,19 @@ std::unique_ptr<TICLGeom> TICLGeomESProducer::produce(const CaloGeometryRecord& 
   std::vector<DetId> validIds;
 
   for (const auto& group : detectors_) {
+    // Check if the group is in the map
+    // If the group is not in the map, search for the detector in the map
     if (detGroups.find(group) != detGroups.end()) {
       for (const auto& det : detGroups[group]) {
         const auto& ids = geom.getValidDetIds((DetId::Detector)(detMap[det].first), detMap[det].second);
         validIds.insert(validIds.end(), ids.begin(), ids.end());
       }
+    } else {
+      if (detMap.find(group) == detMap.end()) {
+        throw cms::Exception("TICLGeomInvalidDetector") << "Detector " << group << " is not a valid detector name";
+      }
+      const auto& ids = geom.getValidDetIds((DetId::Detector)(detMap[group].first), detMap[group].second);
+      validIds.insert(validIds.end(), ids.begin(), ids.end());
     }
   }
 
@@ -90,7 +98,9 @@ std::unique_ptr<TICLGeom> TICLGeomESProducer::produce(const CaloGeometryRecord& 
 
 void TICLGeomESProducer::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
   edm::ParameterSetDescription desc;
-  desc.add<std::vector<std::string>>("detectors", {"ECAL", "HCAL", "HGCal", "HFNose"});
+  desc.add<std::vector<std::string>>("detectors", {"ECAL", "HCAL", "HGCal", "HFNose"})->
+      setComment("List of detectors or subdetectors to include in the TICL geometry (valid options: ECAL, HCAL, HGCal, "
+                 "HFNose, EB, EE, ES, HB, HE, HF, HO, HGCEE, HGCHESil, HGCHESci)");
   desc.add<std::string>("label", "all");
   descriptions.add("TICLGeomESProducer", desc);
 }
