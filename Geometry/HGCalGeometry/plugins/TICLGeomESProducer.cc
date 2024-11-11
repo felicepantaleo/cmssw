@@ -7,7 +7,6 @@
 #include "FWCore/Utilities/interface/ESGetToken.h"
 #include "Geometry/CaloGeometry/interface/CaloGeometry.h"
 #include "Geometry/Records/interface/CaloGeometryRecord.h"
-#include "Geometry/CaloGeometry/interface/CaloGeometry.h"
 
 #include "DataFormats/GeometryVector/interface/GlobalPoint.h"
 #include "CondFormats/HGCalObjects/interface/TICLGeom.h"
