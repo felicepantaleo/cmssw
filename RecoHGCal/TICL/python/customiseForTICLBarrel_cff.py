@@ -2,6 +2,7 @@ import FWCore.ParameterSet.Config as cms
 
 from RecoLocalCalo.HGCalRecProducers.recHitMapProducer_cfi import recHitMapProducer as _recHitMapProducer
 from RecoParticleFlow.PFClusterProducer.barrelLayerClusters_cfi import barrelLayerClusters as _barrelLayerClusters
+from RecoHGCal.TICL.lcFromPFClusterProducer_cfi import lcFromPFClusterProducer as _lcFromPFClusterProducer
 from RecoHGCal.TICL.trackstersProducer_cfi import trackstersProducer as _trackstersProducer
 from RecoHGCal.TICL.ticlSeedingRegionProducer_cfi import ticlSeedingRegionProducer as _ticlSeedingRegionProducer
 from RecoHGCal.TICL.ticlLayerTileProducer_cfi import ticlLayerTileProducer as _ticlLayerTileProducer
@@ -58,10 +59,9 @@ def customiseForTICLBarrel(process, pfComparison=False):
             threshHighE = cms.double(5)
         )
     )
-    if not pfComparison:                                                                                           
-        process.barrelLayerClustersTask = cms.Task(process.barrelLayerClusters)
-    else:
-        process.barrelLayerClustersTask = cms.Task(process.barrelLayerClusters, process.lcFromPFClusterProducer)
+    
+    process.lcFromPFClusterProducer = _lcFromPFClusterProducer.clone()
+    process.barrelLayerClustersTask = cms.Task(process.barrelLayerClusters, process.lcFromPFClusterProducer)
 
     process.ticlBarrelTracksters = _trackstersProducer.clone(
         detector = "Barrel",
@@ -120,6 +120,18 @@ def customiseForTICLBarrel(process, pfComparison=False):
     process.barrelLCToSCAssociatorByEnergyScoreProducer = barrelLCToSCAssociatorByEnergyScoreProducer.clone()
     process.barrelLayerClusterSimClusterAssociationProducer = barrelLayerClusterSimClusterAssociationProducer.clone()
 
+
+    ## associators for pf
+    process.barrelLCToCPAssociatorByEnergyScoreProducerPF = barrelLCToCPAssociatorByEnergyScoreProducer.clone()
+    process.barrelLayerClusterCaloParticleAssociationProducerPF = barrelLayerClusterCaloParticleAssociationProducer.clone(
+        label_lc = cms.InputTag("lcFromPFClusterProducer")
+    )
+
+    process.barrelLCToSCAssociatorByEnergyScoreProducerPF = barrelLCToCPAssociatorByEnergyScoreProducer.clone()
+    process.barrelLayerClusterSimClusterAssociationProducerPF = barrelLayerClusterSimClusterAssociationProducer.clone(
+        label_lc = cms.InputTag("lcFromPFClusterProducer")
+    )
+
     process.allBarrelLayerClusterToTracksterAssociations = _allBarrelLayerClusterToTracksterAssociations.clone()
     process.SimClusterToCaloParticleAssociator = _SimClusterToCaloParticleAssociator.clone()
     process.barrelHitToSimClusterCaloParticleAssociator = _barrelHitToSimClusterCaloParticleAssociator.clone()
@@ -138,8 +150,12 @@ def customiseForTICLBarrel(process, pfComparison=False):
     process.ticlAssociators = cms.Path(process.recHitMapProducer
                                        +process.barrelLCToCPAssociatorByEnergyScoreProducer
                                        +process.barrelLCToSCAssociatorByEnergyScoreProducer
+                                       +process.barrelLCToCPAssociatorByEnergyScoreProducerPF
+                                       +process.barrelLCToSCAssociatorByEnergyScoreProducerPF
                                        +process.barrelLayerClusterCaloParticleAssociationProducer
                                        +process.barrelLayerClusterSimClusterAssociationProducer
+                                       +process.barrelLayerClusterCaloParticleAssociationProducerPF
+                                       +process.barrelLayerClusterSimClusterAssociationProducerPF
                                        +process.ticlBarrelSimTracksters
                                        +process.barrelHitToSimClusterCaloParticleAssociator
                                        +process.SimClusterToCaloParticleAssociator
@@ -189,12 +205,12 @@ def customiseForTICLBarrel(process, pfComparison=False):
              )
         ],
         saveLCs = cms.bool(True),
-        layerClusters = cms.InputTag("barrelLayerClusters"),
+        layerClusters = cms.InputTag("lcFromPFClusterProducer"),
         layer_clustersTime = cms.InputTag("barrelLayerClusters:timeLayerCluster"),
-        lcRecoToSimAssociatorCP = cms.InputTag("barrelLayerClusterCaloParticleAssociationProducer"),
-        lcSimToRecoAssociatorCP = cms.InputTag("barrelLayerClusterCaloParticleAssociationProducer"),
-        lcRecoToSimAssociatorSC = cms.InputTag("barrelLayerClusterSimClusterAssociationProducer"),
-        lcSimToRecoAssociatorSC = cms.InputTag("barrelLayerClusterSimClusterAssociationProducer"),
+        lcRecoToSimAssociatorCP = cms.InputTag("barrelLayerClusterCaloParticleAssociationProducerPF"),
+        lcSimToRecoAssociatorCP = cms.InputTag("barrelLayerClusterCaloParticleAssociationProducerPF"),
+        lcRecoToSimAssociatorSC = cms.InputTag("barrelLayerClusterSimClusterAssociationProducerPF"),
+        lcSimToRecoAssociatorSC = cms.InputTag("barrelLayerClusterSimClusterAssociationProducerPF"),
         saveTICLCandidate = cms.bool(False),
         saveSimTICLCandidate = cms.bool(False),
         saveTracks = cms.bool(False),
