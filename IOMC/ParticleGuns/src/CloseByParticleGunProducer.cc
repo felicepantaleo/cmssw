@@ -14,10 +14,10 @@
 #include "FWCore/Utilities/interface/RandomNumberGenerator.h"
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
 
-#include <CLHEP/Random/RandFlat.h>
-#include <CLHEP/Units/SystemOfUnits.h>
-#include <CLHEP/Units/GlobalPhysicalConstants.h>
-#include <CLHEP/Random/RandFlat.h>
+#include "CLHEP/Random/RandFlat.h"
+#include "CLHEP/Units/GlobalSystemOfUnits.h"
+#include "CLHEP/Units/GlobalPhysicalConstants.h"
+#include "CLHEP/Random/RandFlat.h"
 
 using namespace edm;
 using namespace std;
@@ -26,56 +26,37 @@ CloseByParticleGunProducer::CloseByParticleGunProducer(const ParameterSet& pset)
     : BaseFlatGunProducer(pset), m_fieldToken(esConsumes()) {
   ParameterSet pgun_params = pset.getParameter<ParameterSet>("PGunParameters");
   fControlledByEta = pgun_params.getParameter<bool>("ControlledByEta");
-  fControlledByREta = pgun_params.getParameter<bool>("ControlledByREta");
-  if (fControlledByEta and fControlledByREta)
-    throw cms::Exception("CloseByParticleGunProducer")
-        << " Conflicting configuration, cannot have both ControlledByEta and ControlledByREta ";
-
   fVarMax = pgun_params.getParameter<double>("VarMax");
   fVarMin = pgun_params.getParameter<double>("VarMin");
   fMaxVarSpread = pgun_params.getParameter<bool>("MaxVarSpread");
-  fLogSpacedVar = pgun_params.getParameter<bool>("LogSpacedVar");
   fFlatPtGeneration = pgun_params.getParameter<bool>("FlatPtGeneration");
+  fFixedR = pgun_params.getParameter<bool>("FixedR");
   if (fVarMin < 1 && !fFlatPtGeneration)
-    throw cms::Exception("CloseByParticleGunProducer")
-        << " Please choose a minimum energy greater than 1 GeV, otherwise time "
-           "information may be invalid or not reliable";
-  if (fVarMin < 0 && fLogSpacedVar)
-    throw cms::Exception("CloseByParticleGunProducer") << " Minimum energy must be greater than zero for log spacing";
-  else {
-    log_fVarMin = std::log(fVarMin);
-    log_fVarMax = std::log(fVarMax);
-  }
-
-  if (fControlledByEta || fControlledByREta) {
+    LogError("CloseByParticleGunProducer") << " Please choose a minimum energy greater than 1 GeV, otherwise time "
+                                              "information may be invalid or not reliable";
+  if (fControlledByEta) {
     fEtaMax = pgun_params.getParameter<double>("MaxEta");
     fEtaMin = pgun_params.getParameter<double>("MinEta");
     if (fEtaMax <= fEtaMin)
-      throw cms::Exception("CloseByParticleGunProducer") << " Please fix MinEta and MaxEta values in the configuration";
+      LogError("CloseByParticleGunProducer") << " Please fix MinEta and MaxEta values in the configuration";
   } else {
     fRMax = pgun_params.getParameter<double>("RMax");
     fRMin = pgun_params.getParameter<double>("RMin");
     if (fRMax <= fRMin)
-      throw cms::Exception("CloseByParticleGunProducer") << " Please fix RMin and RMax values in the configuration";
+      LogError("CloseByParticleGunProducer") << " Please fix RMin and RMax values in the configuration";
   }
-  
   if (fFixedR)
     fRMin = pgun_params.getParameter<double>("RMin");
-
-  if (!fControlledByREta) {
-    fZMax = pgun_params.getParameter<double>("ZMax");
-    fZMin = pgun_params.getParameter<double>("ZMin");
-
-    if (fZMax <= fZMin)
-      throw cms::Exception("CloseByParticleGunProducer") << " Please fix ZMin and ZMax values in the configuration";
-  }
+  
+  fZMax = pgun_params.getParameter<double>("ZMax");
+  fZMin = pgun_params.getParameter<double>("ZMin");
   fDelta = pgun_params.getParameter<double>("Delta");
   fPhiMin = pgun_params.getParameter<double>("MinPhi");
   fPhiMax = pgun_params.getParameter<double>("MaxPhi");
   fPointing = pgun_params.getParameter<bool>("Pointing");
   fOverlapping = pgun_params.getParameter<bool>("Overlapping");
   if (fFlatPtGeneration && !fPointing)
-    throw cms::Exception("CloseByParticleGunProducer")
+    LogError("CloseByParticleGunProducer")
         << " Can't generate non pointing FlatPt samples; please disable FlatPt generation or generate pointing sample";
   fRandomShoot = pgun_params.getParameter<bool>("RandomShoot");
   fNParticles = pgun_params.getParameter<int>("NParticles");
@@ -86,7 +67,7 @@ CloseByParticleGunProducer::CloseByParticleGunProducer(const ParameterSet& pset)
   fTMax = pgun_params.getParameter<double>("TMax");
   fTMin = pgun_params.getParameter<double>("TMin");
   if (fTMax <= fTMin)
-    throw cms::Exception("CloseByParticleGunProducer") << " Please fix TMin and TMax values in the configuration";
+    LogError("CloseByParticleGunProducer") << " Please fix TMin and TMax values in the configuration";
   // set a fixed time offset for the particles
   fOffsetFirst = pgun_params.getParameter<double>("OffsetFirst");
 
@@ -104,12 +85,10 @@ void CloseByParticleGunProducer::fillDescriptions(ConfigurationDescriptions& des
   {
     edm::ParameterSetDescription psd0;
     psd0.add<bool>("ControlledByEta", false);
-    psd0.add<bool>("ControlledByREta", false);
     psd0.add<double>("Delta", 10);
     psd0.add<double>("VarMax", 200.0);
     psd0.add<double>("VarMin", 25.0);
     psd0.add<bool>("MaxVarSpread", false);
-    psd0.add<bool>("LogSpacedVar", false);
     psd0.add<bool>("FlatPtGeneration", false);
     psd0.add<double>("MaxEta", 2.7);
     psd0.add<double>("MaxPhi", 3.14159265359);
@@ -155,33 +134,28 @@ void CloseByParticleGunProducer::produce(Event& e, const EventSetup& es) {
   unsigned int numParticles = fRandomShoot ? CLHEP::RandFlat::shoot(engine, 1, fNParticles) : fNParticles;
 
   double phi = CLHEP::RandFlat::shoot(engine, fPhiMin, fPhiMax);
-  double fZ;
-  double fR, fEta;
-  double fT;
-
+  double fZ = 0.;
+  double fR = 0.;
   if (fFixedR)
     fR = fRMin;
-
-  if (!fControlledByREta) {
+    // z will be computed after eta is samples
+  else
     fZ = CLHEP::RandFlat::shoot(engine, fZMin, fZMax);
 
-    if (!fControlledByEta) {
-      fR = CLHEP::RandFlat::shoot(engine, fRMin, fRMax);
-      fEta = asinh(fZ / fR);
-    } else {
-      fEta = CLHEP::RandFlat::shoot(engine, fEtaMin, fEtaMax);
+  double fT;
+  double fEta;
+
+  if (!fControlledByEta) {
+    fR = CLHEP::RandFlat::shoot(engine, fRMin, fRMax);
+    fEta = asinh(fZ / fR);
+  } else {
+    fEta = CLHEP::RandFlat::shoot(engine, fEtaMin, fEtaMax);
+    if (fFixedR){
+      fZ = fR * sinh(fEta);
+    }else{
       fR = (fZ / sinh(fEta));
     }
-  } else {
-    fR = CLHEP::RandFlat::shoot(engine, fRMin, fRMax);
-    fEta = CLHEP::RandFlat::shoot(engine, fEtaMin, fEtaMax);
-    fZ = sinh(fEta) / fR;
   }
-
-  if (fFixedR) 
-    fZ = fR * sinh(fEta);
-  else 
-    fR = (fZ / sinh(fEta));
 
   if (fUseDeltaT) {
     fT = CLHEP::RandFlat::shoot(engine, fTMin, fTMax);
@@ -203,11 +177,6 @@ void CloseByParticleGunProducer::produce(Event& e, const EventSetup& es) {
     double fVar;
     if (numParticles > 1 && fMaxVarSpread)
       fVar = fVarMin + ip * (fVarMax - fVarMin) / (numParticles - 1);
-    else if (fLogSpacedVar) {
-      double fVar_log = CLHEP::RandFlat::shoot(engine, log_fVarMin, log_fVarMax);
-      fVar = std::exp(fVar_log);
-    }
-
     else
       fVar = CLHEP::RandFlat::shoot(engine, fVarMin, fVarMax);
 
@@ -241,7 +210,7 @@ void CloseByParticleGunProducer::produce(Event& e, const EventSetup& es) {
     // Compute Vertex Position
     double x = fR * cos(phi);
     double y = fR * sin(phi);
-
+    
     HepMC::FourVector p(px, py, pz, energy);
     // If we are requested to be pointing to (0,0,0), correct the momentum direction
     if (fPointing) {
@@ -254,7 +223,7 @@ void CloseByParticleGunProducer::produce(Event& e, const EventSetup& es) {
 
     // compute correct path assuming uniform magnetic field in CMS
     double pathLength = 0.;
-    const double speed = std::sqrt(p.px() * p.px() + p.py() * p.py() + p.pz() * p.pz()) / p.e() * c_light / CLHEP::cm;
+    const double speed = (p.px() * p.px() + p.py() * p.py() + p.pz() * p.pz()) / p.e() * c_light / cm;
     if (PData->charge()) {
       // Radius [cm] = P[GeV/c] * 10^9 / (c[mm/ns] * 10^6 * q[C] * B[T]) * 100[cm/m]
       const double radius = std::sqrt(p.px() * p.px() + p.py() * p.py()) * std::pow(10, 5) /
@@ -267,10 +236,9 @@ void CloseByParticleGunProducer::produce(Event& e, const EventSetup& es) {
 
     // if not pointing time doesn't mean a lot, keep the old way
     const double pathTime = fPointing ? (pathLength / speed) : (std::sqrt(x * x + y * y + fZ * fZ) / speed);
-    double timeOffset = fOffsetFirst + (pathTime + ip * fT) * CLHEP::ns * c_light;
+    double timeOffset = fOffsetFirst + (pathTime + ip * fT) * ns * c_light;
 
-    HepMC::GenVertex* Vtx =
-        new HepMC::GenVertex(HepMC::FourVector(x * CLHEP::cm, y * CLHEP::cm, fZ * CLHEP::cm, timeOffset));
+    HepMC::GenVertex* Vtx = new HepMC::GenVertex(HepMC::FourVector(x * cm, y * cm, fZ * cm, timeOffset));
 
     HepMC::GenParticle* Part = new HepMC::GenParticle(p, PartID, 1);
     Part->suggest_barcode(barcode);
