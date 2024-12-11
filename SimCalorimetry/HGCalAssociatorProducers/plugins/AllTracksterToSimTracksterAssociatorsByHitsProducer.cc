@@ -270,7 +270,7 @@ void AllTracksterToSimTracksterAssociatorsByHitsProducer::produce(edm::StreamID,
             float sharedEnergy = std::min(simFraction * rechitEnergy, recoSharedEnergy);
             float squaredFraction =
                 std::min(squaredRecoFraction, (recoFraction - simFraction) * (recoFraction - simFraction));
-            float score = squaredFraction * squaredRecHitEnergy;
+            float score = invDenominator * squaredFraction * squaredRecHitEnergy;
             tracksterToSimTracksterMap->insert(recoTracksterRef, simTracksterRef, sharedEnergy, score);
           }
         }
@@ -362,6 +362,16 @@ void AllTracksterToSimTracksterAssociatorsByHitsProducer::produce(edm::StreamID,
       // Sort the maps by score in ascending order
       tracksterToSimTracksterMap->sort([](const auto& a, const auto& b) { return a.score() < b.score(); });
       simTracksterToTracksterMap->sort([](const auto& a, const auto& b) { return a.score() < b.score(); });
+
+      // Print maps with labels
+      std::cout << "TracksterToSimTracksterMap: " << tracksterToken.first << "To" << simTracksterToken.first << std::endl;
+
+      tracksterToSimTracksterMap->print(std::cout);
+
+      std::cout << "SimTracksterToTracksterMap: " << simTracksterToken.first << "To" << tracksterToken.first << std::endl;
+
+      simTracksterToTracksterMap->print(std::cout);
+
 
       // After populating the maps, store them in the event
       iEvent.put(std::move(tracksterToSimTracksterMap), tracksterToken.first + "To" + simTracksterToken.first);
