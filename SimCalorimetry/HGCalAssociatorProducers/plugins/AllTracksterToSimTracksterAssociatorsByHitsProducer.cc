@@ -297,7 +297,8 @@ void AllTracksterToSimTracksterAssociatorsByHitsProducer::produce(edm::StreamID,
                         : std::find_if(hitToSimClusterMap[hitIndex].begin(),
                                        hitToSimClusterMap[hitIndex].end(),
                                        [simObjectIndex](const auto& pair) { return pair.index() == simObjectIndex; });
-          if (it != hitToCaloParticleMap[hitIndex].end() and it != hitToSimClusterMap[hitIndex].end()) {
+          if ((isSimTracksterFromCP and it != hitToCaloParticleMap[hitIndex].end()) or
+              (!isSimTracksterFromCP and it != hitToSimClusterMap[hitIndex].end())) {
             simFractions[i] = it->fraction();
           }
           float simFraction = simFractions[i];
@@ -333,6 +334,7 @@ void AllTracksterToSimTracksterAssociatorsByHitsProducer::produce(edm::StreamID,
           }
         }
 
+        assert(simToRecoScoresDenominator > 0.f);
         const float invDenominator = 1.f / simToRecoScoresDenominator;
 
         for (unsigned int i = 0; i < simTracksterHitsAndFractions.size(); ++i) {

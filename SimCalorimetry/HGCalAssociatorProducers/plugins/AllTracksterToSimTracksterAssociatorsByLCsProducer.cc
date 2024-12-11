@@ -244,7 +244,7 @@ void AllTracksterToSimTracksterAssociatorsByLCsProducer::produce(edm::StreamID,
             }
           }
         }
-
+        assert(simToRecoScoresDenominator > 0.f);
         const float invDenominator = 1.f / simToRecoScoresDenominator;
 
         for (unsigned int i = 0; i < layerClustersIds.size(); ++i) {
