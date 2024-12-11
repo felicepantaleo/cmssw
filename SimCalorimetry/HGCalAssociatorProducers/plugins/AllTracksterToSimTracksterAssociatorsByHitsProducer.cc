@@ -259,17 +259,18 @@ void AllTracksterToSimTracksterAssociatorsByHitsProducer::produce(edm::StreamID,
           const auto& recHit = rechitManager[hitIndex];
           float recoFraction = recoTracksterHitsAndFractions[i].fraction();
           float squaredRecoFraction = recoFraction * recoFraction;
-          float squaredRecHitEnergy = recHit.energy() * recHit.energy();
-          float recoSharedEnergy = recHit.energy() * recoFraction;
+          float rechitEnergy = recHit.energy();
+          float squaredRecHitEnergy = rechitEnergy * rechitEnergy;
+          float recoSharedEnergy = rechitEnergy * recoFraction;
           const auto& simTracksterVec = hitToAssociatedSimTracksterMap[i];
           for (const auto& simTracksterElement : simTracksterVec) {
             auto simTracksterIndex = simTracksterElement.index();
             auto simFraction = simTracksterElement.fraction();
             edm::Ref<std::vector<ticl::Trackster>> simTracksterRef(simTrackstersHandle, simTracksterIndex);
-            float sharedEnergy = std::min(simFraction * recHit.energy(), recoSharedEnergy);
+            float sharedEnergy = std::min(simFraction * rechitEnergy, recoSharedEnergy);
             float squaredFraction =
                 std::min(squaredRecoFraction, (recoFraction - simFraction) * (recoFraction - simFraction));
-            float score = invDenominator * squaredFraction * squaredRecHitEnergy;
+            float score = squaredFraction * squaredRecHitEnergy;
             tracksterToSimTracksterMap->insert(recoTracksterRef, simTracksterRef, sharedEnergy, score);
           }
         }
@@ -303,10 +304,10 @@ void AllTracksterToSimTracksterAssociatorsByHitsProducer::produce(edm::StreamID,
           }
           float simFraction = simFractions[i];
           const auto& recHit = rechitManager[hitIndex];
+          float rechitEnergy = recHit.energy();
           float squaredSimFraction = simFraction * simFraction;
-          float squaredRecHitEnergy = recHit.energy() * recHit.energy();
+          float squaredRecHitEnergy = rechitEnergy * rechitEnergy;
           simToRecoScoresDenominator += squaredSimFraction * squaredRecHitEnergy;
-
           const auto& hitToRecoTracksterVec = hitToTracksterMap[hitIndex];
           for (const auto& recoTracksterElement : hitToRecoTracksterVec) {
             unsigned int recoTracksterIndex = recoTracksterElement.index();
@@ -336,21 +337,20 @@ void AllTracksterToSimTracksterAssociatorsByHitsProducer::produce(edm::StreamID,
 
         assert(simToRecoScoresDenominator > 0.f);
         const float invDenominator = 1.f / simToRecoScoresDenominator;
-
         for (unsigned int i = 0; i < simTracksterHitsAndFractions.size(); ++i) {
           const auto& hitIndex = simTracksterHitsAndFractions[i].index();
           float simFraction = simFractions[i];
           const auto& recHit = rechitManager[hitIndex];
+          float rechitEnergy = recHit.energy();
           float squaredSimFraction = simFraction * simFraction;
-          float squaredRecHitEnergy = recHit.energy() * recHit.energy();
-          float simSharedEnergy = recHit.energy() * simFraction;
-
+          float squaredRecHitEnergy = rechitEnergy * rechitEnergy;
+          float simSharedEnergy = rechitEnergy * simFraction;
           const auto& hitToRecoTracksterVec = hitToAssociatedRecoTracksterMap[i];
           for (const auto& recoTracksterElement : hitToRecoTracksterVec) {
             auto recoTracksterIndex = recoTracksterElement.index();
             float recoFraction = recoTracksterElement.fraction();
             edm::Ref<std::vector<ticl::Trackster>> recoTracksterRef(recoTrackstersHandle, recoTracksterIndex);
-            float sharedEnergy = std::min(recoFraction * recHit.energy(), simSharedEnergy);
+            float sharedEnergy = std::min(recoFraction * rechitEnergy, simSharedEnergy);
             float squaredFraction =
                 std::min(squaredSimFraction, (recoFraction - simFraction) * (recoFraction - simFraction));
             float score = invDenominator * squaredFraction * squaredRecHitEnergy;
