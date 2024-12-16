@@ -100,7 +100,7 @@ HGCalValidator::HGCalValidator(const edm::ParameterSet& pset)
   const edm::InputTag& label_cp_fake_tag = pset.getParameter<edm::InputTag>("label_cp_fake");
 
   for (auto& label : hits_label_) {
-    hits_token_.push_back(consumes<HGCRecHitCollection>(label));
+    hits_tokens_.push_back(consumes<HGCRecHitCollection>(label));
   }
   label_cp_effic = consumes<std::vector<CaloParticle>>(label_cp_effic_tag);
   label_cp_fake = consumes<std::vector<CaloParticle>>(label_cp_fake_tag);
@@ -339,7 +339,7 @@ void HGCalValidator::cpParametersAndSelection(const Histograms& histograms,
                                               std::vector<size_t>& selected_cPeff,
                                               unsigned int layers,
                                               std::unordered_map<DetId, const unsigned int> const& hitMap,
-                                              std::vector<HGCRecHit> const& hits) const {
+                                              MultiVectorManager<HGCRecHit> const& hits) const {
   selected_cPeff.reserve(cPeff.size());
 
   size_t j = 0;
@@ -404,11 +404,11 @@ void HGCalValidator::dqmAnalyze(const edm::Event& event,
   event.getByToken(hitMap_, hitMapHandle);
   const std::unordered_map<DetId, const unsigned int>* hitMap = &*hitMapHandle;
 
-  std::vector<HGCRecHit> hits;
-  for (auto& token : hits_token_) {
-    edm::Handle<HGCRecHitCollection> hitsHandle;
+  MultiVectorManager<HGCRecHit> rechitManager;
+  for (const auto &token : hits_tokens_) {
+    Handle<HGCRecHitCollection> hitsHandle;
     event.getByToken(token, hitsHandle);
-    hits.insert(hits.end(), (*hitsHandle).begin(), (*hitsHandle).end());
+    rechitManager.addVector(*hitsHandle);
   }
 
   //Some general info on layers etc.
@@ -428,7 +428,7 @@ void HGCalValidator::dqmAnalyze(const edm::Event& event,
   LogTrace("HGCalValidator") << "\n# of CaloParticles: " << caloParticles.size() << "\n" << std::endl;
   std::vector<size_t> selected_cPeff;
   cpParametersAndSelection(
-      histograms, caloParticles, simVertices, selected_cPeff, totallayers_to_monitor_, *hitMap, hits);
+      histograms, caloParticles, simVertices, selected_cPeff, totallayers_to_monitor_, *hitMap, rechitManager);
 
   //get collections from the event
   //simClusters
@@ -504,7 +504,7 @@ void HGCalValidator::dqmAnalyze(const edm::Event& event,
                                                             totallayers_to_monitor_,
                                                             recSimColl,
                                                             simRecColl,
-                                                            hits);
+                                                            rechitManager);
 
       //General Info on simClusters
       LogTrace("HGCalValidator") << "\n# of SimClusters: " << nSimClusters
@@ -531,7 +531,7 @@ void HGCalValidator::dqmAnalyze(const edm::Event& event,
                                                     thicknesses_to_monitor_,
                                                     recSimColl,
                                                     simRecColl,
-                                                    hits);
+                                                    rechitManager);
 
     for (unsigned int layerclusterIndex = 0; layerclusterIndex < clusters.size(); layerclusterIndex++) {
       histoProducerAlgo_->fill_cluster_histos(histograms.histoProducerAlgo, w, clusters[layerclusterIndex]);
@@ -589,7 +589,7 @@ void HGCalValidator::dqmAnalyze(const edm::Event& event,
                                                 selected_cPeff,
                                                 *hitMap,
                                                 totallayers_to_monitor_,
-                                                hits,
+                                                rechitManager,
                                                 mapsFound,
                                                 trackstersToSimTrackstersMapH,
                                                 simTrackstersToTrackstersMapH,
