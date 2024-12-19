@@ -223,7 +223,7 @@ void CloseByParticleGunProducer::produce(Event& e, const EventSetup& es) {
 
     // compute correct path assuming uniform magnetic field in CMS
     double pathLength = 0.;
-    const double speed = (p.px() * p.px() + p.py() * p.py() + p.pz() * p.pz()) / p.e() * c_light / cm;
+    const double speed = std::sqrt(p.px() * p.px() + p.py() * p.py() + p.pz() * p.pz()) / p.e() * c_light / cm;
     if (PData->charge()) {
       // Radius [cm] = P[GeV/c] * 10^9 / (c[mm/ns] * 10^6 * q[C] * B[T]) * 100[cm/m]
       const double radius = std::sqrt(p.px() * p.px() + p.py() * p.py()) * std::pow(10, 5) /
