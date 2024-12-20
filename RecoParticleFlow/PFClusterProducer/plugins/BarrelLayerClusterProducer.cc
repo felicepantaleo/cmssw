@@ -159,17 +159,17 @@ void BarrelLayerClusterProducer::produce(edm::Event& evt, const edm::EventSetup&
   std::vector<reco::BasicCluster> hbclusters = hbalgo->getClusters(false);
 
   std::unique_ptr<std::vector<reco::BasicCluster>> clusters(new std::vector<reco::BasicCluster>);
-  (*clusters).reserve(hbclusters.size()+ebclusters.size());
+  (*clusters).reserve(hbclusters.size() + ebclusters.size());
   (*clusters).insert((*clusters).end(), ebclusters.begin(), ebclusters.end());
   (*clusters).insert((*clusters).end(), hbclusters.begin(), hbclusters.end());
-  
+
   auto clusterHandle = evt.put(clusters_puttoken_, std::move(clusters));
   //Keep the density
   /**density = algo->getDensity();
   evt.put(std::move(density));*/
 
   edm::PtrVector<reco::BasicCluster> clusterPtrs;  //, clusterPtrsSharing;
-  
+
   std::vector<std::pair<float, float>> times;
   times.reserve(clusterHandle->size());
 
@@ -207,13 +207,13 @@ void BarrelLayerClusterProducer::produce(edm::Event& evt, const edm::EventSetup&
   std::unique_ptr<std::vector<float>> layerClustersMask(new std::vector<float>);
   layerClustersMask->resize(clusterHandle->size(), 1.0);
   evt.put(initialmask_puttoken_, std::move(layerClustersMask));
-    
+
   auto timeCl = std::make_unique<edm::ValueMap<std::pair<float, float>>>();
   edm::ValueMap<std::pair<float, float>>::Filler filler(*timeCl);
   filler.insert(clusterHandle, times.begin(), times.end());
   filler.fill();
   evt.put(times_puttoken_, std::move(timeCl));
-   
+
   /*if (doSharing) {
     for (unsigned i = 0; i < clusterHandleSharing->size(); ++i) {
       edm::Ptr<reco::BasicCluster> ptr(clusterHandleSharing, i);

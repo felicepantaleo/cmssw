@@ -62,12 +62,12 @@ AllTracksterToSimTracksterAssociatorsByHitsProducer<HIT>::AllTracksterToSimTrack
       label += tag.instance();
     }
     tracksterCollectionTokens_.emplace_back(label, consumes<std::vector<ticl::Trackster>>(tag));
-    hitToTracksterMapTokens_.emplace_back(label,
-                                          consumes<ticl::AssociationMap<ticl::mapWithFraction>>(
-                                              edm::InputTag(hitToTracksterMapTag, "hitTo" + label)));
-    tracksterToHitMapTokens_.emplace_back(label,
-                                          consumes<ticl::AssociationMap<ticl::mapWithFraction>>(
-                                              edm::InputTag(hitToTracksterMapTag, label + "ToHit")));
+    hitToTracksterMapTokens_.emplace_back(
+        label,
+        consumes<ticl::AssociationMap<ticl::mapWithFraction>>(edm::InputTag(hitToTracksterMapTag, "hitTo" + label)));
+    tracksterToHitMapTokens_.emplace_back(
+        label,
+        consumes<ticl::AssociationMap<ticl::mapWithFraction>>(edm::InputTag(hitToTracksterMapTag, label + "ToHit")));
   }
 
   const auto& simTracksterCollections = pset.getParameter<std::vector<edm::InputTag>>("simTracksterCollections");
@@ -77,12 +77,12 @@ AllTracksterToSimTracksterAssociatorsByHitsProducer<HIT>::AllTracksterToSimTrack
       label += tag.instance();
     }
     simTracksterCollectionTokens_.emplace_back(label, consumes<std::vector<ticl::Trackster>>(tag));
-    hitToSimTracksterMapTokens_.emplace_back(label,
-                                             consumes<ticl::AssociationMap<ticl::mapWithFraction>>(
-                                                 edm::InputTag(hitToTracksterMapTag, "hitTo" + label)));
-    simTracksterToHitMapTokens_.emplace_back(label,
-                                             consumes<ticl::AssociationMap<ticl::mapWithFraction>>(
-                                                 edm::InputTag(hitToTracksterMapTag, label + "ToHit")));
+    hitToSimTracksterMapTokens_.emplace_back(
+        label,
+        consumes<ticl::AssociationMap<ticl::mapWithFraction>>(edm::InputTag(hitToTracksterMapTag, "hitTo" + label)));
+    simTracksterToHitMapTokens_.emplace_back(
+        label,
+        consumes<ticl::AssociationMap<ticl::mapWithFraction>>(edm::InputTag(hitToTracksterMapTag, label + "ToHit")));
   }
 
   // Hits
@@ -403,15 +403,16 @@ void AllTracksterToSimTracksterAssociatorsByHitsProducer<HIT>::fillDescriptions(
                                           edm::InputTag("HGCalRecHit", "HGCHEBRecHits")});
     descriptions.add("AllTracksterToSimTracksterAssociatorsByHitsProducer", desc);
   } else if constexpr (std::is_same_v<HIT, reco::PFRecHit>) {
-    desc.add<std::vector<edm::InputTag>>("hits",
-                                         {edm::InputTag("particleFlowRecHitECAL"),
-                                          edm::InputTag("particleFlowRecHitHBHE")});
+    desc.add<std::vector<edm::InputTag>>(
+        "hits", {edm::InputTag("particleFlowRecHitECAL"), edm::InputTag("particleFlowRecHitHBHE")});
     descriptions.add("AllBarrelTracksterToSimTracksterAssociatorsByHitsProducer", desc);
   }
 }
 
 // Define this as a plug-in
-using AllHGCalTracksterToSimTracksterAssociatorsByHitsProducer = AllTracksterToSimTracksterAssociatorsByHitsProducer<HGCRecHit>;
+using AllHGCalTracksterToSimTracksterAssociatorsByHitsProducer =
+    AllTracksterToSimTracksterAssociatorsByHitsProducer<HGCRecHit>;
 DEFINE_FWK_MODULE(AllHGCalTracksterToSimTracksterAssociatorsByHitsProducer);
-using AllBarrelTracksterToSimTracksterAssociatorsByHitsProducer = AllTracksterToSimTracksterAssociatorsByHitsProducer<reco::PFRecHit>;
+using AllBarrelTracksterToSimTracksterAssociatorsByHitsProducer =
+    AllTracksterToSimTracksterAssociatorsByHitsProducer<reco::PFRecHit>;
 DEFINE_FWK_MODULE(AllBarrelTracksterToSimTracksterAssociatorsByHitsProducer);

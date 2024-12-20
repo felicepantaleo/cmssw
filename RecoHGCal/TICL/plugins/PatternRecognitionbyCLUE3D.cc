@@ -154,7 +154,7 @@ void PatternRecognitionbyCLUE3D<TILES>::makeTracksters(
   if (input.regions.empty())
     return;
 
-  constexpr bool isBarrel = std::is_same<TILES, TICLLayerTilesBarrel>::value;  
+  constexpr bool isBarrel = std::is_same<TILES, TICLLayerTilesBarrel>::value;
   const int eventNumber = input.ev.eventAuxiliary().event();
   if (PatternRecognitionAlgoBaseT<TILES>::algo_verbosity_ > VerbosityLevel::Advanced) {
     edm::LogVerbatim("PatternRecognitionbyCLUE3D") << "New Event";
@@ -185,7 +185,7 @@ void PatternRecognitionbyCLUE3D<TILES>::makeTracksters(
 
   if (isBarrel)
     clusters_.resize(rhtools_.lastLayer(false, true) + 1);
-  else 
+  else
     clusters_.resize(2 * rhtools_.lastLayer(false));
   std::vector<std::pair<int, int>> layerIdx2layerandSoa;  //used everywhere also to propagate cluster masking
 

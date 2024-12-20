@@ -60,7 +60,6 @@
 #include "SimDataFormats/Associations/interface/LayerClusterToSimClusterAssociator.h"
 #include "SimDataFormats/Associations/interface/LayerClusterToCaloParticleAssociator.h"
 
-
 // TFileService
 #include "FWCore/ServiceRegistry/interface/Service.h"
 #include "CommonTools/UtilAlgos/interface/TFileService.h"
@@ -272,7 +271,7 @@ public:
                      DetectorTools const& detectorTools,
                      edm::Handle<std::vector<SimCluster>> simClusters_h,
                      edm::Handle<std::vector<CaloParticle>> caloparticles_h,
-                     std::vector<reco::Track> const& tracks, 
+                     std::vector<reco::Track> const& tracks,
                      std::vector<reco::PFRecHit> const& hits) {
     nTracksters = tracksters.size();
     nClusters = clusters.size();
@@ -422,7 +421,7 @@ public:
         auto layerId = detectorTools.rhtools.getLayerWithOffset(firstHitId);
         vertices_layerid.push_back(layerId);
       }
-      
+
       reco::CaloCluster maxCluster = clusters[maxClusterIdx];
       auto& hitsAndFractions = maxCluster.hitsAndFractions();
       DetId maxClusterSeed = maxCluster.seed();
@@ -436,22 +435,24 @@ public:
           auto pos = detectorTools.rhtools.getPosition(haf.first);
           float hit_eta = pos.eta();
           float hit_phi = pos.phi();
-          if ((abs(hit_eta - maxClusterEta)) < 3*0.0175 and abs(hit_phi - maxClusterPhi) < 3*0.0175) {
-            auto it = std::find_if(hits.begin(), hits.end(), [&](auto hit) { return hit.detId() == haf.first.rawId(); });
-            if (it == hits.end()) continue;
+          if ((abs(hit_eta - maxClusterEta)) < 3 * 0.0175 and abs(hit_phi - maxClusterPhi) < 3 * 0.0175) {
+            auto it =
+                std::find_if(hits.begin(), hits.end(), [&](auto hit) { return hit.detId() == haf.first.rawId(); });
+            if (it == hits.end())
+              continue;
             unsigned int hit_idx = std::distance(hits.begin(), it);
             E55 += hits[hit_idx].energy() * haf.second;
-            if ((maxClusterEta - hit_eta) < 1.8*0.0175 and (maxClusterEta - hit_eta) >= 0)
+            if ((maxClusterEta - hit_eta) < 1.8 * 0.0175 and (maxClusterEta - hit_eta) >= 0)
               E25l += hits[hit_idx].energy() * haf.second;
-            if ((maxClusterEta - hit_eta) < 0 and (maxClusterEta - hit_eta) > 1.8*0.0175) 
+            if ((maxClusterEta - hit_eta) < 0 and (maxClusterEta - hit_eta) > 1.8 * 0.0175)
               E25r += hits[hit_idx].energy();
           }
         }
         float E25 = std::max(E25l, E25r);
-        trackster_e25_over_e55.push_back(E25 / E55);  
+        trackster_e25_over_e55.push_back(E25 / E55);
       } else if (maxClusterSeed.det() == DetId::Hcal) {
         trackster_e25_over_e55.push_back(0.f);
-      } 
+      }
       int minLayer = *std::min_element(vertices_layerid.begin(), vertices_layerid.end());
       int maxLayer = *std::max_element(vertices_layerid.begin(), vertices_layerid.end());
       trackster_min_layer.push_back(minLayer);
@@ -819,7 +820,6 @@ private:
   std::vector<std::vector<float>> lc_simToReco_SC_score;
   std::vector<std::vector<float>> lc_simToReco_SC_shared;
 
-
   TTree* cluster_tree_;
   TTree* candidate_tree_;
   TTree* superclustering_tree_;
@@ -978,10 +978,10 @@ TICLDumper::TICLDumper(const edm::ParameterSet& ps)
           consumes<ticl::RecoToSimCollection>(ps.getParameter<edm::InputTag>("lcRecoToSimAssociatorCP"))),
       lc_simToReco_CP_token_(
           consumes<ticl::SimToRecoCollection>(ps.getParameter<edm::InputTag>("lcSimToRecoAssociatorCP"))),
-      lc_recoToSim_SC_token_(
-          consumes<ticl::RecoToSimCollectionWithSimClusters>(ps.getParameter<edm::InputTag>("lcRecoToSimAssociatorSC"))),
-      lc_simToReco_SC_token_(
-          consumes<ticl::SimToRecoCollectionWithSimClusters>(ps.getParameter<edm::InputTag>("lcSimToRecoAssociatorSC"))),
+      lc_recoToSim_SC_token_(consumes<ticl::RecoToSimCollectionWithSimClusters>(
+          ps.getParameter<edm::InputTag>("lcRecoToSimAssociatorSC"))),
+      lc_simToReco_SC_token_(consumes<ticl::SimToRecoCollectionWithSimClusters>(
+          ps.getParameter<edm::InputTag>("lcSimToRecoAssociatorSC"))),
       ecalhits_token_(consumes(ps.getParameter<edm::InputTag>("ecalhits"))),
       hcalhits_token_(consumes(ps.getParameter<edm::InputTag>("hcalhits"))),
       associations_parameterSets_(ps.getParameter<std::vector<edm::ParameterSet>>("associators")),
@@ -1130,7 +1130,6 @@ void TICLDumper::beginJob() {
                                             associations_parameterSets_[i].getParameter<std::string>("branchName"),
                                             associations_parameterSets_[i].getParameter<std::string>("suffix"));
   }
-  
 
   if (saveTracks_) {
     tracks_tree_ = fs->make<TTree>("tracks", "Tracks");
@@ -1259,15 +1258,15 @@ void TICLDumper::analyze(const edm::Event& event, const edm::EventSetup& setup) 
 
   edm::Handle<ticl::SimToRecoCollectionWithSimClusters> lcSimToRecoSC_h;
   event.getByToken(lc_simToReco_SC_token_, lcSimToRecoSC_h);
-  auto const& lc_simToRecoSCMap = *lcSimToRecoSC_h;  
+  auto const& lc_simToRecoSCMap = *lcSimToRecoSC_h;
 
   std::vector<reco::PFRecHit> hits;
-  
+
   edm::Handle<std::vector<reco::PFRecHit>> ecalhits_h;
   event.getByToken(ecalhits_token_, ecalhits_h);
-  const auto& ecalhits = event.get(ecalhits_token_); 
+  const auto& ecalhits = event.get(ecalhits_token_);
   hits.insert(hits.end(), ecalhits.begin(), ecalhits.end());
-  
+
   edm::Handle<std::vector<reco::PFRecHit>> hcalhits_h;
   event.getByToken(hcalhits_token_, hcalhits_h);
   const auto& hcalhits = event.get(hcalhits_token_);
@@ -1519,8 +1518,8 @@ void TICLDumper::analyze(const edm::Event& event, const edm::EventSetup& setup) 
   }
 
   //LC->CP association
-  lc_recoToSim_CP.resize(nclusters_); 
-  lc_recoToSim_CP_score.resize(nclusters_); 
+  lc_recoToSim_CP.resize(nclusters_);
+  lc_recoToSim_CP_score.resize(nclusters_);
   for (size_t i = 0; i < nclusters_; ++i) {
     const edm::Ref<std::vector<reco::CaloCluster>> lcRef(layer_clusters_h, i);
 
@@ -1537,12 +1536,12 @@ void TICLDumper::analyze(const edm::Event& event, const edm::EventSetup& setup) 
 
   //CP->LC association
   auto ncaloparticles = caloparticles.size();
-  lc_simToReco_CP.resize(ncaloparticles); 
+  lc_simToReco_CP.resize(ncaloparticles);
   lc_simToReco_CP_score.resize(ncaloparticles);
   lc_simToReco_CP_shared.resize(ncaloparticles);
   for (size_t i = 0; i < ncaloparticles; ++i) {
     const edm::Ref<std::vector<CaloParticle>> cpRef(caloparticles_h, i);
-    
+
     const auto lc_iter = lc_simToRecoCPMap.find(cpRef);
     if (lc_iter != lc_simToRecoCPMap.end()) {
       const auto& lcAssociated = lc_iter->val;
@@ -1555,8 +1554,8 @@ void TICLDumper::analyze(const edm::Event& event, const edm::EventSetup& setup) 
     }
   }
 
-  lc_recoToSim_SC.resize(nclusters_); 
-  lc_recoToSim_SC_score.resize(nclusters_); 
+  lc_recoToSim_SC.resize(nclusters_);
+  lc_recoToSim_SC_score.resize(nclusters_);
   for (size_t i = 0; i < nclusters_; ++i) {
     const edm::Ref<std::vector<reco::CaloCluster>> lcRef(layer_clusters_h, i);
 
@@ -1573,12 +1572,12 @@ void TICLDumper::analyze(const edm::Event& event, const edm::EventSetup& setup) 
 
   //CP->LC association
   auto nsimclusters = simclusters.size();
-  lc_simToReco_SC.resize(nsimclusters); 
+  lc_simToReco_SC.resize(nsimclusters);
   lc_simToReco_SC_score.resize(nsimclusters);
   lc_simToReco_SC_shared.resize(nsimclusters);
   for (size_t i = 0; i < nsimclusters; ++i) {
     const edm::Ref<std::vector<SimCluster>> scRef(simclusters_h, i);
-    
+
     const auto lc_iter = lc_simToRecoSCMap.find(scRef);
     if (lc_iter != lc_simToRecoSCMap.end()) {
       const auto& lcAssociated = lc_iter->val;
@@ -1590,7 +1589,7 @@ void TICLDumper::analyze(const edm::Event& event, const edm::EventSetup& setup) 
       }
     }
   }
-  
+
   if (saveLCs_)
     cluster_tree_->Fill();
   if (saveTICLCandidate_)

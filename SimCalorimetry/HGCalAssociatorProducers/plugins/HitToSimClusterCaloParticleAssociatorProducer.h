@@ -21,7 +21,6 @@
 #include "SimDataFormats/CaloAnalysis/interface/CaloParticle.h"
 #include "SimDataFormats/CaloAnalysis/interface/SimCluster.h"
 
-
 template <typename HIT>
 class HitToSimClusterCaloParticleAssociatorProducer : public edm::global::EDProducer<> {
 public:

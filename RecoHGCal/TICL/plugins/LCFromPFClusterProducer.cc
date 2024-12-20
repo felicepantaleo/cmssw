@@ -52,7 +52,8 @@ void LCfromPFClusterProducer::produce(edm::Event& evt, const edm::EventSetup& es
 
   for (const auto& pfcl : hcalpfclusters) {
     reco::CaloCluster calocluster = pfcl;
-    if (calocluster.seed().subdetId() == HcalEndcap) continue;
+    if (calocluster.seed().subdetId() == HcalEndcap)
+      continue;
     clusters->push_back(calocluster);
   }
 
@@ -69,4 +70,3 @@ void LCfromPFClusterProducer::fillDescriptions(edm::ConfigurationDescriptions& d
 
 #include "FWCore/Framework/interface/MakerMacros.h"
 DEFINE_FWK_MODULE(LCfromPFClusterProducer);
-

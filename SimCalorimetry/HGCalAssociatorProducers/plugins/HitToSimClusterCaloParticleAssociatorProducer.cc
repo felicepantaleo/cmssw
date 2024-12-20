@@ -95,9 +95,8 @@ void HitToSimClusterCaloParticleAssociatorProducer<HIT>::fillDescriptions(edm::C
     descriptions.add("hitToSimClusterCaloParticleAssociator", desc);
   } else if constexpr (std::is_same_v<HIT, reco::PFRecHit>) {
     desc.add<edm::InputTag>("hitMap", edm::InputTag("recHitMapProducer", "barrelRecHitMap"));
-    desc.add<std::vector<edm::InputTag>>("hits",
-                                         {edm::InputTag("particleFlowRecHitECAL"),
-                                          edm::InputTag("particleFlowRecHitHBHE")});
+    desc.add<std::vector<edm::InputTag>>(
+        "hits", {edm::InputTag("particleFlowRecHitECAL"), edm::InputTag("particleFlowRecHitHBHE")});
     descriptions.add("barrelHitToSimClusterCaloParticleAssociator", desc);
   }
 }
@@ -105,5 +104,6 @@ void HitToSimClusterCaloParticleAssociatorProducer<HIT>::fillDescriptions(edm::C
 // Define this as a plug-in
 using HGCalHitToSimClusterCaloParticleAssociatorProducer = HitToSimClusterCaloParticleAssociatorProducer<HGCRecHit>;
 DEFINE_FWK_MODULE(HGCalHitToSimClusterCaloParticleAssociatorProducer);
-using BarrelHitToSimClusterCaloParticleAssociatorProducer = HitToSimClusterCaloParticleAssociatorProducer<reco::PFRecHit>;
+using BarrelHitToSimClusterCaloParticleAssociatorProducer =
+    HitToSimClusterCaloParticleAssociatorProducer<reco::PFRecHit>;
 DEFINE_FWK_MODULE(BarrelHitToSimClusterCaloParticleAssociatorProducer);

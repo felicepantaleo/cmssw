@@ -47,7 +47,7 @@ CloseByParticleGunProducer::CloseByParticleGunProducer(const ParameterSet& pset)
   }
   if (fFixedR)
     fRMin = pgun_params.getParameter<double>("RMin");
-  
+
   fZMax = pgun_params.getParameter<double>("ZMax");
   fZMin = pgun_params.getParameter<double>("ZMin");
   fDelta = pgun_params.getParameter<double>("Delta");
@@ -138,7 +138,7 @@ void CloseByParticleGunProducer::produce(Event& e, const EventSetup& es) {
   double fR = 0.;
   if (fFixedR)
     fR = fRMin;
-    // z will be computed after eta is samples
+  // z will be computed after eta is samples
   else
     fZ = CLHEP::RandFlat::shoot(engine, fZMin, fZMax);
 
@@ -150,9 +150,9 @@ void CloseByParticleGunProducer::produce(Event& e, const EventSetup& es) {
     fEta = asinh(fZ / fR);
   } else {
     fEta = CLHEP::RandFlat::shoot(engine, fEtaMin, fEtaMax);
-    if (fFixedR){
+    if (fFixedR) {
       fZ = fR * sinh(fEta);
-    }else{
+    } else {
       fR = (fZ / sinh(fEta));
     }
   }
@@ -210,7 +210,7 @@ void CloseByParticleGunProducer::produce(Event& e, const EventSetup& es) {
     // Compute Vertex Position
     double x = fR * cos(phi);
     double y = fR * sin(phi);
-    
+
     HepMC::FourVector p(px, py, pz, energy);
     // If we are requested to be pointing to (0,0,0), correct the momentum direction
     if (fPointing) {

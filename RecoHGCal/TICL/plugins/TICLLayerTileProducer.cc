@@ -45,7 +45,7 @@ TICLLayerTileProducer::TICLLayerTileProducer(const edm::ParameterSet &ps)
         consumes<std::vector<reco::CaloCluster>>(ps.getParameter<edm::InputTag>("layer_HFNose_clusters"));
     produces<TICLLayerTilesHFNose>();
   } else if (doBarrel_) {
-    clusters_barrel_token_ = 
+    clusters_barrel_token_ =
         consumes<std::vector<reco::CaloCluster>>(ps.getParameter<edm::InputTag>("barrel_layer_clusters"));
     produces<TICLLayerTilesBarrel>("ticlLayerTilesBarrel");
   } else {

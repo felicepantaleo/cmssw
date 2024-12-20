@@ -79,10 +79,8 @@ void HitToLayerClusterAssociatorProducer<HIT>::fillDescriptions(edm::Configurati
   } else if constexpr (std::is_same_v<HIT, reco::PFRecHit>) {
     desc.add<edm::InputTag>("layer_clusters", edm::InputTag("barrelLayerClusters"));
     desc.add<edm::InputTag>("hitMap", edm::InputTag("recHitMapProducer", "barrelRecHitMap"));
-    desc.add<std::vector<edm::InputTag>>("hits",
-                                         {edm::InputTag("particleFlowRecHitECAL"),
-                                          edm::InputTag("particleFlowRecHitHBHE")});
+    desc.add<std::vector<edm::InputTag>>(
+        "hits", {edm::InputTag("particleFlowRecHitECAL"), edm::InputTag("particleFlowRecHitHBHE")});
     descriptions.add("hitToBarrelLayerClusterAssociator", desc);
   }
 }
-

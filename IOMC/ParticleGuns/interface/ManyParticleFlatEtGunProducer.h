@@ -5,21 +5,17 @@
 
 #include "IOMC/ParticleGuns/interface/BaseFlatGunProducer.h"
 
-namespace edm
-{
+namespace edm {
 
-  class ManyParticleFlatEtGunProducer : public BaseFlatGunProducer
-  {
-
+  class ManyParticleFlatEtGunProducer : public BaseFlatGunProducer {
   public:
-    ManyParticleFlatEtGunProducer(const ParameterSet &);
+    ManyParticleFlatEtGunProducer(const ParameterSet&);
     ~ManyParticleFlatEtGunProducer() override;
 
   private:
+    void produce(Event& e, const EventSetup& es) override;
 
-    void produce(Event & e, const EventSetup& es) override;
-
-  protected :
+  protected:
     // data members
     std::vector<double> vPtMax;
     std::vector<double> vPtMin;
@@ -29,6 +25,6 @@ namespace edm
     std::vector<double> vPhiMax;
     std::vector<int> vPartIDs;
   };
-}
+}  // namespace edm
 
 #endif
