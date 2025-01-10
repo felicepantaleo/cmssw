@@ -1117,10 +1117,10 @@ _cell_association_table_zminus = PlotGroup("cellAssociation_table", [
 _bin_count = 0
 _xbinlabels = [ "{:02d}".format(i+1) for i in range(0,maxlayerzm) ]
 _xtitle = "Layer Numbers in z-"
-_common_eff = {"stat": False, "legend": False, "ymin": 0.0, "ymax": 1.1, "xbinlabeloption": "d"}
+_common_eff = {"stat": False, "legend": False, "ymin": -0.0000001, "ymax": 1.01, "xbinlabeloption": "d"}
 _effplots_zminus_eta = [Plot("effic_eta_layer{:02d}".format(i), xtitle="", **_common_eff) for i in range(0,maxlayerzm)]
 _effplots_zminus_phi = [Plot("effic_phi_layer{:02d}".format(i), xtitle="", **_common_eff) for i in range(0,maxlayerzm)]
-_common_eff = {"stat": False, "legend": False, "xbinlabels": _xbinlabels, "xbinlabelsize": 12, "xbinlabeloption": "v", "ymin": 0.0, "ymax": 1.1}
+_common_eff = {"stat": False, "legend": False, "xbinlabels": _xbinlabels, "xbinlabelsize": 12, "xbinlabeloption": "v", "ymin": -0.0000001, "ymax": 1.01}
 _common_eff["xmin"] = _bin_count
 _common_eff["xmax"] = maxlayerzm
 _bin_count += 4*maxlayerzm # 2 for the eta{-,+} and 2 for phi{+,-}
@@ -1129,10 +1129,10 @@ _efficiencies_zminus_eta = PlotGroup("Efficiencies_vs_eta", _effplots_zminus_eta
 _efficiencies_zminus_phi = PlotGroup("Efficiencies_vs_phi", _effplots_zminus_phi, ncols=10)
 _efficiencies_zminus     = PlotGroup("Efficiencies_vs_layer", _effplots_zminus, ncols=1)
 
-_common_dup = {"stat": False, "legend": False, "ymin":0.0, "ymax":1.1}
+_common_dup = {"stat": False, "legend": False, "ymin": -0.0000001, "ymax": 1.01}
 _dupplots_zminus_eta = [Plot("duplicate_eta_layer{:02d}".format(i), xtitle="", **_common_dup) for i in range(0,maxlayerzm)]
 _dupplots_zminus_phi = [Plot("duplicate_phi_layer{:02d}".format(i), xtitle="", **_common_dup) for i in range(0,maxlayerzm)]
-_common_dup = {"stat": False, "legend": False, "title": "Global Duplicates in z-", "xbinlabels": _xbinlabels, "xbinlabelsize": 12, "xbinlabeloption": "v", "ymin": 0.0, "ymax": 1.1}
+_common_dup = {"stat": False, "legend": False, "title": "Global Duplicates in z-", "xbinlabels": _xbinlabels, "xbinlabelsize": 12, "xbinlabeloption": "v", "ymin": -0.0000001, "ymax": 1.01}
 _common_dup["xmin"] = _bin_count
 _common_dup["xmax"] = _common_dup["xmin"] + maxlayerzm
 _bin_count += 4*maxlayerzm # 2 for the eta{-,+} and 2 for phi{+,-}
@@ -1141,10 +1141,10 @@ _duplicates_zminus_eta = PlotGroup("Duplicates_vs_eta", _dupplots_zminus_eta, nc
 _duplicates_zminus_phi = PlotGroup("Duplicates_vs_phi", _dupplots_zminus_phi, ncols=10)
 _duplicates_zminus     = PlotGroup("Duplicates_vs_layer", _dupplots_zminus, ncols=1)
 
-_common_fake = {"stat": False, "legend": False, "ymin":0.0, "ymax":1.1}
+_common_fake = {"stat": False, "legend": False, "ymin": -0.0000001, "ymax": 1.01}
 _fakeplots_zminus_eta = [Plot("fake_eta_layer{:02d}".format(i), xtitle="", **_common_fake) for i in range(0,maxlayerzm)]
 _fakeplots_zminus_phi = [Plot("fake_phi_layer{:02d}".format(i), xtitle="", **_common_fake) for i in range(0,maxlayerzm)]
-_common_fake = {"stat": False, "legend": False, "title": "Global Fake Rates in z-", "xbinlabels": _xbinlabels, "xbinlabelsize": 12, "xbinlabeloption": "v", "ymin": 0.0, "ymax": 1.1}
+_common_fake = {"stat": False, "legend": False, "title": "Global Fake Rates in z-", "xbinlabels": _xbinlabels, "xbinlabelsize": 12, "xbinlabeloption": "v", "ymin": -0.0000001, "ymax": 1.01}
 _common_fake["xmin"] = _bin_count
 _common_fake["xmax"] = _common_fake["xmin"] + maxlayerzm
 _bin_count += 4*maxlayerzm # 2 for the eta{-,+} and 2 for phi{+,-}
@@ -1154,10 +1154,10 @@ _fakes_zminus_eta = PlotGroup("FakeRate_vs_eta", _fakeplots_zminus_eta, ncols=10
 _fakes_zminus_phi = PlotGroup("FakeRate_vs_phi", _fakeplots_zminus_phi, ncols=10)
 _fakes_zminus     = PlotGroup("FakeRate_vs_layer", _fakeplots_zminus, ncols=1)
 
-_common_merge = {"stat": False, "legend": False, "ymin":0.0, "ymax":1.1}
+_common_merge = {"stat": False, "legend": False, "ymin": -0.0000001, "ymax": 1.01}
 _mergeplots_zminus_eta = [Plot("merge_eta_layer{:02d}".format(i), xtitle="", **_common_merge) for i in range(0,maxlayerzm)]
 _mergeplots_zminus_phi = [Plot("merge_phi_layer{:02d}".format(i), xtitle="", **_common_merge) for i in range(0,maxlayerzm)]
-_common_merge = {"stat": False, "legend": False, "title": "Global Merge Rates in z-", "xbinlabels": _xbinlabels, "xbinlabelsize": 12, "xbinlabeloption": "v", "ymin": 0.0, "ymax": 1.1}
+_common_merge = {"stat": False, "legend": False, "title": "Global Merge Rates in z-", "xbinlabels": _xbinlabels, "xbinlabelsize": 12, "xbinlabeloption": "v", "ymin": -0.0000001, "ymax": 1.01}
 _common_merge["xmin"] = _bin_count
 _common_merge["xmax"] = _common_merge["xmin"] + maxlayerzm
 _bin_count += 4*maxlayerzm # 2 for the eta{-,+} and 2 for phi{+,-}
@@ -1269,10 +1269,10 @@ _cell_association_table_zplus = PlotGroup("cellAssociation_table", [
 
 _bin_count = maxlayerzm
 _xtitle = "Layer Numbers in z+"
-_common_eff = {"stat": False, "legend": False, "ymin":0.0, "ymax":1.1}
+_common_eff = {"stat": False, "legend": False, "ymin": -0.0000001, "ymax": 1.01}
 _effplots_zplus_eta = [Plot("effic_eta_layer{:02d}".format(i), xtitle="", **_common_eff) for i in range(maxlayerzm,maxlayerzp)]
 _effplots_zplus_phi = [Plot("effic_phi_layer{:02d}".format(i), xtitle="", **_common_eff) for i in range(maxlayerzm,maxlayerzp)]
-_common_eff = {"stat": False, "legend": False, "xbinlabels": _xbinlabels, "xbinlabelsize": 12, "xbinlabeloption": "v", "ymin": 0.0, "ymax": 1.1}
+_common_eff = {"stat": False, "legend": False, "xbinlabels": _xbinlabels, "xbinlabelsize": 12, "xbinlabeloption": "v", "ymin": -0.0000001, "ymax": 1.01}
 _common_eff["xmin"] = _bin_count
 _common_eff["xmax"] = _common_eff["xmin"] + maxlayerzm
 _bin_count += 4*maxlayerzm # 2 for the eta{-,+} and 2 for phi{+,-}
@@ -1281,10 +1281,10 @@ _efficiencies_zplus_eta = PlotGroup("Efficiencies_vs_eta", _effplots_zplus_eta, 
 _efficiencies_zplus_phi = PlotGroup("Efficiencies_vs_phi", _effplots_zplus_phi, ncols=10)
 _efficiencies_zplus = PlotGroup("Efficiencies_vs_layer", _effplots_zplus, ncols=1)
 
-_common_dup = {"stat": False, "legend": False, "ymin": 0.0, "ymax": 1.1}
+_common_dup = {"stat": False, "legend": False, "ymin": -0.0000001, "ymax": 1.01}
 _dupplots_zplus_eta = [Plot("duplicate_eta_layer{:02d}".format(i), xtitle="", **_common_dup) for i in range(maxlayerzm,maxlayerzp)]
 _dupplots_zplus_phi = [Plot("duplicate_phi_layer{:02d}".format(i), xtitle="", **_common_dup) for i in range(maxlayerzm,maxlayerzp)]
-_common_dup = {"stat": False, "legend": False, "title": "Global Duplicates in z+", "xbinlabels": _xbinlabels, "xbinlabelsize": 12, "xbinlabeloption": "v", "ymin": 0.0, "ymax": 1.1}
+_common_dup = {"stat": False, "legend": False, "title": "Global Duplicates in z+", "xbinlabels": _xbinlabels, "xbinlabelsize": 12, "xbinlabeloption": "v", "ymin": -0.0000001, "ymax": 1.01}
 _common_dup["xmin"] = _bin_count
 _common_dup["xmax"] = _common_dup["xmin"] + maxlayerzm
 _bin_count += 4*maxlayerzm # 2 for the eta{-,+} and 2 for phi{+,-}
@@ -1293,10 +1293,10 @@ _duplicates_zplus_eta = PlotGroup("Duplicates_vs_eta", _dupplots_zplus_eta, ncol
 _duplicates_zplus_phi = PlotGroup("Duplicates_vs_phi", _dupplots_zplus_phi, ncols=10)
 _duplicates_zplus = PlotGroup("Duplicates_vs_layer", _dupplots_zplus, ncols=1)
 
-_common_fake = {"stat": False, "legend": False, "ymin": 0.0, "ymax": 1.1}
+_common_fake = {"stat": False, "legend": False, "ymin": -0.0000001, "ymax": 1.01}
 _fakeplots_zplus_eta = [Plot("fake_eta_layer{:02d}".format(i), xtitle="", **_common_fake) for i in range(maxlayerzm,maxlayerzp)]
 _fakeplots_zplus_phi = [Plot("fake_phi_layer{:02d}".format(i), xtitle="", **_common_fake) for i in range(maxlayerzm,maxlayerzp)]
-_common_fake = {"stat": False, "legend": False, "title": "Global Fake Rates in z+", "xbinlabels": _xbinlabels, "xbinlabelsize": 12, "xbinlabeloption": "v", "ymin": 0.0, "ymax": 1.1}
+_common_fake = {"stat": False, "legend": False, "title": "Global Fake Rates in z+", "xbinlabels": _xbinlabels, "xbinlabelsize": 12, "xbinlabeloption": "v", "ymin": -0.0000001, "ymax": 1.01}
 _common_fake["xmin"] = _bin_count
 _common_fake["xmax"] = _common_fake["xmin"] + maxlayerzm
 _bin_count += 4*maxlayerzm # 2 for the eta{-,+} and 2 for phi{+,-}
@@ -1305,10 +1305,10 @@ _fakes_zplus_eta = PlotGroup("FakeRate_vs_eta", _fakeplots_zplus_eta, ncols=10)
 _fakes_zplus_phi = PlotGroup("FakeRate_vs_phi", _fakeplots_zplus_phi, ncols=10)
 _fakes_zplus = PlotGroup("FakeRate_vs_layer", _fakeplots_zplus, ncols=1)
 
-_common_merge = {"stat": False, "legend": False, "ymin": 0.0, "ymax": 1.1}
+_common_merge = {"stat": False, "legend": False, "ymin": -0.0000001, "ymax": 1.01}
 _mergeplots_zplus_eta = [Plot("merge_eta_layer{:02d}".format(i), xtitle="", **_common_merge) for i in range(maxlayerzm,maxlayerzp)]
 _mergeplots_zplus_phi = [Plot("merge_phi_layer{:02d}".format(i), xtitle="", **_common_merge) for i in range(maxlayerzm,maxlayerzp)]
-_common_merge = {"stat": False, "legend": False, "title": "Global Merge Rates in z+", "xbinlabels": _xbinlabels, "xbinlabelsize": 12, "xbinlabeloption": "v", "ymin": 0.0, "ymax": 1.1}
+_common_merge = {"stat": False, "legend": False, "title": "Global Merge Rates in z+", "xbinlabels": _xbinlabels, "xbinlabelsize": 12, "xbinlabeloption": "v", "ymin": -0.0000001, "ymax": 1.01}
 _common_merge["xmin"] = _bin_count
 _common_merge["xmax"] = _common_merge["xmin"] + maxlayerzm
 _bin_count += 4*maxlayerzm # 2 for the eta{-,+} and 2 for phi{+,-}
@@ -1650,7 +1650,7 @@ _cell_association_table = PlotGroup("cellAssociation_table", [
         ], ncols=8 )
 
 # Trackster plots
-_common_metric = {"stat": False, "legend": False, "xbinlabelsize": 14, "xbinlabeloption": "d", "ymin": 0.0, "ymax": 1.1}
+_common_metric = {"stat": False, "legend": False, "xbinlabelsize": 14, "xbinlabeloption": "d", "ymin": -0.0000001, "ymax": 1.01}
 _common_metric_logx = _common_metric.copy()
 _common_metric_logx["xlog"] = True
 
@@ -1813,7 +1813,7 @@ for ct in cand_type:
     _all_cand_ene_plots.append(cand_type_plots)
 
 #efficiency and fake
-_common_eff_fake = {"stat": False, "legend": False, "xbinlabelsize": 14, "xtitle": "Default", "xbinlabeloption": "d", "ymin": 0.0, "ymax": 1.1}
+_common_eff_fake = {"stat": False, "legend": False, "xbinlabelsize": 14, "xtitle": "Default", "xbinlabeloption": "d", "ymin": -0.0000001, "ymax": 1.01}
 _all_cand_eff_plots = []
 for ct in cand_type:
     cand_eff_plots = []
