@@ -2,7 +2,7 @@
 #define DataFormats_NGTSoATest_src_classes_h
 
 #include "DataFormats/NGTSoATest/interface/PortableCollectionSoATest.h"
-#include "DataFormats/NGTSoATest/interface/PortableHostCollectionSoATest.h"
+
 #include "DataFormats/NGTSoATest/interface/SoALayoutTest.h"
 #include "DataFormats/Common/interface/Wrapper.h"
 

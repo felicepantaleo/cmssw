@@ -316,14 +316,13 @@
 
 #define _STRUCT_ELEMENT_INITIALIZERS(R, DATA, TYPE_NAME) BOOST_PP_EXPAND(_STRUCT_ELEMENT_INITIALIZERS_IMPL TYPE_NAME)
 
-
 /**
  * Freeing of the ROOT-allocated column or scalar buffer
  */
 // clang-format off
 #define _ROOT_FREE_SOA_COLUMN_OR_SCALAR_IMPL(VALUE_TYPE, CPP_TYPE, NAME)                                               \
   delete[] BOOST_PP_CAT(NAME, _);                                                                                      \
-  BOOST_PP_CAT(NAME, _) = nullptr;                                                                                     \
+  BOOST_PP_CAT(NAME, _) = nullptr; \
   // clang-format on
 
 #define _ROOT_FREE_SOA_COLUMN_OR_SCALAR(R, DATA, TYPE_NAME) _ROOT_FREE_SOA_COLUMN_OR_SCALAR_IMPL TYPE_NAME
@@ -355,40 +354,42 @@
     if (reinterpret_cast<intptr_t>(BOOST_PP_CAT(NAME, _)) % alignment)                                                 \
       throw std::runtime_error("In layout constructor: misaligned column: " #NAME);
 // clang-format on
- 
+
 #define _ASSIGN_SOA_COLUMN_OR_SCALAR(R, DATA, TYPE_NAME) _ASSIGN_SOA_COLUMN_OR_SCALAR_IMPL TYPE_NAME
 
-#define _INITIALIZE_MEM_ADDRESS_IMPL(VALUE_TYPE, CPP_TYPE, NAME)                                                       \
-  if(mem_start) {                                                                                                      \
-    mem_ = BOOST_PP_CAT(custom_view.metadata().addressOf_, NAME)();                                                    \
-    mem_start = false;                                                                                                 \
-  }                                                                                                                    \
+#define _INITIALIZE_MEM_ADDRESS_IMPL(VALUE_TYPE, CPP_TYPE, NAME)    \
+  if (mem_start) {                                                  \
+    mem_ = BOOST_PP_CAT(custom_view.metadata().addressOf_, NAME)(); \
+    mem_start = false;                                              \
+  }
 
 #define _INITIALIZE_MEM_ADDRESS(R, DATA, TYPE_NAME) _INITIALIZE_MEM_ADDRESS_IMPL TYPE_NAME
 
-#define  _ASSIGN_SOA_COLUMN_OR_SCALAR_FROM_VIEW_IMPL(VALUE_TYPE, CPP_TYPE, NAME)                                     \
-  _SWITCH_ON_TYPE(VALUE_TYPE,                                                                                          \
-    /* Scalar */                                                                                                       \
-      BOOST_PP_CAT(NAME, _) = reinterpret_cast<CPP_TYPE*>(_soa_impl_curMem);                                           \
-      _soa_impl_curMem += cms::soa::alignSize(sizeof(CPP_TYPE), alignment);                                            \
-    memcpy(BOOST_PP_CAT(NAME, _), BOOST_PP_CAT(custom_view.metadata().addressOf_, NAME)(), cms::soa::alignSize(sizeof(CPP_TYPE), alignment));                                                      \
-    ,                                                                                                                \
-    /* Column */                                                                                                     \
-      BOOST_PP_CAT(NAME, _) = reinterpret_cast<CPP_TYPE*>(_soa_impl_curMem);                                           \
-      _soa_impl_curMem += cms::soa::alignSize(sizeof(CPP_TYPE), alignment);                                            \
-    memcpy(BOOST_PP_CAT(NAME, _), BOOST_PP_CAT(custom_view.metadata().addressOf_, NAME)(), cms::soa::alignSize(elements_ * sizeof(CPP_TYPE), alignment));                                          \
-    ,                                                                                                                \
-    /* Eigen column */                                                                                               \
-      BOOST_PP_CAT(NAME, _) = reinterpret_cast<CPP_TYPE::Scalar*>(_soa_impl_curMem);                                   \
-      _soa_impl_curMem += cms::soa::alignSize(elements_ * sizeof(CPP_TYPE::Scalar), alignment)                         \
-        * CPP_TYPE::RowsAtCompileTime * CPP_TYPE::ColsAtCompileTime;                                                   \
-    BOOST_PP_CAT(NAME, Stride_) = cms::soa::alignSize(elements_ * sizeof(CPP_TYPE::Scalar), alignment)               \
-      / sizeof(CPP_TYPE::Scalar);                                                                                    \
-    BOOST_PP_CAT(NAME, ElementsWithPadding_) = BOOST_PP_CAT(NAME, Stride_)                                           \
-      *  CPP_TYPE::RowsAtCompileTime * CPP_TYPE::ColsAtCompileTime;                                                  \
-    memcpy(BOOST_PP_CAT(NAME, _), BOOST_PP_CAT(custom_view.metadata().addressOf_, NAME)(), cms::soa::alignSize(elements_ * sizeof(CPP_TYPE::Scalar), alignment)                                    \
-                                                      * CPP_TYPE::RowsAtCompileTime * CPP_TYPE::ColsAtCompileTime);  \
-  )                                                                                                                    \
+#define _ASSIGN_SOA_COLUMN_OR_SCALAR_FROM_VIEW_IMPL(VALUE_TYPE, CPP_TYPE, NAME)                                        \
+  _SWITCH_ON_TYPE(VALUE_TYPE, /* Scalar */                                                                             \
+                  BOOST_PP_CAT(NAME, _) = reinterpret_cast<CPP_TYPE*>(_soa_impl_curMem);                               \
+                  _soa_impl_curMem += cms::soa::alignSize(sizeof(CPP_TYPE), alignment);                                \
+                  memcpy(BOOST_PP_CAT(NAME, _),                                                                        \
+                         BOOST_PP_CAT(custom_view.metadata().addressOf_, NAME)(),                                      \
+                         cms::soa::alignSize(sizeof(CPP_TYPE), alignment));                                            \
+                  , /* Column */                                                                                       \
+                  BOOST_PP_CAT(NAME, _) = reinterpret_cast<CPP_TYPE*>(_soa_impl_curMem);                               \
+                  _soa_impl_curMem += cms::soa::alignSize(sizeof(CPP_TYPE), alignment);                                \
+                  memcpy(BOOST_PP_CAT(NAME, _),                                                                        \
+                         BOOST_PP_CAT(custom_view.metadata().addressOf_, NAME)(),                                      \
+                         cms::soa::alignSize(elements_ * sizeof(CPP_TYPE), alignment));                                \
+                  , /* Eigen column */                                                                                 \
+                  BOOST_PP_CAT(NAME, _) = reinterpret_cast<CPP_TYPE::Scalar*>(_soa_impl_curMem);                       \
+                  _soa_impl_curMem += cms::soa::alignSize(elements_ * sizeof(CPP_TYPE::Scalar), alignment) *           \
+                                      CPP_TYPE::RowsAtCompileTime * CPP_TYPE::ColsAtCompileTime;                       \
+                  BOOST_PP_CAT(NAME, Stride_) =                                                                        \
+                      cms::soa::alignSize(elements_ * sizeof(CPP_TYPE::Scalar), alignment) / sizeof(CPP_TYPE::Scalar); \
+                  BOOST_PP_CAT(NAME, ElementsWithPadding_) =                                                           \
+                      BOOST_PP_CAT(NAME, Stride_) * CPP_TYPE::RowsAtCompileTime * CPP_TYPE::ColsAtCompileTime;         \
+                  memcpy(BOOST_PP_CAT(NAME, _),                                                                        \
+                         BOOST_PP_CAT(custom_view.metadata().addressOf_, NAME)(),                                      \
+                         cms::soa::alignSize(elements_ * sizeof(CPP_TYPE::Scalar), alignment) *                        \
+                             CPP_TYPE::RowsAtCompileTime * CPP_TYPE::ColsAtCompileTime);)
 
 #define _ASSIGN_SOA_COLUMN_OR_SCALAR_FROM_VIEW(R, DATA, TYPE_NAME) _ASSIGN_SOA_COLUMN_OR_SCALAR_FROM_VIEW_IMPL TYPE_NAME
 
@@ -548,7 +549,7 @@
 
 #define _DECLARE_STRUCT_MEMBERS(R, DATA, TYPE_NAME) BOOST_PP_EXPAND(_DECLARE_STRUCT_MEMBERS_IMPL TYPE_NAME)
 
-#define _COUNT_SOA_COLUMNS(R, DATA, TYPE_NAME)  _soa_column_count++;
+#define _COUNT_SOA_COLUMNS(R, DATA, TYPE_NAME) _soa_column_count++;
 
 /**
  * Array of string column names
@@ -579,15 +580,17 @@
 
 // clang-format off
 #define _CALL_SET_COLUMN_FUNCTIONS_FROM_ARGS_IMPL(VALUE_TYPE, CPP_TYPE, NAME)                                          \
-        setColumn_##NAME(NAME); 
+        setColumn_##NAME(NAME);
 // clang-format on
 
-#define _CALL_SET_COLUMN_FUNCTIONS_FROM_ARGS(R, DATA, TYPE_NAME) BOOST_PP_EXPAND(_CALL_SET_COLUMN_FUNCTIONS_FROM_ARGS_IMPL TYPE_NAME)
+#define _CALL_SET_COLUMN_FUNCTIONS_FROM_ARGS(R, DATA, TYPE_NAME) \
+  BOOST_PP_EXPAND(_CALL_SET_COLUMN_FUNCTIONS_FROM_ARGS_IMPL TYPE_NAME)
 
-#define _DECLARE_CONSTRUCTOR_PARAMETERS_IMPL(VALUE_TYPE, CPP_TYPE, NAME)                                               \
-    (typename Metadata::BOOST_PP_CAT(ParametersTypeOf_, NAME) NAME)
+#define _DECLARE_CONSTRUCTOR_PARAMETERS_IMPL(VALUE_TYPE, CPP_TYPE, NAME) \
+  (typename Metadata::BOOST_PP_CAT(ParametersTypeOf_, NAME) NAME)
 
-#define _DECLARE_CONSTRUCTOR_PARAMETERS(R, DATA, TYPE_NAME) BOOST_PP_EXPAND(_DECLARE_CONSTRUCTOR_PARAMETERS_IMPL TYPE_NAME)
+#define _DECLARE_CONSTRUCTOR_PARAMETERS(R, DATA, TYPE_NAME) \
+  BOOST_PP_EXPAND(_DECLARE_CONSTRUCTOR_PARAMETERS_IMPL TYPE_NAME)
 
 // clang-format off
 #define _INITIALIZE_PARAMETERS_FROM_ARGS_IMPL(VALUE_TYPE, CPP_TYPE, NAME)                                              \
@@ -685,7 +688,8 @@
     )
 // clang-format on
 
-#define _INITIALIZE_PARAMETERS_FROM_STRUCT(R, DATA, TYPE_NAME) BOOST_PP_EXPAND(_INITIALIZE_PARAMETERS_FROM_STRUCT_IMPL TYPE_NAME)
+#define _INITIALIZE_PARAMETERS_FROM_STRUCT(R, DATA, TYPE_NAME) \
+  BOOST_PP_EXPAND(_INITIALIZE_PARAMETERS_FROM_STRUCT_IMPL TYPE_NAME)
 
 // clang-format off
 #define _INITIALIZE_PARAMETERS_AND_SIZE_IMPL(VALUE_TYPE, CPP_TYPE, NAME)                                               \
@@ -748,38 +752,43 @@
         BOOST_PP_CAT(NAME, Stride_) = BOOST_PP_CAT(NAME, Stride_tmp);                                                  \
         BOOST_PP_CAT(NAME, ElementsWithPadding_) = BOOST_PP_CAT(NAME, ElementsWithPadding_tmp);                        \
         BOOST_PP_CAT(NAME, _) = BOOST_PP_CAT(NAME, _tmp);                                                              \
-      ) 
+      )
 // clang-format on
 
-#define _INITIALIZE_PARAMETERS_AND_SIZE(R, DATA, TYPE_NAME) BOOST_PP_EXPAND(_INITIALIZE_PARAMETERS_AND_SIZE_IMPL TYPE_NAME)
+#define _INITIALIZE_PARAMETERS_AND_SIZE(R, DATA, TYPE_NAME) \
+  BOOST_PP_EXPAND(_INITIALIZE_PARAMETERS_AND_SIZE_IMPL TYPE_NAME)
 
-#define _COPY_COLUMN_BY_COLUMN_IMPL(VALUE_TYPE, CPP_TYPE, NAME)                                                        \
-  _SWITCH_ON_TYPE(VALUE_TYPE,                                                                                          \
-      /* Scalar */                                                                                                     \
-      memcpy(BOOST_PP_CAT(soa.metadata().addressOf_, NAME)(), BOOST_PP_CAT(NAME, _), cms::soa::alignSize(sizeof(CPP_TYPE), alignment));                                                      \
-      ,                                                                                                                \
-      /* Column */                                                                                                     \
-      memcpy(BOOST_PP_CAT(soa.metadata().addressOf_, NAME)(), BOOST_PP_CAT(NAME, _), cms::soa::alignSize(elements_ * sizeof(CPP_TYPE), alignment));                                          \
-      ,                                                                                                                \
-      /* Eigen column */                                                                                               \
-      memcpy(BOOST_PP_CAT(soa.metadata().addressOf_, NAME)(), BOOST_PP_CAT(NAME, _), cms::soa::alignSize(elements_ * sizeof(CPP_TYPE::Scalar), alignment)                                    \
-                                                        * CPP_TYPE::RowsAtCompileTime * CPP_TYPE::ColsAtCompileTime);  \
-  )                                                                                                                    \
+#define _COPY_COLUMN_BY_COLUMN_IMPL(VALUE_TYPE, CPP_TYPE, NAME)                                 \
+  _SWITCH_ON_TYPE(VALUE_TYPE, /* Scalar */                                                      \
+                  memcpy(BOOST_PP_CAT(soa.metadata().addressOf_, NAME)(),                       \
+                         BOOST_PP_CAT(NAME, _),                                                 \
+                         cms::soa::alignSize(sizeof(CPP_TYPE), alignment));                     \
+                  , /* Column */                                                                \
+                  memcpy(BOOST_PP_CAT(soa.metadata().addressOf_, NAME)(),                       \
+                         BOOST_PP_CAT(NAME, _),                                                 \
+                         cms::soa::alignSize(elements_ * sizeof(CPP_TYPE), alignment));         \
+                  , /* Eigen column */                                                          \
+                  memcpy(BOOST_PP_CAT(soa.metadata().addressOf_, NAME)(),                       \
+                         BOOST_PP_CAT(NAME, _),                                                 \
+                         cms::soa::alignSize(elements_ * sizeof(CPP_TYPE::Scalar), alignment) * \
+                             CPP_TYPE::RowsAtCompileTime * CPP_TYPE::ColsAtCompileTime);)
 
 #define _COPY_COLUMN_BY_COLUMN(R, DATA, TYPE_NAME) BOOST_PP_EXPAND(_COPY_COLUMN_BY_COLUMN_IMPL TYPE_NAME)
 
-#define _COPY_VIEW_COLUMNS_IMPL(VALUE_TYPE, CPP_TYPE, NAME)                                                        \
-  _SWITCH_ON_TYPE(VALUE_TYPE,                                                                                          \
-      /* Scalar */                                                                                                     \
-      memcpy(BOOST_PP_CAT(soa.metadata().addressOf_, NAME)(), BOOST_PP_CAT(view.metadata().addressOf_, NAME)(), cms::soa::alignSize(sizeof(CPP_TYPE), alignment));                                                      \
-      ,                                                                                                                \
-      /* Column */                                                                                                     \
-      memcpy(BOOST_PP_CAT(soa.metadata().addressOf_, NAME)(), BOOST_PP_CAT(view.metadata().addressOf_, NAME)(), cms::soa::alignSize(soa.elements_ * sizeof(CPP_TYPE), alignment));                                          \
-      ,                                                                                                                \
-      /* Eigen column */                                                                                               \
-      memcpy(BOOST_PP_CAT(soa.metadata().addressOf_, NAME)(), BOOST_PP_CAT(view.metadata().addressOf_, NAME)(), cms::soa::alignSize(soa.elements_ * sizeof(CPP_TYPE::Scalar), alignment)                                    \
-                                                        * CPP_TYPE::RowsAtCompileTime * CPP_TYPE::ColsAtCompileTime);  \
-  )                                                                                                                    \
+#define _COPY_VIEW_COLUMNS_IMPL(VALUE_TYPE, CPP_TYPE, NAME)                                         \
+  _SWITCH_ON_TYPE(VALUE_TYPE, /* Scalar */                                                          \
+                  memcpy(BOOST_PP_CAT(soa.metadata().addressOf_, NAME)(),                           \
+                         BOOST_PP_CAT(view.metadata().addressOf_, NAME)(),                          \
+                         cms::soa::alignSize(sizeof(CPP_TYPE), alignment));                         \
+                  , /* Column */                                                                    \
+                  memcpy(BOOST_PP_CAT(soa.metadata().addressOf_, NAME)(),                           \
+                         BOOST_PP_CAT(view.metadata().addressOf_, NAME)(),                          \
+                         cms::soa::alignSize(soa.elements_ * sizeof(CPP_TYPE), alignment));         \
+                  , /* Eigen column */                                                              \
+                  memcpy(BOOST_PP_CAT(soa.metadata().addressOf_, NAME)(),                           \
+                         BOOST_PP_CAT(view.metadata().addressOf_, NAME)(),                          \
+                         cms::soa::alignSize(soa.elements_ * sizeof(CPP_TYPE::Scalar), alignment) * \
+                             CPP_TYPE::RowsAtCompileTime * CPP_TYPE::ColsAtCompileTime);)
 
 #define _COPY_VIEW_COLUMNS(R, DATA, TYPE_NAME) BOOST_PP_EXPAND(_COPY_VIEW_COLUMNS_IMPL TYPE_NAME)
 

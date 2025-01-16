@@ -19,9 +19,13 @@ process.soaproducer2 = cms.EDProducer("SoAProducer2", soaInput = cms.InputTag("s
 process.soaproducer3 = cms.EDProducer("SoAProducer3", soaInput_0 = cms.InputTag("soaproducer", "SoAProduct"), soaInput_1 = cms.InputTag("soaproducer2", "SoAProduct2"))
 #process.soaproducer4 = soAProducer4.clone(soaInput_2 = cms.InputTag("soaproducer3", "SoAProduct3"))
 process.soaproducer4 = cms.EDProducer("SoAProducer4@alpaka",
-    soaInput_2 = cms.InputTag("soaproducer3", "SoAProduct3")
+    soaInput_2 = cms.InputTag("soaproducer3", "SoAProduct3"),
+    alpaka = cms.untracked.PSet(
+        backend = cms.untracked.string("serial_sync")
+    )
 )
 
 # Add to process path
-process.p = cms.Path(process.soaproducer * process.soaproducer2 * process.soaproducer3 * process.soaproducer4
+process.p = cms.Path(process.soaproducer * process.soaproducer2 * process.soaproducer3 
+                     * process.soaproducer4
                      )

@@ -8,7 +8,7 @@
 #include <cstdint>
 #include <cassert>
 #include <cstring>
-#include <memory> 
+#include <memory>
 #include <ostream>
 #include <tuple>
 #include <type_traits>
@@ -126,7 +126,8 @@ namespace cms::soa {
     SoAConstParametersImpl() = default;
 
     // constructor from an address
-    SOA_HOST_DEVICE SOA_INLINE constexpr SoAConstParametersImpl(ValueType const* addr, size_type size) : addr_(addr), size_{size} {}
+    SOA_HOST_DEVICE SOA_INLINE constexpr SoAConstParametersImpl(ValueType const* addr, size_type size)
+        : addr_(addr), size_{size} {}
 
     // constructor from a non-const parameter setsize
     SOA_HOST_DEVICE SOA_INLINE constexpr SoAConstParametersImpl(SoAParametersImpl<columnType, ValueType> const& o)
@@ -157,7 +158,9 @@ namespace cms::soa {
     SoAConstParametersImpl() = default;
 
     // constructor from individual address and stride
-    SOA_HOST_DEVICE SOA_INLINE constexpr SoAConstParametersImpl(ScalarType const* addr, byte_size_type stride, size_type size)
+    SOA_HOST_DEVICE SOA_INLINE constexpr SoAConstParametersImpl(ScalarType const* addr,
+                                                                byte_size_type stride,
+                                                                size_type size)
         : addr_(addr), stride_(stride), size_{size} {}
 
     // constructor from address and stride packed in a tuple
@@ -205,7 +208,8 @@ namespace cms::soa {
     SoAParametersImpl() = default;
 
     // constructor from an address
-    SOA_HOST_DEVICE SOA_INLINE constexpr SoAParametersImpl(ValueType* addr, size_type size) : addr_(addr), size_{size} {}
+    SOA_HOST_DEVICE SOA_INLINE constexpr SoAParametersImpl(ValueType* addr, size_type size)
+        : addr_(addr), size_{size} {}
 
     static constexpr bool checkAlignment(ValueType* addr, byte_size_type alignment) {
       return reinterpret_cast<intptr_t>(addr) % alignment;
@@ -561,7 +565,8 @@ namespace cms::soa {
 
   // Helper function to compute aligned size
   constexpr inline byte_size_type alignSize(byte_size_type size, byte_size_type alignment) {
-    return ((size + alignment - 1) / alignment) * alignment;  //this is an integer division -> it rounds size to the next multiple of alignment
+    return ((size + alignment - 1) / alignment) *
+           alignment;  //this is an integer division -> it rounds size to the next multiple of alignment
   }
 
 }  // namespace cms::soa
@@ -605,7 +610,7 @@ namespace cms::soa {
   struct SoAColumnAccessorsImpl<T, SoAColumnType::column, SoAAccessType::mutableAccess, alignment, restrictQualify> {
     SOA_HOST_DEVICE SOA_INLINE SoAColumnAccessorsImpl(const SoAParametersImpl<SoAColumnType::column, T>& params)
         : params_(params) {}
-    SOA_HOST_DEVICE SOA_INLINE T* operator()() { return params_.addr_; }  
+    SOA_HOST_DEVICE SOA_INLINE T* operator()() { return params_.addr_; }
     /* 
     
     int data[3] = {1, 2, 3};
@@ -632,7 +637,7 @@ namespace cms::soa {
     }
     std::cout << std::endl;
     
-    */ 
+    */
 
     using NoParamReturnType = T*;
     using ParamReturnType = T&;

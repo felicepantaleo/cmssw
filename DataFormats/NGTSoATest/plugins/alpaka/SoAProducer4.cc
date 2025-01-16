@@ -21,33 +21,34 @@
 
 namespace ALPAKA_ACCELERATOR_NAMESPACE {
 
-class SoAProducer4 : public stream::SynchronizingEDProducer<> {
+  class SoAProducer4 : public stream::SynchronizingEDProducer<> {
+  public:
+    // Constructor
+    SoAProducer4(edm::ParameterSet const& iConfig)
+        : inputToken_{consumes<CombinedPhysicsObjectCollection>(iConfig.getParameter<edm::InputTag>("soaInput_2"))},
+          outputToken_{produces()} {}
 
-public:
-// Constructor
-SoAProducer4(edm::ParameterSet const& iConfig) : inputToken_{consumes<CombinedPhysicsObjectCollection>(iConfig.getParameter<edm::InputTag>("soaInput_2"))}, outputToken_{produces()} {}
+    // Method to produce in SoAProducer4
+    void produce(device::Event& event, device::EventSetup const&) override {
+      auto const& PortableCollection_0 = event.getHandle(inputToken_);  // Combined Collection
 
-// Method to produce in SoAProducer4
-void produce(device::Event& event, device::EventSetup const&) override {
-    auto const& PortableCollection_0 = event.getHandle(inputToken_); // Combined Collection
+      int elems = PortableCollection_0->view().metadata().size();
+      std::cout << "SoAProducer4: Number of elements in the input collection: " << elems << std::endl;
+      event.emplace(outputToken_, NGTSoACollection{elems, event.queue()});
+    }
 
-    size_t elems = PortableCollection_0->view().metadata().size();
+    void acquire(device::Event const& event, device::EventSetup const& setup) override {}
 
-    event.emplace(outputToken_, NGTSoACollection{elems, event.queue()});
-}
+    static void fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
+      edm::ParameterSetDescription desc;
+      desc.add<edm::InputTag>("soaInput_2", edm::InputTag{"CombinedObjCollection"});
+      descriptions.addWithDefaultLabel(desc);
+    }
 
-void acquire(device::Event const& event, device::EventSetup const& setup) override {}
-
-static void fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
-    edm::ParameterSetDescription desc;
-    desc.add<edm::InputTag>("soaInput_2", edm::InputTag{"CombinedObjCollection"});
-    descriptions.addWithDefaultLabel(desc);
-}
-
-private:
+  private:
     const edm::EDGetTokenT<CombinedPhysicsObjectCollection> inputToken_;
     const edm::EDPutTokenT<NGTSoACollection> outputToken_;
-};
-}
+  };
+}  // namespace ALPAKA_ACCELERATOR_NAMESPACE
 
 DEFINE_FWK_ALPAKA_MODULE(SoAProducer4);

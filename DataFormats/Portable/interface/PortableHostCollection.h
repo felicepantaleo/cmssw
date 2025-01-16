@@ -35,13 +35,13 @@ public:
     assert(reinterpret_cast<uintptr_t>(buffer_->data()) % Layout::alignment == 0);
   }
 
-PortableHostCollection(View view)
+  PortableHostCollection(View view)
       : buffer_{cms::alpakatools::make_host_buffer<std::byte[]>(Layout::computeDataSize(view.metadata().size()))},
         layout_(view, buffer_->data()),
         view_{layout_} {
     // Alpaka set to a default alignment of 128 bytes defining ALPAKA_DEFAULT_HOST_MEMORY_ALIGNMENT=128
     assert(reinterpret_cast<uintptr_t>(buffer_->data()) % Layout::alignment == 0);
-  }  
+  }
 
   template <typename TQueue, typename = std::enable_if_t<alpaka::isQueue<TQueue>>>
   PortableHostCollection(int32_t elements, TQueue const& queue)

@@ -1,7 +1,7 @@
 // #ifndef DataFormats_Portable_interface_PortableView_h
 // #define DataFormats_Portable_interface_PortableView_h
 
-// // #include <utility> 
+// // #include <utility>
 // // // #include <string>
 // // // #include <vector>
 // #include "DataFormats/Portable/interface/PortableCollection.h"
