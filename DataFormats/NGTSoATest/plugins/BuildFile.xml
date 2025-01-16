@@ -1,0 +1,22 @@
+<library file="*.cc" name="RecoSoASoAProducerPlugins">
+  <use name="FWCore/Framework"/>
+  <use name="FWCore/ParameterSet"/>
+  <use name="FWCore/MessageLogger"/>
+  <use name="DataFormats/Portable"/>
+  <use name="eigen"/>
+    <flags EDM_PLUGIN="1"/>
+</library>    
+
+<library file="alpaka/*.cc" name="RecoSoASoAProducerPluginsPortable">
+  <use name="FWCore/Framework"/>
+  <use name="FWCore/ParameterSet"/>
+  <use name="FWCore/MessageLogger"/>
+  <use name="DataFormats/Portable"/>
+  <use name="eigen"/>
+  <use name="alpaka"/>
+  <use name="FWCore/Utilities"/>
+  <use name="HeterogeneousCore/AlpakaCore"/>
+  <use name="HeterogeneousCore/AlpakaInterface"/>
+  <flags ALPAKA_BACKENDS="1"/>
+  <flags EDM_PLUGIN="1"/>
+</library>

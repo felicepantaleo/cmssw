@@ -35,6 +35,14 @@ public:
     assert(reinterpret_cast<uintptr_t>(buffer_->data()) % Layout::alignment == 0);
   }
 
+PortableHostCollection(View view)
+      : buffer_{cms::alpakatools::make_host_buffer<std::byte[]>(Layout::computeDataSize(view.metadata().size()))},
+        layout_(view, buffer_->data()),
+        view_{layout_} {
+    // Alpaka set to a default alignment of 128 bytes defining ALPAKA_DEFAULT_HOST_MEMORY_ALIGNMENT=128
+    assert(reinterpret_cast<uintptr_t>(buffer_->data()) % Layout::alignment == 0);
+  }  
+
   template <typename TQueue, typename = std::enable_if_t<alpaka::isQueue<TQueue>>>
   PortableHostCollection(int32_t elements, TQueue const& queue)
       // allocate pinned host memory associated to the given work queue, accessible by the queue's device
@@ -72,6 +80,10 @@ public:
   ConstBuffer buffer() const { return *buffer_; }
   ConstBuffer const_buffer() const { return *buffer_; }
 
+  Layout& layout() { return layout_; }
+
+  const Layout& layout() const { return layout_; }
+
   // erases the data in the Buffer by writing zeros (bytes containing '\0') to it
   void zeroInitialise() {
     std::memset(std::data(*buffer_), 0x00, alpaka::getExtentProduct(*buffer_) * sizeof(std::byte));
@@ -92,6 +104,13 @@ public:
     newObj->layout_.ROOTReadStreamer(layout);
     // free the memory allocated by ROOT
     layout.ROOTStreamerCleaner();
+  }
+
+  void aggregate() {
+    Layout custom = layout_.aggregate(const_view());
+    layout_ = custom;
+    // View customView{layout_};
+    // view_ = customView;
   }
 
 private:

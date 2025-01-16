@@ -21,6 +21,29 @@
   <use name="catch2"/>
 </bin>
 
+<iftool name="cuda-gcc-support">
+  <bin file="SoATest.cc" name="SoATest">
+    <use name="boost"/>
+    <use name="cuda"/>
+    <use name="eigen"/>
+    <use name="DataFormats/Portable"/>
+    <flags ALPAKA_BACKENDS="1"/>
+    <export>
+      <lib name="1"/>
+    </export>
+  </bin>
+</iftool>
+
+<!-- <iftool name="cuda-gcc-support">
+  <bin file="preprocessed_with_Eigen.cc" name="processed">
+    <use name="boost"/>
+    <use name="cuda"/>
+    <use name="eigen"/>
+    <use name="DataFormats/Portable"/>
+    <flags ALPAKA_BACKENDS="1"/>
+  </bin>
+</iftool> -->
+
 
 <!-- This test triggers a bug in ROOT, so it's kept disabled
 <bin file="SoAStreamer_t.cpp" name="SoAStreamer_t">
