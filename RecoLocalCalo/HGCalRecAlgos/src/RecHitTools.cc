@@ -85,18 +85,32 @@ void RecHitTools::setGeometry(const CaloGeometry& geom) {
   if (geomEE) {
     geometryType_ = 1;
     eeOffset_ = (geomEE->topology().dddConstants()).getLayerOffset();
+    auto eeLastLayer_ = eeOffset_ + (geomEE->topology().dddConstants()).lastLayer(true);
     wmaxEE = (geomEE->topology().dddConstants()).waferCount(0);
     auto geomFH = static_cast<const HGCalGeometry*>(
         geom_->getSubdetectorGeometry(DetId::HGCalHSi, ForwardSubdetector::ForwardEmpty));
-    fhOffset_ = (geomFH->topology().dddConstants()).getLayerOffset();
-    wmaxFH = (geomFH->topology().dddConstants()).waferCount(0);
-    fhLastLayer_ = fhOffset_ + (geomFH->topology().dddConstants()).lastLayer(true);
+    if(geomFH) {
+       fhOffset_ = (geomFH->topology().dddConstants()).getLayerOffset();
+       wmaxFH = (geomFH->topology().dddConstants()).waferCount(0);
+       fhLastLayer_ = fhOffset_ + (geomFH->topology().dddConstants()).lastLayer(true);
+    } else {
+      fhOffset_ = eeLastLayer_;
+      wmaxFH = 0;
+      fhLastLayer_ = eeLastLayer_;
+    }
     auto geomBH = static_cast<const HGCalGeometry*>(
         geom_->getSubdetectorGeometry(DetId::HGCalHSc, ForwardSubdetector::ForwardEmpty));
-    bhOffset_ = (geomBH->topology().dddConstants()).getLayerOffset();
-    bhFirstLayer_ = bhOffset_ + (geomBH->topology().dddConstants()).firstLayer();
-    bhLastLayer_ = bhOffset_ + (geomBH->topology().dddConstants()).lastLayer(true);
-    bhMaxIphi_ = geomBH->topology().dddConstants().maxCells(true);
+    if(geomBH) {
+       bhOffset_ = (geomBH->topology().dddConstants()).getLayerOffset();
+       bhFirstLayer_ = bhOffset_ + (geomBH->topology().dddConstants()).firstLayer();
+       bhLastLayer_ = bhOffset_ + (geomBH->topology().dddConstants()).lastLayer(true);
+       bhMaxIphi_ = geomBH->topology().dddConstants().maxCells(true);
+   } else {
+       bhOffset_ = eeLastLayer_;
+       bhFirstLayer_= eeLastLayer_;
+       bhLastLayer_ = eeLastLayer_;
+       bhMaxIphi_=0;
+   }
   } else {
     geometryType_ = 0;
     geomEE =
