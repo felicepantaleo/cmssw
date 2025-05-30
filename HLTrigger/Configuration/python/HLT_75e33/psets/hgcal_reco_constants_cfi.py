@@ -14,13 +14,12 @@ HGCAL_reco_constants = cms.PSet(
         83.61, 83.61, 83.61
     ),
     fcPerEle = cms.double(0.00016020506),
+    fCPerMIP_mpv = cms.vdouble(1.25,2.57,3.88, 2.57),  #HD120um, LD200um, LD300um, HD200um
     fcPerMip = cms.vdouble(
-            2.06, 3.43, 5.15, 2.06, 3.43,
-            5.15
+            2.06, 3.43, 5.15, 3.43 # HD120um, LD200um, LD300um, HD200um
         ),
     noises = cms.vdouble(
-            2000.0, 2400.0, 2000.0, 2000.0, 2400.0,
-            2000.0
+            2000.0, 2400.0, 2000.0, 2400.0
         ),
     thicknessCorrection = cms.vdouble(
             0.75, 0.76, 0.75, 0.85, 0.85,

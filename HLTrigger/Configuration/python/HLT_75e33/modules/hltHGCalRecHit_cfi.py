@@ -5,7 +5,7 @@ hltHGCalRecHit = cms.EDProducer("HGCalRecHitProducer",
     HGCEE_cce = cms.PSet(
         refToPSet_ = cms.string('HGCAL_chargeCollectionEfficiencies')
     ),
-    HGCEE_fCPerMIP = cms.vdouble(HGCAL_reco_constants.fcPerMip[0:3]),
+    HGCEE_fCPerMIP = HGCAL_reco_constants.fcPerMip,
     HGCEE_isSiFE = cms.bool(True),
     HGCEE_keV2DIGI = cms.double(0.044259),
     HGCEE_noise_fC = cms.PSet(
@@ -23,7 +23,7 @@ hltHGCalRecHit = cms.EDProducer("HGCalRecHitProducer",
     HGCHEF_cce = cms.PSet(
         refToPSet_ = cms.string('HGCAL_chargeCollectionEfficiencies')
     ),
-    HGCHEF_fCPerMIP = cms.vdouble(HGCAL_reco_constants.fcPerMip[3:6]),
+    HGCHEF_fCPerMIP = HGCAL_reco_constants.fcPerMip,
     HGCHEF_isSiFE = cms.bool(True),
     HGCHEF_keV2DIGI = cms.double(0.044259),
     HGCHEF_noise_fC = cms.PSet(
