@@ -7,6 +7,7 @@
 #include "DataFormats/Common/interface/RefToBase.h"
 #include "DataFormats/Common/interface/Holder.h"
 #include <vector>
+#include "CommonTools/RecoAlgos/interface/MultiCollectionManager.h"
 
 //raw to rechit specific formats
 #include "DataFormats/Common/interface/Ref.h"
