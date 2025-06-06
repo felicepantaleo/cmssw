@@ -2,7 +2,6 @@
 #ifndef CommonTools_RecoAlgos_MultiCollectionManager_h
 #define CommonTools_RecoAlgos_MultiCollectionManager_h
 
-
 #include <span>
 #include <utility>
 #include <vector>
@@ -25,13 +24,12 @@
  */
 template <typename Collection>
 class MultiCollectionManager {
- public:
+public:
   using value_type = typename Collection::value_type;
 
   MultiCollectionManager() = default;
 
-  explicit MultiCollectionManager(std::initializer_list<edm::RefProd<Collection>> refs)
-      : refProds_{refs} {}
+  explicit MultiCollectionManager(std::initializer_list<edm::RefProd<Collection>> refs) : refProds_{refs} {}
 
   // ---------------- producer‑side API ----------------------------------
   void addCollection(edm::RefProd<Collection> const& ref) { refProds_.push_back(ref); }
@@ -54,7 +52,7 @@ class MultiCollectionManager {
 
   const std::vector<edm::RefProd<Collection>>& refProds() const { return refProds_; }
 
- private:
+private:
   std::vector<edm::RefProd<Collection>> refProds_;
 };
 

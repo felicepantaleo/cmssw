@@ -23,7 +23,7 @@
 #include "CommonTools/RecoAlgos/interface/MultiCollectionManager.h"
 
 class HGCalRecHitMultiCollectionProducer : public edm::global::EDProducer<> {
- public:
+public:
   explicit HGCalRecHitMultiCollectionProducer(edm::ParameterSet const& ps)
       : eeToken_{consumes<HGCRecHitCollection>(ps.getParameter<edm::InputTag>("EEInput"))},
         fhToken_{consumes<HGCRecHitCollection>(ps.getParameter<edm::InputTag>("FHInput"))},
@@ -60,7 +60,7 @@ class HGCalRecHitMultiCollectionProducer : public edm::global::EDProducer<> {
     evt.put(std::move(manager));
   }
 
- private:
+private:
   const edm::EDGetTokenT<HGCRecHitCollection> eeToken_;
   const edm::EDGetTokenT<HGCRecHitCollection> fhToken_;
   const edm::EDGetTokenT<HGCRecHitCollection> bhToken_;

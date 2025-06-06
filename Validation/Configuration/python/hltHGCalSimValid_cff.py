@@ -12,11 +12,18 @@ from SimCalorimetry.HGCalAssociatorProducers.hitToSimClusterCaloParticleAssociat
 from Validation.HGCalValidation.HLT_TICLIterLabels_cff import hltTiclIterLabels as _hltTiclIterLabels
 
 from RecoLocalCalo.HGCalRecProducers.recHitMapProducer_cfi import recHitMapProducer as _recHitMapProducer
-hltRecHitMapProducer = _recHitMapProducer.clone(
-    BHInput = cms.InputTag("hltHGCalRecHit","HGCHEBRecHits"),
-    EBInput = cms.InputTag("hltParticleFlowRecHitECALUnseeded"),
+
+from RecoLocalCalo.HGCalRecProducers.hgcalRecHitMultiCollectionProducer_cfi import hgcalRecHitMultiCollectionProducer as _hgcalRecHitMultiCollectionProducer
+
+
+hltHgcalRecHitMultiCollectionProducer = _hgcalRecHitMultiCollectionProducer.clone(
     EEInput = cms.InputTag("hltHGCalRecHit","HGCEERecHits"),
     FHInput = cms.InputTag("hltHGCalRecHit","HGCHEFRecHits"),
+    BHInput = cms.InputTag("hltHGCalRecHit","HGCHEBRecHits"),
+)
+
+hltRecHitMapProducer = _recHitMapProducer.clone(
+    EBInput = cms.InputTag("hltParticleFlowRecHitECALUnseeded"),
     HBInput = cms.InputTag("hltParticleFlowRecHitHBHE"),
     HOInput = cms.InputTag("hltParticleFlowRecHitHO"),
     hgcalOnly = cms.bool(True),
@@ -99,7 +106,9 @@ hltAllTrackstersToSimTrackstersAssociationsByHits = _AllTracksterToSimTracksterA
     ),
 )
 
-hltHgcalAssociatorsTask = cms.Task(hltRecHitMapProducer,
+hltHgcalAssociatorsTask = cms.Task(
+    hltHgcalRecHitMultiCollectionProducer, 
+    hltRecHitMapProducer,
                                    hltLcAssocByEnergyScoreProducer,
                                    hltScAssocByEnergyScoreProducer,
                                    SimClusterToCaloParticleAssociation,

@@ -14,6 +14,7 @@
 #include "DataFormats/HGCRecHit/interface/HGCRecHitCollections.h"
 #include "DataFormats/ParticleFlowReco/interface/PFRecHit.h"
 #include "CommonTools/RecoAlgos/interface/MultiVectorManager.h"
+#include "CommonTools/RecoAlgos/interface/MultiCollectionManager.h"
 
 class RecHitMapProducer : public edm::global::EDProducer<> {
 public:
@@ -26,6 +27,7 @@ private:
   const edm::EDGetTokenT<HGCRecHitCollection> hits_ee_token_;
   const edm::EDGetTokenT<HGCRecHitCollection> hits_fh_token_;
   const edm::EDGetTokenT<HGCRecHitCollection> hits_bh_token_;
+  const edm::EDGetTokenT<MultiCollectionManager<HGCRecHitCollection>> hgcalToken_;
   const edm::EDGetTokenT<reco::PFRecHitCollection> hits_eb_token_;
   const edm::EDGetTokenT<reco::PFRecHitCollection> hits_hb_token_;
   const edm::EDGetTokenT<reco::PFRecHitCollection> hits_ho_token_;
@@ -37,9 +39,8 @@ DEFINE_FWK_MODULE(RecHitMapProducer);
 using DetIdRecHitMap = std::unordered_map<DetId, const unsigned int>;
 
 RecHitMapProducer::RecHitMapProducer(const edm::ParameterSet& ps)
-    : hits_ee_token_(consumes<HGCRecHitCollection>(ps.getParameter<edm::InputTag>("EEInput"))),
-      hits_fh_token_(consumes<HGCRecHitCollection>(ps.getParameter<edm::InputTag>("FHInput"))),
-      hits_bh_token_(consumes<HGCRecHitCollection>(ps.getParameter<edm::InputTag>("BHInput"))),
+    : hgcalToken_{consumes<MultiCollectionManager<HGCRecHitCollection>>(
+          ps.getParameter<edm::InputTag>("HGCalMultiRecHits"))},
       hits_eb_token_(consumes<reco::PFRecHitCollection>(ps.getParameter<edm::InputTag>("EBInput"))),
       hits_hb_token_(consumes<reco::PFRecHitCollection>(ps.getParameter<edm::InputTag>("HBInput"))),
       hits_ho_token_(consumes<reco::PFRecHitCollection>(ps.getParameter<edm::InputTag>("HOInput"))),
@@ -51,9 +52,7 @@ RecHitMapProducer::RecHitMapProducer(const edm::ParameterSet& ps)
 
 void RecHitMapProducer::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
   edm::ParameterSetDescription desc;
-  desc.add<edm::InputTag>("EEInput", {"HGCalRecHit", "HGCEERecHits"});
-  desc.add<edm::InputTag>("FHInput", {"HGCalRecHit", "HGCHEFRecHits"});
-  desc.add<edm::InputTag>("BHInput", {"HGCalRecHit", "HGCHEBRecHits"});
+  desc.add<edm::InputTag>("HGCalMultiRecHits", {"hgcalRecHitMultiCollectionProducer", ""});
   desc.add<edm::InputTag>("EBInput", {"particleFlowRecHitECAL", ""});
   desc.add<edm::InputTag>("HBInput", {"particleFlowRecHitHBHE", ""});
   desc.add<edm::InputTag>("HOInput", {"particleFlowRecHitHO", ""});
@@ -63,29 +62,13 @@ void RecHitMapProducer::fillDescriptions(edm::ConfigurationDescriptions& descrip
 
 void RecHitMapProducer::produce(edm::StreamID, edm::Event& evt, const edm::EventSetup& es) const {
   auto hitMapHGCal = std::make_unique<DetIdRecHitMap>();
-
-  // Retrieve collections
-  const auto& ee_hits = evt.getHandle(hits_ee_token_);
-  const auto& fh_hits = evt.getHandle(hits_fh_token_);
-  const auto& bh_hits = evt.getHandle(hits_bh_token_);
-
-  // Check validity of all handles
-  if (!ee_hits.isValid() || !fh_hits.isValid() || !bh_hits.isValid()) {
-    edm::LogWarning("HGCalRecHitMapProducer") << "One or more hit collections are unavailable. Returning an empty map.";
-    evt.put(std::move(hitMapHGCal), "hgcalRecHitMap");
-    return;
+  auto const& mgr = evt.get(hgcalToken_);
+  auto flat = mgr.makeFlatView();  // by value
+  for (unsigned int i = 0; i < flat.size(); ++i) {
+    hitMapHGCal->emplace(flat[i].detid(), i);
   }
 
-  MultiVectorManager<HGCRecHit> rechitManager;
-  rechitManager.addVector(*ee_hits);
-  rechitManager.addVector(*fh_hits);
-  rechitManager.addVector(*bh_hits);
-
-  for (unsigned int i = 0; i < rechitManager.size(); ++i) {
-    const auto recHitDetId = rechitManager[i].detid();
-    hitMapHGCal->emplace(recHitDetId, i);
-  }
-
+  // Add the HGCal rechit map to the event
   evt.put(std::move(hitMapHGCal), "hgcalRecHitMap");
 
   if (!hgcalOnly_) {
