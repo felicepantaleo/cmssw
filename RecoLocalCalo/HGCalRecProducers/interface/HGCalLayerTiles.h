@@ -120,7 +120,7 @@ private:
   std::array<std::vector<int>, T::nTiles> tiles_;
 };
 
-using HGCalSiliconLayerTiles = HGCalLayerTilesT<HGCalSiliconTilesConstants, NoPhiWrapper>;
+using HGCalSiliconLayerTiles = HGCalLayerTilesT<HGCalSiliconTestBeam2025Constants, NoPhiWrapper>;
 using HGCalScintillatorLayerTiles = HGCalLayerTilesT<HGCalScintillatorTilesConstants, PhiWrapper>;
 using HFNoseLayerTiles = HGCalLayerTilesT<HFNoseTilesConstants, NoPhiWrapper>;
 

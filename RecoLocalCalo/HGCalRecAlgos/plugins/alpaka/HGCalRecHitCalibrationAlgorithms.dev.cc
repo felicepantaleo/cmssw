@@ -240,7 +240,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                                   HGCalSoARecHitsDeviceCollection::ConstView recHits,
                                   double k_noise = 0.) const {
       for (auto idx : uniform_elements(acc, recHits.metadata().size())) {
-        if (!recHits[idx].flags() && recHits[idx].energy() > k_noise * recHits[idx].sigmaNoise())
+        if (!recHits[idx].flags() && recHits[idx].energy() > k_noise * recHits[idx].sigmaNoise() && recHits[idx].layer() > 0)
           sidx[alpaka::atomicAdd(acc, nsel, 1)] = idx;
       }
     }
