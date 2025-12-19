@@ -88,6 +88,3 @@ phase2_hfnose.toModify( HGCalUncalibRecHit.HGCHFNoseConfig ,
 phase2_hgcalV19.toModify( HGCalUncalibRecHit.HGCHFNoseConfig ,
           fCPerMIP = fCPerMIP_mean_V19
 )
-
-from Configuration.ProcessModifiers.ticl_v4_cff import ticl_v4
-ticl_v4.toModify(HGCalUncalibRecHit, computeLocalTime = cms.bool(False))

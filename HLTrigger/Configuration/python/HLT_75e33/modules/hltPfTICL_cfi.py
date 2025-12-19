@@ -33,5 +33,3 @@ hltPfTICL = cms.EDProducer("PFTICLProducer",
     useTimingAverage = cms.bool(False)
 )
 
-from Configuration.ProcessModifiers.ticl_v4_cff import ticl_v4
-ticl_v4.toModify(hltPfTICL, ticlCandidateSrc = cms.InputTag('hltTiclTrackstersMerge'), isTICLv5 = cms.bool(False))

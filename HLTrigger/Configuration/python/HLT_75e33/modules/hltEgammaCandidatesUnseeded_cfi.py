@@ -6,6 +6,3 @@ hltEgammaCandidatesUnseeded = cms.EDProducer("EgammaHLTRecoEcalCandidateProducer
     scIslandEndcapProducer = cms.InputTag("hltParticleFlowSuperClusterHGCalFromTICLUnseeded")
 )
 
-from Configuration.ProcessModifiers.ticl_v4_cff import ticl_v4
-ticl_v4.toModify(hltEgammaCandidatesUnseeded, scIslandEndcapProducer = cms.InputTag("hltParticleFlowSuperClusterHGCalFromTICLUnseeded"))
-

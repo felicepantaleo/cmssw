@@ -96,7 +96,6 @@ HGCalValidator::HGCalValidator(const edm::ParameterSet& pset)
       doCandidatesPlots_(pset.getUntrackedParameter<bool>("doCandidatesPlots")),
       label_candidates_(pset.getParameter<std::string>("ticlCandidates")),
       cummatbudinxo_(pset.getParameter<edm::FileInPath>("cummatbudinxo")),
-      isTICLv5_(pset.getUntrackedParameter<bool>("isticlv5")),
       hitsToken_(consumes<edm::RefProdVector<HGCRecHitCollection>>(pset.getParameter<edm::InputTag>("hits"))),
       scToCpMapToken_(
           consumes<SimClusterToCaloParticleMap>(pset.getParameter<edm::InputTag>("simClustersToCaloParticlesMap"))),
@@ -151,8 +150,7 @@ HGCalValidator::HGCalValidator(const edm::ParameterSet& pset)
                                                              recoTracksToken,
                                                              trackstersToken,
                                                              associatorMapRtSToken,
-                                                             associatorMapStRToken,
-                                                             isTICLv5_);
+                                                             associatorMapStRToken);
   }
 
   for (auto& itag : label_tst) {
@@ -895,6 +893,5 @@ void HGCalValidator::fillDescriptions(edm::ConfigurationDescriptions& descriptio
   desc.add<std::string>("cutTk",
                         "1.48 < abs(eta) < 3.0 && pt > 1. && quality(\"highPurity\") && "
                         "hitPattern().numberOfLostHits(\"MISSING_OUTER_HITS\") < 5");
-  desc.addUntracked<bool>("isticlv5", false);
   descriptions.add("hgcalValidator", desc);
 }
