@@ -10,7 +10,6 @@ from ..modules.hltHGCalRecHit_cfi import *
 from ..modules.hltHGCalUncalibRecHit_cfi import *
 from ..modules.hltParticleFlowClusterHGCalFromTICLUnseeded_cfi import *
 from ..modules.hltParticleFlowRecHitHGC_cfi import *
-from ..modules.hltParticleFlowSuperClusterHGCalFromTICLUnseeded_cfi import *
 from ..modules.hltTiclLayerTileProducer_cfi import *
 from ..modules.hltTiclSeedingGlobal_cfi import *
 from ..modules.hltTiclTrackstersCLUE3DHigh_cfi import *
