@@ -4,7 +4,7 @@ import os
 import argparse
 import datetime
 
-from RecoHGCal.TICL.iterativeTICL_cff import ticlIterLabels, ticlIterLabels_v5
+from RecoHGCal.TICL.iterativeTICL_cff import ticlIterLabels, ticlIterLabels_v4
 
 from Validation.RecoTrack.plotting.validation import SeparateValidation, SimpleValidation, SimpleSample
 from Validation.HGCalValidation.HGCalValidator_cff import hgcalValidator
@@ -22,7 +22,7 @@ candidatesLabel = 'candidates'
 simLabel = 'simulation'
 allLabel = 'all'
 ticlVersions = [4, 5]
-ticlVersion = 4
+ticlVersion = 5
 collection_choices = [allLabel]
 collection_choices.extend([hitCalLabel]+[hitValLabel]+[layerClustersLabel]+[trackstersLabel]+[trackstersWithEdgesLabel]+[candidatesLabel]+[simLabel])
 tracksters = []
@@ -31,7 +31,7 @@ def main(opts):
     
     drawArgs={}
     extendedFlag = False
-    ticlVersion = 4
+    ticlVersion = 5
     if opts.no_ratio:
         drawArgs["ratio"] = False
     if opts.separate:
@@ -42,8 +42,8 @@ def main(opts):
         extendedFlag = True
     if opts.verbose:
         plotting.verbose = True
-    if opts.ticlv == 5:
-        ticlVersion = 5
+    if opts.ticlv == 4:
+        ticlVersion = 4
 
     filenames = [(f, f.replace(".root", "")) for f in opts.files]
     sample = SimpleSample(opts.subdirprefix[0], opts.html_sample, filenames)
@@ -53,11 +53,12 @@ def main(opts):
         val = SeparateValidation([sample], opts.outputDir[0])
     htmlReport = val.createHtmlReport(validationName=opts.html_validation_name[0])
     trackstersIters = []
-    if (ticlVersion == 5):
-        trackstersIters = ticlIterLabels_v5.copy()
-        trackstersIters.extend(['ticlTracksterLinksSuperclusteringDNN','ticlTracksterLinksSuperclusteringMustache'])
+    if (ticlVersion == 4):
+        trackstersIters = ticlIterLabels_v4.copy()
     else:
         trackstersIters = ticlIterLabels.copy()
+        trackstersIters.extend(['ticlTracksterLinksSuperclusteringDNN','ticlTracksterLinksSuperclusteringMustache'])
+
     trackstersIters.extend(['ticlSimTracksters', 'ticlSimTracksters_fromCPs'])
     #layerClusters
     def plot_LC():

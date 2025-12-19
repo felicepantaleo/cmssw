@@ -22,7 +22,6 @@ from RecoHGCal.TICL.ticlCandidateProducer_cfi import ticlCandidateProducer as _t
 
 from RecoHGCal.TICL.mtdSoAProducer_cfi import mtdSoAProducer as _mtdSoAProducer
 
-# ticl_v5 is deleted, using ticl_v4 as fallback to previous default
 from Configuration.ProcessModifiers.ticl_v4_cff import ticl_v4
 from Configuration.ProcessModifiers.ticl_superclustering_dnn_cff import ticl_superclustering_dnn
 from Configuration.ProcessModifiers.ticl_superclustering_mustache_pf_cff import ticl_superclustering_mustache_pf
@@ -137,7 +136,7 @@ fastJetTICL.toModify(ticlIterationsTask, func=lambda x : x.add(ticlFastJetStepTa
 
 # Default labels for v5
 ticlIterLabels = ["ticlTrackstersCLUE3DHigh", "ticlTracksterLinks", "ticlCandidate"]
-
+ticlIterLabels_v4 = ["ticlTrackstersCLUE3DHigh", "ticlTrackstersMerge"] 
 ticlTracksterMergeTask = cms.Task(ticlTrackstersMerge)
 ticlTracksterLinksTask = cms.Task(ticlTracksterLinks, ticlSuperclusteringTask) 
 
