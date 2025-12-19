@@ -13,7 +13,6 @@ from ..modules.hltL1TEGammaHGCFilteredCollectionProducer_cfi import *
 from ..modules.hltRechitInRegionsHGCAL_cfi import *
 from ..modules.hltParticleFlowClusterHGCalFromTICLL1Seeded_cfi import *
 from ..modules.hltParticleFlowRecHitHGCL1Seeded_cfi import *
-from ..modules.hltParticleFlowSuperClusterHGCalFromTICLL1Seeded_cfi import *
 from ..modules.hltTiclLayerTileProducerL1Seeded_cfi import *
 from ..modules.hltTiclSeedingL1_cfi import *
 from ..modules.hltTiclTrackstersCLUE3DHighL1Seeded_cfi import *
