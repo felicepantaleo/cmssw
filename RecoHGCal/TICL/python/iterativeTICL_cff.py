@@ -13,25 +13,19 @@ from RecoHGCal.TICL.PRbyRecovery_cff import *
 
 from RecoHGCal.TICL.ticlLayerTileProducer_cfi import ticlLayerTileProducer
 from RecoHGCal.TICL.pfTICLProducer_cfi import pfTICLProducer as _pfTICLProducer
-from RecoHGCal.TICL.trackstersMergeProducer_cfi import trackstersMergeProducer as _trackstersMergeProducer
-from RecoHGCal.TICL.tracksterSelectionTf_cfi import *
 
 from RecoHGCal.TICL.tracksterLinksProducer_cfi import tracksterLinksProducer as _tracksterLinksProducer
 from RecoHGCal.TICL.superclustering_cff import *
 from RecoHGCal.TICL.ticlCandidateProducer_cfi import ticlCandidateProducer as _ticlCandidateProducer
 
 from RecoHGCal.TICL.mtdSoAProducer_cfi import mtdSoAProducer as _mtdSoAProducer
-
 from Configuration.ProcessModifiers.ticlv5_TrackLinkingGNN_cff import ticl_v5_TrackLinkingGNN
 
-from Configuration.ProcessModifiers.ticl_v4_cff import ticl_v4
-from Configuration.ProcessModifiers.ticl_superclustering_dnn_cff import ticl_superclustering_dnn
 from Configuration.ProcessModifiers.ticl_superclustering_mustache_pf_cff import ticl_superclustering_mustache_pf
 from Configuration.ProcessModifiers.ticl_superclustering_mustache_ticl_cff import ticl_superclustering_mustache_ticl
 
 ticlLayerTileTask = cms.Task(ticlLayerTileProducer)
 
-ticlTrackstersMerge = _trackstersMergeProducer.clone()
 
 # TICLv5 is now the default configuration
 ticlTracksterLinks = _tracksterLinksProducer.clone(
@@ -116,7 +110,6 @@ mtdSoA = _mtdSoAProducer.clone()
 # pfTICL uses ticlCandidate by default in v5
 pfTICL = _pfTICLProducer.clone(
     ticlCandidateSrc = cms.InputTag('ticlCandidate'), 
-    isTICLv5 = cms.bool(True), 
     useTimingAverage=True
 )
 ticl_v5_TrackLinkingGNN.toModify(ticlCandidate,
@@ -131,8 +124,6 @@ ticl_v5_TrackLinkingGNN.toModify(ticlCandidate,
         )
     )
 
-# Revert for v4 (previous default)
-ticl_v4.toModify(pfTICL, ticlCandidateSrc = cms.InputTag('ticlTrackstersMerge'), isTICLv5 = cms.bool(False), useTimingAverage=False)
 
 ticlPFTask = cms.Task(pfTICL)
 
@@ -142,16 +133,10 @@ ticlIterationsTask = cms.Task(
     ticlRecoveryStepTask
 )
 
-# v4 fallback: strictly restore previous default (only CLUE3DHigh)
-ticl_v4.toReplaceWith(ticlIterationsTask, cms.Task(ticlCLUE3DHighStepTask))
 
-from Configuration.ProcessModifiers.fastJetTICL_cff import fastJetTICL
-fastJetTICL.toModify(ticlIterationsTask, func=lambda x : x.add(ticlFastJetStepTask))
 
 # Default labels for v5
 ticlIterLabels = ["ticlTrackstersCLUE3DHigh", "ticlTracksterLinks", "ticlCandidate"]
-ticlIterLabels_v4 = ["ticlTrackstersCLUE3DHigh", "ticlTrackstersMerge"] 
-ticlTracksterMergeTask = cms.Task(ticlTrackstersMerge)
 ticlTracksterLinksTask = cms.Task(ticlTracksterLinks, ticlSuperclusteringTask) 
 
 # mergeTICLTask default for v5
@@ -161,25 +146,17 @@ mergeTICLTask = cms.Task(
     ticlTracksterLinksTask
 )
 
-# Revert for v4
-ticl_v4.toReplaceWith(mergeTICLTask, cms.Task(
-    ticlLayerTileTask,
-    ticlIterationsTask,
-    ticlTracksterMergeTask
-))
 
 mtdSoATask = cms.Task(mtdSoA)
 ticlCandidateTask = cms.Task(ticlCandidate)
 
-if ticl_superclustering_mustache_ticl._isChosen():
-        ticlIterLabels.append("ticlTracksterLinksSuperclusteringMustache")
-if ticl_superclustering_dnn._isChosen():
-        ticlIterLabels.append("ticlTracksterLinksSuperclusteringDNN")
 
-# Label logic selection
-if ticl_v4._isChosen():
-    # Restore labels for previous default (v4)
-    ticlIterLabels = ["ticlTrackstersCLUE3DHigh", "ticlTrackstersMerge"]
+if ticl_superclustering_mustache_ticl._isChosen():
+    ticlIterLabels.append("ticlTracksterLinksSuperclusteringMustache")
+else:
+    ticlIterLabels.append("ticlTracksterLinksSuperclusteringDNN")
+
+
 
 
 associatorsInstances = []
@@ -196,11 +173,6 @@ iterTICLTask = cms.Task(
     ticlPFTask
 )
 
-# Revert for v4
-ticl_v4.toReplaceWith(iterTICLTask, cms.Task(
-    mergeTICLTask,
-    ticlPFTask
-))
 
 # HFNose remains on legacy iterations
 ticlLayerTileHFNose = ticlLayerTileProducer.clone(

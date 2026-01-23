@@ -1,6 +1,5 @@
 import FWCore.ParameterSet.Config as cms
 from RecoHGCal.TICL.iterativeTICL_cff import ticlIterLabels
-from Configuration.ProcessModifiers.ticl_v4_cff import ticl_v4
 
 trackstersIters = ['keep *_'+iteration+'_*_*' for iteration in ticlIterLabels]
 

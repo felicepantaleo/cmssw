@@ -59,8 +59,6 @@ hltHGCalUncalibRecHitL1Seeded = cms.EDProducer("HGCalUncalibRecHitProducer",
     algo = cms.string('HGCalUncalibRecHitWorkerWeights')
 )
 
-from Configuration.ProcessModifiers.ticl_v4_cff import ticl_v4
-ticl_v4.toModify(hltHGCalUncalibRecHitL1Seeded, computeLocalTime = cms.bool(False))
 
 _modifiedHGCEEConfig_v19 = hltHGCalUncalibRecHitL1Seeded.HGCEEConfig.clone(
     fCPerMIP = HGCAL_reco_constants.fcPerMip[0:4]

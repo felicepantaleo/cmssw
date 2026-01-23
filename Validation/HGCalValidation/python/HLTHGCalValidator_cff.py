@@ -2,7 +2,6 @@ import FWCore.ParameterSet.Config as cms
 
 from Validation.HGCalValidation.hgcalValidator_cfi import hgcalValidator as _hgcalValidator
 from Validation.HGCalValidation.HLT_TICLIterLabels_cff import hltTiclIterLabels as _hltTiclIterLabels
-from Configuration.ProcessModifiers.ticl_v4_cff import ticl_v4
 
 hltAssociatorInstances = []
 for labelts in _hltTiclIterLabels:
@@ -31,15 +30,6 @@ hltHgcalValidator = _hgcalValidator.clone(
     simTiclCandidates = cms.InputTag("hltTiclSimTracksters"),
     ticlCandidates = cms.string('hltTiclCandidate'),
     ticlTrackstersMerge = cms.InputTag("hltTiclCandidate"),
-    isticlv5 = cms.untracked.bool(True),
     mergeRecoToSimAssociator = cms.InputTag("hltAllTrackstersToSimTrackstersAssociationsByLCs","hltTiclCandidateTohltTiclSimTrackstersfromCPs"),
     mergeSimToRecoAssociator = cms.InputTag("hltAllTrackstersToSimTrackstersAssociationsByLCs","hltTiclSimTrackstersfromCPsTohltTiclCandidate"),
-)
-
-# Revert logic for TICLv4 HLT
-ticl_v4.toModify(hltHgcalValidator,
-    ticlTrackstersMerge = cms.InputTag("hltTiclTrackstersMerge"),
-    isticlv5 = cms.untracked.bool(False),
-    mergeRecoToSimAssociator = cms.InputTag("hltAllTrackstersToSimTrackstersAssociationsByLCs","hltTiclTrackstersMergeTohltTiclSimTrackstersfromCPs"),
-    mergeSimToRecoAssociator = cms.InputTag("hltAllTrackstersToSimTrackstersAssociationsByLCs","hltTiclSimTrackstersfromCPsTohltTiclTrackstersMerge"),
 )

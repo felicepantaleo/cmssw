@@ -10,5 +10,3 @@ from ..sequences.HLTTiclCandidateSequence_cfi import *
 
 HLTIterTICLSequence = cms.Sequence(HLTTiclLayerTileSequence+HLTTiclTrackstersCLUE3DHighStepSequence+HLTTiclTrackstersRecoverySequence+HLTTiclTracksterLinksSequence+HLTTiclCandidateSequence+HLTTiclPFSequence)
 
-from Configuration.ProcessModifiers.ticl_v4_cff import ticl_v4
-ticl_v4.toReplaceWith(HLTIterTICLSequence, cms.Sequence(HLTTiclLayerTileSequence+HLTTiclTrackstersCLUE3DHighStepSequence+HLTTiclTracksterMergeSequence+HLTTiclPFSequence))

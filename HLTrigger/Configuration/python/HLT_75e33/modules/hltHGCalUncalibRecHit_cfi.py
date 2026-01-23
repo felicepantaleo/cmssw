@@ -60,8 +60,6 @@ hltHGCalUncalibRecHit = cms.EDProducer("HGCalUncalibRecHitProducer",
     algo = cms.string('HGCalUncalibRecHitWorkerWeights')
 )
 
-from Configuration.ProcessModifiers.ticl_v4_cff import ticl_v4
-ticl_v4.toModify(hltHGCalUncalibRecHit, computeLocalTime = cms.bool(False))
 
 
 _modifiedHGCEEConfig_v19 = hltHGCalUncalibRecHit.HGCEEConfig.clone(

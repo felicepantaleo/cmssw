@@ -19,10 +19,6 @@ hitToSimTracksterFromCPsAssociation = hitToTracksterAssociator.clone(
 )
 
 
-from Configuration.ProcessModifiers.ticl_v4_cff import ticl_v4
-
-ticl_v4.toModify(hitToTrackstersAssociationLinking, tracksters = cms.InputTag("ticlTrackstersMerge"))
-
 from SimCalorimetry.HGCalAssociatorProducers.AllHitToTracksterAssociatorsProducer_cfi import AllHitToTracksterAssociatorsProducer
 from RecoHGCal.TICL.iterativeTICL_cff import ticlIterLabels
 

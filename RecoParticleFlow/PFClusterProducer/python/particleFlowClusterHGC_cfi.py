@@ -74,5 +74,3 @@ particleFlowClusterHGCalFromSimCl = particleFlowClusterHGCal.clone(
     initialClusteringStep = _simClusterMapper_HGCal
 )
 
-from Configuration.ProcessModifiers.ticl_v4_cff import ticl_v4
-ticl_v4.toModify(particleFlowClusterHGCal.initialClusteringStep, tracksterSrc = "ticlTrackstersMerge")
