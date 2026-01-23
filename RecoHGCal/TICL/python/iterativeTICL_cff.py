@@ -113,9 +113,12 @@ ticlCandidate = _ticlCandidateProducer.clone(
 
 mtdSoA = _mtdSoAProducer.clone()
 
-<<<<<<< HEAD
-pfTICL = _pfTICLProducer.clone()
-ticl_v5.toModify(pfTICL, ticlCandidateSrc = cms.InputTag('ticlCandidate'), isTICLv5 = cms.bool(True), useTimingAverage=True)
+# pfTICL uses ticlCandidate by default in v5
+pfTICL = _pfTICLProducer.clone(
+    ticlCandidateSrc = cms.InputTag('ticlCandidate'), 
+    isTICLv5 = cms.bool(True), 
+    useTimingAverage=True
+)
 ticl_v5_TrackLinkingGNN.toModify(ticlCandidate,
         interpretationDescPSet = cms.PSet(
             onnxTrkLinkingModelFirstDisk = cms.FileInPath('RecoHGCal/TICL/data/ticlv5/onnx_models/TrackLinking_GNN/FirstDiskPropGNN_v0.onnx'),
@@ -127,16 +130,9 @@ ticl_v5_TrackLinkingGNN.toModify(ticlCandidate,
             type = cms.string('GNNLink')
         )
     )
-=======
-# pfTICL uses ticlCandidate by default in v5
-pfTICL = _pfTICLProducer.clone(
-    ticlCandidateSrc = cms.InputTag('ticlCandidate'), 
-    isTICLv5 = cms.bool(True), 
-    useTimingAverage=True
-)
+
 # Revert for v4 (previous default)
 ticl_v4.toModify(pfTICL, ticlCandidateSrc = cms.InputTag('ticlTrackstersMerge'), isTICLv5 = cms.bool(False), useTimingAverage=False)
->>>>>>> d1fe210e3bc (TICL v5 is now default)
 
 ticlPFTask = cms.Task(pfTICL)
 
@@ -154,7 +150,7 @@ fastJetTICL.toModify(ticlIterationsTask, func=lambda x : x.add(ticlFastJetStepTa
 
 # Default labels for v5
 ticlIterLabels = ["ticlTrackstersCLUE3DHigh", "ticlTracksterLinks", "ticlCandidate"]
-
+ticlIterLabels_v4 = ["ticlTrackstersCLUE3DHigh", "ticlTrackstersMerge"] 
 ticlTracksterMergeTask = cms.Task(ticlTrackstersMerge)
 ticlTracksterLinksTask = cms.Task(ticlTracksterLinks, ticlSuperclusteringTask) 
 
