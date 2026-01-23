@@ -35,8 +35,8 @@ ticlTrackstersTrk = _trackstersProducer.clone(
     itername = "Trk"
 )
 
-from Configuration.ProcessModifiers.ticl_v5_cff import ticl_v5
-ticl_v5.toModify(ticlTrackstersTrk.pluginPatternRecognitionByCA, computeLocalTime = cms.bool(True))
+from Configuration.ProcessModifiers.ticl_v4_cff import ticl_v4
+ticl_v4.toModify(ticlTrackstersTrk.pluginPatternRecognitionByCA, computeLocalTime = cms.bool(False))
 
 ticlTrkStepTask = cms.Task(ticlSeedingTrk
     ,filteredLayerClustersTrk
@@ -73,7 +73,7 @@ ticlTrackstersHFNoseTrk = ticlTrackstersTrk.clone(
     itername = "Trkn"
 )
 
-ticl_v5.toModify(ticlTrackstersHFNoseTrk.pluginPatternRecognitionByCA, computeLocalTime = cms.bool(True))
+ticl_v4.toModify(ticlTrackstersHFNoseTrk.pluginPatternRecognitionByCA, computeLocalTime = cms.bool(False))
 
 ticlHFNoseTrkStepTask = cms.Task(ticlSeedingTrkHFNose
     ,filteredLayerClustersHFNoseTrk

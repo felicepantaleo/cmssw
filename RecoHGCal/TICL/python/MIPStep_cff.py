@@ -29,8 +29,8 @@ ticlTrackstersMIP = _trackstersProducer.clone(
     itername = "MIP"
 )
 
-from Configuration.ProcessModifiers.ticl_v5_cff import ticl_v5
-ticl_v5.toModify(ticlTrackstersMIP.pluginPatternRecognitionByCA, computeLocalTime = cms.bool(True))
+from Configuration.ProcessModifiers.ticl_v4_cff import ticl_v4
+ticl_v4.toModify(ticlTrackstersMIP.pluginPatternRecognitionByCA, computeLocalTime = cms.bool(False))
 
 ticlMIPStepTask = cms.Task(ticlSeedingGlobal
     ,filteredLayerClustersMIP
@@ -54,7 +54,7 @@ ticlTrackstersHFNoseMIP = ticlTrackstersMIP.clone(
     pluginPatternRecognitionByCA = dict(min_layers_per_trackster = 6)
 )
 
-ticl_v5.toModify(ticlTrackstersHFNoseMIP.pluginPatternRecognitionByCA, computeLocalTime = cms.bool(True))
+ticl_v4.toModify(ticlTrackstersHFNoseMIP.pluginPatternRecognitionByCA, computeLocalTime = cms.bool(False))
 
 ticlHFNoseMIPStepTask = cms.Task(ticlSeedingGlobalHFNose
                               ,filteredLayerClustersHFNoseMIP

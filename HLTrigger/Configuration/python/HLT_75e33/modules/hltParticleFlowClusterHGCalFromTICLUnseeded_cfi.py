@@ -34,5 +34,6 @@ hltParticleFlowClusterHGCalFromTICLUnseeded = cms.EDProducer("PFClusterProducer"
     usePFThresholdsFromDB = cms.bool(False)
 )
 
-from Configuration.ProcessModifiers.ticl_v5_cff import ticl_v5
-ticl_v5.toModify(hltParticleFlowClusterHGCalFromTICLUnseeded.initialClusteringStep, tracksterSrc = "hltTiclCandidate")
+# TO DO - TO CHECK
+from Configuration.ProcessModifiers.ticl_v4_cff import ticl_v4
+ticl_v4.toModify(hltParticleFlowClusterHGCalFromTICLUnseeded.initialClusteringStep, tracksterSrc = "hltTiclTrackstersCLUE3DHigh")

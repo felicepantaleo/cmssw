@@ -27,7 +27,7 @@ ticlTrackstersCLUE3DHigh = _trackstersProducer.clone(
         doPidCut = True,
         cutHadProb = 999
     ),
-    inferenceAlgo = cms.string('TracksterInferenceByCNNv4'),
+    inferenceAlgo = cms.string('TracksterInferenceByPFN'),
     pluginInferenceAlgoTracksterInferenceByCNNv4 = cms.PSet(
         algo_verbosity = cms.int32(0),
         onnxModelPath = cms.FileInPath('RecoHGCal/TICL/data/ticlv4/onnx_models/energy_id_v0.onnx'),
@@ -79,10 +79,10 @@ ticlTrackstersCLUE3DHigh = _trackstersProducer.clone(
 
 )
 
-from Configuration.ProcessModifiers.ticl_v5_cff import ticl_v5
-ticl_v5.toModify(ticlTrackstersCLUE3DHigh.pluginPatternRecognitionByCLUE3D, computeLocalTime = cms.bool(True))
-ticl_v5.toModify(ticlTrackstersCLUE3DHigh.pluginPatternRecognitionByCLUE3D, usePCACleaning = cms.bool(True))
-ticl_v5.toModify(ticlTrackstersCLUE3DHigh, inferenceAlgo = cms.string('TracksterInferenceByPFN'))
+from Configuration.ProcessModifiers.ticl_v4_cff import ticl_v4
+ticl_v4.toModify(ticlTrackstersCLUE3DHigh.pluginPatternRecognitionByCLUE3D, computeLocalTime = cms.bool(False))
+ticl_v4.toModify(ticlTrackstersCLUE3DHigh.pluginPatternRecognitionByCLUE3D, usePCACleaning = cms.bool(False))
+ticl_v4.toModify(ticlTrackstersCLUE3DHigh, inferenceAlgo = cms.string('TracksterInferenceByCNNv4'))
 
 ticlCLUE3DHighStepTask = cms.Task(ticlSeedingGlobal
     ,filteredLayerClustersCLUE3DHigh

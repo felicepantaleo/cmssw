@@ -10,7 +10,7 @@ hltTiclTrackstersCLUE3DHigh = cms.EDProducer("TrackstersProducer",
     mightGet = cms.optional.untracked.vstring,
     original_mask = cms.InputTag("hltMergeLayerClusters","InitialLayerClustersMask"),
     patternRecognitionBy = cms.string('CLUE3D'),
-    inferenceAlgo = cms.string('TracksterInferenceByCNNv4'),
+    inferenceAlgo = cms.string('TracksterInferenceByPFN'),
     pluginPatternRecognitionByCA = cms.PSet(
         algo_verbosity = cms.int32(0),
         energy_em_over_total_threshold = cms.double(-1),
@@ -95,7 +95,7 @@ hltTiclTrackstersCLUE3DHigh = cms.EDProducer("TrackstersProducer",
       2,
       2
     ),
-    computeLocalTime = cms.bool(False),
+    computeLocalTime = cms.bool(True),
     doPidCut = cms.bool(True),
     cutHadProb = cms.double(999.),
     type = cms.string('CLUE3D')
@@ -154,6 +154,6 @@ hltTiclTrackstersCLUE3DHigh = cms.EDProducer("TrackstersProducer",
     time_layerclusters = cms.InputTag("hltMergeLayerClusters","timeLayerCluster")
     )
     
-from Configuration.ProcessModifiers.ticl_v5_cff import ticl_v5
-ticl_v5.toModify(hltTiclTrackstersCLUE3DHigh.pluginPatternRecognitionByCLUE3D, computeLocalTime = cms.bool(True))
-ticl_v5.toModify(hltTiclTrackstersCLUE3DHigh, inferenceAlgo = cms.string('TracksterInferenceByPFN'))
+from Configuration.ProcessModifiers.ticl_v4_cff import ticl_v4
+ticl_v4.toModify(hltTiclTrackstersCLUE3DHigh.pluginPatternRecognitionByCLUE3D, computeLocalTime = cms.bool(False))
+ticl_v4.toModify(hltTiclTrackstersCLUE3DHigh, inferenceAlgo = cms.string('TracksterInferenceByCNNv4'))
