@@ -46,8 +46,7 @@ void LCToSCAssociatorByEnergyScoreProducerT<HIT, CLUSTER>::produce(edm::StreamID
   const auto hits = iEvent.get(hits_token_);
   for (std::size_t index = 0; const auto &hgcRecHitCollection : hits) {
     if (hgcRecHitCollection->empty()) {
-      LogDebug("LCToSCAssociatorByEnergyScoreProducerT")
-          << "HGCRecHitCollections #" << index << " is empty.";
+      LogDebug("LCToSCAssociatorByEnergyScoreProducerT") << "HGCRecHitCollections #" << index << " is empty.";
     }
     index++;
   }

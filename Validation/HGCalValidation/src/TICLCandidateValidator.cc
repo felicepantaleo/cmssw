@@ -16,8 +16,7 @@ TICLCandidateValidator::TICLCandidateValidator(edm::EDGetTokenT<std::vector<TICL
       recoTracksToken_(recoTracksToken),
       trackstersToken_(trackstersToken),
       associatorMapRtSToken_(associatorMapRtSToken),
-      associatorMapStRToken_(associatorMapStRToken)
-      {}
+      associatorMapStRToken_(associatorMapStRToken) {}
 
 TICLCandidateValidator::~TICLCandidateValidator() {}
 
@@ -528,21 +527,20 @@ void TICLCandidateValidator::fillCandidateHistos(const edm::Event& event,
     }
 
     auto& recoCand = TICLCandidates[cand_idx];
-    
-      // cand_idx is the tsMerge index, find the ts in the candidates collection
-      auto cand_it =
-          std::find_if(TICLCandidates.begin(), TICLCandidates.end(), [firstTs, cand_idx](TICLCandidate const& cand) {
-            if (!cand.tracksters().empty())
-              return (cand.tracksters()[0]).get() - firstTs ==
-                     cand_idx;  // in TICLv5 there is one trackster per candidate
-            else
-              return false;
-          });
-      if (cand_it != TICLCandidates.end())
-        recoCand = *cand_it;
-      else
-        continue;
-    
+
+    // cand_idx is the tsMerge index, find the ts in the candidates collection
+    auto cand_it =
+        std::find_if(TICLCandidates.begin(), TICLCandidates.end(), [firstTs, cand_idx](TICLCandidate const& cand) {
+          if (!cand.tracksters().empty())
+            return (cand.tracksters()[0]).get() - firstTs ==
+                   cand_idx;  // in TICLv5 there is one trackster per candidate
+          else
+            return false;
+        });
+    if (cand_it != TICLCandidates.end())
+      recoCand = *cand_it;
+    else
+      continue;
 
     if (recoCand.trackPtr().get() != nullptr) {
       const auto candTrackIdx = recoCand.trackPtr().get() - firstTrack;
@@ -613,21 +611,20 @@ void TICLCandidateValidator::fillCandidateHistos(const edm::Event& event,
     }
 
     auto& recoCand = TICLCandidates[cand_idx];
-    
-      // cand_idx is the tsMerge index, find the ts in the candidates collection
-      auto cand_it =
-          std::find_if(TICLCandidates.begin(), TICLCandidates.end(), [firstTs, cand_idx](TICLCandidate const& cand) {
-            if (!cand.tracksters().empty())
-              return (cand.tracksters()[0]).get() - firstTs ==
-                     cand_idx;  // in TICLv5 there is one trackster per candidate
-            else
-              return false;
-          });
-      if (cand_it != TICLCandidates.end())
-        recoCand = *cand_it;
-      else
-        continue;
-    
+
+    // cand_idx is the tsMerge index, find the ts in the candidates collection
+    auto cand_it =
+        std::find_if(TICLCandidates.begin(), TICLCandidates.end(), [firstTs, cand_idx](TICLCandidate const& cand) {
+          if (!cand.tracksters().empty())
+            return (cand.tracksters()[0]).get() - firstTs ==
+                   cand_idx;  // in TICLv5 there is one trackster per candidate
+          else
+            return false;
+        });
+    if (cand_it != TICLCandidates.end())
+      recoCand = *cand_it;
+    else
+      continue;
 
     if (recoCand.trackPtr().get() != nullptr)
       continue;
@@ -690,9 +687,7 @@ void TICLCandidateValidator::fillCandidateHistos(const edm::Event& event,
     if (cand.tracksters().empty())
       continue;
 
-    
     auto mergeTs_id = cand.tracksters()[0].get() - firstTs;
-    
 
     // +1 to all denominators
     histograms.h_den_fake_chg_energy_candidate[index]->Fill(cand.rawEnergy());
@@ -804,7 +799,6 @@ void TICLCandidateValidator::fillCandidateHistos(const edm::Event& event,
       continue;
 
     auto mergeTs_id = cand.tracksters()[0].get() - firstTs;
-
 
     // +1 to all denominators
     histograms.h_den_fake_neut_energy_candidate[index]->Fill(cand.rawEnergy());

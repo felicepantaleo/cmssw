@@ -53,8 +53,7 @@ void HitToSimClusterCaloParticleAssociatorProducer::produce(edm::StreamID,
   const auto hits = iEvent.get(hitsToken_);
   for (std::size_t index = 0; const auto &hgcRecHitCollection : hits) {
     if (hgcRecHitCollection->empty()) {
-      LogDebug("HitToSimClusterCaloParticleAssociatorProducer")
-          << "HGCRecHitCollection #" << index << " is empty.";
+      LogDebug("HitToSimClusterCaloParticleAssociatorProducer") << "HGCRecHitCollection #" << index << " is empty.";
     }
     index++;
   }

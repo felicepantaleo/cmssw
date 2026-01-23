@@ -145,8 +145,7 @@ public:
                          edm::EDGetTokenT<std::vector<reco::Track>> recoTracksToken,
                          edm::EDGetTokenT<std::vector<ticl::Trackster>> trackstersToken,
                          edm::EDGetTokenT<ticl::TracksterToTracksterMap> associatorMapRtSToken,
-                         edm::EDGetTokenT<ticl::TracksterToTracksterMap> associatorMapStRToken
-                         );
+                         edm::EDGetTokenT<ticl::TracksterToTracksterMap> associatorMapStRToken);
   ~TICLCandidateValidator();
 
   using Histograms = TICLCandidateValidatorHistograms;
