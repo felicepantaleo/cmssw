@@ -7,7 +7,6 @@ import datetime
 from RecoHGCal.TICL.iterativeTICL_cff import ticlIterLabels
 from Validation.RecoTrack.plotting.validation import SeparateValidation, SimpleValidation, SimpleSample
 from Validation.HGCalValidation.HGCalValidator_cff import hgcalValidator
-import Validation.HGCalValidation.hgcalPlots as hgcalPlots
 import Validation.RecoTrack.plotting.plotting as plotting
 
 simClustersIters = [hgcalValidator.label_SimClustersLevel.value(), "ticlSimTracksters"]
@@ -56,6 +55,8 @@ def main(opts):
     trackstersIters.extend(['ticlTracksterLinksSuperclusteringDNN','ticlTracksterLinksSuperclusteringMustache'])
 
     trackstersIters.extend(['ticlSimTracksters', 'ticlSimTracksters_fromCPs'])
+    import Validation.HGCalValidation.hgcalPlots as hgcalPlots
+
     #layerClusters
     def plot_LC():
         hgclayclus = [hgcalPlots.hgcalLayerClustersPlotter]
