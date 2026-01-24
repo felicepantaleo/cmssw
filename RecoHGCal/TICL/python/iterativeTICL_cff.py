@@ -105,13 +105,6 @@ ticlCandidate = _ticlCandidateProducer.clone(
     )
 )
 
-mtdSoA = _mtdSoAProducer.clone()
-
-# pfTICL uses ticlCandidate by default in v5
-pfTICL = _pfTICLProducer.clone(
-    ticlCandidateSrc = cms.InputTag('ticlCandidate'), 
-    useTimingAverage=True
-)
 ticl_v5_TrackLinkingGNN.toModify(ticlCandidate,
         interpretationDescPSet = cms.PSet(
             onnxTrkLinkingModelFirstDisk = cms.FileInPath('RecoHGCal/TICL/data/ticlv5/onnx_models/TrackLinking_GNN/FirstDiskPropGNN_v0.onnx'),
@@ -123,6 +116,14 @@ ticl_v5_TrackLinkingGNN.toModify(ticlCandidate,
             type = cms.string('GNNLink')
         )
     )
+mtdSoA = _mtdSoAProducer.clone()
+
+# pfTICL uses ticlCandidate by default in v5
+pfTICL = _pfTICLProducer.clone(
+    ticlCandidateSrc = cms.InputTag('ticlCandidate'), 
+    useTimingAverage=True
+)
+
 
 
 ticlPFTask = cms.Task(pfTICL)
