@@ -1,0 +1,5 @@
+<use name="FWCore/Utilities"/>
+
+<export>
+  <lib name="PerfToolsPerfetto"/>
+</export>

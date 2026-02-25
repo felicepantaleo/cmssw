@@ -1,0 +1,6 @@
+<use name="PerfTools/Perfetto"/>
+<use name="FWCore/Framework"/>
+<use name="FWCore/ServiceRegistry"/>
+<use name="FWCore/ParameterSet"/>
+<use name="FWCore/Utilities"/>
+<flags EDM_PLUGIN="1"/>
