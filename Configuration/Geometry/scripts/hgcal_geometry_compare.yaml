@@ -1,0 +1,372 @@
+setups:
+  reference:
+    label: D110
+    conditions: auto:phase2_realistic_T35
+    geometry: ExtendedRun4D110
+    era: Phase2C22I13M9
+
+  candidate:
+    label: D125
+    conditions: auto:phase2_realistic_T35
+    geometry: ExtendedRun4D125
+    era: Phase2C22I13M9
+
+gen_step:
+  beamspot: CloseBy
+  conditions: auto:phase2_realistic_T35
+  era: Phase2C22I13M9
+  eventcontent: FEVTDEBUG
+  datatier: GEN
+
+step2:
+  eventcontent: FEVTDEBUGHLT
+  datatier: GEN-SIM-DIGI-RAW
+  steps: SIM,DIGI:pdigi_valid,L1TrackTrigger,L1,L1P2GT,DIGI2RAW,HLT:@relvalRun4
+  procModifiers: ""
+
+step3:
+  eventcontent: FEVTDEBUGHLT
+  datatier: GEN-SIM-RECO
+  steps: RAW2DIGI,RECO,RECOSIM
+  procModifiers: ""
+
+workflow:
+  events_per_sample: 50
+  threads: 10
+
+scan:
+  eta:
+    min: 1.50
+    max: 3.20
+    step: 0.20
+  phi:
+    min: -3.14159265359
+    max: 3.14159265359
+    step: 0.20
+  z_values: [321.0, 350.0, 400.0, 450.0]
+  z_half_width: 0.01
+  r_values: [135.0]
+  r_half_width: 0.01
+  endcaps: ["ep", "em"]
+
+sample_families:
+  - name: tiled_gamma_E50
+    type: tile_scan
+    events_per_sample: 50
+    n_particles: 1
+    delta: 10.0
+    overlapping: false
+    pointing: true
+    random_shoot: false
+    controlled_by_eta: true
+    controlled_by_reta: false
+    flat_pt_generation: false
+    log_spaced_var: false
+    max_var_spread: false
+    use_delta_t: false
+    t_min: 0.0
+    t_max: 0.05
+    offset_first: 0.0
+    particles:
+      - label: gamma
+        part_ids: [22]
+    energies:
+      - label: E50
+        var_min: 50.0
+        var_max: 50.0
+
+  - name: tiled_electron_E50
+    type: tile_scan
+    events_per_sample: 50
+    n_particles: 1
+    delta: 10.0
+    overlapping: false
+    pointing: true
+    random_shoot: false
+    controlled_by_eta: true
+    controlled_by_reta: false
+    flat_pt_generation: false
+    log_spaced_var: false
+    max_var_spread: false
+    use_delta_t: false
+    t_min: 0.0
+    t_max: 0.05
+    offset_first: 0.0
+    particles:
+      - label: electron
+        part_ids: [11]
+    energies:
+      - label: E50
+        var_min: 50.0
+        var_max: 50.0
+
+  - name: tiled_pion_E50
+    type: tile_scan
+    events_per_sample: 50
+    n_particles: 1
+    delta: 10.0
+    overlapping: false
+    pointing: true
+    random_shoot: false
+    controlled_by_eta: true
+    controlled_by_reta: false
+    flat_pt_generation: false
+    log_spaced_var: false
+    max_var_spread: false
+    use_delta_t: false
+    t_min: 0.0
+    t_max: 0.05
+    offset_first: 0.0
+    particles:
+      - label: pion
+        part_ids: [211]
+    energies:
+      - label: E50
+        var_min: 50.0
+        var_max: 50.0
+
+  - name: closeby_gamma
+    type: custom
+    samples:
+      - name: closeby_gamma_eta2p20_phi0p50_r135_z350
+        eta_min: 2.20
+        eta_max: 2.20
+        phi_min: 0.50
+        phi_max: 0.50
+        r: 135.0
+        r_min: 134.99
+        r_max: 135.01
+        z: 350.0
+        z_min: 349.99
+        z_max: 350.01
+        endcap: ep
+        particle_label: gamma
+        part_ids: [22]
+        energy_label: E25to50
+        var_min: 25.0
+        var_max: 50.0
+        n_particles: 2
+        delta: 5.0
+        overlapping: false
+        pointing: true
+        random_shoot: false
+        controlled_by_eta: false
+        controlled_by_reta: false
+        flat_pt_generation: false
+        log_spaced_var: false
+        max_var_spread: false
+        use_delta_t: false
+        t_min: 0.0
+        t_max: 0.05
+        offset_first: 0.0
+        n_events: 50
+
+commands:
+  gen:
+    cfg_template: |
+      import FWCore.ParameterSet.Config as cms
+
+      from Configuration.Eras.Era_{gen_era}_cff import {gen_era}
+      process = cms.Process("GEN", {gen_era})
+
+      process.load('Configuration.StandardSequences.Services_cff')
+      process.load('SimGeneral.HepPDTESSource.pythiapdt_cfi')
+      process.load('FWCore.MessageService.MessageLogger_cfi')
+      process.load('Configuration.EventContent.EventContent_cff')
+      process.load('Configuration.StandardSequences.MagneticField_cff')
+      process.load('Configuration.StandardSequences.Generator_cff')
+      process.load('IOMC.EventVertexGenerators.VtxSmeared{gen_beamspot}_cfi')
+      process.load('GeneratorInterface.Core.genFilterSummary_cff')
+      process.load('Configuration.StandardSequences.EndOfProcess_cff')
+      process.load('Configuration.StandardSequences.FrontierConditions_GlobalTag_cff')
+
+      process.maxEvents = cms.untracked.PSet(
+          input = cms.untracked.int32({n_events})
+      )
+
+      process.source = cms.Source("EmptySource")
+
+      from Configuration.AlCa.GlobalTag import GlobalTag
+      process.GlobalTag = GlobalTag(process.GlobalTag, '{gen_conditions}', '')
+
+      process.generator = cms.EDProducer("CloseByParticleGunProducer",
+          AddAntiParticle = cms.bool(False),
+          PGunParameters = cms.PSet(
+              ControlledByEta = cms.bool({controlled_by_eta}),
+              ControlledByREta = cms.bool({controlled_by_reta}),
+              Delta = cms.double({delta}),
+              FlatPtGeneration = cms.bool({flat_pt_generation}),
+              MaxEta = cms.double({eta_max}),
+              MaxPhi = cms.double({phi_max}),
+              MaxVarSpread = cms.bool({max_var_spread}),
+              MinEta = cms.double({eta_min}),
+              MinPhi = cms.double({phi_min}),
+              NParticles = cms.int32({n_particles}),
+              OffsetFirst = cms.double({offset_first}),
+              Overlapping = cms.bool({overlapping}),
+              PartID = cms.vint32({part_ids}),
+              Pointing = cms.bool({pointing}),
+              RMax = cms.double({r_max}),
+              RMin = cms.double({r_min}),
+              RandomShoot = cms.bool({random_shoot}),
+              TMax = cms.double({t_max}),
+              TMin = cms.double({t_min}),
+              UseDeltaT = cms.bool({use_delta_t}),
+              VarMax = cms.double({var_max}),
+              VarMin = cms.double({var_min}),
+              ZMax = cms.double({z_max}),
+              ZMin = cms.double({z_min})
+          ),
+          Verbosity = cms.untracked.int32(0),
+          firstRun = cms.untracked.uint32(1),
+          psethack = cms.string('auto-generated CloseByParticleGun configuration')
+      )
+
+      process.GENoutput = cms.OutputModule("PoolOutputModule",
+          SelectEvents = cms.untracked.PSet(
+              SelectEvents = cms.vstring('generation_step')
+          ),
+          dataset = cms.untracked.PSet(
+              dataTier = cms.untracked.string('{gen_datatier}'),
+              filterName = cms.untracked.string('')
+          ),
+          fileName = cms.untracked.string('file:{gen_output}'),
+          outputCommands = process.FEVTDEBUGEventContent.outputCommands,
+          splitLevel = cms.untracked.int32(0)
+      )
+
+      process.generation_step = cms.Path(process.pgen)
+      process.genfiltersummary_step = cms.EndPath(process.genFilterSummary)
+      process.endjob_step = cms.EndPath(process.endOfProcess)
+      process.GENoutput_step = cms.EndPath(process.GENoutput)
+
+      process.schedule = cms.Schedule(
+          process.generation_step,
+          process.genfiltersummary_step,
+          process.endjob_step,
+          process.GENoutput_step
+      )
+
+      from PhysicsTools.PatAlgos.tools.helpers import associatePatAlgosToolsTask
+      associatePatAlgosToolsTask(process)
+
+      process.options.numberOfThreads = {threads}
+      process.options.numberOfStreams = 0
+
+      for path in process.paths:
+          getattr(process, path).insert(0, process.generator)
+
+      from Configuration.StandardSequences.earlyDeleteSettings_cff import customiseEarlyDelete
+      process = customiseEarlyDelete(process)
+
+    run_template: "cmsRun {gen_cfg}"
+
+  step2:
+    run_template: >
+      cmsDriver.py step2
+      --python_filename {step2_cfg}
+      --mc
+      --eventcontent {step2_eventcontent}
+      --datatier {step2_datatier}
+      --filein file:{gen_output}
+      --fileout file:{step2_output}
+      --conditions {conditions}
+      --geometry {geometry}
+      --era {era}
+      --step {step2_steps}
+      -n {n_events}
+      --no_exec
+      --nThreads {threads}
+      {step2_proc_modifiers}
+      && cmsRun {step2_cfg}
+
+  step3:
+    run_template: >
+      cmsDriver.py step3
+      --python_filename {step3_cfg}
+      --mc
+      --eventcontent {step3_eventcontent}
+      --datatier {step3_datatier}
+      --filein file:{step2_output}
+      --fileout file:{step3_output}
+      --conditions {conditions}
+      --geometry {geometry}
+      --era {era}
+      --step {step3_steps}
+      -n {n_events}
+      --no_exec
+      --nThreads {threads}
+      {step3_proc_modifiers}
+      && cmsRun {step3_cfg}
+
+  analysis:
+    cfg_template: |
+      import FWCore.ParameterSet.Config as cms
+
+      process = cms.Process("ANALYSIS")
+      process.source = cms.Source("PoolSource",
+          fileNames = cms.untracked.vstring("file:{step3_output}")
+      )
+      process.maxEvents = cms.untracked.PSet(
+          input = cms.untracked.int32(-1)
+      )
+
+      process.load("FWCore.MessageService.MessageLogger_cfi")
+
+      process.TFileService = cms.Service("TFileService",
+          fileName = cms.string("{analysis_output}")
+      )
+
+      process.hgcalGeometryComparison = cms.EDAnalyzer("HGCALGeometryComparisonAnalyzer",
+          treeName = cms.string("events")
+      )
+
+      process.p = cms.Path(process.hgcalGeometryComparison)
+
+    run_template: "cmsRun {analysis_cfg}"
+
+comparison:
+  tree_name: "events"
+  x_axis_field: "event"
+  observables:
+    - name: nSimClusters
+      mode: abs
+      event_threshold: 0.0
+      mean_threshold: 0.0
+      max_threshold: 0.0
+      outlier_fraction_threshold: 0.0
+
+    - name: nSimTracksters
+      mode: abs
+      event_threshold: 0.0
+      mean_threshold: 0.0
+      max_threshold: 0.0
+      outlier_fraction_threshold: 0.0
+
+    - name: nLayerClusters
+      mode: abs
+      event_threshold: 2.0
+      mean_threshold: 1.0
+      max_threshold: 5.0
+      outlier_fraction_threshold: 0.10
+
+    - name: sumEnergyLayerClusters
+      mode: rel
+      event_threshold: 0.03
+      mean_threshold: 0.02
+      max_threshold: 0.10
+      outlier_fraction_threshold: 0.10
+
+    - name: nTracksters
+      mode: abs
+      event_threshold: 1.0
+      mean_threshold: 0.5
+      max_threshold: 3.0
+      outlier_fraction_threshold: 0.10
+
+    - name: sumEnergyLayerClustersInTracksters
+      mode: rel
+      event_threshold: 0.03
+      mean_threshold: 0.02
+      max_threshold: 0.10
+      outlier_fraction_threshold: 0.10
