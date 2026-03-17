@@ -1,15 +1,17 @@
 setups:
   reference:
-    label: D110
+    name: D121(v17)
+    label: D121
     conditions: auto:phase2_realistic_T35
-    geometry: ExtendedRun4D110
+    geometry: ExtendedRun4D121
     era: Phase2C22I13M9
 
   candidate:
-    label: D125
+    name: D120(v19)
+    label: D120
     conditions: auto:phase2_realistic_T35
-    geometry: ExtendedRun4D125
-    era: Phase2C22I13M9
+    geometry: ExtendedRun4D120
+    era: Phase2C26I13M9
 
 gen_step:
   beamspot: CloseBy
@@ -214,35 +216,30 @@ commands:
       && cmsRun {step3_cfg}
 
   analysis:
-    cfg_template: |
-      import FWCore.ParameterSet.Config as cms
-
-      process = cms.Process("ANALYSIS")
-      process.source = cms.Source("PoolSource",
-          fileNames = cms.untracked.vstring("file:{step3_output}")
-      )
-      process.maxEvents = cms.untracked.PSet(
-          input = cms.untracked.int32(-1)
-      )
-
-      process.load("FWCore.MessageService.MessageLogger_cfi")
-
-      process.TFileService = cms.Service("TFileService",
-          fileName = cms.string("{analysis_output}")
-      )
-
-      process.hgcalGeometryComparison = cms.EDAnalyzer("HGCALGeometryComparisonAnalyzer",
-          treeName = cms.string("events")
-      )
-
-      process.p = cms.Path(process.hgcalGeometryComparison)
-
-    run_template: "cmsRun {analysis_cfg}"
+    run_template: >
+      python3 {cmssw_base}/src/Configuration/Geometry/scripts/hgcalGeometryNtuplizer.py
+      --input {step3_output}
+      --output {analysis_output}
+      --max-events -1
 
 comparison:
   tree_name: "events"
   x_axis_field: "event"
   observables:
+    - name: nSimClusters
+      mode: abs
+      event_threshold: 0.0
+      mean_threshold: 0.0
+      max_threshold: 0.0
+      outlier_fraction_threshold: 0.0
+
+    - name: nCaloParticles
+      mode: abs
+      event_threshold: 0.0
+      mean_threshold: 0.0
+      max_threshold: 0.0
+      outlier_fraction_threshold: 0.0
+
     - name: nLayerClusters
       mode: abs
       event_threshold: 2.0
@@ -257,9 +254,30 @@ comparison:
       max_threshold: 0.10
       outlier_fraction_threshold: 0.10
 
-    - name: nTracksters
+    - name: nTrackstersCLUE3DHigh
       mode: abs
       event_threshold: 1.0
       mean_threshold: 0.5
       max_threshold: 3.0
+      outlier_fraction_threshold: 0.10
+
+    - name: sumEnergyLayerClustersInTrackstersCLUE3DHigh
+      mode: rel
+      event_threshold: 0.03
+      mean_threshold: 0.02
+      max_threshold: 0.10
+      outlier_fraction_threshold: 0.10
+
+    - name: nTrackstersMerge
+      mode: abs
+      event_threshold: 1.0
+      mean_threshold: 0.5
+      max_threshold: 3.0
+      outlier_fraction_threshold: 0.10
+
+    - name: sumEnergyLayerClustersInTrackstersMerge
+      mode: rel
+      event_threshold: 0.03
+      mean_threshold: 0.02
+      max_threshold: 0.10
       outlier_fraction_threshold: 0.10
