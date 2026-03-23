@@ -9,11 +9,13 @@ import re
 import shutil
 import subprocess
 import sys
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import time
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, as_completed, wait
 from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+
 try:
     import psutil
 except ImportError:
@@ -27,6 +29,7 @@ except ImportError as exc:
 
 try:
     import ROOT
+
     ROOT.gROOT.SetBatch(True)
 except ImportError:
     ROOT = None
@@ -39,6 +42,7 @@ def setup_logging(level: str) -> None:
         format="%(asctime)s | %(levelname)s | %(message)s",
         datefmt="%H:%M:%S",
     )
+
 
 def system_usage_string() -> str:
     if psutil is None:
@@ -121,23 +125,35 @@ def root_file_looks_valid(path: Path) -> bool:
     return True
 
 
-def run_shell_command(command: str, log_file: Path, dry_run: bool = False, cwd: Optional[Path] = None) -> int:
+def run_shell_command(
+    command: str,
+    log_file: Path,
+    err_file: Optional[Path] = None,
+    dry_run: bool = False,
+    cwd: Optional[Path] = None,
+) -> int:
     safe_mkdir(log_file.parent)
+    if err_file is None:
+        err_file = log_file.with_suffix(".err")
+    safe_mkdir(err_file.parent)
+
     logging.debug("Running command: %s", command)
 
     if dry_run:
-        with log_file.open("w", encoding="utf-8") as handle:
-            handle.write("[DRY RUN]\n")
-            handle.write(command + "\n")
+        with log_file.open("w", encoding="utf-8") as hout:
+            hout.write("[DRY RUN]\n")
+            hout.write(command + "\n")
+        with err_file.open("w", encoding="utf-8") as herr:
+            herr.write("[DRY RUN]\n")
         return 0
 
-    with log_file.open("w", encoding="utf-8") as handle:
+    with log_file.open("w", encoding="utf-8") as hout, err_file.open("w", encoding="utf-8") as herr:
         proc = subprocess.run(
             command,
             shell=True,
             cwd=str(cwd) if cwd else None,
-            stdout=handle,
-            stderr=subprocess.STDOUT,
+            stdout=hout,
+            stderr=herr,
             executable="/bin/bash",
         )
     return proc.returncode
@@ -336,32 +352,26 @@ def sample_paths(base_dirs: Dict[str, Path], sample: Sample, config: Dict[str, A
         "gen_cmd": gen_dir / "gen_cmd.sh",
         "gen_output": gen_dir / "gen.root",
         "gen_meta": gen_dir / "metadata.json",
-
         "step2_ref_dir": step2_ref_dir,
         "step2_ref_cfg": step2_ref_dir / "step2_cfg.py",
         "step2_ref_cmd": step2_ref_dir / "step2_cmd.sh",
         "step2_ref_output": step2_ref_dir / "step2.root",
-
         "step2_cand_dir": step2_cand_dir,
         "step2_cand_cfg": step2_cand_dir / "step2_cfg.py",
         "step2_cand_cmd": step2_cand_dir / "step2_cmd.sh",
         "step2_cand_output": step2_cand_dir / "step2.root",
-
         "step3_ref_dir": step3_ref_dir,
         "step3_ref_cfg": step3_ref_dir / "step3_cfg.py",
         "step3_ref_cmd": step3_ref_dir / "step3_cmd.sh",
         "step3_ref_output": step3_ref_dir / "step3.root",
-
         "step3_cand_dir": step3_cand_dir,
         "step3_cand_cfg": step3_cand_dir / "step3_cfg.py",
         "step3_cand_cmd": step3_cand_dir / "step3_cmd.sh",
         "step3_cand_output": step3_cand_dir / "step3.root",
-
         "analysis_ref_dir": analysis_ref_dir,
         "analysis_ref_cfg": analysis_ref_dir / "analysis_cfg.py",
         "analysis_ref_cmd": analysis_ref_dir / "analysis_cmd.sh",
         "analysis_ref_output": analysis_ref_dir / "analysis.root",
-
         "analysis_cand_dir": analysis_cand_dir,
         "analysis_cand_cfg": analysis_cand_dir / "analysis_cfg.py",
         "analysis_cand_cmd": analysis_cand_dir / "analysis_cmd.sh",
@@ -387,34 +397,27 @@ def build_context(
         "sample_name": sample.name,
         "sample_family": sample.family,
         "n_events": sample.params["n_events"],
-
         "gen_cfg": str(paths["gen_cfg"]),
         "gen_output": str(paths["gen_output"]),
-
         "step2_cfg": "",
         "step2_output": "",
         "step3_cfg": "",
         "step3_output": "",
-
         "analysis_cfg": "",
         "analysis_output": "",
-
         "gen_beamspot": gen_step["beamspot"],
         "gen_conditions": gen_step["conditions"],
         "gen_era": gen_step["era"],
         "gen_eventcontent": gen_step["eventcontent"],
         "gen_datatier": gen_step["datatier"],
-
         "step2_eventcontent": step2_cfg["eventcontent"],
         "step2_datatier": step2_cfg["datatier"],
         "step2_steps": step2_cfg["steps"],
         "step2_proc_modifiers": optional_cli_fragment("--procModifiers", step2_cfg.get("procModifiers", "")),
-
         "step3_eventcontent": step3_cfg["eventcontent"],
         "step3_datatier": step3_cfg["datatier"],
         "step3_steps": step3_cfg["steps"],
         "step3_proc_modifiers": optional_cli_fragment("--procModifiers", step3_cfg.get("procModifiers", "")),
-
         "threads": threads_per_job,
     }
 
@@ -493,7 +496,8 @@ def run_gen_for_sample(
     maybe_write_cmd(command, paths["gen_cmd"], overwrite=True)
 
     log_file = base_dirs["logs"] / "gen" / f"{sample.name}.log"
-    code = run_shell_command(command, log_file, dry_run=args.dry_run, cwd=args.workdir)
+    err_file = base_dirs["logs"] / "gen" / f"{sample.name}.err"
+    code = run_shell_command(command, log_file, err_file=err_file, dry_run=args.dry_run, cwd=args.workdir)
 
     metadata = {
         "sample_name": sample.name,
@@ -504,7 +508,7 @@ def run_gen_for_sample(
     }
     write_text(paths["gen_meta"], json.dumps(metadata, indent=2), overwrite=True)
 
-    ok = (code == 0)
+    ok = code == 0
     return sample.name, ok, "GEN done." if ok else f"GEN failed with code {code}."
 
 
@@ -530,8 +534,9 @@ def run_step2_for_sample_and_setup(
     maybe_write_cmd(command, paths[f"step2_{suffix}_cmd"], overwrite=True)
 
     log_file = base_dirs["logs"] / "step2" / setup_key / f"{sample.name}.log"
-    code = run_shell_command(command, log_file, dry_run=args.dry_run, cwd=args.workdir)
-    ok = (code == 0)
+    err_file = base_dirs["logs"] / "step2" / setup_key / f"{sample.name}.err"
+    code = run_shell_command(command, log_file, err_file=err_file, dry_run=args.dry_run, cwd=args.workdir)
+    ok = code == 0
     return sample.name, ok, f"STEP2 {setup_key} done." if ok else f"STEP2 {setup_key} failed with code {code}."
 
 
@@ -557,8 +562,9 @@ def run_step3_for_sample_and_setup(
     maybe_write_cmd(command, paths[f"step3_{suffix}_cmd"], overwrite=True)
 
     log_file = base_dirs["logs"] / "step3" / setup_key / f"{sample.name}.log"
-    code = run_shell_command(command, log_file, dry_run=args.dry_run, cwd=args.workdir)
-    ok = (code == 0)
+    err_file = base_dirs["logs"] / "step3" / setup_key / f"{sample.name}.err"
+    code = run_shell_command(command, log_file, err_file=err_file, dry_run=args.dry_run, cwd=args.workdir)
+    ok = code == 0
     return sample.name, ok, f"STEP3 {setup_key} done." if ok else f"STEP3 {setup_key} failed with code {code}."
 
 
@@ -593,8 +599,9 @@ def run_analysis_for_sample_and_setup(
     maybe_write_cmd(command, paths[f"analysis_{suffix}_cmd"], overwrite=True)
 
     log_file = base_dirs["logs"] / "analysis" / setup_key / f"{sample.name}.log"
-    code = run_shell_command(command, log_file, dry_run=args.dry_run, cwd=args.workdir)
-    ok = (code == 0)
+    err_file = base_dirs["logs"] / "analysis" / setup_key / f"{sample.name}.err"
+    code = run_shell_command(command, log_file, err_file=err_file, dry_run=args.dry_run, cwd=args.workdir)
+    ok = code == 0
     return sample.name, ok, f"ANALYSIS {setup_key} done." if ok else f"ANALYSIS {setup_key} failed with code {code}."
 
 
@@ -658,7 +665,7 @@ def compare_one_observable(
     different_dir: Path,
     x_axis_field: str,
     reference_name: str,
-    candidate_name: str
+    candidate_name: str,
 ) -> Dict[str, Any]:
     observable = observable_cfg["name"]
     mode = observable_cfg.get("mode", "abs")
@@ -723,6 +730,7 @@ def compare_one_observable(
     ref_graph.SetMarkerColor(ROOT.kBlue + 1)
     cand_graph.SetLineColor(ROOT.kRed + 1)
     cand_graph.SetMarkerColor(ROOT.kRed + 1)
+
     all_overlay_vals = ref_vals + cand_vals
     ymin = min(all_overlay_vals)
     ymax = max(all_overlay_vals)
@@ -731,12 +739,19 @@ def compare_one_observable(
         eps = 1.0 if ymin == 0.0 else 0.05 * abs(ymin)
         ymin -= eps
         ymax += eps
+    else:
+        pad = 0.05 * (ymax - ymin)
+        ymin -= pad
+        ymax += pad
 
-    ref_graph.SetMinimum(ymin)
-    ref_graph.SetMaximum(ymax)
     ref_graph.Draw("ALP")
+    hist = ref_graph.GetHistogram()
+    if hist:
+        hist.SetMinimum(ymin)
+        hist.SetMaximum(ymax)
+
     cand_graph.Draw("LP SAME")
-    legend = ROOT.TLegend(0.70, 0.80, 0.90, 0.90)
+    legend = ROOT.TLegend(0.62, 0.78, 0.90, 0.90)
     legend.AddEntry(ref_graph, reference_name, "lp")
     legend.AddEntry(cand_graph, candidate_name, "lp")
     legend.Draw()
@@ -748,6 +763,7 @@ def compare_one_observable(
     delta_graph = make_graph(x_vals, diffs, f"{sample_name} - delta {observable}", x_axis_field, f"delta({observable})")
     delta_graph.SetLineColor(ROOT.kBlack)
     delta_graph.SetMarkerColor(ROOT.kBlack)
+
     delta_ymin = min(diffs)
     delta_ymax = max(diffs)
 
@@ -755,10 +771,17 @@ def compare_one_observable(
         eps = 1.0 if delta_ymin == 0.0 else 0.05 * abs(delta_ymin)
         delta_ymin -= eps
         delta_ymax += eps
+    else:
+        pad = 0.05 * (delta_ymax - delta_ymin)
+        delta_ymin -= pad
+        delta_ymax += pad
 
-    delta_graph.SetMinimum(delta_ymin)
-    delta_graph.SetMaximum(delta_ymax)
     delta_graph.Draw("ALP")
+    delta_hist = delta_graph.GetHistogram()
+    if delta_hist:
+        delta_hist.SetMinimum(delta_ymin)
+        delta_hist.SetMaximum(delta_ymax)
+
     delta_plot = output_dir / f"delta_{observable}__{sample_name}.png"
     canvas_delta.SaveAs(str(delta_plot))
     canvas_delta.Close()
@@ -823,7 +846,7 @@ def run_compare_for_sample(sample: Sample, base_dirs: Dict[str, Path], config: D
                 different_dir=different_dir,
                 x_axis_field=compare_cfg.get("x_axis_field", "event"),
                 reference_name=config["setups"]["reference"].get("name", config["setups"]["reference"]["label"]),
-                candidate_name=config["setups"]["candidate"].get("name", config["setups"]["candidate"]["label"])
+                candidate_name=config["setups"]["candidate"].get("name", config["setups"]["candidate"]["label"]),
             )
         )
 
@@ -861,16 +884,18 @@ def execute_tasks(step_name: str, tasks, max_concurrent_jobs: int, continue_on_e
     ok_count = 0
     fail_count = 0
     first_failure_message = None
+    heartbeat_seconds = 30
 
     if total == 0:
         return results
 
-    def log_progress(running: int):
-        pct = 100.0 * done / total
+    def log_progress(running: int, heartbeat: bool = False):
+        pct = 100.0 * done / total if total else 100.0
         bar = make_progress_bar(done, total)
+        prefix = f"{step_name}:heartbeat" if heartbeat else step_name
         logging.info(
             "[%s] %s %d/%d (%.1f%%) | running=%d done=%d ok=%d fail=%d | %s",
-            step_name,
+            prefix,
             bar,
             done,
             total,
@@ -891,6 +916,7 @@ def execute_tasks(step_name: str, tasks, max_concurrent_jobs: int, continue_on_e
         return ("<exception>", False, msg)
 
     if max_concurrent_jobs <= 1:
+        last_heartbeat = time.time()
         log_progress(running=1 if total > 0 else 0)
         for task in tasks:
             try:
@@ -904,37 +930,52 @@ def execute_tasks(step_name: str, tasks, max_concurrent_jobs: int, continue_on_e
                 ok_count += 1
             else:
                 fail_count += 1
+
             log_progress(running=0)
 
             if not continue_on_error and len(result) >= 2 and not result[1]:
                 raise RuntimeError(result[2] if len(result) > 2 else "Task failed.")
+
+            now = time.time()
+            if now - last_heartbeat >= heartbeat_seconds:
+                log_progress(running=0, heartbeat=True)
+                last_heartbeat = now
         return results
 
     with ThreadPoolExecutor(max_workers=max_concurrent_jobs) as executor:
-        futures = [executor.submit(task) for task in tasks]
+        pending = {executor.submit(task) for task in tasks}
+        last_heartbeat = time.time()
         log_progress(running=min(max_concurrent_jobs, total))
 
-        for future in as_completed(futures):
-            try:
-                result = future.result()
-            except Exception as exc:
-                result = normalize_exception(exc)
+        while pending:
+            done_now, pending = wait(pending, timeout=1.0, return_when=FIRST_COMPLETED)
 
-            results.append(result)
-            done += 1
-            if len(result) >= 2 and result[1]:
-                ok_count += 1
-            else:
-                fail_count += 1
+            for future in done_now:
+                try:
+                    result = future.result()
+                except Exception as exc:
+                    result = normalize_exception(exc)
 
-            running = total - done
-            running = min(running, max_concurrent_jobs)
-            log_progress(running=running)
+                results.append(result)
+                done += 1
+                if len(result) >= 2 and result[1]:
+                    ok_count += 1
+                else:
+                    fail_count += 1
 
-            if not continue_on_error and len(result) >= 2 and not result[1]:
-                for f in futures:
-                    f.cancel()
-                raise RuntimeError(result[2] if len(result) > 2 else "Task failed.")
+                running = min(len(pending), max_concurrent_jobs)
+                log_progress(running=running)
+
+                if not continue_on_error and len(result) >= 2 and not result[1]:
+                    for f in pending:
+                        f.cancel()
+                    raise RuntimeError(result[2] if len(result) > 2 else "Task failed.")
+
+            now = time.time()
+            if now - last_heartbeat >= heartbeat_seconds:
+                running = min(len(pending), max_concurrent_jobs)
+                log_progress(running=running, heartbeat=True)
+                last_heartbeat = now
 
     return results
 
@@ -960,6 +1001,9 @@ def parse_args():
 def main() -> int:
     args = parse_args()
     setup_logging(args.log_level)
+
+    if psutil is not None:
+        psutil.cpu_percent(interval=None)
 
     if args.max_concurrent_jobs < 1:
         raise RuntimeError("--max-concurrent-jobs must be >= 1")
@@ -1020,9 +1064,9 @@ def main() -> int:
             lambda sample=sample: run_gen_for_sample(sample, base_dirs, config, args, threads_per_job)
             for sample in samples
         ]
-        results = execute_tasks("gen",tasks, max_concurrent_jobs=args.max_concurrent_jobs, continue_on_error=args.continue_on_error)
+        results = execute_tasks("gen", tasks, max_concurrent_jobs=args.max_concurrent_jobs, continue_on_error=args.continue_on_error)
         for name, ok, message in results:
-            logging.info("[%s] %s", "gen", name)
+            logging.debug("[%s] %s | %s", "gen", name, message)
             if not ok and not args.continue_on_error:
                 return 1
 
@@ -1039,9 +1083,9 @@ def main() -> int:
                     sample, "candidate", base_dirs, config, args, threads_per_job
                 )
             )
-        results = execute_tasks("step2",tasks, max_concurrent_jobs=args.max_concurrent_jobs, continue_on_error=args.continue_on_error)
+        results = execute_tasks("step2", tasks, max_concurrent_jobs=args.max_concurrent_jobs, continue_on_error=args.continue_on_error)
         for name, ok, message in results:
-            logging.info("[%s] %s", "step2", name)
+            logging.debug("[%s] %s | %s", "step2", name, message)
             if not ok and not args.continue_on_error:
                 return 1
 
@@ -1058,9 +1102,9 @@ def main() -> int:
                     sample, "candidate", base_dirs, config, args, threads_per_job
                 )
             )
-        results = execute_tasks("step3",tasks, max_concurrent_jobs=args.max_concurrent_jobs, continue_on_error=args.continue_on_error)
+        results = execute_tasks("step3", tasks, max_concurrent_jobs=args.max_concurrent_jobs, continue_on_error=args.continue_on_error)
         for name, ok, message in results:
-            logging.info("[%s] %s", "step3", name)
+            logging.debug("[%s] %s | %s", "step3", name, message)
             if not ok and not args.continue_on_error:
                 return 1
 
@@ -1079,7 +1123,7 @@ def main() -> int:
             )
         results = execute_tasks("analysis", tasks, max_concurrent_jobs=args.max_concurrent_jobs, continue_on_error=args.continue_on_error)
         for name, ok, message in results:
-            logging.info("[%s] %s", "analysis", name)
+            logging.debug("[%s] %s | %s", "analysis", name, message)
             if not ok and not args.continue_on_error:
                 return 1
 
@@ -1089,7 +1133,7 @@ def main() -> int:
 
         all_rows = []
         for name, ok, message, rows in results:
-            logging.info("[%s] %s", "compare", name)
+            logging.debug("[%s] %s | %s", "compare", name, message)
             all_rows.extend(rows)
             if not ok and not args.continue_on_error:
                 return 1
