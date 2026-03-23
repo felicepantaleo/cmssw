@@ -12,8 +12,44 @@
 #include "DataFormats/CaloRecHit/interface/CaloCluster.h"
 #include "DataFormats/HGCalReco/interface/TICLLayerTile.h"
 
+#include "DataFormats/ForwardDetId/interface/HGCalDetId.h"
 #include "RecoLocalCalo/HGCalRecAlgos/interface/RecHitTools.h"
 
+namespace {
+template <typename ClusterCollection>
+void dumpLayerCluster(const ClusterCollection& layerClusters, unsigned int i) {
+  const auto& lc = layerClusters[i];
+
+  std::cerr << "LayerCluster dump\n"
+            << "  index: " << i << "\n"
+            << "  energy: " << lc.energy() << "\n"
+            << "  eta: " << lc.eta() << "\n"
+            << "  phi: " << lc.phi() << "\n"
+            << "  x: " << lc.x() << "\n"
+            << "  y: " << lc.y() << "\n"
+            << "  z: " << lc.z() << "\n"
+            << "  size: " << lc.size() << "\n"
+            << "  algo: " << lc.algo() << "\n"
+            << "  flags: " << lc.flags() << "\n"
+            << "  seed rawId: " << lc.seed().rawId() << "\n";
+  for (size_t ih = 0; ih < lc.hitsAndFractions().size(); ++ih) {
+     std::cerr << "  hit[" << ih << "] rawId=" << lc.hitsAndFractions()[ih].first.rawId()
+               << " fraction=" << lc.hitsAndFractions()[ih].second << "\n";
+    HGCalDetId hitId(lc.hitsAndFractions()[ih].first.rawId());
+    std::cerr << "    hit decoded:"
+              << " det=" << hitId.det()
+              << " subdet=" << hitId.subdetId()
+              << " zside=" << hitId.zside()
+              << " layer=" << hitId.layer()
+              << " waferType=" << hitId.waferType()
+              << " wafer=" << hitId.wafer()
+              << " cell=" << hitId.cell() << "\n";
+  }
+  
+
+
+}
+}
 class TICLLayerTileProducer : public edm::stream::EDProducer<> {
 public:
   explicit TICLLayerTileProducer(const edm::ParameterSet &ps);
@@ -86,6 +122,11 @@ void TICLLayerTileProducer::produce(edm::Event &evt, const edm::EventSetup &) {
     } else if (isBarrelLC) {
       resultBarrel->fill(layer, lc.eta(), lc.phi(), lcId);
     } else {
+      if(std::abs(lc.eta()) < 1.35 || std::abs(lc.eta()) > 3.2) {
+         LogDebug("TICLLayerTileProducer") << "LayerCluster with index: " << lcId << " has eta: " << lc.eta()
+                                           << " which is out of range for the endcap tiles. Dumping the layer cluster details:\n";
+        dumpLayerCluster(layerClusters, lcId);
+      }
       result->fill(layer, lc.eta(), lc.phi(), lcId);
     }
     LogDebug("TICLLayerTileProducer") << "Adding layerClusterId: " << lcId << " into bin [eta,phi]: [ "
