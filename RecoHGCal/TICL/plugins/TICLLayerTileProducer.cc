@@ -12,6 +12,7 @@
 #include "DataFormats/CaloRecHit/interface/CaloCluster.h"
 #include "DataFormats/HGCalReco/interface/TICLLayerTile.h"
 
+#include "DataFormats/ForwardDetId/interface/HGCalDetId.h"
 #include "RecoLocalCalo/HGCalRecAlgos/interface/RecHitTools.h"
 
 class TICLLayerTileProducer : public edm::stream::EDProducer<edm::stream::WatchRuns> {

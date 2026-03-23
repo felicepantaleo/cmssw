@@ -85,6 +85,22 @@ public:
   const std::vector<unsigned int>& operator[](int globalBinId) const { return tile_[globalBinId]; }
 
 private:
+  int etaBinRaw(float eta) const {
+    constexpr float etaRange = T::maxEta - T::minEta;
+    static_assert(etaRange >= 0.f);
+    const float r = T::nEtaBins / etaRange;
+
+    if constexpr (std::is_same_v<T, ticl::TileConstantsBarrel>)
+      return static_cast<int>((eta - T::minEta) * r);
+    else
+      return static_cast<int>((std::abs(eta) - T::minEta) * r);
+  }
+
+  int phiBinRaw(float phi) const {
+    const float normPhi = normalizedPhi(phi);
+    const float r = T::nPhiBins * M_1_PI * 0.5f;
+    return static_cast<int>((normPhi + M_PI) * r);
+  }
   std::array<std::vector<unsigned int>, T::nBins> tile_;
 };
 

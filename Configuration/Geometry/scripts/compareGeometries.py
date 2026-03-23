@@ -14,6 +14,10 @@ from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+try:
+    import psutil
+except ImportError:
+    psutil = None
 
 try:
     import fnmatch
@@ -35,6 +39,24 @@ def setup_logging(level: str) -> None:
         format="%(asctime)s | %(levelname)s | %(message)s",
         datefmt="%H:%M:%S",
     )
+
+def system_usage_string() -> str:
+    if psutil is None:
+        return "CPU n/a | RAM n/a"
+
+    cpu = psutil.cpu_percent(interval=None)
+    vm = psutil.virtual_memory()
+    used_gb = (vm.total - vm.available) / (1024**3)
+    total_gb = vm.total / (1024**3)
+    return f"CPU {cpu:.0f}% | RAM {vm.percent:.0f}% ({used_gb:.0f}/{total_gb:.0f} GB)"
+
+
+def make_progress_bar(done: int, total: int, width: int = 30) -> str:
+    if total <= 0:
+        return "[" + "." * width + "]"
+    filled = int(width * done / total)
+    filled = max(0, min(width, filled))
+    return "[" + "#" * filled + "." * (width - filled) + "]"
 
 
 def safe_mkdir(path: Path) -> None:
@@ -101,7 +123,7 @@ def root_file_looks_valid(path: Path) -> bool:
 
 def run_shell_command(command: str, log_file: Path, dry_run: bool = False, cwd: Optional[Path] = None) -> int:
     safe_mkdir(log_file.parent)
-    logging.info("Running: %s", command)
+    logging.debug("Running command: %s", command)
 
     if dry_run:
         with log_file.open("w", encoding="utf-8") as handle:
@@ -701,6 +723,17 @@ def compare_one_observable(
     ref_graph.SetMarkerColor(ROOT.kBlue + 1)
     cand_graph.SetLineColor(ROOT.kRed + 1)
     cand_graph.SetMarkerColor(ROOT.kRed + 1)
+    all_overlay_vals = ref_vals + cand_vals
+    ymin = min(all_overlay_vals)
+    ymax = max(all_overlay_vals)
+
+    if ymin == ymax:
+        eps = 1.0 if ymin == 0.0 else 0.05 * abs(ymin)
+        ymin -= eps
+        ymax += eps
+
+    ref_graph.SetMinimum(ymin)
+    ref_graph.SetMaximum(ymax)
     ref_graph.Draw("ALP")
     cand_graph.Draw("LP SAME")
     legend = ROOT.TLegend(0.70, 0.80, 0.90, 0.90)
@@ -715,6 +748,16 @@ def compare_one_observable(
     delta_graph = make_graph(x_vals, diffs, f"{sample_name} - delta {observable}", x_axis_field, f"delta({observable})")
     delta_graph.SetLineColor(ROOT.kBlack)
     delta_graph.SetMarkerColor(ROOT.kBlack)
+    delta_ymin = min(diffs)
+    delta_ymax = max(diffs)
+
+    if delta_ymin == delta_ymax:
+        eps = 1.0 if delta_ymin == 0.0 else 0.05 * abs(delta_ymin)
+        delta_ymin -= eps
+        delta_ymax += eps
+
+    delta_graph.SetMinimum(delta_ymin)
+    delta_graph.SetMaximum(delta_ymax)
     delta_graph.Draw("ALP")
     delta_plot = output_dir / f"delta_{observable}__{sample_name}.png"
     canvas_delta.SaveAs(str(delta_plot))
@@ -811,23 +854,88 @@ def write_compare_summaries(base_dirs: Dict[str, Path], config: Dict[str, Any], 
             writer.writerows(flagged)
 
 
-def execute_tasks(tasks, max_concurrent_jobs: int, continue_on_error: bool):
+def execute_tasks(step_name: str, tasks, max_concurrent_jobs: int, continue_on_error: bool):
     results = []
+    total = len(tasks)
+    done = 0
+    ok_count = 0
+    fail_count = 0
+    first_failure_message = None
+
+    if total == 0:
+        return results
+
+    def log_progress(running: int):
+        pct = 100.0 * done / total
+        bar = make_progress_bar(done, total)
+        logging.info(
+            "[%s] %s %d/%d (%.1f%%) | running=%d done=%d ok=%d fail=%d | %s",
+            step_name,
+            bar,
+            done,
+            total,
+            pct,
+            running,
+            done,
+            ok_count,
+            fail_count,
+            system_usage_string(),
+        )
+
+    def normalize_exception(exc: Exception):
+        nonlocal first_failure_message
+        msg = f"{type(exc).__name__}: {exc}"
+        if first_failure_message is None:
+            first_failure_message = msg
+        logging.exception("[%s] task raised an exception", step_name)
+        return ("<exception>", False, msg)
+
     if max_concurrent_jobs <= 1:
+        log_progress(running=1 if total > 0 else 0)
         for task in tasks:
-            result = task()
+            try:
+                result = task()
+            except Exception as exc:
+                result = normalize_exception(exc)
+
             results.append(result)
+            done += 1
+            if len(result) >= 2 and result[1]:
+                ok_count += 1
+            else:
+                fail_count += 1
+            log_progress(running=0)
+
             if not continue_on_error and len(result) >= 2 and not result[1]:
                 raise RuntimeError(result[2] if len(result) > 2 else "Task failed.")
         return results
 
     with ThreadPoolExecutor(max_workers=max_concurrent_jobs) as executor:
-        future_map = {executor.submit(task): task for task in tasks}
-        for future in as_completed(future_map):
-            result = future.result()
+        futures = [executor.submit(task) for task in tasks]
+        log_progress(running=min(max_concurrent_jobs, total))
+
+        for future in as_completed(futures):
+            try:
+                result = future.result()
+            except Exception as exc:
+                result = normalize_exception(exc)
+
             results.append(result)
+            done += 1
+            if len(result) >= 2 and result[1]:
+                ok_count += 1
+            else:
+                fail_count += 1
+
+            running = total - done
+            running = min(running, max_concurrent_jobs)
+            log_progress(running=running)
+
             if not continue_on_error and len(result) >= 2 and not result[1]:
+                for f in futures:
+                    f.cancel()
                 raise RuntimeError(result[2] if len(result) > 2 else "Task failed.")
+
     return results
 
 
@@ -912,9 +1020,9 @@ def main() -> int:
             lambda sample=sample: run_gen_for_sample(sample, base_dirs, config, args, threads_per_job)
             for sample in samples
         ]
-        results = execute_tasks(tasks, max_concurrent_jobs=args.max_concurrent_jobs, continue_on_error=args.continue_on_error)
+        results = execute_tasks("gen",tasks, max_concurrent_jobs=args.max_concurrent_jobs, continue_on_error=args.continue_on_error)
         for name, ok, message in results:
-            logging.info("[%s] %s", name, message)
+            logging.info("[%s] %s", "gen", name)
             if not ok and not args.continue_on_error:
                 return 1
 
@@ -931,9 +1039,9 @@ def main() -> int:
                     sample, "candidate", base_dirs, config, args, threads_per_job
                 )
             )
-        results = execute_tasks(tasks, max_concurrent_jobs=args.max_concurrent_jobs, continue_on_error=args.continue_on_error)
+        results = execute_tasks("step2",tasks, max_concurrent_jobs=args.max_concurrent_jobs, continue_on_error=args.continue_on_error)
         for name, ok, message in results:
-            logging.info("[%s] %s", name, message)
+            logging.info("[%s] %s", "step2", name)
             if not ok and not args.continue_on_error:
                 return 1
 
@@ -950,9 +1058,9 @@ def main() -> int:
                     sample, "candidate", base_dirs, config, args, threads_per_job
                 )
             )
-        results = execute_tasks(tasks, max_concurrent_jobs=args.max_concurrent_jobs, continue_on_error=args.continue_on_error)
+        results = execute_tasks("step3",tasks, max_concurrent_jobs=args.max_concurrent_jobs, continue_on_error=args.continue_on_error)
         for name, ok, message in results:
-            logging.info("[%s] %s", name, message)
+            logging.info("[%s] %s", "step3", name)
             if not ok and not args.continue_on_error:
                 return 1
 
@@ -969,19 +1077,19 @@ def main() -> int:
                     sample, "candidate", base_dirs, config, args, threads_per_job
                 )
             )
-        results = execute_tasks(tasks, max_concurrent_jobs=args.max_concurrent_jobs, continue_on_error=args.continue_on_error)
+        results = execute_tasks("analysis", tasks, max_concurrent_jobs=args.max_concurrent_jobs, continue_on_error=args.continue_on_error)
         for name, ok, message in results:
-            logging.info("[%s] %s", name, message)
+            logging.info("[%s] %s", "analysis", name)
             if not ok and not args.continue_on_error:
                 return 1
 
     if "compare" in steps:
         tasks = [lambda sample=sample: run_compare_for_sample(sample, base_dirs, config, args) for sample in samples]
-        results = execute_tasks(tasks, max_concurrent_jobs=args.max_concurrent_jobs, continue_on_error=args.continue_on_error)
+        results = execute_tasks("compare", tasks, max_concurrent_jobs=args.max_concurrent_jobs, continue_on_error=args.continue_on_error)
 
         all_rows = []
         for name, ok, message, rows in results:
-            logging.info("[%s] %s", name, message)
+            logging.info("[%s] %s", "compare", name)
             all_rows.extend(rows)
             if not ok and not args.continue_on_error:
                 return 1
