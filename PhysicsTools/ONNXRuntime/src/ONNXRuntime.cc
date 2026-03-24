@@ -13,33 +13,16 @@
 #include <algorithm>
 #include <cassert>
 #include <functional>
-#include <iostream>
 #include <memory>
 #include <numeric>
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <tuple>
 
 namespace cms::Ort {
 
   using namespace ::Ort;
-
-  namespace {
-
-    inline int64_t numel(const std::vector<int64_t>& dims) {
-      return std::accumulate(dims.begin(), dims.end(), int64_t{1}, std::multiplies<int64_t>());
-    }
-
-    inline bool hasDynamicDimsExceptBatch(const std::vector<int64_t>& dims) {
-      for (size_t i = 0; i < dims.size(); ++i) {
-        if (dims[i] == -1 && i != 0) {
-          return true;
-        }
-      }
-      return false;
-    }
-
-  }  // namespace
 
   const Env ONNXRuntime::env_(ORT_LOGGING_LEVEL_ERROR, "");
 
