@@ -111,7 +111,11 @@ void TracksterAssociationMaskProducer::produce(edm::Event& evt, const edm::Event
         simToRecoMap[i_sim],
         [](TracksterToTracksterMap::AssociationElementType const& a,
            TracksterToTracksterMap::AssociationElementType const& b) { return a.sharedEnergy() < b.sharedEnergy(); });
-
+    
+    if (best_reco_trackster_it == simToRecoMap[i_sim].end()) {
+        continue; // SimTrackster having no association to reco
+    }
+            
     if (mask_res[best_reco_trackster_it->index()] != 1)
       edm::LogWarning("TracksterAssociationToSim") << "Overlapping sim objects ?";
 
