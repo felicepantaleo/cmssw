@@ -34,7 +34,6 @@ step3:
 
 workflow:
   events_per_sample: 50
-  threads: 10
 
 scan:
   eta:
