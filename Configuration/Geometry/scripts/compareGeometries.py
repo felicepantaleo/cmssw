@@ -10,7 +10,7 @@ import shutil
 import subprocess
 import sys
 import time
-from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, as_completed, wait
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, ProcessPoolExecutor, wait
 from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
@@ -109,6 +109,12 @@ def write_text(path: Path, content: str, overwrite: bool) -> None:
         handle.write(content)
 
 
+def append_text(path: Path, content: str) -> None:
+    safe_mkdir(path.parent)
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(content)
+
+
 def format_template(template: str, context: Dict[str, Any]) -> str:
     return template.format(**context)
 
@@ -157,6 +163,15 @@ def run_shell_command(
             executable="/bin/bash",
         )
     return proc.returncode
+
+
+def write_skip_reason(err_file: Path, reason: str, dry_run: bool = False) -> None:
+    safe_mkdir(err_file.parent)
+    mode = "a" if err_file.exists() else "w"
+    with err_file.open(mode, encoding="utf-8") as handle:
+        if dry_run:
+            handle.write("[DRY RUN]\n")
+        handle.write(f"SKIPPED: {reason}\n")
 
 
 def bool_str(value: bool) -> str:
@@ -474,6 +489,42 @@ def maybe_write_cmd(command: str, cmd_path: Path, overwrite: bool) -> None:
     write_text(cmd_path, command + "\n", overwrite=overwrite)
 
 
+def make_step_status(samples: List[Sample]) -> Dict[str, Dict[str, str]]:
+    status: Dict[str, Dict[str, str]] = {}
+    for sample in samples:
+        status[sample.name] = {
+            "gen": "pending",
+            "step2_reference": "pending",
+            "step2_candidate": "pending",
+            "step3_reference": "pending",
+            "step3_candidate": "pending",
+            "analysis_reference": "pending",
+            "analysis_candidate": "pending",
+            "compare": "pending",
+        }
+    return status
+
+
+def set_status(step_status: Dict[str, Dict[str, str]], sample_name: str, key: str, ok: bool, message: str) -> None:
+    step_status[sample_name][key] = "ok" if ok else f"failed: {message}"
+
+
+def mark_status_skipped(step_status: Dict[str, Dict[str, str]], sample_name: str, key: str, message: str) -> None:
+    step_status[sample_name][key] = f"skipped: {message}"
+
+
+def is_status_ok(step_status: Dict[str, Dict[str, str]], sample_name: str, key: str) -> bool:
+    return step_status[sample_name].get(key) == "ok"
+
+
+def get_status(step_status: Dict[str, Dict[str, str]], sample_name: str, key: str) -> str:
+    return step_status[sample_name].get(key, "missing")
+
+
+def write_step_status(base_dirs: Dict[str, Path], step_status: Dict[str, Dict[str, str]]) -> None:
+    write_text(base_dirs["config"] / "step_status.json", json.dumps(step_status, indent=2, sort_keys=True), overwrite=True)
+
+
 def run_gen_for_sample(
     sample: Sample,
     base_dirs: Dict[str, Path],
@@ -519,10 +570,18 @@ def run_step2_for_sample_and_setup(
     config: Dict[str, Any],
     args,
     threads_per_job: int,
+    step_status: Dict[str, Dict[str, str]],
 ) -> Tuple[str, bool, str]:
     paths = sample_paths(base_dirs, sample, config)
     suffix = "ref" if setup_key == "reference" else "cand"
     output = paths[f"step2_{suffix}_output"]
+
+    err_file = base_dirs["logs"] / "step2" / setup_key / f"{sample.name}.err"
+
+    if not is_status_ok(step_status, sample.name, "gen"):
+        reason = f"Skipped because GEN status is '{get_status(step_status, sample.name, 'gen')}'."
+        write_skip_reason(err_file, reason, dry_run=args.dry_run)
+        return sample.name, False, reason
 
     if should_skip(output, args.overwrite, args.resume):
         return sample.name, True, f"STEP2 {setup_key} skipped (already present)."
@@ -534,7 +593,6 @@ def run_step2_for_sample_and_setup(
     maybe_write_cmd(command, paths[f"step2_{suffix}_cmd"], overwrite=True)
 
     log_file = base_dirs["logs"] / "step2" / setup_key / f"{sample.name}.log"
-    err_file = base_dirs["logs"] / "step2" / setup_key / f"{sample.name}.err"
     code = run_shell_command(command, log_file, err_file=err_file, dry_run=args.dry_run, cwd=args.workdir)
     ok = code == 0
     return sample.name, ok, f"STEP2 {setup_key} done." if ok else f"STEP2 {setup_key} failed with code {code}."
@@ -547,10 +605,19 @@ def run_step3_for_sample_and_setup(
     config: Dict[str, Any],
     args,
     threads_per_job: int,
+    step_status: Dict[str, Dict[str, str]],
 ) -> Tuple[str, bool, str]:
     paths = sample_paths(base_dirs, sample, config)
     suffix = "ref" if setup_key == "reference" else "cand"
     output = paths[f"step3_{suffix}_output"]
+
+    prerequisite_key = f"step2_{setup_key}"
+    err_file = base_dirs["logs"] / "step3" / setup_key / f"{sample.name}.err"
+
+    if not is_status_ok(step_status, sample.name, prerequisite_key):
+        reason = f"Skipped because {prerequisite_key} status is '{get_status(step_status, sample.name, prerequisite_key)}'."
+        write_skip_reason(err_file, reason, dry_run=args.dry_run)
+        return sample.name, False, reason
 
     if should_skip(output, args.overwrite, args.resume):
         return sample.name, True, f"STEP3 {setup_key} skipped (already present)."
@@ -562,7 +629,6 @@ def run_step3_for_sample_and_setup(
     maybe_write_cmd(command, paths[f"step3_{suffix}_cmd"], overwrite=True)
 
     log_file = base_dirs["logs"] / "step3" / setup_key / f"{sample.name}.log"
-    err_file = base_dirs["logs"] / "step3" / setup_key / f"{sample.name}.err"
     code = run_shell_command(command, log_file, err_file=err_file, dry_run=args.dry_run, cwd=args.workdir)
     ok = code == 0
     return sample.name, ok, f"STEP3 {setup_key} done." if ok else f"STEP3 {setup_key} failed with code {code}."
@@ -575,10 +641,19 @@ def run_analysis_for_sample_and_setup(
     config: Dict[str, Any],
     args,
     threads_per_job: int,
+    step_status: Dict[str, Dict[str, str]],
 ) -> Tuple[str, bool, str]:
     paths = sample_paths(base_dirs, sample, config)
     suffix = "ref" if setup_key == "reference" else "cand"
     output = paths[f"analysis_{suffix}_output"]
+
+    prerequisite_key = f"step3_{setup_key}"
+    err_file = base_dirs["logs"] / "analysis" / setup_key / f"{sample.name}.err"
+
+    if not is_status_ok(step_status, sample.name, prerequisite_key):
+        reason = f"Skipped because {prerequisite_key} status is '{get_status(step_status, sample.name, prerequisite_key)}'."
+        write_skip_reason(err_file, reason, dry_run=args.dry_run)
+        return sample.name, False, reason
 
     if should_skip(output, args.overwrite, args.resume):
         return sample.name, True, f"ANALYSIS {setup_key} skipped (already present)."
@@ -599,7 +674,6 @@ def run_analysis_for_sample_and_setup(
     maybe_write_cmd(command, paths[f"analysis_{suffix}_cmd"], overwrite=True)
 
     log_file = base_dirs["logs"] / "analysis" / setup_key / f"{sample.name}.log"
-    err_file = base_dirs["logs"] / "analysis" / setup_key / f"{sample.name}.err"
     code = run_shell_command(command, log_file, err_file=err_file, dry_run=args.dry_run, cwd=args.workdir)
     ok = code == 0
     return sample.name, ok, f"ANALYSIS {setup_key} done." if ok else f"ANALYSIS {setup_key} failed with code {code}."
@@ -722,7 +796,8 @@ def compare_one_observable(
 
     safe_mkdir(output_dir)
 
-    canvas = ROOT.TCanvas(f"c_{sanitize_label(observable)}", "", 1200, 800)
+    canvas_name = f"c_{sanitize_label(sample_name)}_{sanitize_label(observable)}"
+    canvas = ROOT.TCanvas(canvas_name, "", 1200, 800)
     overlay_title = f"{sample_name} - {observable}"
     ref_graph = make_graph(x_vals, ref_vals, overlay_title, x_axis_field, observable)
     cand_graph = make_graph(x_vals, cand_vals, overlay_title, x_axis_field, observable)
@@ -759,7 +834,8 @@ def compare_one_observable(
     canvas.SaveAs(str(overlay_plot))
     canvas.Close()
 
-    canvas_delta = ROOT.TCanvas(f"cd_{sanitize_label(observable)}", "", 1200, 800)
+    canvas_delta_name = f"cd_{sanitize_label(sample_name)}_{sanitize_label(observable)}"
+    canvas_delta = ROOT.TCanvas(canvas_delta_name, "", 1200, 800)
     delta_graph = make_graph(x_vals, diffs, f"{sample_name} - delta {observable}", x_axis_field, f"delta({observable})")
     delta_graph.SetLineColor(ROOT.kBlack)
     delta_graph.SetMarkerColor(ROOT.kBlack)
@@ -807,18 +883,41 @@ def compare_one_observable(
     }
 
 
-def run_compare_for_sample(sample: Sample, base_dirs: Dict[str, Path], config: Dict[str, Any], args) -> Tuple[str, bool, str, List[Dict[str, Any]]]:
+def run_compare_for_sample(
+    sample: Sample,
+    base_dirs: Dict[str, Path],
+    config: Dict[str, Any],
+    args,
+    step_status: Dict[str, Dict[str, str]],
+) -> Tuple[str, bool, str, List[Dict[str, Any]]]:
     if ROOT is None:
         return sample.name, False, "PyROOT not available.", []
+
+    compare_err_file = base_dirs["logs"] / "compare" / f"{sample.name}.err"
+
+    if not is_status_ok(step_status, sample.name, "analysis_reference"):
+        reason = f"Skipped because analysis_reference status is '{get_status(step_status, sample.name, 'analysis_reference')}'."
+        write_skip_reason(compare_err_file, reason, dry_run=args.dry_run)
+        return sample.name, False, reason, []
+
+    if not is_status_ok(step_status, sample.name, "analysis_candidate"):
+        reason = f"Skipped because analysis_candidate status is '{get_status(step_status, sample.name, 'analysis_candidate')}'."
+        write_skip_reason(compare_err_file, reason, dry_run=args.dry_run)
+        return sample.name, False, reason, []
 
     paths = sample_paths(base_dirs, sample, config)
     ref_file = paths["analysis_ref_output"]
     cand_file = paths["analysis_cand_output"]
 
     if not root_file_looks_valid(ref_file):
-        return sample.name, False, f"Missing reference analysis file: {ref_file}", []
+        reason = f"Missing reference analysis file: {ref_file}"
+        write_skip_reason(compare_err_file, reason, dry_run=args.dry_run)
+        return sample.name, False, reason, []
+
     if not root_file_looks_valid(cand_file):
-        return sample.name, False, f"Missing candidate analysis file: {cand_file}", []
+        reason = f"Missing candidate analysis file: {cand_file}"
+        write_skip_reason(compare_err_file, reason, dry_run=args.dry_run)
+        return sample.name, False, reason, []
 
     compare_cfg = config["comparison"]
     tree_name = compare_cfg.get("tree_name", "events")
@@ -853,6 +952,11 @@ def run_compare_for_sample(sample: Sample, base_dirs: Dict[str, Path], config: D
     return sample.name, True, "COMPARE done.", rows
 
 
+def run_compare_task(payload):
+    sample, base_dirs, config, args, step_status = payload
+    return run_compare_for_sample(sample, base_dirs, config, args, step_status)
+
+
 def write_compare_summaries(base_dirs: Dict[str, Path], config: Dict[str, Any], rows: List[Dict[str, Any]]) -> None:
     pair_dir = base_dirs["comparison"] / f"{config['setups']['reference']['label']}__vs__{config['setups']['candidate']['label']}"
     safe_mkdir(pair_dir)
@@ -877,13 +981,19 @@ def write_compare_summaries(base_dirs: Dict[str, Path], config: Dict[str, Any], 
             writer.writerows(flagged)
 
 
-def execute_tasks(step_name: str, tasks, max_concurrent_jobs: int, continue_on_error: bool):
+def execute_tasks(
+    step_name: str,
+    items,
+    max_concurrent_jobs: int,
+    continue_on_error: bool,
+    executor_kind: str = "thread",
+    worker=None,
+):
     results = []
-    total = len(tasks)
+    total = len(items)
     done = 0
     ok_count = 0
     fail_count = 0
-    first_failure_message = None
     heartbeat_seconds = 30
 
     if total == 0:
@@ -908,19 +1018,22 @@ def execute_tasks(step_name: str, tasks, max_concurrent_jobs: int, continue_on_e
         )
 
     def normalize_exception(exc: Exception):
-        nonlocal first_failure_message
-        msg = f"{type(exc).__name__}: {exc}"
-        if first_failure_message is None:
-            first_failure_message = msg
         logging.exception("[%s] task raised an exception", step_name)
-        return ("<exception>", False, msg)
+        return ("<exception>", False, f"{type(exc).__name__}: {exc}")
+
+    def run_item(item):
+        if executor_kind == "process":
+            if worker is None:
+                raise RuntimeError("worker must be provided for process execution")
+            return worker(item)
+        return item()
 
     if max_concurrent_jobs <= 1:
         last_heartbeat = time.time()
         log_progress(running=1 if total > 0 else 0)
-        for task in tasks:
+        for item in items:
             try:
-                result = task()
+                result = run_item(item)
             except Exception as exc:
                 result = normalize_exception(exc)
 
@@ -942,8 +1055,16 @@ def execute_tasks(step_name: str, tasks, max_concurrent_jobs: int, continue_on_e
                 last_heartbeat = now
         return results
 
-    with ThreadPoolExecutor(max_workers=max_concurrent_jobs) as executor:
-        pending = {executor.submit(task) for task in tasks}
+    executor_cls = ThreadPoolExecutor if executor_kind == "thread" else ProcessPoolExecutor
+
+    with executor_cls(max_workers=max_concurrent_jobs) as executor:
+        if executor_kind == "process":
+            if worker is None:
+                raise RuntimeError("worker must be provided for process execution")
+            pending = {executor.submit(worker, item) for item in items}
+        else:
+            pending = {executor.submit(item) for item in items}
+
         last_heartbeat = time.time()
         log_progress(running=min(max_concurrent_jobs, total))
 
@@ -1007,7 +1128,7 @@ def main() -> int:
 
     if args.max_concurrent_jobs < 1:
         raise RuntimeError("--max-concurrent-jobs must be >= 1")
-    if args.threads_per_job is not None and args.threads_per_job < 1:
+    if args.threads_per_job < 1:
         raise RuntimeError("--threads-per-job must be >= 1")
 
     args.workdir = Path(args.workdir).resolve()
@@ -1015,7 +1136,10 @@ def main() -> int:
     config = load_yaml(config_path)
 
     workflow = config.get("workflow", {})
-    threads_per_job = args.threads_per_job if args.threads_per_job is not None else int(workflow.get("threads", 1))
+    threads_per_job = int(args.threads_per_job if args.threads_per_job is not None else workflow.get("threads", 1))
+
+    analysis_threads_per_job = 1
+    compare_max_concurrent_jobs = args.max_concurrent_jobs
 
     available_cpus = os.cpu_count() or 1
     total_requested_threads = args.max_concurrent_jobs * threads_per_job
@@ -1041,6 +1165,8 @@ def main() -> int:
 
     selected_patterns = [item.strip() for item in args.samples.split(",") if item.strip()]
     samples = build_samples(config, selected_patterns)
+    step_status = make_step_status(samples)
+    write_step_status(base_dirs, step_status)
 
     if args.dump_resolved_config:
         dump_yaml(base_dirs["config"] / "resolved_config.yaml", config)
@@ -1052,6 +1178,8 @@ def main() -> int:
 
     logging.info("Resolved %d samples.", len(samples))
     logging.info("Using max_concurrent_jobs=%d, threads_per_job=%d", args.max_concurrent_jobs, threads_per_job)
+    logging.info("Forcing analysis threads_per_job=%d", analysis_threads_per_job)
+    logging.info("Using compare max_concurrent_jobs=%d with multiprocessing", compare_max_concurrent_jobs)
 
     if not samples:
         logging.warning("No samples found.")
@@ -1066,77 +1194,109 @@ def main() -> int:
         ]
         results = execute_tasks("gen", tasks, max_concurrent_jobs=args.max_concurrent_jobs, continue_on_error=args.continue_on_error)
         for name, ok, message in results:
+            set_status(step_status, name, "gen", ok, message)
             logging.debug("[%s] %s | %s", "gen", name, message)
-            if not ok and not args.continue_on_error:
-                return 1
+        write_step_status(base_dirs, step_status)
+        if not args.continue_on_error and any(not ok for _, ok, _ in results):
+            return 1
 
     if "step2" in steps:
         tasks = []
         for sample in samples:
             tasks.append(
-                lambda sample=sample: run_step2_for_sample_and_setup(
-                    sample, "reference", base_dirs, config, args, threads_per_job
+                lambda sample=sample: ("reference",) + run_step2_for_sample_and_setup(
+                    sample, "reference", base_dirs, config, args, threads_per_job, step_status
                 )
             )
             tasks.append(
-                lambda sample=sample: run_step2_for_sample_and_setup(
-                    sample, "candidate", base_dirs, config, args, threads_per_job
+                lambda sample=sample: ("candidate",) + run_step2_for_sample_and_setup(
+                    sample, "candidate", base_dirs, config, args, threads_per_job, step_status
                 )
             )
         results = execute_tasks("step2", tasks, max_concurrent_jobs=args.max_concurrent_jobs, continue_on_error=args.continue_on_error)
-        for name, ok, message in results:
-            logging.debug("[%s] %s | %s", "step2", name, message)
-            if not ok and not args.continue_on_error:
-                return 1
+        for setup_key, name, ok, message in results:
+            target_key = f"step2_{setup_key}"
+            if message.startswith("Skipped because"):
+                mark_status_skipped(step_status, name, target_key, message)
+            else:
+                set_status(step_status, name, target_key, ok, message)
+            logging.debug("[%s] %s | %s | %s", "step2", setup_key, name, message)
+        write_step_status(base_dirs, step_status)
+        if not args.continue_on_error and any(not ok for _, _, ok, _ in results):
+            return 1
 
     if "step3" in steps:
         tasks = []
         for sample in samples:
             tasks.append(
-                lambda sample=sample: run_step3_for_sample_and_setup(
-                    sample, "reference", base_dirs, config, args, threads_per_job
+                lambda sample=sample: ("reference",) + run_step3_for_sample_and_setup(
+                    sample, "reference", base_dirs, config, args, threads_per_job, step_status
                 )
             )
             tasks.append(
-                lambda sample=sample: run_step3_for_sample_and_setup(
-                    sample, "candidate", base_dirs, config, args, threads_per_job
+                lambda sample=sample: ("candidate",) + run_step3_for_sample_and_setup(
+                    sample, "candidate", base_dirs, config, args, threads_per_job, step_status
                 )
             )
         results = execute_tasks("step3", tasks, max_concurrent_jobs=args.max_concurrent_jobs, continue_on_error=args.continue_on_error)
-        for name, ok, message in results:
-            logging.debug("[%s] %s | %s", "step3", name, message)
-            if not ok and not args.continue_on_error:
-                return 1
+        for setup_key, name, ok, message in results:
+            target_key = f"step3_{setup_key}"
+            if message.startswith("Skipped because"):
+                mark_status_skipped(step_status, name, target_key, message)
+            else:
+                set_status(step_status, name, target_key, ok, message)
+            logging.debug("[%s] %s | %s | %s", "step3", setup_key, name, message)
+        write_step_status(base_dirs, step_status)
+        if not args.continue_on_error and any(not ok for _, _, ok, _ in results):
+            return 1
 
     if "analysis" in steps:
         tasks = []
         for sample in samples:
             tasks.append(
-                lambda sample=sample: run_analysis_for_sample_and_setup(
-                    sample, "reference", base_dirs, config, args, threads_per_job
+                lambda sample=sample: ("reference",) + run_analysis_for_sample_and_setup(
+                    sample, "reference", base_dirs, config, args, analysis_threads_per_job, step_status
                 )
             )
             tasks.append(
-                lambda sample=sample: run_analysis_for_sample_and_setup(
-                    sample, "candidate", base_dirs, config, args, threads_per_job
+                lambda sample=sample: ("candidate",) + run_analysis_for_sample_and_setup(
+                    sample, "candidate", base_dirs, config, args, analysis_threads_per_job, step_status
                 )
             )
         results = execute_tasks("analysis", tasks, max_concurrent_jobs=args.max_concurrent_jobs, continue_on_error=args.continue_on_error)
-        for name, ok, message in results:
-            logging.debug("[%s] %s | %s", "analysis", name, message)
-            if not ok and not args.continue_on_error:
-                return 1
+        for setup_key, name, ok, message in results:
+            target_key = f"analysis_{setup_key}"
+            if message.startswith("Skipped because"):
+                mark_status_skipped(step_status, name, target_key, message)
+            else:
+                set_status(step_status, name, target_key, ok, message)
+            logging.debug("[%s] %s | %s | %s", "analysis", setup_key, name, message)
+        write_step_status(base_dirs, step_status)
+        if not args.continue_on_error and any(not ok for _, _, ok, _ in results):
+            return 1
 
     if "compare" in steps:
-        tasks = [lambda sample=sample: run_compare_for_sample(sample, base_dirs, config, args) for sample in samples]
-        results = execute_tasks("compare", tasks, max_concurrent_jobs=args.max_concurrent_jobs, continue_on_error=args.continue_on_error)
+        payloads = [(sample, base_dirs, config, args, step_status) for sample in samples]
+        results = execute_tasks(
+            "compare",
+            payloads,
+            max_concurrent_jobs=compare_max_concurrent_jobs,
+            continue_on_error=args.continue_on_error,
+            executor_kind="process",
+            worker=run_compare_task,
+        )
 
         all_rows = []
         for name, ok, message, rows in results:
+            if message.startswith("Skipped because"):
+                mark_status_skipped(step_status, name, "compare", message)
+            else:
+                set_status(step_status, name, "compare", ok, message)
             logging.debug("[%s] %s | %s", "compare", name, message)
             all_rows.extend(rows)
-            if not ok and not args.continue_on_error:
-                return 1
+        write_step_status(base_dirs, step_status)
+        if not args.continue_on_error and any(not ok for _, ok, _, _ in results):
+            return 1
 
         write_compare_summaries(base_dirs, config, all_rows)
 
