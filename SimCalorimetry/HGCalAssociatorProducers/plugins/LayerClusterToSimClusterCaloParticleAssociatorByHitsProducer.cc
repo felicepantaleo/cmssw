@@ -203,9 +203,8 @@ private:
 };
 
 template <typename HIT, typename CLUSTER>
-LayerClusterToSimClusterCaloParticleAssociatorByHitsProducerT<
-    HIT,
-    CLUSTER>::LayerClusterToSimClusterCaloParticleAssociatorByHitsProducerT(const edm::ParameterSet& pset)
+LayerClusterToSimClusterCaloParticleAssociatorByHitsProducerT<HIT, CLUSTER>::
+    LayerClusterToSimClusterCaloParticleAssociatorByHitsProducerT(const edm::ParameterSet& pset)
     : layerClustersToken_(consumes<CLUSTER>(pset.getParameter<edm::InputTag>("layerClusters"))),
       simClustersToken_(consumes<SimClusterCollection>(pset.getParameter<edm::InputTag>("simClusters"))),
       caloParticlesToken_(consumes<CaloParticleCollection>(pset.getParameter<edm::InputTag>("caloParticles"))),
@@ -227,9 +226,7 @@ LayerClusterToSimClusterCaloParticleAssociatorByHitsProducerT<
 
 template <typename HIT, typename CLUSTER>
 unsigned int LayerClusterToSimClusterCaloParticleAssociatorByHitsProducerT<HIT, CLUSTER>::layerIndex(
-    DetId detId,
-    const hgcal::RecHitTools& recHitTools,
-    unsigned int layers) const {
+    DetId detId, const hgcal::RecHitTools& recHitTools, unsigned int layers) const {
   unsigned int layer = recHitTools.getLayer(detId);
 
   if constexpr (std::is_same_v<HIT, HGCRecHit>) {
@@ -241,8 +238,7 @@ unsigned int LayerClusterToSimClusterCaloParticleAssociatorByHitsProducerT<HIT, 
 
 template <typename HIT, typename CLUSTER>
 bool LayerClusterToSimClusterCaloParticleAssociatorByHitsProducerT<HIT, CLUSTER>::acceptSimHit(
-    DetId detId,
-    const hgcal::RecHitTools& recHitTools) const {
+    DetId detId, const hgcal::RecHitTools& recHitTools) const {
   if constexpr (std::is_same_v<HIT, HGCRecHit>) {
     return !recHitTools.isBarrel(detId);
   } else {
@@ -309,8 +305,7 @@ LayerClusterToSimClusterCaloParticleAssociatorByHitsProducerT<HIT, CLUSTER>::bui
     const hgcal::RecHitTools& recHitTools,
     unsigned int layers,
     unsigned int nLayers) const {
-  std::vector<std::vector<ObjectOnLayer>> simClustersOnLayer(simClusters.size(),
-                                                             std::vector<ObjectOnLayer>(nLayers));
+  std::vector<std::vector<ObjectOnLayer>> simClustersOnLayer(simClusters.size(), std::vector<ObjectOnLayer>(nLayers));
 
   for (unsigned int scId = 0; scId < simClusters.size(); ++scId) {
     const auto& simCluster = simClusters[scId];
@@ -416,9 +411,7 @@ void LayerClusterToSimClusterCaloParticleAssociatorByHitsProducerT<HIT, CLUSTER>
 
 template <typename HIT, typename CLUSTER>
 void LayerClusterToSimClusterCaloParticleAssociatorByHitsProducerT<HIT, CLUSTER>::produce(
-    edm::StreamID,
-    edm::Event& iEvent,
-    const edm::EventSetup& iSetup) const {
+    edm::StreamID, edm::Event& iEvent, const edm::EventSetup& iSetup) const {
   auto layerClustersHandle = iEvent.getHandle(layerClustersToken_);
   auto simClustersHandle = iEvent.getHandle(simClustersToken_);
   auto caloParticlesHandle = iEvent.getHandle(caloParticlesToken_);
@@ -645,9 +638,8 @@ void LayerClusterToSimClusterCaloParticleAssociatorByHitsProducerT<HIT, CLUSTER>
           float recoFraction = 0.f;
           if (hitIndex < hitToLayerClusterMap.size()) {
             const auto& hitToLCVec = hitToLayerClusterMap[hitIndex];
-            const auto lcIt = std::find_if(hitToLCVec.begin(), hitToLCVec.end(), [lcId](const auto& element) {
-              return element.index() == lcId;
-            });
+            const auto lcIt = std::find_if(
+                hitToLCVec.begin(), hitToLCVec.end(), [lcId](const auto& element) { return element.index() == lcId; });
 
             if (lcIt != hitToLCVec.end()) {
               recoFraction = lcIt->fraction();
@@ -721,9 +713,8 @@ void LayerClusterToSimClusterCaloParticleAssociatorByHitsProducerT<HIT, CLUSTER>
           float recoFraction = 0.f;
           if (hitIndex < hitToLayerClusterMap.size()) {
             const auto& hitToLCVec = hitToLayerClusterMap[hitIndex];
-            const auto lcIt = std::find_if(hitToLCVec.begin(), hitToLCVec.end(), [lcId](const auto& element) {
-              return element.index() == lcId;
-            });
+            const auto lcIt = std::find_if(
+                hitToLCVec.begin(), hitToLCVec.end(), [lcId](const auto& element) { return element.index() == lcId; });
 
             if (lcIt != hitToLCVec.end()) {
               recoFraction = lcIt->fraction();
@@ -761,13 +752,10 @@ void LayerClusterToSimClusterCaloParticleAssociatorByHitsProducerT<HIT, CLUSTER>
   desc.add<edm::InputTag>("simClusters", edm::InputTag("mix", "MergedCaloTruth"));
   desc.add<edm::InputTag>("caloParticles", edm::InputTag("mix", "MergedCaloTruth"));
 
-  desc.add<edm::InputTag>(
-      "hitMap",
-      edm::InputTag("recHitMapProducer", HitCollectionTraits<HIT>::defaultHitMapInstance));
+  desc.add<edm::InputTag>("hitMap",
+                          edm::InputTag("recHitMapProducer", HitCollectionTraits<HIT>::defaultHitMapInstance));
 
-  desc.add<edm::InputTag>(
-      "hits",
-      edm::InputTag("recHitMapProducer", HitCollectionTraits<HIT>::defaultHitsInstance));
+  desc.add<edm::InputTag>("hits", edm::InputTag("recHitMapProducer", HitCollectionTraits<HIT>::defaultHitsInstance));
 
   desc.add<edm::InputTag>("hitToSimClusterMap",
                           edm::InputTag("hitToSimClusterCaloParticleAssociator", "hitToSimClusterMap"));
@@ -780,8 +768,7 @@ void LayerClusterToSimClusterCaloParticleAssociatorByHitsProducerT<HIT, CLUSTER>
                             edm::InputTag("hitToLayerClusterAssociator", "hitToLayerClusterMap"));
   } else {
     desc.add<edm::InputTag>("layerClusters", edm::InputTag("particleFlowClusterHGCal"));
-    desc.add<edm::InputTag>("hitToLayerClusterMap",
-                            edm::InputTag("hitToPFClusterAssociator", "hitToLayerClusterMap"));
+    desc.add<edm::InputTag>("hitToLayerClusterMap", edm::InputTag("hitToPFClusterAssociator", "hitToLayerClusterMap"));
   }
 
   descriptions.addWithDefaultLabel(desc);
