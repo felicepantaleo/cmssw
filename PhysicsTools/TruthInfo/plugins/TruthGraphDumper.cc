@@ -362,11 +362,11 @@ public:
       // Node style
       os << "  n" << i << " [shape=" << shapeFor(r.kind) << ", type=" << kindName(r.kind) << ", ";
       os << "crossedBoundary=" << crossedBoundary << ",";
-      if (crossedBoundary) 
+      if (crossedBoundary)
         os << "color=\"red\", penwidth=2, ";
 
       os << "pdg=" << pdg << ", status=" << st << ", eid=" << eid << ",";
-       // --- GEN enrichment
+      // --- GEN enrichment
       if (r.kind == TruthGraph::NodeKind::GenEvent) {
         if (ev2) {
           os << "HepMCversion=2, event=" << ev2->event_number() << ", spid=" << ev2->signal_process_id() << ",";
@@ -375,36 +375,41 @@ public:
         }
       } else if (r.kind == TruthGraph::NodeKind::GenParticle) {
         const int bc = static_cast<int>(r.key);
-         if (ev2) {
+        if (ev2) {
           auto it = bc2p.find(bc);
           if (it != bc2p.end()) {
             auto const* p = it->second;
             const int prod = p->production_vertex() ? p->production_vertex()->barcode() : 0;
             const int endv = p->end_vertex() ? p->end_vertex()->barcode() : 0;
-            os << "pid=" << p->pdg_id() << ",status="<< p->status() <<  ", p4=\"" << fmtP4(p->momentum()) << "\", m=" << std::fixed << std::setprecision(3) << p->generated_mass() << ", prodVtx=" << prod << ", endVtx=" << endv << ",";
+            os << "pid=" << p->pdg_id() << ",status=" << p->status() << ", p4=\"" << fmtP4(p->momentum())
+               << "\", m=" << std::fixed << std::setprecision(3) << p->generated_mass() << ", prodVtx=" << prod
+               << ", endVtx=" << endv << ",";
           }
         } else if (have3) {
           auto it = id3p.find(bc);
           if (it != id3p.end() && it->second) {
-             auto const& p = it->second;
+            auto const& p = it->second;
             const int prod = p->production_vertex() ? p->production_vertex()->id() : 0;
             const int endv = p->end_vertex() ? p->end_vertex()->id() : 0;
-            os << "pid=" << p->pdg_id() << ",status="<< p->status() <<  ", p4=\"" << fmtP4(p->momentum()) << "\", prodVtx=" << prod << ", endVtx=" << endv << ",";
+            os << "pid=" << p->pdg_id() << ",status=" << p->status() << ", p4=\"" << fmtP4(p->momentum())
+               << "\", prodVtx=" << prod << ", endVtx=" << endv << ",";
           }
-        } 
+        }
       } else if (r.kind == TruthGraph::NodeKind::GenVertex) {
         const int bc = static_cast<int>(r.key);
         if (ev2) {
           auto it = bc2v.find(bc);
           if (it != bc2v.end()) {
             auto const* v = it->second;
-            os << "barcode=" << v->barcode() << ", x4=<" << fmtX4(v->position()) << ">, nIn=" << v->particles_in_size() << ", nOut=" << v->particles_out_size() << ",";
+            os << "barcode=" << v->barcode() << ", x4=<" << fmtX4(v->position()) << ">, nIn=" << v->particles_in_size()
+               << ", nOut=" << v->particles_out_size() << ",";
           }
         } else if (have3) {
           auto it = id3v.find(bc);
           if (it != id3v.end() && it->second) {
             auto const& v = it->second;
-            os << "status=" << v->status() << ", x4=<" << fmtX4(v->position()) << ">, nIn=" << v->particles_in_size() << ", nOut=" << v->particles_out_size() << ",";
+            os << "status=" << v->status() << ", x4=<" << fmtX4(v->position()) << ">, nIn=" << v->particles_in_size()
+               << ", nOut=" << v->particles_out_size() << ",";
           }
         }
       }
@@ -420,7 +425,9 @@ public:
         os << "SimVertex_nodeId=" << vn << ",";
 
         if (crossedBoundary) {
-          os << "idAtBoundary=" << simt->getIDAtBoundary() << "," << "x4boundary=\"" << fmtX4(simt->getPositionAtBoundary()) << "\", p4boundary=\"" << fmtP4(simt->getMomentumAtBoundary()) << "\",";
+          os << "idAtBoundary=" << simt->getIDAtBoundary() << "," << "x4boundary=\""
+             << fmtX4(simt->getPositionAtBoundary()) << "\", p4boundary=\"" << fmtP4(simt->getMomentumAtBoundary())
+             << "\",";
         }
       }
 
