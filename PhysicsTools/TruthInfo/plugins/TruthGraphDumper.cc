@@ -317,11 +317,12 @@ public:
       }
 
       // Node style
-      os << "  n" << i << " [shape=" << shapeFor(r.kind);
-      if (crossedBoundary)
-        os << ", color=\"red\", penwidth=2";
+      os << "  n" << i << " [shape=" << shapeFor(r.kind) << ", type=" << kindName(r.kind) << ", ";
+      os << "crossedBoundary=" << crossedBoundary << ",";
+      if (crossedBoundary) 
+        os << "color=\"red\", penwidth=2, ";
 
-      os << ", pdg=" << pdg << ", status=" << st << ", eid=" << eid << ",";
+      os << "pdg=" << pdg << ", status=" << st << ", eid=" << eid << ",";
        // --- GEN enrichment
       if (r.kind == TruthGraph::NodeKind::GenEvent) {
         if (ev2) {
@@ -374,8 +375,6 @@ public:
 
         const int32_t vn = g.nodeSimTrackToVtx(i);
         os << "SimVertex_nodeId=" << vn << ",";
-
-        os << "crossedBoundary=" << crossedBoundary << ",";
 
         if (crossedBoundary) {
           os << "idAtBoundary=" << simt->getIDAtBoundary() << "," << "x4boundary=\"" << fmtX4(simt->getPositionAtBoundary()) << "\", p4boundary=\"" << fmtP4(simt->getMomentumAtBoundary()) << "\",";
