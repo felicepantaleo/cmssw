@@ -39,38 +39,34 @@
 
 namespace {
 
- struct LogicalGraphView {
-  explicit LogicalGraphView(truth::Graph const& graph) : graph_(graph) {}
+  struct LogicalGraphView {
+    explicit LogicalGraphView(truth::Graph const& graph) : graph_(graph) {}
 
-  uint32_t nParticles() const {
-    return graph_.nParticles();
-  }
+    uint32_t nParticles() const { return graph_.nParticles(); }
 
-  bool particleHasSim(uint32_t particleId) const {
-    return particleId < graph_.particles.size() && graph_.particles[particleId].hasSim();
-  }
+    bool particleHasSim(uint32_t particleId) const {
+      return particleId < graph_.particles.size() && graph_.particles[particleId].hasSim();
+    }
 
-  int32_t particleSimNode(uint32_t particleId) const {
-    return graph_.particles[particleId].simNode;
-  }
+    int32_t particleSimNode(uint32_t particleId) const { return graph_.particles[particleId].simNode; }
 
-  template <typename F>
-  void forEachParticleChild(uint32_t parentParticleId, F&& f) const {
-    if (parentParticleId >= graph_.nParticles())
-      return;
+    template <typename F>
+    void forEachParticleChild(uint32_t parentParticleId, F&& f) const {
+      if (parentParticleId >= graph_.nParticles())
+        return;
 
-    for (const uint32_t vertexId : graph_.decayVertices(parentParticleId)) {
-      if (vertexId >= graph_.nVertices())
-        continue;
+      for (const uint32_t vertexId : graph_.decayVertices(parentParticleId)) {
+        if (vertexId >= graph_.nVertices())
+          continue;
 
-      for (const uint32_t childId : graph_.outgoingParticles(vertexId)) {
-        f(childId);
+        for (const uint32_t childId : graph_.outgoingParticles(vertexId)) {
+          f(childId);
+        }
       }
     }
-  }
 
-  truth::Graph const& graph_;
-};
+    truth::Graph const& graph_;
+  };
 
   uint32_t checkedTrackId(int64_t key) {
     if (key < 0 || key > static_cast<int64_t>(std::numeric_limits<uint32_t>::max()))
@@ -85,7 +81,7 @@ class TruthLogicalGraphHitIndexProducer : public edm::global::EDProducer<> {
 public:
   explicit TruthLogicalGraphHitIndexProducer(edm::ParameterSet const& cfg)
       : graphToken_(consumes<truth::Graph>(cfg.getParameter<edm::InputTag>("src"))),
-              rawGraphToken_(consumes<TruthGraph>(cfg.getParameter<edm::InputTag>("rawSrc"))),
+        rawGraphToken_(consumes<TruthGraph>(cfg.getParameter<edm::InputTag>("rawSrc"))),
 
         simTracksToken_(consumes<edm::SimTrackContainer>(cfg.getParameter<edm::InputTag>("simTracks"))),
         simHitCollections_(cfg.getParameter<std::vector<edm::InputTag>>("simHitCollections")),
@@ -107,13 +103,12 @@ public:
 
     desc.add<edm::InputTag>("simTracks", edm::InputTag("g4SimHits"));
 
-    desc.add<std::vector<edm::InputTag>>(
-        "simHitCollections",
-        {
-            edm::InputTag("g4SimHits", "HGCHitsEE"),
-            edm::InputTag("g4SimHits", "HGCHitsHEfront"),
-            edm::InputTag("g4SimHits", "HGCHitsHEback"),
-        });
+    desc.add<std::vector<edm::InputTag>>("simHitCollections",
+                                         {
+                                             edm::InputTag("g4SimHits", "HGCHitsEE"),
+                                             edm::InputTag("g4SimHits", "HGCHitsHEfront"),
+                                             edm::InputTag("g4SimHits", "HGCHitsHEback"),
+                                         });
 
     desc.add<bool>("doHGCal", true);
     desc.add<bool>("doHGCalRelabelling", true);
@@ -121,50 +116,48 @@ public:
     descriptions.addWithDefaultLabel(desc);
   }
 
-void produce(edm::StreamID, edm::Event& event, edm::EventSetup const& setup) const override {
-  auto const& graph = event.get(graphToken_);
-  auto const& rawGraph = event.get(rawGraphToken_);
+  void produce(edm::StreamID, edm::Event& event, edm::EventSetup const& setup) const override {
+    auto const& graph = event.get(graphToken_);
+    auto const& rawGraph = event.get(rawGraphToken_);
 
-  LogicalGraphView graphView(graph);
+    LogicalGraphView graphView(graph);
 
-  truth::LogicalGraphHitIndexBuilder builder(graphView.nParticles());
+    truth::LogicalGraphHitIndexBuilder builder(graphView.nParticles());
 
-  fillTrackToParticleMap(graphView, rawGraph, builder);
-  fillSimHits(event, setup, builder);
+    fillTrackToParticleMap(graphView, rawGraph, builder);
+    fillSimHits(event, setup, builder);
 
-  auto output = std::make_unique<truth::LogicalGraphHitIndex>(builder.finish());
-  event.put(std::move(output));
-}
+    auto output = std::make_unique<truth::LogicalGraphHitIndex>(builder.finish());
+    event.put(std::move(output));
+  }
 
 private:
-void fillTrackToParticleMap(LogicalGraphView const& graph,
-                            TruthGraph const& rawGraph,
-                            truth::LogicalGraphHitIndexBuilder& builder) const {
-  for (uint32_t particleId = 0; particleId < graph.nParticles(); ++particleId) {
-    if (!graph.particleHasSim(particleId))
-      continue;
+  void fillTrackToParticleMap(LogicalGraphView const& graph,
+                              TruthGraph const& rawGraph,
+                              truth::LogicalGraphHitIndexBuilder& builder) const {
+    for (uint32_t particleId = 0; particleId < graph.nParticles(); ++particleId) {
+      if (!graph.particleHasSim(particleId))
+        continue;
 
-    const int32_t simNode = graph.particleSimNode(particleId);
-    if (simNode < 0)
-      continue;
+      const int32_t simNode = graph.particleSimNode(particleId);
+      if (simNode < 0)
+        continue;
 
-    const uint32_t simNodeU32 = static_cast<uint32_t>(simNode);
-    if (simNodeU32 >= rawGraph.nNodes())
-      continue;
+      const uint32_t simNodeU32 = static_cast<uint32_t>(simNode);
+      if (simNodeU32 >= rawGraph.nNodes())
+        continue;
 
-    auto const& ref = rawGraph.nodeRef(simNodeU32);
-    if (ref.kind != TruthGraph::NodeKind::SimTrack)
-      continue;
+      auto const& ref = rawGraph.nodeRef(simNodeU32);
+      if (ref.kind != TruthGraph::NodeKind::SimTrack)
+        continue;
 
-    builder.setSimTrackForParticle(particleId, checkedTrackId(ref.key));
+      builder.setSimTrackForParticle(particleId, checkedTrackId(ref.key));
+    }
+
+    for (uint32_t parentId = 0; parentId < graph.nParticles(); ++parentId) {
+      graph.forEachParticleChild(parentId, [&](uint32_t childId) { builder.addParticleChild(parentId, childId); });
+    }
   }
-
-  for (uint32_t parentId = 0; parentId < graph.nParticles(); ++parentId) {
-    graph.forEachParticleChild(parentId, [&](uint32_t childId) {
-      builder.addParticleChild(parentId, childId);
-    });
-  }
-}
 
   void fillSimHits(edm::Event const& event,
                    edm::EventSetup const& setup,
@@ -218,8 +211,8 @@ void fillTrackToParticleMap(LogicalGraphView const& graph,
     if (!doHGCal_)
       return cache;
 
-    auto const* eeGeom =
-        static_cast<HGCalGeometry const*>(geom.getSubdetectorGeometry(DetId::HGCalEE, ForwardSubdetector::ForwardEmpty));
+    auto const* eeGeom = static_cast<HGCalGeometry const*>(
+        geom.getSubdetectorGeometry(DetId::HGCalEE, ForwardSubdetector::ForwardEmpty));
 
     if (eeGeom) {
       cache.geometryType = 1;
@@ -314,7 +307,7 @@ void fillTrackToParticleMap(LogicalGraphView const& graph,
   }
 
   edm::EDGetTokenT<truth::Graph> graphToken_;
-edm::EDGetTokenT<TruthGraph> rawGraphToken_;
+  edm::EDGetTokenT<TruthGraph> rawGraphToken_;
 
   edm::EDGetTokenT<edm::SimTrackContainer> simTracksToken_;
 

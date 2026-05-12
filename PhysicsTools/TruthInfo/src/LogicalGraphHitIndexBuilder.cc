@@ -55,9 +55,7 @@ namespace truth {
   }
 
   void LogicalGraphHitIndexBuilder::sortAndReduce(std::vector<Hit>& hits) {
-    std::sort(hits.begin(), hits.end(), [](Hit const& a, Hit const& b) {
-      return a.detId < b.detId;
-    });
+    std::sort(hits.begin(), hits.end(), [](Hit const& a, Hit const& b) { return a.detId < b.detId; });
 
     std::size_t out = 0;
     for (auto const& hit : hits) {
@@ -88,8 +86,7 @@ namespace truth {
   }
 
   std::vector<LogicalGraphHitIndexBuilder::Hit> LogicalGraphHitIndexBuilder::mergeSortedHitLists(
-      std::span<const Hit> a,
-      std::span<const Hit> b) {
+      std::span<const Hit> a, std::span<const Hit> b) {
     std::vector<Hit> out;
     out.reserve(a.size() + b.size());
 
@@ -126,7 +123,8 @@ namespace truth {
     dst = mergeSortedHitLists(dst, src);
   }
 
-  void LogicalGraphHitIndexBuilder::collectSubgraphParticles(uint32_t rootParticleId, std::vector<uint8_t>& visited) const {
+  void LogicalGraphHitIndexBuilder::collectSubgraphParticles(uint32_t rootParticleId,
+                                                             std::vector<uint8_t>& visited) const {
     std::vector<uint32_t> stack;
     stack.push_back(rootParticleId);
 
