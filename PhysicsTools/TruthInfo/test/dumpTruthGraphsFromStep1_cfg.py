@@ -4,6 +4,10 @@ process = cms.Process("TRUTHGRAPH")
 
 process.load("FWCore.MessageService.MessageLogger_cfi")
 
+# Needed if TruthLogicalGraphHitIndexProducer does HGCal simId -> reco DetId relabelling.
+# Keep this consistent with the geometry used to produce step3.root.
+process.load("Configuration.Geometry.GeometryExtendedRun4D120Reco_cff")
+
 process.maxEvents = cms.untracked.PSet(
     input=cms.untracked.int32(-1)
 )
@@ -11,7 +15,7 @@ process.maxEvents = cms.untracked.PSet(
 process.source = cms.Source(
     "PoolSource",
     fileNames=cms.untracked.vstring(
-        "file:step1.root"
+        "file:step3.root"
     )
 )
 
@@ -52,19 +56,38 @@ process.truthLogicalGraphProducer = cms.EDProducer(
     collapseIntermediateGenParticles=cms.bool(True),
 )
 
-process.truthLogicalGraphHitIndexProducer = cms.EDProducer(
-    "TruthLogicalGraphHitIndexProducer",
-    src=cms.InputTag("truthLogicalGraphProducer"),
-    rawSrc=cms.InputTag("truthGraphProducer"),
-    simTracks=cms.InputTag("g4SimHits"),
+process.simHitToRecHitMapProducer = cms.EDProducer(
+    "SimHitToRecHitMapProducer",
 
-    simHitCollections=cms.VInputTag(
-        cms.InputTag("g4SimHits", "HGCHitsEE"),
-        cms.InputTag("g4SimHits", "HGCHitsHEfront"),
-        cms.InputTag("g4SimHits", "HGCHitsHEback"),
+    hgcalRecHits=cms.VInputTag(
+        cms.InputTag("HGCalRecHit", "HGCEERecHits", "RECO"),
+        cms.InputTag("HGCalRecHit", "HGCHEFRecHits", "RECO"),
+        cms.InputTag("HGCalRecHit", "HGCHEBRecHits", "RECO"),
     ),
 
-    doHGCal=cms.bool(True),
+    pfRecHits=cms.VInputTag(
+        cms.InputTag("particleFlowRecHitECAL", "Cleaned", "RECO"),
+        cms.InputTag("particleFlowRecHitHBHE", "Cleaned", "RECO"),
+        cms.InputTag("particleFlowRecHitHF", "Cleaned", "RECO"),
+        cms.InputTag("particleFlowRecHitHO", "Cleaned", "RECO"),
+    ),
+)
+process.truthLogicalGraphHitIndexProducer = cms.EDProducer(
+    "TruthLogicalGraphHitIndexProducer",
+
+    src=cms.InputTag("truthLogicalGraphProducer"),
+    rawSrc=cms.InputTag("truthGraphProducer"),
+
+    recHitMap=cms.InputTag("simHitToRecHitMapProducer"),
+
+    simHitCollections=cms.VInputTag(
+        cms.InputTag("g4SimHits", "HGCHitsEE", "SIM"),
+        cms.InputTag("g4SimHits", "HGCHitsHEfront", "SIM"),
+        cms.InputTag("g4SimHits", "HGCHitsHEback", "SIM"),
+        cms.InputTag("g4SimHits", "EcalHitsEB", "SIM"),
+        cms.InputTag("g4SimHits", "HcalHits", "SIM"),
+    ),
+
     doHGCalRelabelling=cms.bool(False),
 )
 
@@ -91,11 +114,18 @@ process.MessageLogger.cerr.TruthGraphProducer = cms.untracked.PSet(
 process.MessageLogger.cerr.TruthLogicalGraphProducer = cms.untracked.PSet(
     limit=cms.untracked.int32(-1)
 )
+process.MessageLogger.cerr.TruthLogicalGraphHitIndexProducer = cms.untracked.PSet(
+    limit=cms.untracked.int32(-1)
+)
+process.MessageLogger.cerr.SimHitToRecHitMapProducer = cms.untracked.PSet(
+    limit=cms.untracked.int32(-1)
+)
 
 process.truthGraph_step = cms.Path(
     process.truthGraphProducer
     + process.truthGraphDumper
     + process.truthLogicalGraphProducer
+    + process.simHitToRecHitMapProducer
     + process.truthLogicalGraphHitIndexProducer
     + process.truthLogicalGraphDumper
 )
