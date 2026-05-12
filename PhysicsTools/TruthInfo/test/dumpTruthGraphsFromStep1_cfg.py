@@ -26,8 +26,7 @@ process.truthGraphProducer = cms.EDProducer(
     simTracks=cms.InputTag("g4SimHits"),
     simVertices=cms.InputTag("g4SimHits"),
 
-    # Disabled for now: SimTrack::genpartIndex() is not a robust GEN-SIM association.
-    addGenToSimEdges=cms.bool(False),
+    addGenToSimEdges=cms.bool(True),
 )
 
 process.truthGraphDumper = cms.EDAnalyzer(
