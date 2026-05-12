@@ -25,16 +25,21 @@ process.truthGraphProducer = cms.EDProducer(
     genEventHepMC=cms.InputTag("generatorSmeared"),
     simTracks=cms.InputTag("g4SimHits"),
     simVertices=cms.InputTag("g4SimHits"),
-    genParticles=cms.InputTag("genParticles"),
-    addGenToSimEdges=cms.bool(True),
+
+    # Disabled for now: SimTrack::genpartIndex() is not a robust GEN-SIM association.
+    addGenToSimEdges=cms.bool(False),
 )
 
 process.truthGraphDumper = cms.EDAnalyzer(
     "TruthGraphDumper",
     src=cms.InputTag("truthGraphProducer"),
+
+    # The dumper can append run/lumi/event to this base name if the code was updated.
     dotFile=cms.string("truthgraph.dot"),
+
     maxNodes=cms.uint32(20000),
     maxEdgesPerNode=cms.uint32(50),
+
     simTracks=cms.InputTag("g4SimHits"),
     simVertices=cms.InputTag("g4SimHits"),
     genEventHepMC=cms.InputTag("generatorSmeared"),
@@ -53,6 +58,12 @@ process.truthLogicalGraphProducer = cms.EDProducer(
     # Example: 13 keeps only muons with pdgId == 13 and their descendants.
     motherPdgId=cms.int32(0),
 
+    # This is harmless when there are no GEN-SIM particle associations.
+    # It will only do something once robust GEN-SIM links exist.
+    mergeGenSimVertices=cms.bool(True),
+
+    # Collapse GEN-only chains P -> V -> C where P has status != 1,
+    # C is the only daughter, and P and C have the same PDG id.
     collapseIntermediateGenParticles=cms.bool(True),
 )
 
@@ -60,7 +71,10 @@ process.truthLogicalGraphDumper = cms.EDAnalyzer(
     "TruthLogicalGraphDumper",
     src=cms.InputTag("truthLogicalGraphProducer"),
     rawSrc=cms.InputTag("truthGraphProducer"),
+
+    # The dumper can append run/lumi/event to this base name if the code was updated.
     dotFile=cms.string("truthlogicalgraph.dot"),
+
     maxParticles=cms.uint32(20000),
     maxVertices=cms.uint32(20000),
     maxEdgesPerNode=cms.uint32(300),
