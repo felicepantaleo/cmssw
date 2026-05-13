@@ -83,10 +83,9 @@ namespace {
     std::sort(pairs.begin(), pairs.end());
     pairs.erase(std::unique(pairs.begin(), pairs.end()), pairs.end());
 
-    pairs.erase(std::remove_if(pairs.begin(),
-                               pairs.end(),
-                               [nSources](auto const& edge) { return edge.first >= nSources; }),
-                pairs.end());
+    pairs.erase(
+        std::remove_if(pairs.begin(), pairs.end(), [nSources](auto const& edge) { return edge.first >= nSources; }),
+        pairs.end());
 
     offsets.assign(nSources + 1, 0);
 
