@@ -381,7 +381,8 @@ void TestTruthLogicalGraphPostProcessor::testSeedCutKeepsUnrelatedStableGenSimPa
     CPPUNIT_ASSERT_EQUAL(collapsedVertex, productionVertices.front());
 
     const auto artificialOutgoing = output.outgoingParticles(collapsedVertex);
-    CPPUNIT_ASSERT(std::find(artificialOutgoing.begin(), artificialOutgoing.end(), electron) != artificialOutgoing.end());
+    CPPUNIT_ASSERT(std::find(artificialOutgoing.begin(), artificialOutgoing.end(), electron) !=
+                   artificialOutgoing.end());
 
     const auto artificialIncoming = output.incomingParticles(collapsedVertex);
     CPPUNIT_ASSERT(artificialIncoming.empty());
