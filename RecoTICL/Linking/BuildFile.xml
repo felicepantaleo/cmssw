@@ -1,0 +1,20 @@
+<use name="CommonTools/Utils"/>
+<use name="DataFormats/CaloRecHit"/>
+<use name="DataFormats/Common"/>
+<use name="DataFormats/GeometrySurface"/>
+<use name="DataFormats/HGCalReco"/>
+<use name="DataFormats/Math"/>
+<use name="FWCore/Framework"/>
+<use name="FWCore/ParameterSet"/>
+<use name="FWCore/PluginManager"/>
+<use name="Geometry/CommonTopologies"/>
+<use name="Geometry/HGCalCommonData"/>
+<use name="Geometry/Records"/>
+<use name="MagneticField/Engine"/>
+<use name="MagneticField/Records"/>
+<use name="RecoLocalCalo/HGCalRecAlgos"/>
+<use name="TrackingTools/GeomPropagators"/>
+<use name="fastjet"/>
+<export>
+  <lib name="1"/>
+</export>

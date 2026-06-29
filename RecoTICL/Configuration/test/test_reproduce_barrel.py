@@ -21,7 +21,7 @@ BARREL_MODULES = [
 
 def main():
     base = cms.Process("TEST")
-    base.load("RecoHGCal.TICL.iterativeTICL_cff")
+    base.load("RecoTICL.Configuration.iterativeTICL_cff")
 
     gen = cms.Process("TEST")
     presets.barrel().assemble().add_to_process(gen)

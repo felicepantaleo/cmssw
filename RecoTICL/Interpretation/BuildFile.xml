@@ -1,0 +1,25 @@
+<use name="CommonTools/Utils"/>
+<use name="DataFormats/CaloRecHit"/>
+<use name="DataFormats/Candidate"/>
+<use name="DataFormats/Common"/>
+<use name="DataFormats/GeometrySurface"/>
+<use name="DataFormats/GsfTrackReco"/>
+<use name="DataFormats/HGCalReco"/>
+<use name="DataFormats/Math"/>
+<use name="DataFormats/MuonReco"/>
+<use name="DataFormats/TrackReco"/>
+<use name="DataFormats/VertexReco"/>
+<use name="FWCore/Framework"/>
+<use name="FWCore/ParameterSet"/>
+<use name="FWCore/PluginManager"/>
+<use name="Geometry/HGCalCommonData"/>
+<use name="MagneticField/Engine"/>
+<use name="MagneticField/Records"/>
+<use name="PhysicsTools/ONNXRuntime"/>
+<use name="RecoLocalCalo/HGCalRecAlgos"/>
+<use name="RecoTICL/Interface"/>
+<use name="TrackingTools/GeomPropagators"/>
+<use name="TrackingTools/Records"/>
+<export>
+  <lib name="1"/>
+</export>

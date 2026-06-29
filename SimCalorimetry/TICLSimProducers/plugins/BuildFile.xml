@@ -1,0 +1,17 @@
+<use name="CommonTools/Utils"/>
+<use name="DataFormats/CaloRecHit"/>
+<use name="DataFormats/Common"/>
+<use name="DataFormats/HGCalReco"/>
+<use name="DataFormats/ParticleFlowReco"/>
+<use name="DataFormats/TrackReco"/>
+<use name="FWCore/Framework"/>
+<use name="FWCore/MessageLogger"/>
+<use name="FWCore/ParameterSet"/>
+<use name="RecoLocalCalo/HGCalRecAlgos"/>
+<use name="RecoTICL/Interface"/>
+<use name="SimDataFormats/Associations"/>
+<use name="SimDataFormats/CaloAnalysis"/>
+<use name="SimDataFormats/TrackingAnalysis"/>
+<library file="*.cc" name="RecoTICLSimProducersPlugins">
+  <flags EDM_PLUGIN="1"/>
+</library>

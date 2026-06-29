@@ -1,0 +1,10 @@
+<use name="DataFormats/CaloRecHit"/>
+<use name="DataFormats/Common"/>
+<use name="DataFormats/HGCalReco"/>
+<use name="DataFormats/TrackReco"/>
+<use name="FWCore/MessageLogger"/>
+<use name="RecoLocalCalo/HGCalRecAlgos"/>
+<use name="RecoLocalCalo/HGCalRecProducers"/>
+<export>
+  <lib name="1"/>
+</export>

@@ -1,0 +1,36 @@
+<use name="CommonTools/UtilAlgos"/>
+<use name="DataFormats/CaloRecHit"/>
+<use name="DataFormats/DetId"/>
+<use name="DataFormats/EgammaReco"/>
+<use name="DataFormats/GeometrySurface"/>
+<use name="DataFormats/HGCRecHit"/>
+<use name="DataFormats/HGCalReco"/>
+<use name="DataFormats/Math"/>
+<use name="DataFormats/MuonReco"/>
+<use name="DataFormats/Provenance"/>
+<use name="DataFormats/TrackReco"/>
+<use name="FWCore/Framework"/>
+<use name="FWCore/MessageLogger"/>
+<use name="FWCore/ParameterSet"/>
+<use name="FWCore/ServiceRegistry"/>
+<use name="FWCore/Utilities"/>
+<use name="Geometry/CaloGeometry"/>
+<use name="Geometry/CommonTopologies"/>
+<use name="Geometry/HGCalCommonData"/>
+<use name="Geometry/Records"/>
+<use name="MagneticField/Engine"/>
+<use name="MagneticField/Records"/>
+<use name="RecoLocalCalo/HGCalRecAlgos"/>
+<use name="RecoParticleFlow/PFProducer"/>
+<use name="RecoTICL/Superclustering"/>
+<use name="SimDataFormats/Associations"/>
+<use name="SimDataFormats/CaloAnalysis"/>
+<use name="SimDataFormats/CaloHit"/>
+<use name="TrackingTools/GeomPropagators"/>
+<use name="TrackingTools/Records"/>
+<use name="TrackingTools/TrajectoryState"/>
+<use name="fastjet"/>
+<use name="RecoEgamma/EgammaElectronAlgos"/>
+<library file="*.cc" name="RecoTICLValidationPlugins">
+  <flags EDM_PLUGIN="1"/>
+</library>

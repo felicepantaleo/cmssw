@@ -1,0 +1,11 @@
+<use name="DataFormats/CaloRecHit"/>
+<use name="DataFormats/Common"/>
+<use name="DataFormats/HGCalReco"/>
+<use name="FWCore/Framework"/>
+<use name="FWCore/MessageLogger"/>
+<use name="FWCore/ParameterSet"/>
+<use name="FWCore/PluginManager"/>
+<use name="RecoLocalCalo/HGCalRecAlgos"/>
+<export>
+  <lib name="1"/>
+</export>
