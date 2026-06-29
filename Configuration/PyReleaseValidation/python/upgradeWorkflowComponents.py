@@ -881,7 +881,7 @@ upgradeWFs['enableTICLdumper'] = UpgradeWorkflow_TICLdumper(
     suffix = '_enableTICLdumper',
     offset = 0.206,
 )
-upgradeWFs['enableTICLdumper'].step3 = {'--customise': 'RecoHGCal/TICL/customiseTICLFromReco.customiseTICLForDumper'}
+upgradeWFs['enableTICLdumper'].step3 = {'--customise': 'RecoTICL/Configuration/customiseTICLForDumper.customiseTICLForDumper'}
 
 
 class UpgradeWorkflow_CPfromPU(UpgradeWorkflow):
