@@ -1,8 +1,8 @@
 
-#include "RecoLocalCalo/HGCalRecProducers/interface/HGCalLayerClusterAlgoFactory.h"
+#include "RecoTICL/LayerClustering/interface/HGCalLayerClusterAlgoFactory.h"
 #include "RecoLocalCalo/HGCalRecProducers/interface/HGCalClusteringAlgoBase.h"
-#include "RecoLocalCalo/HGCalRecProducers/interface/HGCalImagingAlgo.h"
-#include "RecoLocalCalo/HGCalRecProducers/plugins/HGCalCLUEAlgo.h"
+#include "RecoTICL/LayerClustering/interface/HGCalImagingAlgo.h"
+#include "RecoTICL/LayerClustering/interface/HGCalCLUEAlgo.h"
 #include "FWCore/ParameterSet/interface/ValidatedPluginMacros.h"
 
 DEFINE_EDM_VALIDATED_PLUGIN(HGCalLayerClusterAlgoFactory, HGCalImagingAlgo, "Imaging");

@@ -1,6 +1,6 @@
-#include "RecoLocalCalo/HGCalRecProducers/interface/HGCalLayerClusterAlgoFactory.h"
+#include "RecoTICL/LayerClustering/interface/HGCalLayerClusterAlgoFactory.h"
 #include "RecoLocalCalo/HGCalRecProducers/interface/HGCalClusteringAlgoBase.h"
-#include "RecoParticleFlow/PFClusterProducer/plugins/BarrelCLUEAlgo.h"
+#include "RecoTICL/LayerClustering/interface/BarrelCLUEAlgo.h"
 #include "FWCore/ParameterSet/interface/ValidatedPluginMacros.h"
 
 DEFINE_EDM_VALIDATED_PLUGIN(HGCalLayerClusterAlgoFactory, EBCLUEAlgo, "EBCLUE");

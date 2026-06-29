@@ -1,4 +1,4 @@
-#include "RecoLocalCalo/HGCalRecProducers/plugins/HGCalCLUEAlgo.h"
+#include "RecoTICL/LayerClustering/interface/HGCalCLUEAlgo.h"
 #include "FWCore/Utilities/interface/Exception.h"
 #include "RecoLocalCalo/HGCalRecAlgos/interface/RecHitTools.h"
 

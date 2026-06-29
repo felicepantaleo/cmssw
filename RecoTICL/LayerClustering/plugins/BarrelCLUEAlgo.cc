@@ -1,4 +1,4 @@
-#include "RecoParticleFlow/PFClusterProducer/plugins/BarrelCLUEAlgo.h"
+#include "RecoTICL/LayerClustering/interface/BarrelCLUEAlgo.h"
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
 
 #include "Geometry/CaloGeometry/interface/CaloSubdetectorGeometry.h"

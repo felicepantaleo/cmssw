@@ -23,7 +23,7 @@
 
 #include "RecoLocalCalo/HGCalRecProducers/interface/ComputeClusterTime.h"
 
-#include "RecoLocalCalo/HGCalRecProducers/interface/HGCalLayerClusterAlgoFactory.h"
+#include "RecoTICL/LayerClustering/interface/HGCalLayerClusterAlgoFactory.h"
 #include "RecoLocalCalo/HGCalRecAlgos/interface/HGCalDepthPreClusterer.h"
 
 #include "Geometry/Records/interface/IdealGeometryRecord.h"
@@ -34,7 +34,7 @@
 
 #include "DataFormats/Common/interface/ValueMap.h"
 
-#include "RecoParticleFlow/PFClusterProducer/plugins/BarrelCLUEAlgo.h"
+#include "RecoTICL/LayerClustering/interface/BarrelCLUEAlgo.h"
 #include "RecoLocalCalo/HGCalRecProducers/interface/BarrelTilesConstants.h"
 
 using Density = hgcal_clustering::Density;
