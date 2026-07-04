@@ -362,23 +362,36 @@ void TICLCandidateProducer::produce(edm::Event &evt, const edm::EventSetup &es) 
     if (maskTracks[iTrack]) {
       auto const tracksterId = trackstersInTrackIndices[iTrack];
       auto trackPtr = edm::Ptr<reco::Track>(tracks_h, iTrack);
+      // Muon association for this track, used by both branches below.
+      auto trackRef = edm::Ref<reco::TrackCollection>(tracks_h, iTrack);
+      const int muId = PFMuonAlgo::muAssocToTrack(trackRef, *muons_h);
+      const reco::MuonRef muonRef = reco::MuonRef(muons_h, muId);
+      const bool trackIsMuon = muonRef.isNonnull() and PFMuonAlgo::isMuon(muonRef);
+      auto const &tk = *trackPtr;
       if (tracksterId != -1 and !maskTracksters.empty()) {
         auto tracksterPtr = edm::Ptr<Trackster>(resultTracksters_h, tracksterId);
         TICLCandidate chargedCandidate(trackPtr, tracksterPtr);
+        // A muon crosses HGCAL as a MIP and leaves only a small trackster: the
+        // track+trackster constructor would set the candidate energy to that ~MIP
+        // deposit and label it e/pi. For an identified muon, override with the muon
+        // hypothesis and take the energy from the track momentum instead (the
+        // trackster stays attached and rawEnergy remains the calorimetric MIP deposit).
+        if (trackIsMuon) {
+          chargedCandidate.setPdgId(13 * tk.charge());
+          math::PtEtaPhiMLorentzVector p4Polar(tk.pt(), tk.eta(), tk.phi(), ticl::mmuon);
+          chargedCandidate.setP4(p4Polar);
+        }
         resultCandidates->push_back(chargedCandidate);
         maskTracksters[tracksterId] = false;
-      } else {
-        //charged candidates track only
-        auto trackRef = edm::Ref<reco::TrackCollection>(tracks_h, iTrack);
-        const int muId = PFMuonAlgo::muAssocToTrack(trackRef, *muons_h);
-        const reco::MuonRef muonRef = reco::MuonRef(muons_h, muId);
-        if (muonRef.isNonnull() and muonRef->isGlobalMuon()) {
-          // create muon candidate
-          edm::Ptr<Trackster> tracksterPtr;
-          TICLCandidate chargedCandidate(trackPtr, tracksterPtr);
-          chargedCandidate.setPdgId(13 * trackPtr.get()->charge());
-          resultCandidates->push_back(chargedCandidate);
-        }
+      } else if (trackIsMuon) {
+        // Muon that reached no trackster: a track-only muon candidate. Accept any
+        // identified muon (tracker or global), not only global muons.
+        edm::Ptr<Trackster> tracksterPtr;
+        TICLCandidate chargedCandidate(trackPtr, tracksterPtr);
+        chargedCandidate.setPdgId(13 * tk.charge());
+        math::PtEtaPhiMLorentzVector p4Polar(tk.pt(), tk.eta(), tk.phi(), ticl::mmuon);
+        chargedCandidate.setP4(p4Polar);
+        resultCandidates->push_back(chargedCandidate);
       }
     }
   }
