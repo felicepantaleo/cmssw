@@ -1,5 +1,5 @@
-#ifndef RecoHGCal_TICL_GeneralInterpretationAlgo_h
-#define RecoHGCal_TICL_GeneralInterpretationAlgo_h
+#ifndef RecoTICL_Interpretation_ChargedHadronInterpretationAlgo_h
+#define RecoTICL_Interpretation_ChargedHadronInterpretationAlgo_h
 
 #include "FWCore/Framework/interface/Frameworkfwd.h"
 #include "FWCore/Framework/interface/ESHandle.h"
@@ -11,16 +11,26 @@
 
 namespace ticl {
 
-  class GeneralInterpretationAlgo : public TICLInterpretationAlgoBase<reco::Track> {
+  class ChargedHadronInterpretationAlgo : public TICLInterpretationAlgoBase<reco::Track> {
   public:
-    GeneralInterpretationAlgo(const edm::ParameterSet &conf, edm::ConsumesCollector iC);
+    ChargedHadronInterpretationAlgo(const edm::ParameterSet &conf, edm::ConsumesCollector iC);
 
-    ~GeneralInterpretationAlgo() override;
+    ~ChargedHadronInterpretationAlgo() override;
 
     void makeCandidates(const Inputs &input,
                         edm::Handle<MtdHostCollection> inputTiming_h,
                         std::vector<Trackster> &resultTracksters,
-                        std::vector<int> &resultCandidate) override;
+                        std::vector<int> &resultCandidate,
+                        std::vector<bool> &maskedTracksters) override;
+
+    // Arbitration mode: one charged-hadron hypothesis per track-linked (merged)
+    // trackster, reusing the geometric association of makeCandidates. Neutral
+    // leftovers are not emitted; the producer derives neutrals from unclaimed
+    // tracksters after arbitration.
+    void makeOpinions(const Inputs &input,
+                      edm::Handle<MtdHostCollection> inputTiming_h,
+                      std::vector<Trackster> &hypothesisTracksters,
+                      std::vector<Hypothesis> &hypotheses) override;
 
     void initialize(const HGCalDDDConstants *hgcons,
                     const hgcal::RecHitTools rhtools,
@@ -61,6 +71,12 @@ namespace ticl {
     const float del_tk_ts_layer1_;
     const float del_tk_ts_int_;
     const float timing_quality_threshold_;
+    // Track<->trackster energy-compatibility veto: a trackster is absorbed by a track
+    // only while the cumulative reco raw energy stays below track.p() plus a slack of
+    // min(fraction * E_trackster, max). Tight defaults were tuned at PU200; expose them
+    // so the veto can be relaxed and re-tuned per pileup scenario.
+    const double energy_overshoot_fraction_;
+    const double energy_overshoot_max_;
 
     const HGCalDDDConstants *hgcons_;
 

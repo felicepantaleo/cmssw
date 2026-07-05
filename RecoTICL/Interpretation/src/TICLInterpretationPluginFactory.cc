@@ -1,0 +1,5 @@
+#include "RecoTICL/Interpretation/interface/TICLInterpretationPluginFactory.h"
+#include "FWCore/ParameterSet/interface/ValidatedPluginFactoryMacros.h"
+
+EDM_REGISTER_VALIDATED_PLUGINFACTORY(TICLGeneralInterpretationPluginFactory, "TICLGeneralInterpretationPluginFactory");
+EDM_REGISTER_VALIDATED_PLUGINFACTORY(TICLEGammaInterpretationPluginFactory, "TICLEGammaInterpretationPluginFactory");

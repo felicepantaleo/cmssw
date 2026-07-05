@@ -1,118 +1,98 @@
 // Author: Felice Pantaleo, Wahid Redjeb, Aurora Perego (CERN) - felice.pantaleo@cern.ch, wahid.redjeb@cern.ch, aurora.perego@cern.ch Date: 12/2023
-#include <memory>  // unique_ptr
-#include "DataFormats/Common/interface/MultiSpan.h"
+//
+// Candidate assembly: consumes the final tracksters and the per-track assignment
+// maps produced by the interpretation instance of TracksterLinksProducer
+// (ticlTracksterInterpretations) and builds the TICLCandidates. The interpretations
+// themselves (masking passes or opinion arbitration) run upstream in that trackster
+// module; since PF clustering and GSF seeding depend only on it, this producer can
+// legally consume the GSF tracks: electron candidates (trackMode 3) take the GSF
+// kinematics, recovering brem electrons whose KF momentum is underestimated.
+
+#include <memory>
+#include <map>
+
 #include "FWCore/Framework/interface/stream/EDProducer.h"
+#include "FWCore/Framework/interface/Event.h"
+#include "FWCore/Framework/interface/ESHandle.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/ParameterSet/interface/ConfigurationDescriptions.h"
-#include "FWCore/ParameterSet/interface/PluginDescription.h"
+#include "FWCore/ParameterSet/interface/ParameterSetDescription.h"
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
 #include "FWCore/Utilities/interface/ESGetToken.h"
-#include "FWCore/Framework/interface/ESHandle.h"
-#include "FWCore/Framework/interface/Frameworkfwd.h"
-#include "FWCore/Framework/interface/MakerMacros.h"
-#include "FWCore/ParameterSet/interface/ParameterSetDescription.h"
-#include "FWCore/Framework/interface/ConsumesCollector.h"
+#include "FWCore/Utilities/interface/Exception.h"
 #include "DataFormats/Common/interface/OrphanHandle.h"
 
-#include "DataFormats/CaloRecHit/interface/CaloCluster.h"
 #include "DataFormats/HGCalReco/interface/Common.h"
 #include "DataFormats/HGCalReco/interface/MtdHostCollection.h"
-#include "DataFormats/HGCalReco/interface/TICLLayerTile.h"
 #include "DataFormats/HGCalReco/interface/Trackster.h"
-#include "DataFormats/TrackReco/interface/Track.h"
-#include "DataFormats/MuonReco/interface/Muon.h"
-#include "DataFormats/GeometrySurface/interface/BoundDisk.h"
 #include "DataFormats/HGCalReco/interface/TICLCandidate.h"
-#include "DataFormats/TrackReco/interface/TrackFwd.h"
-#include "RecoLocalCalo/HGCalRecAlgos/interface/RecHitTools.h"
+#include "DataFormats/TrackReco/interface/Track.h"
+#include "DataFormats/GsfTrackReco/interface/GsfTrack.h"
+#include "DataFormats/Math/interface/deltaR.h"
 #include "DataFormats/GeometryVector/interface/GlobalPoint.h"
 #include "DataFormats/GeometryVector/interface/GlobalVector.h"
-
-#include "RecoTICL/Interpretation/interface/TICLInterpretationAlgoBase.h"
-#include "RecoTICL/Interpretation/interface/TICLInterpretationPluginFactory.h"
-#include "RecoTICL/Interpretation/interface/GeneralInterpretationAlgo.h"
-#include "RecoTICL/Interpretation/interface/GNNInterpretationAlgo.h"
-
-#include "RecoParticleFlow/PFProducer/interface/PFMuonAlgo.h"
-
-#include "CommonTools/Utils/interface/StringCutObjectSelector.h"
+#include "DataFormats/GeometrySurface/interface/BoundDisk.h"
+#include "DataFormats/GeometrySurface/interface/SimpleDiskBounds.h"
 
 #include "TrackingTools/TrajectoryState/interface/TrajectoryStateTransform.h"
 #include "TrackingTools/GeomPropagators/interface/Propagator.h"
 #include "TrackingTools/Records/interface/TrackingComponentsRecord.h"
-#include "TrackingTools/TrajectoryState/interface/TrajectoryStateClosestToBeamLine.h"
 #include "Geometry/CommonTopologies/interface/GlobalTrackingGeometry.h"
-
+#include "Geometry/CommonTopologies/interface/GeomDet.h"
+#include "Geometry/HGCalCommonData/interface/HGCalDDDConstants.h"
+#include "Geometry/Records/interface/IdealGeometryRecord.h"
 #include "MagneticField/Engine/interface/MagneticField.h"
 #include "MagneticField/Records/interface/IdealMagneticFieldRecord.h"
 
-#include "RecoTICL/Inference/interface/TICLONNXGlobalCache.h"
-
-#include "Geometry/HGCalCommonData/interface/HGCalDDDConstants.h"
-#include "Geometry/Records/interface/IdealGeometryRecord.h"
-#include "Geometry/CommonTopologies/interface/GeomDet.h"
-#include "RecoTICL/Inference/interface/TracksterInferenceAlgoFactory.h"
-
-#include "RecoTICL/Interface/interface/TrackstersPCA.h"
-
 using namespace ticl;
 
-class TICLCandidateProducer
-    : public edm::stream::EDProducer<edm::GlobalCache<ticl::TICLONNXGlobalCache>, edm::stream::WatchRuns> {
+class TICLCandidateProducer : public edm::stream::EDProducer<edm::stream::WatchRuns> {
 public:
-  explicit TICLCandidateProducer(const edm::ParameterSet &ps, const ticl::TICLONNXGlobalCache *);
+  explicit TICLCandidateProducer(const edm::ParameterSet &ps);
   ~TICLCandidateProducer() override {}
   void produce(edm::Event &, const edm::EventSetup &) override;
+  void beginRun(edm::Run const &, edm::EventSetup const &) override;
   static void fillDescriptions(edm::ConfigurationDescriptions &descriptions);
 
-  void beginRun(edm::Run const &iEvent, edm::EventSetup const &es) override;
-  static std::unique_ptr<ticl::TICLONNXGlobalCache> initializeGlobalCache(const edm::ParameterSet &iConfig);
-  static void globalEndJob(const ticl::TICLONNXGlobalCache *);
-
 private:
-  void dumpCandidate(const TICLCandidate &) const;
-
   template <typename F>
   void assignTimeToCandidates(std::vector<TICLCandidate> &resultCandidates,
                               edm::Handle<std::vector<reco::Track>> track_h,
                               MtdHostCollection::ConstView &inputTimingView,
                               F func) const;
 
-  std::unique_ptr<TICLInterpretationAlgoBase<reco::Track>> generalInterpretationAlgo_;
-  std::vector<edm::EDGetTokenT<std::vector<Trackster>>> egamma_tracksters_tokens_;
-  std::vector<edm::EDGetTokenT<std::vector<std::vector<unsigned>>>> egamma_tracksterlinks_tokens_;
-
-  std::vector<edm::EDGetTokenT<std::vector<Trackster>>> general_tracksters_tokens_;
-  std::vector<edm::EDGetTokenT<std::vector<std::vector<unsigned>>>> general_tracksterlinks_tokens_;
-
-  const edm::EDGetTokenT<std::vector<reco::CaloCluster>> clusters_token_;
-  const edm::EDGetTokenT<edm::ValueMap<std::pair<float, float>>> clustersTime_token_;
-  const bool regressionAndPid_;
-  std::unique_ptr<TracksterInferenceAlgoBase> inferenceAlgo_;
-
-  std::vector<edm::EDGetTokenT<std::vector<float>>> original_masks_tokens_;
-
+  const edm::EDGetTokenT<std::vector<Trackster>> tracksters_token_;
+  const edm::EDGetTokenT<std::vector<int>> trackToTrackster_token_;
+  const edm::EDGetTokenT<std::vector<int>> trackMode_token_;
+  const edm::EDGetTokenT<std::vector<int>> neutralIdx_token_;
+  const edm::EDGetTokenT<std::vector<int>> neutralPdg_token_;
   const edm::EDGetTokenT<std::vector<reco::Track>> tracks_token_;
+  const edm::EDGetTokenT<std::vector<reco::GsfTrack>> gsf_tracks_token_;
   edm::EDGetTokenT<MtdHostCollection> inputTimingToken_;
-
-  const edm::EDGetTokenT<std::vector<reco::Muon>> muons_token_;
   const bool useMTDTiming_;
   const bool useTimingAverage_;
   const float timingQualityThreshold_;
-  const edm::ESGetToken<CaloGeometry, CaloGeometryRecord> geometry_token_;
+  // (eta,phi) window to match the electron's KF track to its GSF twin.
+  const double delta_tk_gsf_;
+  // Track-only charged candidates (particle-flow convention): a selected track that
+  // no interpretation assigned and whose trajectory points at (almost) no
+  // calorimetric energy becomes a charged-hadron candidate from the track alone.
+  // Its momentum otherwise vanishes from the event description, since pfTICL is the
+  // only particle flow for HGCAL. The nearby-energy veto is the double-counting
+  // protection: tracks whose deposits sit in emitted or claimed tracksters are left
+  // to the linking/jet interpretations.
+  const bool buildTrackOnlyCandidates_;
+  const double trackOnlyDeltaR_;
+  const double trackOnlyNearbyEnergyFloor_;
+  const double trackOnlyNearbyEnergyFraction_;
 
-  const edm::ESGetToken<MagneticField, IdealMagneticFieldRecord> bfield_token_;
-  const std::string detector_;
   const std::string propName_;
+  const edm::ESGetToken<MagneticField, IdealMagneticFieldRecord> bfield_token_;
   const edm::ESGetToken<Propagator, TrackingComponentsRecord> propagator_token_;
   const edm::ESGetToken<GlobalTrackingGeometry, GlobalTrackingGeometryRecord> trackingGeometry_token_;
-
-  std::once_flag initializeGeometry_;
-  const HGCalDDDConstants *hgcons_;
-  hgcal::RecHitTools rhtools_;
-  const float tkEnergyCut_ = 2.0f;
-  const StringCutObjectSelector<reco::Track> cutTk_;
   edm::ESGetToken<HGCalDDDConstants, IdealGeometryRecord> hdc_token_;
+
+  const HGCalDDDConstants *hgcons_;
   edm::ESHandle<MagneticField> bfield_;
   edm::ESHandle<Propagator> propagator_;
   edm::ESHandle<GlobalTrackingGeometry> trackingGeometry_;
@@ -120,162 +100,78 @@ private:
   static constexpr float timeRes = 0.02f;
 };
 
-TICLCandidateProducer::TICLCandidateProducer(const edm::ParameterSet &ps, const ticl::TICLONNXGlobalCache *cache)
-    : clusters_token_(consumes<std::vector<reco::CaloCluster>>(ps.getParameter<edm::InputTag>("layer_clusters"))),
-      clustersTime_token_(
-          consumes<edm::ValueMap<std::pair<float, float>>>(ps.getParameter<edm::InputTag>("layer_clustersTime"))),
-      regressionAndPid_(ps.getParameter<bool>("regressionAndPid")),
+TICLCandidateProducer::TICLCandidateProducer(const edm::ParameterSet &ps)
+    : tracksters_token_(consumes<std::vector<Trackster>>(ps.getParameter<edm::InputTag>("interpretations"))),
+      trackToTrackster_token_(
+          consumes<std::vector<int>>(edm::InputTag(ps.getParameter<edm::InputTag>("interpretations").label(),
+                                                   "trackToTrackster",
+                                                   ps.getParameter<edm::InputTag>("interpretations").process()))),
+      trackMode_token_(
+          consumes<std::vector<int>>(edm::InputTag(ps.getParameter<edm::InputTag>("interpretations").label(),
+                                                   "trackMode",
+                                                   ps.getParameter<edm::InputTag>("interpretations").process()))),
+      neutralIdx_token_(
+          consumes<std::vector<int>>(edm::InputTag(ps.getParameter<edm::InputTag>("interpretations").label(),
+                                                   "neutralIdx",
+                                                   ps.getParameter<edm::InputTag>("interpretations").process()))),
+      neutralPdg_token_(
+          consumes<std::vector<int>>(edm::InputTag(ps.getParameter<edm::InputTag>("interpretations").label(),
+                                                   "neutralPdg",
+                                                   ps.getParameter<edm::InputTag>("interpretations").process()))),
       tracks_token_(consumes<std::vector<reco::Track>>(ps.getParameter<edm::InputTag>("tracks"))),
-      muons_token_(consumes<std::vector<reco::Muon>>(ps.getParameter<edm::InputTag>("muons"))),
+      gsf_tracks_token_(consumes<std::vector<reco::GsfTrack>>(ps.getParameter<edm::InputTag>("gsf_tracks"))),
       useMTDTiming_(ps.getParameter<bool>("useMTDTiming")),
       useTimingAverage_(ps.getParameter<bool>("useTimingAverage")),
       timingQualityThreshold_(ps.getParameter<double>("timingQualityThreshold")),
-      geometry_token_(esConsumes<CaloGeometry, CaloGeometryRecord, edm::Transition::BeginRun>()),
-      bfield_token_(esConsumes<MagneticField, IdealMagneticFieldRecord, edm::Transition::BeginRun>()),
-      detector_(ps.getParameter<std::string>("detector")),
+      delta_tk_gsf_(ps.getParameter<double>("delta_tk_gsf")),
+      buildTrackOnlyCandidates_(ps.getParameter<bool>("buildTrackOnlyCandidates")),
+      trackOnlyDeltaR_(ps.getParameter<double>("trackOnlyDeltaR")),
+      trackOnlyNearbyEnergyFloor_(ps.getParameter<double>("trackOnlyNearbyEnergyFloor")),
+      trackOnlyNearbyEnergyFraction_(ps.getParameter<double>("trackOnlyNearbyEnergyFraction")),
       propName_(ps.getParameter<std::string>("propagator")),
+      bfield_token_(esConsumes<MagneticField, IdealMagneticFieldRecord, edm::Transition::BeginRun>()),
       propagator_token_(
           esConsumes<Propagator, TrackingComponentsRecord, edm::Transition::BeginRun>(edm::ESInputTag("", propName_))),
       trackingGeometry_token_(
           esConsumes<GlobalTrackingGeometry, GlobalTrackingGeometryRecord, edm::Transition::BeginRun>()),
-      cutTk_(ps.getParameter<std::string>("cutTk")) {
-  // These are the CLUE3DEM Tracksters put in the event by the TracksterLinksProducer with the superclustering algorithm
-  for (auto const &tag : ps.getParameter<std::vector<edm::InputTag>>("egamma_tracksters_collections")) {
-    egamma_tracksters_tokens_.emplace_back(consumes<std::vector<Trackster>>(tag));
-  }
-
-  // These are the links put in the event by the TracksterLinksProducer with the superclustering algorithm
-  for (auto const &tag : ps.getParameter<std::vector<edm::InputTag>>("egamma_tracksterlinks_collections")) {
-    egamma_tracksterlinks_tokens_.emplace_back(consumes<std::vector<std::vector<unsigned int>>>(tag));
-  }
-
-  //make sure that the number of tracksters collections and tracksterlinks collections is the same
-  assert(egamma_tracksters_tokens_.size() == egamma_tracksterlinks_tokens_.size());
-
-  // Loop over the edm::VInputTag and append the token to general_tracksters_tokens_
-  // These, instead, are the tracksters already merged by the TrackstersLinksProducer
-  for (auto const &tag : ps.getParameter<std::vector<edm::InputTag>>("general_tracksters_collections")) {
-    general_tracksters_tokens_.emplace_back(consumes<std::vector<Trackster>>(tag));
-  }
-
-  for (auto const &tag : ps.getParameter<std::vector<edm::InputTag>>("general_tracksterlinks_collections")) {
-    general_tracksterlinks_tokens_.emplace_back(consumes<std::vector<std::vector<unsigned int>>>(tag));
-  }
-
-  //make sure that the number of tracksters collections and tracksterlinks collections is the same
-  assert(general_tracksters_tokens_.size() == general_tracksterlinks_tokens_.size());
-
-  //Loop over the edm::VInputTag of masks and append the token to original_masks_tokens_
-  for (auto const &tag : ps.getParameter<std::vector<edm::InputTag>>("original_masks")) {
-    original_masks_tokens_.emplace_back(consumes<std::vector<float>>(tag));
-  }
-
-  std::string detectorName_ = (detector_ == "HFNose") ? "HGCalHFNoseSensitive" : "HGCalEESensitive";
+      hgcons_(nullptr) {
+  std::string detectorName_ =
+      (ps.getParameter<std::string>("detector") == "HFNose") ? "HGCalHFNoseSensitive" : "HGCalEESensitive";
   hdc_token_ =
       esConsumes<HGCalDDDConstants, IdealGeometryRecord, edm::Transition::BeginRun>(edm::ESInputTag("", detectorName_));
   if (useMTDTiming_) {
     inputTimingToken_ = consumes<MtdHostCollection>(ps.getParameter<edm::InputTag>("timingSoA"));
   }
-  // Initialize inference algorithm using the factory.
-  // Do not build the inference plugin if it is disabled or if no model is configured (empty string => no session loaded).
-  if (regressionAndPid_) {
-    const std::string inferencePlugin = ps.getParameter<std::string>("inferenceAlgo");
-    if (!inferencePlugin.empty()) {
-      const edm::ParameterSet inferencePSet =
-          ps.getParameter<edm::ParameterSet>("pluginInferenceAlgo" + inferencePlugin);
-
-      // If the plugin config exposes model paths as std::string with default "",
-      // the cache will only contain sessions for non-empty paths.
-      const bool hasSingleModel = inferencePSet.existsAs<std::string>("onnxModelPath", true) &&
-                                  !inferencePSet.getParameter<std::string>("onnxModelPath").empty();
-      const bool hasPIDModel = inferencePSet.existsAs<std::string>("onnxPIDModelPath", true) &&
-                               !inferencePSet.getParameter<std::string>("onnxPIDModelPath").empty();
-      const bool hasEnergyModel = inferencePSet.existsAs<std::string>("onnxEnergyModelPath", true) &&
-                                  !inferencePSet.getParameter<std::string>("onnxEnergyModelPath").empty();
-
-      // Only instantiate the plugin if at least one model path is configured.
-      if (hasSingleModel || hasPIDModel || hasEnergyModel) {
-        inferenceAlgo_ = std::unique_ptr<TracksterInferenceAlgoBase>(
-            TracksterInferenceAlgoFactory::get()->create(inferencePlugin, inferencePSet, cache));
-      }
-    }
-  }
-
   produces<std::vector<TICLCandidate>>();
-
-  // New trackster collection after linking
-  produces<std::vector<Trackster>>();
-
-  auto interpretationPSet = ps.getParameter<edm::ParameterSet>("interpretationDescPSet");
-  auto algoType = interpretationPSet.getParameter<std::string>("type");
-  generalInterpretationAlgo_ =
-      TICLGeneralInterpretationPluginFactory::get()->create(algoType, interpretationPSet, consumesCollector());
 }
 
-std::unique_ptr<ticl::TICLONNXGlobalCache> TICLCandidateProducer::initializeGlobalCache(
-    const edm::ParameterSet &iConfig) {
-  return ticl::TICLONNXGlobalCache::initialize(iConfig);
-}
-
-void TICLCandidateProducer::globalEndJob(const ticl::TICLONNXGlobalCache *) {}
-
-void TICLCandidateProducer::beginRun(edm::Run const &iEvent, edm::EventSetup const &es) {
+void TICLCandidateProducer::beginRun(edm::Run const &, edm::EventSetup const &es) {
   edm::ESHandle<HGCalDDDConstants> hdc = es.getHandle(hdc_token_);
   hgcons_ = hdc.product();
-
-  edm::ESHandle<CaloGeometry> geom = es.getHandle(geometry_token_);
-  rhtools_.setGeometry(*geom);
-
   bfield_ = es.getHandle(bfield_token_);
   propagator_ = es.getHandle(propagator_token_);
-  generalInterpretationAlgo_->initialize(hgcons_, rhtools_, bfield_, propagator_);
-
   trackingGeometry_ = es.getHandle(trackingGeometry_token_);
 }
 
-void filterTracks(edm::Handle<std::vector<reco::Track>> tkH,
-                  const edm::Handle<std::vector<reco::Muon>> &muons_h,
-                  const StringCutObjectSelector<reco::Track> cutTk_,
-                  const float tkEnergyCut_,
-                  std::vector<bool> &maskTracks) {
-  auto const &tracks = *tkH;
-  for (unsigned i = 0; i < tracks.size(); ++i) {
-    const auto &tk = tracks[i];
-    reco::TrackRef trackref = reco::TrackRef(tkH, i);
-
-    // veto tracks associated to muons
-    int muId = PFMuonAlgo::muAssocToTrack(trackref, *muons_h);
-    const reco::MuonRef muonref = reco::MuonRef(muons_h, muId);
-
-    if (!cutTk_((tk)) or (muId != -1 and PFMuonAlgo::isMuon(muonref) and not(*muons_h)[muId].isTrackerMuon())) {
-      maskTracks[i] = false;
-      continue;
-    }
-
-    // don't consider tracks below 2 GeV for linking
-    if (std::sqrt(tk.p() * tk.p() + mpion2) < tkEnergyCut_) {
-      maskTracks[i] = false;
-      continue;
-    }
-
-    // record tracks that can be used to make a ticlcandidate
-    maskTracks[i] = true;
-  }
-}
-
 void TICLCandidateProducer::produce(edm::Event &evt, const edm::EventSetup &es) {
-  auto resultTracksters = std::make_unique<std::vector<Trackster>>();
-  auto resultTrackstersMerged = std::make_unique<std::vector<Trackster>>();
-  auto linkedResultTracksters = std::make_unique<std::vector<std::vector<unsigned int>>>();
-
-  const auto &layerClusters = evt.get(clusters_token_);
-  const auto &layerClustersTimes = evt.get(clustersTime_token_);
-  edm::Handle<reco::MuonCollection> muons_h;
-  evt.getByToken(muons_token_, muons_h);
+  edm::Handle<std::vector<Trackster>> tracksters_h;
+  evt.getByToken(tracksters_token_, tracksters_h);
+  const auto &trackToTrackster = evt.get(trackToTrackster_token_);
+  const auto &trackMode = evt.get(trackMode_token_);
+  const auto &neutralIdx = evt.get(neutralIdx_token_);
+  const auto &neutralPdg = evt.get(neutralPdg_token_);
 
   edm::Handle<std::vector<reco::Track>> tracks_h;
   evt.getByToken(tracks_token_, tracks_h);
   const auto &tracks = *tracks_h;
+  if (trackMode.size() != tracks.size()) {
+    throw cms::Exception("LogicError") << "TICLCandidateProducer: the assignment maps cover " << trackMode.size()
+                                       << " tracks but the configured tracks collection has " << tracks.size()
+                                       << "; the two producers must consume the same tracks.";
+  }
+  edm::Handle<std::vector<reco::GsfTrack>> gsfTracks_h;
+  evt.getByToken(gsf_tracks_token_, gsfTracks_h);
+  const auto &gsfTracks = *gsfTracks_h;
 
   edm::Handle<MtdHostCollection> inputTiming_h;
   MtdHostCollection::ConstView inputTimingView;
@@ -287,163 +183,172 @@ void TICLCandidateProducer::produce(edm::Event &evt, const edm::EventSetup &es) 
   auto const bFieldProd = bfield_.product();
   const Propagator *propagator = propagator_.product();
 
-  // loop over the original_masks_tokens_ and get the original masks collections and multiply them
-  // to get the global mask
-  std::vector<float> original_global_mask(layerClusters.size(), 1.f);
-  for (unsigned int i = 0; i < original_masks_tokens_.size(); ++i) {
-    const auto &tmp_mask = evt.get(original_masks_tokens_[i]);
-    for (unsigned int j = 0; j < tmp_mask.size(); ++j) {
-      original_global_mask[j] *= tmp_mask[j];
-    }
-  }
-
-  auto resultMask = std::make_unique<std::vector<float>>(original_global_mask);
-
-  std::vector<edm::Handle<std::vector<Trackster>>> general_tracksters_h(general_tracksters_tokens_.size());
-  edm::MultiSpan<Trackster> generalTrackstersSpan;
-  for (unsigned int i = 0; i < general_tracksters_tokens_.size(); ++i) {
-    evt.getByToken(general_tracksters_tokens_[i], general_tracksters_h[i]);
-    //Fill MultiSpan
-    generalTrackstersSpan.add(*general_tracksters_h[i]);
-  }
-  //now get the general_tracksterlinks_tokens_
-  std::vector<edm::Handle<std::vector<std::vector<unsigned>>>> general_tracksterlinks_h(
-      general_tracksterlinks_tokens_.size());
-  std::vector<std::vector<unsigned>> generalTracksterLinksGlobalId;
-  for (unsigned int i = 0; i < general_tracksterlinks_tokens_.size(); ++i) {
-    evt.getByToken(general_tracksterlinks_tokens_[i], general_tracksterlinks_h[i]);
-    for (unsigned int j = 0; j < general_tracksterlinks_h[i]->size(); ++j) {
-      generalTracksterLinksGlobalId.emplace_back();
-      auto &links_vector = generalTracksterLinksGlobalId.back();
-      links_vector.resize((*general_tracksterlinks_h[i])[j].size());
-      for (unsigned int k = 0; k < links_vector.size(); ++k) {
-        links_vector[k] = generalTrackstersSpan.globalIndex(i, (*general_tracksterlinks_h[i])[j][k]);
-      }
-    }
-  }
-
-  std::vector<bool> maskTracks;
-  maskTracks.resize(tracks.size());
-  filterTracks(tracks_h, muons_h, cutTk_, tkEnergyCut_, maskTracks);
-
-  const typename TICLInterpretationAlgoBase<reco::Track>::Inputs input(evt,
-                                                                       es,
-                                                                       layerClusters,
-                                                                       layerClustersTimes,
-                                                                       generalTrackstersSpan,
-                                                                       generalTracksterLinksGlobalId,
-                                                                       tracks_h,
-                                                                       maskTracks);
-
   auto resultCandidates = std::make_unique<std::vector<TICLCandidate>>();
-  std::vector<int> trackstersInTrackIndices(tracks.size(), -1);
 
-  //TODO
-  //egammaInterpretationAlg_->makecandidates(inputGSF, inputTiming, *resultTrackstersMerged, trackstersInGSFTrackIndices)
-  // mask generalTracks associated to GSFTrack linked in egammaInterpretationAlgo_
+  // Jet bookkeeping: summed track momentum per shared trackster (trackMode 4), for
+  // the neutral residual emitted after the track loop.
+  std::map<int, double> jetSumP;
 
-  generalInterpretationAlgo_->makeCandidates(input, inputTiming_h, *resultTracksters, trackstersInTrackIndices);
+  // Charged candidates from the per-track assignment.
+  for (size_t iTrack = 0; iTrack < trackMode.size() && iTrack < tracks.size(); ++iTrack) {
+    const int mode = trackMode[iTrack];
+    if (mode <= 0)
+      continue;  // -1: not selected; 0: selected but unassigned (see buildTrackOnlyCandidates)
+    auto trackPtr = edm::Ptr<reco::Track>(tracks_h, iTrack);
+    auto const &tk = *trackPtr;
+    const int tsIdx = trackToTrackster[iTrack];
+    edm::Ptr<Trackster> tracksterPtr;
+    if (tsIdx >= 0)
+      tracksterPtr = edm::Ptr<Trackster>(tracksters_h, tsIdx);
 
-  assignPCAtoTracksters(*resultTracksters,
-                        layerClusters,
-                        layerClustersTimes,
-                        rhtools_.getPositionLayer(rhtools_.lastLayerEE()).z(),
-                        rhtools_,
-                        true);
-  if (regressionAndPid_) {
-    // Run inference algorithm
-    inferenceAlgo_->runInference(layerClusters, *resultTracksters, rhtools_);
+    if (mode == 1) {
+      // Muon: energy from the track momentum, MIP trackster attached if any.
+      TICLCandidate cand(trackPtr, tracksterPtr);
+      cand.setPdgId(13 * tk.charge());
+      math::PtEtaPhiMLorentzVector p4Polar(tk.pt(), tk.eta(), tk.phi(), ticl::mmuon);
+      cand.setP4(p4Polar);
+      resultCandidates->push_back(cand);
+    } else if (mode == 3) {
+      // Electron: upgrade to the GSF kinematics. The GSF chain is downstream of the
+      // interpretation module, so consuming it here is legal (no dependency cycle).
+      TICLCandidate cand(trackPtr, tracksterPtr);
+      int bestGsf = -1;
+      double bestDR = delta_tk_gsf_;
+      for (size_t iGsf = 0; iGsf < gsfTracks.size(); ++iGsf) {
+        const double dR = reco::deltaR(gsfTracks[iGsf].eta(), gsfTracks[iGsf].phi(), tk.eta(), tk.phi());
+        if (dR < bestDR) {
+          bestDR = dR;
+          bestGsf = static_cast<int>(iGsf);
+        }
+      }
+      if (bestGsf >= 0 && tracksterPtr.isNonnull()) {
+        const auto &gsf = gsfTracks[bestGsf];
+        cand.addGsfTrackPtr(edm::Ptr<reco::GsfTrack>(gsfTracks_h, bestGsf));
+        cand.setPdgId(11 * gsf.charge());
+        cand.setCharge(gsf.charge());
+        const auto dir = gsf.momentum().unit();
+        const float energy = tracksterPtr->regressed_energy();
+        math::XYZTLorentzVector p4(energy * dir.x(), energy * dir.y(), energy * dir.z(), energy);
+        cand.setP4(p4);
+      } else {
+        // No GSF twin found: keep the KF hypothesis (the ctor already set p4/charge).
+        cand.setPdgId(11 * tk.charge());
+      }
+      resultCandidates->push_back(cand);
+    } else if (mode == 4) {
+      // Jet member: charged candidate from the track alone (particle-flow style); the
+      // shared trackster is not attached, its energy enters through the neutral
+      // residual below (attaching it to every member would double count).
+      edm::Ptr<Trackster> noTrackster;
+      TICLCandidate cand(trackPtr, noTrackster);
+      resultCandidates->push_back(cand);
+      if (tsIdx >= 0)
+        jetSumP[tsIdx] += tk.p();
+    } else if (mode == 5) {
+      // Single-track recovery: attach the claimed trackster (so the calorimetric
+      // footprint is associated with this candidate) but take the kinematics from the
+      // TRACK, particle-flow style: the calorimeter under-measures fragmented hadronic
+      // showers, which is why the tight gates rejected the link in the first place.
+      // Any calorimetric excess still becomes a neutral residual below.
+      TICLCandidate cand(trackPtr, tracksterPtr);
+      cand.setPdgId(211 * tk.charge());
+      math::PtEtaPhiMLorentzVector p4Polar(tk.pt(), tk.eta(), tk.phi(), ticl::mpion);
+      cand.setP4(p4Polar);
+      resultCandidates->push_back(cand);
+      if (tsIdx >= 0)
+        jetSumP[tsIdx] += tk.p();
+    } else {
+      // Charged hadron: the constructor sets kinematics and species from the trackster.
+      TICLCandidate cand(trackPtr, tracksterPtr);
+      resultCandidates->push_back(cand);
+    }
   }
 
-  std::vector<bool> maskTracksters(resultTracksters->size(), true);
-  edm::OrphanHandle<std::vector<Trackster>> resultTracksters_h = evt.put(std::move(resultTracksters));
-  //create ChargedCandidates
-  for (size_t iTrack = 0; iTrack < tracks.size(); iTrack++) {
-    if (maskTracks[iTrack]) {
-      auto const tracksterId = trackstersInTrackIndices[iTrack];
+  // Jet neutral residuals: the calorimetric excess of a shared trackster over the
+  // summed momenta of its tracks, typed by the trackster PID. Below threshold the
+  // energy is considered accounted for by the tracks.
+  for (auto const &[tsIdx, sumP] : jetSumP) {
+    edm::Ptr<Trackster> tracksterPtr(tracksters_h, tsIdx);
+    const double residual = tracksterPtr->regressed_energy() - sumP;
+    if (residual < std::max(2., 0.1 * tracksterPtr->regressed_energy()))
+      continue;
+    edm::Ptr<reco::Track> noTrack;
+    TICLCandidate cand(noTrack, tracksterPtr);
+    const auto dir = tracksterPtr->barycenter().unit();
+    math::XYZTLorentzVector p4(residual * dir.x(), residual * dir.y(), residual * dir.z(), residual);
+    cand.setP4(p4);
+    resultCandidates->push_back(cand);
+  }
+
+  // Neutral candidates.
+  for (size_t k = 0; k < neutralIdx.size(); ++k) {
+    edm::Ptr<Trackster> tracksterPtr(tracksters_h, neutralIdx[k]);
+    edm::Ptr<reco::Track> trackPtr;
+    TICLCandidate cand(trackPtr, tracksterPtr);
+    if (neutralPdg[k] != 0)
+      cand.setPdgId(neutralPdg[k]);
+    resultCandidates->push_back(cand);
+  }
+
+  if (buildTrackOnlyCandidates_) {
+    const auto &tracksters = *tracksters_h;
+    for (size_t iTrack = 0; iTrack < trackMode.size() && iTrack < tracks.size(); ++iTrack) {
+      if (trackMode[iTrack] != 0)
+        continue;  // only selected tracks no interpretation assigned
+      auto const &tk = tracks[iTrack];
+      const auto dir = tk.outerOk() ? tk.outerMomentum() : tk.momentum();
+      double nearby = 0.;
+      for (auto const &ts : tracksters) {
+        const auto &bary = ts.barycenter();
+        if (bary.eta() * dir.eta() < 0.)
+          continue;
+        if (reco::deltaR(bary.eta(), bary.phi(), dir.eta(), dir.phi()) < trackOnlyDeltaR_)
+          nearby += ts.raw_energy();
+      }
+      if (nearby >= std::max(trackOnlyNearbyEnergyFloor_, trackOnlyNearbyEnergyFraction_ * tk.p()))
+        continue;
       auto trackPtr = edm::Ptr<reco::Track>(tracks_h, iTrack);
-      if (tracksterId != -1 and !maskTracksters.empty()) {
-        auto tracksterPtr = edm::Ptr<Trackster>(resultTracksters_h, tracksterId);
-        TICLCandidate chargedCandidate(trackPtr, tracksterPtr);
-        resultCandidates->push_back(chargedCandidate);
-        maskTracksters[tracksterId] = false;
-      } else {
-        //charged candidates track only
-        auto trackRef = edm::Ref<reco::TrackCollection>(tracks_h, iTrack);
-        const int muId = PFMuonAlgo::muAssocToTrack(trackRef, *muons_h);
-        const reco::MuonRef muonRef = reco::MuonRef(muons_h, muId);
-        if (muonRef.isNonnull() and muonRef->isGlobalMuon()) {
-          // create muon candidate
-          edm::Ptr<Trackster> tracksterPtr;
-          TICLCandidate chargedCandidate(trackPtr, tracksterPtr);
-          chargedCandidate.setPdgId(13 * trackPtr.get()->charge());
-          resultCandidates->push_back(chargedCandidate);
+      edm::Ptr<Trackster> noTrackster;
+      TICLCandidate cand(trackPtr, noTrackster);
+      resultCandidates->push_back(cand);
+    }
+  }
+
+  auto getPathLength = [&](const reco::Track &track, float zVal) {
+    if (!track.innerOk() || !track.outerOk()) {
+      return 0.f;
+    }
+    const auto &fts_inn = trajectoryStateTransform::innerFreeState(track, bFieldProd);
+    const auto &fts_out = trajectoryStateTransform::outerFreeState(track, bFieldProd);
+    const auto &surf_inn = trajectoryStateTransform::innerStateOnSurface(track, *trackingGeometry_, bFieldProd);
+    const auto &surf_out = trajectoryStateTransform::outerStateOnSurface(track, *trackingGeometry_, bFieldProd);
+
+    Basic3DVector<float> pos(track.referencePoint());
+    Basic3DVector<float> mom(track.momentum());
+    FreeTrajectoryState stateAtBeamspot{GlobalPoint(pos), GlobalVector(mom), track.charge(), bFieldProd};
+
+    float pathlength = propagator->propagateWithPath(stateAtBeamspot, surf_inn.surface()).second;
+    if (pathlength) {
+      const auto &t_inn_out = propagator->propagateWithPath(fts_inn, surf_out.surface());
+      if (t_inn_out.first.isValid()) {
+        pathlength += t_inn_out.second;
+        std::pair<float, float> rMinMax = hgcons_->rangeR(zVal, true);
+        int iSide = int(track.eta() > 0);
+        float zSide = (iSide == 0) ? (-1. * zVal) : zVal;
+        const auto &disk = std::make_unique<GeomDet>(
+            Disk::build(Disk::PositionType(0, 0, zSide),
+                        Disk::RotationType(),
+                        SimpleDiskBounds(rMinMax.first, rMinMax.second, zSide - 0.5, zSide + 0.5))
+                .get());
+        const auto &tsos = propagator->propagateWithPath(fts_out, disk->surface());
+        if (tsos.first.isValid()) {
+          pathlength += tsos.second;
+          return pathlength;
         }
       }
     }
-  }
-
-  //Neutral Candidate
-  for (size_t iTrackster = 0; iTrackster < maskTracksters.size(); iTrackster++) {
-    if (maskTracksters[iTrackster]) {
-      edm::Ptr<Trackster> tracksterPtr(resultTracksters_h, iTrackster);
-      edm::Ptr<reco::Track> trackPtr;
-      TICLCandidate neutralCandidate(trackPtr, tracksterPtr);
-      resultCandidates->push_back(neutralCandidate);
-    }
-  }
-
-  auto getPathLength =
-      [&](const reco::Track &track, float zVal) {
-        // Bail out early if inner/outer surfaces are not available
-        if (!track.innerOk() || !track.outerOk()) {
-          if (edm::isDebugEnabled()) {
-            LogDebug("TICLCandidateProducer")
-                << "Not able to use the track to compute the path length. A straight line will be used instead.";
-          }
-          return 0.f;
-        }
-
-        const auto &fts_inn = trajectoryStateTransform::innerFreeState(track, bFieldProd);
-        const auto &fts_out = trajectoryStateTransform::outerFreeState(track, bFieldProd);
-        const auto &surf_inn = trajectoryStateTransform::innerStateOnSurface(track, *trackingGeometry_, bFieldProd);
-        const auto &surf_out = trajectoryStateTransform::outerStateOnSurface(track, *trackingGeometry_, bFieldProd);
-
-        Basic3DVector<float> pos(track.referencePoint());
-        Basic3DVector<float> mom(track.momentum());
-        FreeTrajectoryState stateAtBeamspot{GlobalPoint(pos), GlobalVector(mom), track.charge(), bFieldProd};
-
-        float pathlength = propagator->propagateWithPath(stateAtBeamspot, surf_inn.surface()).second;
-
-        if (pathlength) {
-          const auto &t_inn_out = propagator->propagateWithPath(fts_inn, surf_out.surface());
-
-          if (t_inn_out.first.isValid()) {
-            pathlength += t_inn_out.second;
-
-            std::pair<float, float> rMinMax = hgcons_->rangeR(zVal, true);
-
-            int iSide = int(track.eta() > 0);
-            float zSide = (iSide == 0) ? (-1. * zVal) : zVal;
-            const auto &disk = std::make_unique<GeomDet>(
-                Disk::build(Disk::PositionType(0, 0, zSide),
-                            Disk::RotationType(),
-                            SimpleDiskBounds(rMinMax.first, rMinMax.second, zSide - 0.5, zSide + 0.5))
-                    .get());
-            const auto &tsos = propagator->propagateWithPath(fts_out, disk->surface());
-
-            if (tsos.first.isValid()) {
-              pathlength += tsos.second;
-              return pathlength;
-            }
-          }
-        }
-#ifdef EDM_ML_DEBUG
-        LogDebug("TICLCandidateProducer")
-            << "Not able to use the track to compute the path length. A straight line will be used instead.";
-#endif
-        return 0.f;
-      };
+    return 0.f;
+  };
 
   assignTimeToCandidates(*resultCandidates, tracks_h, inputTimingView, getPathLength);
 
@@ -475,7 +380,6 @@ void TICLCandidateProducer::assignTimeToCandidates(std::vector<TICLCandidate> &r
             const auto xMtd = inputTimingView.posInMTD_x()[trackIndex];
             const auto yMtd = inputTimingView.posInMTD_y()[trackIndex];
             const auto zMtd = inputTimingView.posInMTD_z()[trackIndex];
-
             beta = inputTimingView.beta()[trackIndex];
             path = std::sqrt((x - xMtd) * (x - xMtd) + (y - yMtd) * (y - yMtd) + (z - zMtd) * (z - zMtd)) +
                    inputTimingView.pathLength()[trackIndex];
@@ -492,15 +396,13 @@ void TICLCandidateProducer::assignTimeToCandidates(std::vector<TICLCandidate> &r
     }
     if (invTimeErr > 0) {
       time = time / invTimeErr;
-      // FIXME_ set a liminf of 0.02 ns on the ts error (based on residuals)
       timeErr = sqrt(1.f / invTimeErr);
       if (timeErr < timeRes)
         timeErr = timeRes;
       cand.setTime(time, timeErr);
     }
 
-    if (useMTDTiming_ and cand.charge()) {
-      // Check MTD timing availability
+    if (useMTDTiming_ and cand.charge() and trackIndex != -1) {
       const bool assocQuality = inputTimingView.MVAquality()[trackIndex] > timingQualityThreshold_;
       if (assocQuality) {
         const auto timeHGC = cand.time();
@@ -509,7 +411,6 @@ void TICLCandidateProducer::assignTimeToCandidates(std::vector<TICLCandidate> &r
         const auto timeEMTD = inputTimingView.time0Err()[trackIndex];
 
         if (useTimingAverage_ && (timeEMTD > 0 && timeEHGC > 0)) {
-          // Compute weighted average between HGCAL and MTD timing
           const auto invTimeESqHGC = pow(timeEHGC, -2);
           const auto invTimeESqMTD = pow(timeEMTD, -2);
           timeErr = 1.f / (invTimeESqHGC + invTimeESqMTD);
@@ -528,34 +429,26 @@ void TICLCandidateProducer::assignTimeToCandidates(std::vector<TICLCandidate> &r
 
 void TICLCandidateProducer::fillDescriptions(edm::ConfigurationDescriptions &descriptions) {
   edm::ParameterSetDescription desc;
-  edm::ParameterSetDescription interpretationDesc;
-  interpretationDesc.addNode(edm::PluginDescription<TICLGeneralInterpretationPluginFactory>("type", "General", true));
-  edm::ParameterSetDescription inferenceDesc;
-  inferenceDesc.addNode(edm::PluginDescription<TracksterInferenceAlgoFactory>("type", "TracksterInferenceByPFN", true));
-  desc.add<edm::ParameterSetDescription>("pluginInferenceAlgoTracksterInferenceByPFN", inferenceDesc);
-  desc.add<edm::ParameterSetDescription>("interpretationDescPSet", interpretationDesc);
-  desc.add<std::vector<edm::InputTag>>("egamma_tracksters_collections", {edm::InputTag("ticlTracksterLinks")});
-  desc.add<std::vector<edm::InputTag>>("egamma_tracksterlinks_collections", {edm::InputTag("ticlTracksterLinks")});
-  desc.add<std::vector<edm::InputTag>>("general_tracksters_collections", {edm::InputTag("ticlTracksterLinks")});
-  desc.add<std::vector<edm::InputTag>>("general_tracksterlinks_collections", {edm::InputTag("ticlTracksterLinks")});
-  desc.add<std::vector<edm::InputTag>>("original_masks",
-                                       {edm::InputTag("hgcalMergeLayerClusters", "InitialLayerClustersMask")});
-  desc.add<edm::InputTag>("layer_clusters", edm::InputTag("hgcalMergeLayerClusters"));
-  desc.add<edm::InputTag>("layer_clustersTime", edm::InputTag("hgcalMergeLayerClusters", "timeLayerCluster"));
+  desc.add<edm::InputTag>("interpretations", edm::InputTag("ticlTracksterInterpretations"))
+      ->setComment("Final tracksters + assignment maps from TICLTracksterInterpretationsProducer.");
   desc.add<edm::InputTag>("tracks", edm::InputTag("generalTracks"));
+  desc.add<edm::InputTag>("gsf_tracks", edm::InputTag("electronGsfTracks"));
   desc.add<edm::InputTag>("timingSoA", edm::InputTag("mtdSoA"));
-  desc.add<edm::InputTag>("muons", edm::InputTag("muons1stStep"));
-  desc.add<std::string>("detector", "HGCAL");
-  desc.add<std::string>("propagator", "PropagatorWithMaterial");
   desc.add<bool>("useMTDTiming", true);
   desc.add<bool>("useTimingAverage", true);
   desc.add<double>("timingQualityThreshold", 0.5);
-  desc.add<std::string>("cutTk",
-                        "1.48 < abs(eta) < 3.0 && pt > 1. && quality(\"highPurity\") && "
-                        "hitPattern().numberOfLostHits(\"MISSING_OUTER_HITS\") < 5");
-  desc.add<bool>("regressionAndPid", true);
-  desc.add<std::string>("inferenceAlgo", "TracksterInferenceByPFN");
+  desc.add<double>("delta_tk_gsf", 0.05)
+      ->setComment("(eta,phi) window to match an electron's KF track to its GSF twin.");
+  desc.add<bool>("buildTrackOnlyCandidates", false)
+      ->setComment("Emit charged-hadron candidates from selected tracks no interpretation assigned.");
+  desc.add<double>("trackOnlyDeltaR", 0.1)->setComment("(eta,phi) window for the nearby-energy veto.");
+  desc.add<double>("trackOnlyNearbyEnergyFloor", 2.0)->setComment("Nearby-energy veto floor [GeV].");
+  desc.add<double>("trackOnlyNearbyEnergyFraction", 0.2)
+      ->setComment("Nearby-energy veto as a fraction of the track momentum.");
+  desc.add<std::string>("detector", "HGCAL");
+  desc.add<std::string>("propagator", "PropagatorWithMaterial");
   descriptions.add("ticlCandidateProducer", desc);
 }
 
+#include "FWCore/Framework/interface/MakerMacros.h"
 DEFINE_FWK_MODULE(TICLCandidateProducer);

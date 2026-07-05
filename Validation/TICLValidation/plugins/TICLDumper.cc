@@ -1617,7 +1617,7 @@ void TICLDumper::fillDescriptions(edm::ConfigurationDescriptions& descriptions) 
       ->setComment(
           "egamma supercluster collection (either from PFECALSuperClusterProducer for Mustache, or from "
           "TICL->Egamma converter in case of TICL DNN superclusters)");
-  desc.add<edm::InputTag>("recoSuperClusters_sourceTracksterCollection", edm::InputTag("ticlCandidate"))
+  desc.add<edm::InputTag>("recoSuperClusters_sourceTracksterCollection", edm::InputTag("ticlTracksterInterpretations"))
       ->setComment(
           "Trackster collection used to produce the reco::SuperCluster, used to provide a mapping back to the "
           "tracksters used in superclusters");

@@ -1,3 +1,6 @@
+<use name="Geometry/CommonTopologies"/>
+<use name="FWCore/MessageLogger"/>
+<use name="DataFormats/GeometryVector"/>
 <use name="CommonTools/Utils"/>
 <use name="DataFormats/CaloRecHit"/>
 <use name="DataFormats/Candidate"/>

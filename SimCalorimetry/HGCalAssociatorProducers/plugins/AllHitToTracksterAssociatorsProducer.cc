@@ -147,7 +147,7 @@ void AllHitToTracksterAssociatorsProducerT<HIT>::fillDescriptions(edm::Configura
     desc.add<std::vector<edm::InputTag>>("tracksterCollections",
                                          {edm::InputTag("ticlTrackstersCLUE3DHigh"),
                                           edm::InputTag("ticlTrackstersLinks"),
-                                          edm::InputTag("ticlCandidate")});
+                                          edm::InputTag("ticlTracksterInterpretations")});
     desc.add<edm::InputTag>("hitMapTag", edm::InputTag("recHitMapProducer", "hgcalRecHitMap"));
     desc.add<edm::InputTag>("hits", edm::InputTag("recHitMapProducer", "RefProdVectorHGCRecHitCollection"));
     descriptions.add("AllHitToTracksterAssociatorsProducer", desc);

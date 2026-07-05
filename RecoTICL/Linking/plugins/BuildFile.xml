@@ -1,3 +1,6 @@
+<use name="DataFormats/TrackReco"/>
+<use name="DataFormats/MuonReco"/>
+<use name="RecoTICL/Interpretation"/>
 <use name="CommonTools/Utils"/>
 <use name="DataFormats/CaloRecHit"/>
 <use name="DataFormats/Common"/>

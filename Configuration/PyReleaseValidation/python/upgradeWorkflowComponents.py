@@ -881,7 +881,7 @@ upgradeWFs['enableTICLdumper'] = UpgradeWorkflow_TICLdumper(
     suffix = '_enableTICLdumper',
     offset = 0.206,
 )
-upgradeWFs['enableTICLdumper'].step3 = {'--customise': 'RecoTICL/Configuration/customiseTICLForDumper.customiseTICLForDumper'}
+upgradeWFs['enableTICLdumper'].step3 = {'--customise': 'RecoHGCal/TICL/customiseTICLFromReco.customiseTICLForDumper'}
 
 
 class UpgradeWorkflow_CPfromPU(UpgradeWorkflow):
@@ -1009,6 +1009,76 @@ upgradeWFs['ticlv5_TrackLinkingGNN'] = UpgradeWorkflow_ticlv5_TrackLinkingGNN(
 upgradeWFs['ticlv5_TrackLinkingGNN'].step2 = {'--procModifiers': 'ticlv5_TrackLinkingGNN'}
 upgradeWFs['ticlv5_TrackLinkingGNN'].step3 = {'--procModifiers': 'ticlv5_TrackLinkingGNN'}
 upgradeWFs['ticlv5_TrackLinkingGNN'].step4 = {'--procModifiers': 'ticlv5_TrackLinkingGNN'}
+
+# TICL development chain (TICLv6): interpretation opinions and arbitration in the
+# reconstruction, gated behind the ticl_dev process modifier. Without the modifier
+# the reconstruction runs the TICLv5-equivalent masking chain.
+class UpgradeWorkflow_ticl_dev(UpgradeWorkflow):
+    def setup_(self, step, stepName, stepDict, k, properties):
+        if 'RecoGlobal' in step:
+            stepDict[stepName][k] = merge([self.step3, stepDict[step][k]])
+        if 'HARVESTGlobal' in step:
+            stepDict[stepName][k] = merge([self.step4, stepDict[step][k]])
+    def condition(self, fragment, stepList, key, hasHarvest):
+        return 'Run4' in key
+
+upgradeWFs['ticl_dev'] = UpgradeWorkflow_ticl_dev(
+    steps = [
+        'RecoGlobal',
+        'HARVESTGlobal'
+    ],
+    PU = [
+        'RecoGlobal',
+        'HARVESTGlobal'
+    ],
+    suffix = '_ticl_dev',
+    offset = 0.212,
+)
+upgradeWFs['ticl_dev'].step3 = {'--procModifiers': 'ticl_dev'}
+upgradeWFs['ticl_dev'].step4 = {'--procModifiers': 'ticl_dev'}
+
+
+
+class UpgradeWorkflow_enableTruth(UpgradeWorkflow):
+    def setup_(self, step, stepName, stepDict, k, properties):
+        # enableTruth runs the truth-graph producers in RecoGlobal (step3) and,
+        # in GenSim (step1), keeps the full ancestor branch of every stored
+        # SimTrack (g4SimHits PersistencyEmin -> 0 via the modifier) so the
+        # truth graph stays connected to the generator. The Branch validators run
+        # in the RecoGlobal VALIDATION and their efficiency harvesting in
+        # HARVESTGlobal (step4), so the modifier must reach the harvesting step too.
+        if 'GenSim' in step or 'RecoGlobal' in step or 'HARVESTGlobal' in step:
+            stepDict[stepName][k] = deepcopy(stepDict[step][k])
+
+            if '--procModifiers' in stepDict[stepName][k]:
+                stepDict[stepName][k]['--procModifiers'] += ',enableTruth'
+            else:
+                stepDict[stepName][k]['--procModifiers'] = 'enableTruth'
+
+    def condition(self, fragment, stepList, key, hasHarvest):
+        return 'Run4' in key
+
+
+upgradeWFs['enableTruth'] = UpgradeWorkflow_enableTruth(
+    steps = [
+        'GenSim',
+        'GenSimHLBeamSpot',
+        'GenSimHLBeamSpot14',
+        'GenSimHLBeamSpotCloseBy',
+        'RecoGlobal',
+        'HARVESTGlobal',
+    ],
+    PU = [
+        'GenSim',
+        'GenSimHLBeamSpot',
+        'GenSimHLBeamSpot14',
+        'GenSimHLBeamSpotCloseBy',
+        'RecoGlobal',
+        'HARVESTGlobal',
+    ],
+    suffix = '_enableTruth',
+    offset = 0.88,
+)
 
 # L3 Tracker Muon Outside-In reconstruction first
 class UpgradeWorkflow_phase2L3MuonsOIFirst(UpgradeWorkflow):
