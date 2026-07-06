@@ -28,6 +28,34 @@ namespace edm {
   class EventSetup;
 }  // namespace edm
 namespace ticl {
+  // Sentinel a muon interpretation pass writes into resultCandidate for a track it
+  // rejected (the trajectory points to a shower, so it is not a muon). The producer
+  // routes such tracks to the next (general) pass instead of building a muon candidate.
+  constexpr int kMuonRejected = -2;
+
+  // An interpretation HYPOTHESIS: one algorithm's scored opinion that a track and/or
+  // a (merged) trackster is a particle of the given type. Interpretations emitting
+  // hypotheses do NOT consume anything: the same physical energy can be claimed by
+  // several hypotheses (e.g. an EM shower present both in the Skeletons-linked
+  // hadronic collection and in the superclustering collection), and the
+  // TICLCandidateProducer arbitrates, enforcing that each track and each layer
+  // cluster is assigned to at most one winning hypothesis. The trackster footprint
+  // used for that exclusivity is the hypothesis trackster's layer clusters
+  // (vertices()), the constituents shared by all merged-trackster collections.
+  struct Hypothesis {
+    enum class Type { Muon, Electron, Photon, ChargedHadron, NeutralHadron, Jet, RecoveryChargedHadron };
+    Type type = Type::ChargedHadron;
+    float score = 0.f;      // confidence in [0, 1]; commensurate only within a type
+    int trackIdx = -1;      // index into the general track collection (-1: none)
+    int gsfTrackIdx = -1;   // index into the GSF track collection (-1: none)
+    int tracksterIdx = -1;  // index into the shared hypothesis-trackster vector (-1: none, e.g. a track-only muon)
+    // Jet (multi-particle) hypothesis: SEVERAL tracks enter the same trackster. The
+    // winning jet yields one charged candidate per track (kinematics from the track)
+    // plus a neutral residual carrying the calorimetric excess over the summed track
+    // momenta. Single-particle hypotheses use trackIdx; jets use trackIdxs.
+    std::vector<int> trackIdxs;
+  };
+
   template <typename T>
   class TICLInterpretationAlgoBase {
   public:
@@ -79,10 +107,24 @@ namespace ticl {
           : tkTime_h(tkT), tkTimeErr_h(tkTE), tkQuality_h(tkQ), tkBeta_h(tkB), tkPath_h(tkP), tkMtdPos_h(mtdPos) {}
     };
 
+    // maskedTracksters (indexed over input.tracksters) lets several interpretation
+    // passes run in sequence: a pass marks the tracksters it consumes, and later
+    // passes skip them. Empty or all-false means "nothing already consumed".
     virtual void makeCandidates(const Inputs& input,
                                 edm::Handle<MtdHostCollection> inputTiming_h,
                                 std::vector<Trackster>& resultTracksters,
-                                std::vector<int>& resultCandidate) = 0;
+                                std::vector<int>& resultCandidate,
+                                std::vector<bool>& maskedTracksters) = 0;
+
+    // Opinion mode (arbitration, see Hypothesis above): emit scored hypotheses
+    // without consuming anything. An algorithm appends the merged tracksters its
+    // hypotheses refer to into hypothesisTracksters (shared across all algorithms,
+    // like resultTracksters in makeCandidates) and one Hypothesis per opinion.
+    // Default: no opinions (algorithms not converted to arbitration stay silent).
+    virtual void makeOpinions(const Inputs& input,
+                              edm::Handle<MtdHostCollection> inputTiming_h,
+                              std::vector<Trackster>& hypothesisTracksters,
+                              std::vector<Hypothesis>& hypotheses) {}
 
     virtual void initialize(const HGCalDDDConstants* hgcons,
                             const hgcal::RecHitTools rhtools,

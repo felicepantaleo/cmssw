@@ -1,5 +1,5 @@
 #include "RecoHGCal/TICL/interface/TICLInterpretationAlgoBase.h"
-#include "RecoHGCal/TICL/plugins/GeneralInterpretationAlgo.h"
+#include "RecoHGCal/TICL/plugins/ChargedHadronInterpretationAlgo.h"
 #include "RecoParticleFlow/PFProducer/interface/PFMuonAlgo.h"
 #include "TrackingTools/TrajectoryState/interface/TrajectoryStateTransform.h"
 
@@ -7,18 +7,21 @@ using namespace ticl;
 
 using Vector = ticl::Trackster::Vector;
 
-GeneralInterpretationAlgo::~GeneralInterpretationAlgo() {}
+ChargedHadronInterpretationAlgo::~ChargedHadronInterpretationAlgo() {}
 
-GeneralInterpretationAlgo::GeneralInterpretationAlgo(const edm::ParameterSet &conf, edm::ConsumesCollector cc)
+ChargedHadronInterpretationAlgo::ChargedHadronInterpretationAlgo(const edm::ParameterSet &conf,
+                                                                 edm::ConsumesCollector cc)
     : TICLInterpretationAlgoBase(conf, cc),
       del_tk_ts_layer1_(conf.getParameter<double>("delta_tk_ts_layer1")),
       del_tk_ts_int_(conf.getParameter<double>("delta_tk_ts_interface")),
-      timing_quality_threshold_(conf.getParameter<double>("timing_quality_threshold")) {}
+      timing_quality_threshold_(conf.getParameter<double>("timing_quality_threshold")),
+      energy_overshoot_fraction_(conf.getParameter<double>("energy_overshoot_fraction")),
+      energy_overshoot_max_(conf.getParameter<double>("energy_overshoot_max")) {}
 
-void GeneralInterpretationAlgo::initialize(const HGCalDDDConstants *hgcons,
-                                           const hgcal::RecHitTools rhtools,
-                                           const edm::ESHandle<MagneticField> bfieldH,
-                                           const edm::ESHandle<Propagator> propH) {
+void ChargedHadronInterpretationAlgo::initialize(const HGCalDDDConstants *hgcons,
+                                                 const hgcal::RecHitTools rhtools,
+                                                 const edm::ESHandle<MagneticField> bfieldH,
+                                                 const edm::ESHandle<Propagator> propH) {
   hgcons_ = hgcons;
   rhtools_ = rhtools;
   buildLayers();
@@ -27,7 +30,7 @@ void GeneralInterpretationAlgo::initialize(const HGCalDDDConstants *hgcons,
   propagator_ = propH;
 }
 
-void GeneralInterpretationAlgo::buildLayers() {
+void ChargedHadronInterpretationAlgo::buildLayers() {
   // build disks at HGCal front & EM-Had interface for track propagation
 
   float zVal = hgcons_->waferZ(1, true);
@@ -52,10 +55,10 @@ void GeneralInterpretationAlgo::buildLayers() {
             .get());
   }
 }
-Vector GeneralInterpretationAlgo::propagateTrackster(const Trackster &t,
-                                                     const unsigned idx,
-                                                     float zVal,
-                                                     std::array<TICLLayerTile, 2> &tracksterTiles) {
+Vector ChargedHadronInterpretationAlgo::propagateTrackster(const Trackster &t,
+                                                           const unsigned idx,
+                                                           float zVal,
+                                                           std::array<TICLLayerTile, 2> &tracksterTiles) {
   // needs only the positive Z co-ordinate of the surface to propagate to
   // the correct sign is calculated inside according to the barycenter of trackster
   Vector const &baryc = t.barycenter();
@@ -83,14 +86,15 @@ Vector GeneralInterpretationAlgo::propagateTrackster(const Trackster &t,
   return tPoint;
 }
 
-void GeneralInterpretationAlgo::findTrackstersInWindow(const edm::MultiSpan<Trackster> &tracksters,
-                                                       const std::vector<std::pair<Vector, unsigned>> &seedingCollection,
-                                                       const std::array<TICLLayerTile, 2> &tracksterTiles,
-                                                       const std::vector<Vector> &tracksterPropPoints,
-                                                       const float delta,
-                                                       unsigned trackstersSize,
-                                                       std::vector<std::vector<unsigned>> &resultCollection,
-                                                       bool useMask = false) {
+void ChargedHadronInterpretationAlgo::findTrackstersInWindow(
+    const edm::MultiSpan<Trackster> &tracksters,
+    const std::vector<std::pair<Vector, unsigned>> &seedingCollection,
+    const std::array<TICLLayerTile, 2> &tracksterTiles,
+    const std::vector<Vector> &tracksterPropPoints,
+    const float delta,
+    unsigned trackstersSize,
+    std::vector<std::vector<unsigned>> &resultCollection,
+    bool useMask = false) {
   // Finds tracksters in tracksterTiles within an eta-phi window
   // (given by delta) of the objects (track/trackster) in the seedingCollection.
   // Element i in resultCollection is the vector of trackster
@@ -148,16 +152,16 @@ void GeneralInterpretationAlgo::findTrackstersInWindow(const edm::MultiSpan<Trac
   }  // seeding collection loop
 }
 
-bool GeneralInterpretationAlgo::timeAndEnergyCompatible(float &total_raw_energy,
-                                                        const reco::Track &track,
-                                                        const Trackster &trackster,
-                                                        const float &tkT,
-                                                        const float &tkTErr,
-                                                        const float &tkQual,
-                                                        const float &tkBeta,
-                                                        const GlobalPoint &tkMtdPos,
-                                                        bool useMTDTiming) {
-  float threshold = std::min(0.2 * trackster.raw_energy(), 10.0);
+bool ChargedHadronInterpretationAlgo::timeAndEnergyCompatible(float &total_raw_energy,
+                                                              const reco::Track &track,
+                                                              const Trackster &trackster,
+                                                              const float &tkT,
+                                                              const float &tkTErr,
+                                                              const float &tkQual,
+                                                              const float &tkBeta,
+                                                              const GlobalPoint &tkMtdPos,
+                                                              bool useMTDTiming) {
+  float threshold = std::min(energy_overshoot_fraction_ * trackster.raw_energy(), energy_overshoot_max_);
   bool energyCompatible = (total_raw_energy + trackster.raw_energy() < track.p() + threshold);
 
   if (!useMTDTiming)
@@ -190,22 +194,23 @@ bool GeneralInterpretationAlgo::timeAndEnergyCompatible(float &total_raw_energy,
 
   if (TICLInterpretationAlgoBase::algo_verbosity_ > VerbosityLevel::Advanced) {
     if (!(energyCompatible))
-      LogDebug("GeneralInterpretationAlgo")
+      LogDebug("ChargedHadronInterpretationAlgo")
           << "energy incompatible : track p " << track.p() << " trackster energy " << trackster.raw_energy() << "\n"
           << "                      total_raw_energy " << total_raw_energy << " greater than track p + threshold "
           << track.p() + threshold << "\n";
     if (!(timeCompatible))
-      LogDebug("GeneralInterpretationAlgo") << "time incompatible : track time " << tkT << " +/- " << tkTErr
-                                            << " trackster time " << tsT << " +/- " << tsTErr << "\n";
+      LogDebug("ChargedHadronInterpretationAlgo") << "time incompatible : track time " << tkT << " +/- " << tkTErr
+                                                  << " trackster time " << tsT << " +/- " << tsTErr << "\n";
   }
 
   return energyCompatible && timeCompatible;
 }
 
-void GeneralInterpretationAlgo::makeCandidates(const Inputs &input,
-                                               edm::Handle<MtdHostCollection> inputTiming_h,
-                                               std::vector<Trackster> &resultTracksters,
-                                               std::vector<int> &resultCandidate) {
+void ChargedHadronInterpretationAlgo::makeCandidates(const Inputs &input,
+                                                     edm::Handle<MtdHostCollection> inputTiming_h,
+                                                     std::vector<Trackster> &resultTracksters,
+                                                     std::vector<int> &resultCandidate,
+                                                     std::vector<bool> &maskedTracksters) {
   bool useMTDTiming = inputTiming_h.isValid();
   const auto tkH = input.tracksHandle;
   const auto maskTracks = input.maskedTracks;
@@ -228,7 +233,7 @@ void GeneralInterpretationAlgo::makeCandidates(const Inputs &input,
   std::array<TICLLayerTile, 2> tsPropIntTiles = {};      // all Tracksters, propagated to lastLayerEE
 
   if (TICLInterpretationAlgoBase::algo_verbosity_ > VerbosityLevel::Advanced)
-    LogDebug("GeneralInterpretationAlgo") << "------- Geometric Linking ------- \n";
+    LogDebug("ChargedHadronInterpretationAlgo") << "------- Geometric Linking ------- \n";
 
   // Propagate tracks
   std::vector<unsigned> candidateTrackIds;
@@ -288,7 +293,7 @@ void GeneralInterpretationAlgo::makeCandidates(const Inputs &input,
   for (unsigned i = 0; i < tracksters.size(); ++i) {
     const auto &t = tracksters[i];
     if (TICLInterpretationAlgoBase::algo_verbosity_ > VerbosityLevel::Advanced)
-      LogDebug("GeneralInterpretationAlgo")
+      LogDebug("ChargedHadronInterpretationAlgo")
           << "trackster " << i << " - eta " << t.barycenter().eta() << " phi " << t.barycenter().phi() << " time "
           << t.time() << " energy " << t.raw_energy() << "\n";
 
@@ -319,6 +324,12 @@ void GeneralInterpretationAlgo::makeCandidates(const Inputs &input,
   trackstersInTrackIndices.resize(tracks.size());
 
   std::vector<bool> chargedMask(tracksters.size(), true);
+  // Tracksters already consumed by an earlier interpretation pass (e.g. muon MIP
+  // tracksters) are unavailable here: they are neither linked to a track nor emitted
+  // as neutral candidates.
+  for (size_t i = 0; i < tracksters.size() && i < maskedTracksters.size(); ++i)
+    if (maskedTracksters[i])
+      chargedMask[i] = false;
   for (unsigned &i : candidateTrackIds) {
     if (tsNearTk[i].empty() && tsNearTkAtInt[i].empty()) {  // nothing linked to track, make charged hadrons
       continue;
@@ -410,9 +421,56 @@ void GeneralInterpretationAlgo::makeCandidates(const Inputs &input,
   }
 };
 
-void GeneralInterpretationAlgo::fillPSetDescription(edm::ParameterSetDescription &desc) {
+void ChargedHadronInterpretationAlgo::makeOpinions(const Inputs &input,
+                                                   edm::Handle<MtdHostCollection> inputTiming_h,
+                                                   std::vector<Trackster> &hypothesisTracksters,
+                                                   std::vector<Hypothesis> &hypotheses) {
+  // Reuse the geometric association: run makeCandidates on local buffers and emit one
+  // charged-hadron hypothesis per track-linked merged trackster, dropping the neutral
+  // leftovers makeCandidates appends (the arbiter derives neutrals itself).
+  std::vector<Trackster> localTracksters;
+  std::vector<int> localCandidate(input.tracksHandle->size(), -1);
+  std::vector<bool> localMask;  // nothing pre-consumed in opinion mode
+  makeCandidates(input, inputTiming_h, localTracksters, localCandidate, localMask);
+
+  for (size_t iTrack = 0; iTrack < localCandidate.size(); ++iTrack) {
+    if (localCandidate[iTrack] < 0)
+      continue;
+    Hypothesis h;
+    h.type = Hypothesis::Type::ChargedHadron;
+    h.score = 0.5f;  // rule-based placeholder; type priority drives the arbitration
+    h.trackIdx = static_cast<int>(iTrack);
+    h.tracksterIdx = static_cast<int>(hypothesisTracksters.size());
+    hypothesisTracksters.push_back(localTracksters[localCandidate[iTrack]]);
+    hypotheses.push_back(h);
+  }
+
+  // Neutral-hadron opinions: one per input trackster. These COMPETE with the photon
+  // hypotheses on the same energy in the same arbitration tier, so a K0L / neutron
+  // shower with an EM-rich front is defended instead of being claimed as a photon
+  // unopposed. The input tracksters carry no PID here (ticlTracksterLinks runs no
+  // inference and merging zeroes the probabilities), so the score is left at 0 and
+  // the producer re-scores the whole neutral tier from the PID inference it runs on
+  // the hypothesis tracksters before arbitrating.
+  const auto &tracksters = input.tracksters;
+  for (unsigned iTs = 0; iTs < tracksters.size(); ++iTs) {
+    const auto &ts = tracksters[iTs];
+    if (ts.raw_energy() < 1.f)
+      continue;
+    Hypothesis h;
+    h.type = Hypothesis::Type::NeutralHadron;
+    h.score = 0.f;  // re-scored by the producer after inference
+    h.tracksterIdx = static_cast<int>(hypothesisTracksters.size());
+    hypothesisTracksters.push_back(ts);
+    hypotheses.push_back(h);
+  }
+}
+
+void ChargedHadronInterpretationAlgo::fillPSetDescription(edm::ParameterSetDescription &desc) {
   desc.add<double>("delta_tk_ts_layer1", 0.02);
   desc.add<double>("delta_tk_ts_interface", 0.03);
   desc.add<double>("timing_quality_threshold", 0.5);
+  desc.add<double>("energy_overshoot_fraction", 0.2);
+  desc.add<double>("energy_overshoot_max", 10.0);
   TICLInterpretationAlgoBase::fillPSetDescription(desc);
 }

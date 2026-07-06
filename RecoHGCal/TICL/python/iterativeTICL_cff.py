@@ -88,9 +88,22 @@ ticlTracksterLinks = _tracksterLinksProducer.clone(
     )
 )
 
-ticlCandidate = _ticlCandidateProducer.clone(
+# Interpretation instance of the trackster-links producer: hosts the track <->
+# trackster interpretations (masking passes by default, opinion arbitration behind
+# useArbitration) over the Skeletons-linked hadronic view plus the superclustering EM
+# view, and produces the FINAL TRACKSTERS (consumed by PF clustering, hence upstream
+# of GSF seeding) plus the per-track assignment maps consumed by ticlCandidate.
+ticlTracksterInterpretations = _tracksterLinksProducer.clone(
+    runInterpretation=cms.bool(True),
+    tracksters_collections=cms.VInputTag('ticlTracksterLinks'),
+    egamma_tracksters_collections=[cms.InputTag("ticlTracksterLinksSuperclusteringDNN")],
+    # The linking plugin is not used in interpretation mode; Recovery is the identity.
+    linkingPSet=cms.PSet(
+        algo_verbosity=cms.int32(0),
+        type=cms.string('Recovery')
+    ),
     inferenceAlgo=cms.string('TracksterInferenceByPFN'),
-    regressionAndPid = cms.bool(True),
+    regressionAndPid=cms.bool(True),
     pluginInferenceAlgoTracksterInferenceByPFN=cms.PSet(
         algo_verbosity=cms.int32(0),
         onnxPIDModelPath=cms.string('RecoHGCal/TICL/data/ticlv5/onnx_models/CNN/linking/id_v0.onnx'),
@@ -107,7 +120,33 @@ ticlCandidate = _ticlCandidateProducer.clone(
     )
 )
 
-ticlv5_TrackLinkingGNN.toModify(ticlCandidate,
+# Candidate assembly: consumes the final tracksters + assignment maps and the GSF
+# tracks (legal now that PF clustering depends on ticlTracksterInterpretations).
+ticlCandidate = _ticlCandidateProducer.clone()
+
+# With the Mustache superclustering modifier the DNN module is replaced: keep the
+# e/gamma interpretation inputs pointing at the produced collection.
+ticl_superclustering_mustache_ticl.toModify(
+    ticlTracksterInterpretations,
+    egamma_tracksters_collections=[cms.InputTag("ticlTracksterLinksSuperclusteringMustache")],
+)
+
+
+# TICLv6 development (ticl_dev): opinion arbitration across the interpretations and
+# GSF electron kinematics in the candidate assembly. Without the modifier the chain
+# runs the masking passes, reproducing the TICLv5 candidates.
+from Configuration.ProcessModifiers.ticl_dev_cff import ticl_dev
+ticl_dev.toModify(
+    ticlTracksterInterpretations,
+    useArbitration=True,
+    egammaInterpretationDescPSet=dict(eop_max=4.0),
+)
+ticl_dev.toModify(
+    ticlCandidate,
+    buildTrackOnlyCandidates=True,
+)
+
+ticlv5_TrackLinkingGNN.toModify(ticlTracksterInterpretations,
         interpretationDescPSet = cms.PSet(
             onnxTrkLinkingModelFirstDisk = cms.FileInPath('RecoHGCal/TICL/data/ticlv5/onnx_models/TrackLinking_GNN/FirstDiskPropGNN_v0.onnx'),
             onnxTrkLinkingModelInterfaceDisk = cms.FileInPath('RecoHGCal/TICL/data/ticlv5/onnx_models/TrackLinking_GNN/InterfaceDiskPropGNN_v0.onnx'),
@@ -140,7 +179,7 @@ ticlIterLabelsPSet = cms.PSet(
     labels=cms.vstring(
         "ticlTrackstersCLUE3DHigh",
         "ticlTracksterLinks",
-        "ticlCandidate",
+        "ticlTracksterInterpretations",
         "ticlTracksterLinksSuperclusteringDNN"
     )
 )
@@ -150,7 +189,7 @@ ticl_superclustering_mustache_ticl.toModify(
     labels=cms.vstring(
         "ticlTrackstersCLUE3DHigh",
         "ticlTracksterLinks",
-        "ticlCandidate",
+        "ticlTracksterInterpretations",
         "ticlTracksterLinksSuperclusteringMustache"
     )
 )
@@ -172,7 +211,7 @@ mergeTICLTask = cms.Task(
 
 
 mtdSoATask = cms.Task(mtdSoA)
-ticlCandidateTask = cms.Task(ticlCandidate)
+ticlCandidateTask = cms.Task(ticlTracksterInterpretations, ticlCandidate)
 
 
 

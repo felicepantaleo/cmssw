@@ -127,6 +127,35 @@ branchTracksterRecoValidator = DQMEDAnalyzer(
     mergeThreshold=cms.double(0.3),
 )
 
+# TICLCandidate reco-side validator: a DEDICATED two-channel validator (not the
+# single-channel generic template), because a candidate mixes a track (tracker hits)
+# with tracksters (calo hits) and must be matched to the truth branch on both. It
+# books the match->charge->PID->energy efficiency ladder, the track<->calo linking
+# consistency, fake/merge/split, and the energy response. For a single-particle gun
+# set onlyGenPrimaries=True and interestingPdgIds=[+/-pdgId] so the branch side is the
+# fired particle only (a clean antichain); that per-gun override is applied by the
+# standalone driver test/validateBranchCandidateDQM_cfg.py.
+branchTICLCandidateValidator = DQMEDAnalyzer(
+    "BranchTICLCandidateValidator",
+    src=cms.InputTag("truthLogicalGraphProducer"),
+    hitIndex=cms.InputTag("truthLogicalGraphHitIndexProducer"),
+    recoCollection=cms.InputTag("ticlCandidate"),
+    layerClusters=cms.InputTag("hgcalMergeLayerClusters"),
+    # Placeholder list; the gun driver overrides it with the fired species and sets
+    # onlyGenPrimaries=True to make the reference a disjoint antichain.
+    interestingPdgIds=cms.vint32(22, 11, -11, 13, -13, 211, -211, 130, 2112),
+    folder=cms.string("HGCAL/BranchValidator/TICLCandidate"),
+    xMax=cms.double(200.0),
+    minX=cms.double(0.0),
+    minAbsEta=cms.double(1.5),
+    maxAbsEta=cms.double(3.0),
+    matchThreshold=cms.double(0.5),
+    mergeThreshold=cms.double(0.3),
+    energyResponseMin=cms.double(0.7),
+    energyResponseMax=cms.double(1.3),
+    onlyGenPrimaries=cms.bool(False),
+)
+
 # Producers (truth graph + hit index + association maps) followed by the DQM
 # analyzers that reproduce the legacy truth objects (CaloParticle/SimCluster via
 # branchHGCalValidator, TrackingParticle via branchTrackingValidator - both verified
@@ -173,5 +202,5 @@ truthGraphValidationAnalyzers = cms.Sequence(
 # TrackingParticle-like for tracking), which is detector-dependent and not yet
 # wired - so these run only on demand (see test/validateBranchRecoDQM_cfg.py).
 truthGraphRecoSideValidationSequence = cms.Sequence(
-    branchTrackRecoValidator + branchTracksterRecoValidator
+    branchTrackRecoValidator + branchTracksterRecoValidator + branchTICLCandidateValidator
 )

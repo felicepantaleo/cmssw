@@ -84,9 +84,68 @@ branchTracksterRecoPostProcessor = DQMEDHarvester(
     outputFileName=cms.untracked.string(""),
 )
 
+# TICLCandidate: the reconstruction ladder (match -> +charge -> +PID -> +energy) and
+# split over the truth branches, fake/merge over the candidates, and the track<->calo
+# linking consistency. All vs eta, pt and energy (consistency vs eta, pt only).
+def _candidateEfficiency():
+    lines = []
+    for x in ("eta", "pt", "energy"):
+        lines += [
+            "efficiency_%s 'Candidate reconstruction efficiency;;efficiency' effnum_%s denom_%s" % (x, x, x),
+            "charge_efficiency_%s 'Reco + charge correct;;efficiency' chargenum_%s denom_%s" % (x, x, x),
+            "pid_efficiency_%s 'Reco + PID correct;;efficiency' pidnum_%s denom_%s" % (x, x, x),
+            "energy_efficiency_%s 'Reco + energy correct;;efficiency' energynum_%s denom_%s" % (x, x, x),
+            "duplicate_%s 'Candidate split rate;;duplicate' dupnum_%s denom_%s" % (x, x, x),
+            "fakerate_%s 'Candidate fake rate;;fake rate' fakenum_%s recodenom_%s" % (x, x, x),
+            "mergerate_%s 'Candidate merge rate;;merge rate' mergenum_%s recodenom_%s" % (x, x, x),
+        ]
+    for x in ("eta", "pt"):
+        lines.append(
+            "trackcalo_consistency_%s 'Track-calo same branch;;consistency' trackcalo_consistentnum_%s trackcalo_denom_%s"
+            % (x, x, x)
+        )
+    return cms.vstring(*lines)
+
+branchTICLCandidateRecoPostProcessor = DQMEDHarvester(
+    "DQMGenericClient",
+    subDirs=cms.untracked.vstring("HGCAL/BranchValidator/TICLCandidate"),
+    efficiency=_candidateEfficiency(),
+    resolution=cms.vstring(),
+    verbose=cms.untracked.uint32(0),
+    outputFileName=cms.untracked.string(""),
+)
+
+# Superclustering check: CLUE3D (fragmented input) vs superclustered tracksters, same
+# generic eff/fake/merge/duplicate; the duplicate rate is the fragmentation indicator.
+branchTracksterCLUE3DPostProcessor = DQMEDHarvester(
+    "DQMGenericClient",
+    subDirs=cms.untracked.vstring("HGCAL/BranchValidator/TracksterCLUE3D"),
+    efficiency=_recoSideEfficiency("energy"),
+    resolution=cms.vstring(),
+    verbose=cms.untracked.uint32(0),
+    outputFileName=cms.untracked.string(""),
+)
+branchTracksterSuperclsPostProcessor = DQMEDHarvester(
+    "DQMGenericClient",
+    subDirs=cms.untracked.vstring("HGCAL/BranchValidator/TracksterSupercls"),
+    efficiency=_recoSideEfficiency("energy"),
+    resolution=cms.vstring(),
+    verbose=cms.untracked.uint32(0),
+    outputFileName=cms.untracked.string(""),
+)
+
+# Everything the candidate scan harvests: candidate ladder + the two trackster views.
+branchCandidateScanHarvesting = cms.Sequence(
+    branchTICLCandidateRecoPostProcessor
+    + branchTracksterCLUE3DPostProcessor
+    + branchTracksterSuperclsPostProcessor
+)
+
 truthGraphDQMHarvesting = cms.Sequence(branchHGCalPostProcessor + branchTrackingPostProcessor)
 
 # Opt-in harvesting for the experimental reco-side validators (see
 # truthGraphRecoSideValidationSequence in truthGraphValidation_cff): pair with that
 # sequence only once a disjoint antichain reference is configured.
-truthGraphRecoSideHarvesting = cms.Sequence(branchTrackRecoPostProcessor + branchTracksterRecoPostProcessor)
+truthGraphRecoSideHarvesting = cms.Sequence(
+    branchTrackRecoPostProcessor + branchTracksterRecoPostProcessor + branchTICLCandidateRecoPostProcessor
+)

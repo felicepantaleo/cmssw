@@ -2,7 +2,7 @@ import FWCore.ParameterSet.Config as cms
 from SimCalorimetry.HGCalAssociatorProducers.hitToTracksterAssociator_cfi import hitToTracksterAssociator
 
 hitToTrackstersAssociationLinking = hitToTracksterAssociator.clone(
-    tracksters = cms.InputTag("ticlCandidate"),
+    tracksters = cms.InputTag("ticlTracksterInterpretations"),
 )
 
 
