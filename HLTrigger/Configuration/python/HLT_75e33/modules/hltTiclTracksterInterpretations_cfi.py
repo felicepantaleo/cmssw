@@ -1,6 +1,6 @@
 import FWCore.ParameterSet.Config as cms
 
-hltTiclTracksterLinks = cms.EDProducer("TracksterLinksProducer",
+hltTiclTracksterInterpretations = cms.EDProducer("TracksterLinksProducer",
     arbitrationMaxSharedEnergyFraction = cms.double(0.2),
     cutTk = cms.string('1.48 < abs(eta) < 3.0 && pt > 1. && quality("highPurity") && hitPattern().numberOfLostHits("MISSING_OUTER_HITS") < 5'),
     detector = cms.string('HGCAL'),
@@ -13,8 +13,8 @@ hltTiclTracksterLinks = cms.EDProducer("TracksterLinksProducer",
         min_supercluster_energy = cms.double(1),
         type = cms.string('EGamma')
     ),
-    egamma_tracksters_collections = cms.VInputTag("ticlTracksterLinksSuperclusteringDNN"),
-    inferenceAlgo = cms.string(''),
+    egamma_tracksters_collections = cms.VInputTag(cms.InputTag("hltTiclTracksterLinks")),
+    inferenceAlgo = cms.string('TracksterInferenceByPFN'),
     interpretationDescPSet = cms.PSet(
         algo_verbosity = cms.int32(0),
         delta_tk_ts_interface = cms.double(0.03),
@@ -36,25 +36,7 @@ hltTiclTracksterLinks = cms.EDProducer("TracksterLinksProducer",
     layer_clustersTime = cms.InputTag("hltMergeLayerClusters","timeLayerCluster"),
     linkingPSet = cms.PSet(
         algo_verbosity = cms.int32(0),
-        cylinder_radius_sqr = cms.vdouble(9, 15),
-        cylinder_radius_sqr_split = cms.double(9),
-        deltaRxy = cms.double(4),
-        dot_prod_th = cms.double(0.97),
-        lower_boundary = cms.vdouble(20, 10),
-        lower_distance_projective_sqr = cms.vdouble(4, 60),
-        lower_distance_projective_sqr_closest_points = cms.vdouble(10, 50),
-        max_z_distance_closest_points = cms.vdouble(35, 35),
-        min_distance_z = cms.vdouble(35, 35),
-        min_num_lcs = cms.uint32(15),
-        min_trackster_energy = cms.double(20),
-        onnxModelPath = cms.string(''),
-        pca_quality_th = cms.double(0.85),
-        proj_distance_split = cms.double(5),
-        track_time_quality_threshold = cms.double(0.5),
-        type = cms.string('Skeletons'),
-        upper_boundary = cms.vdouble(150, 100),
-        upper_distance_projective_sqr = cms.vdouble(4, 60),
-        upper_distance_projective_sqr_closest_points = cms.vdouble(5, 30)
+        type = cms.string('Recovery')
     ),
     mightGet = cms.optional.untracked.vstring,
     muonInterpretationDescPSet = cms.PSet(
@@ -64,7 +46,7 @@ hltTiclTracksterLinks = cms.EDProducer("TracksterLinksProducer",
         onnx_model_path = cms.string(''),
         type = cms.string('Muon')
     ),
-    muons = cms.InputTag("muons1stStep"),
+    muons = cms.InputTag("hltPhase2L3Muons"),
     original_masks = cms.VInputTag("hltMergeLayerClusters:InitialLayerClustersMask"),
     pluginInferenceAlgoTracksterInferenceByDNN = cms.PSet(
         algo_verbosity = cms.int32(0),
@@ -74,6 +56,7 @@ hltTiclTracksterLinks = cms.EDProducer("TracksterLinksProducer",
         eid_n_clusters = cms.int32(10),
         eid_n_layers = cms.int32(50),
         inputNames = cms.vstring('input'),
+        miniBatchSize = cms.untracked.int32(64),
         onnxEnergyModelPath = cms.string(''),
         onnxPIDModelPath = cms.string(''),
         output_en = cms.vstring('enreg_output'),
@@ -84,26 +67,38 @@ hltTiclTracksterLinks = cms.EDProducer("TracksterLinksProducer",
         algo_verbosity = cms.int32(0),
         doPID = cms.int32(1),
         doRegression = cms.int32(1),
-        eid_min_cluster_energy = cms.double(1),
+        eid_min_cluster_energy = cms.double(2.5),
         eid_n_clusters = cms.int32(10),
         eid_n_layers = cms.int32(50),
         inputNames = cms.vstring(
             'input',
             'input_tr_features'
         ),
-        miniBatchSize = cms.untracked.int32(64),
-        onnxEnergyModelPath = cms.string(''),
-        onnxPIDModelPath = cms.string(''),
+        onnxEnergyModelPath = cms.string('RecoHGCal/TICL/data/ticlv5/onnx_models/PFN/linking/energy_v1.onnx'),
+        onnxPIDModelPath = cms.string('RecoHGCal/TICL/data/ticlv5/onnx_models/CNN/linking/id_v0.onnx'),
         output_en = cms.vstring('enreg_output'),
         output_id = cms.vstring('pid_output'),
         type = cms.string('TracksterInferenceByPFN')
     ),
     propagator = cms.string('PropagatorWithMaterial'),
-    regressionAndPid = cms.bool(False),
-    runInterpretation = cms.bool(False),
+    regressionAndPid = cms.bool(True),
+    runInterpretation = cms.bool(True),
     timingSoA = cms.InputTag("mtdSoA"),
-    tracks = cms.InputTag("generalTracks"),
-    tracksters_collections = cms.VInputTag("hltTiclTrackstersCLUE3DHigh", "hltTiclTrackstersRecovery"),
+    tracks = cms.InputTag("hltGeneralTracks"),
+    tracksters_collections = cms.VInputTag("hltTiclTracksterLinks"),
     useArbitration = cms.bool(False),
-    useMTDTiming = cms.bool(True)
+    useMTDTiming = cms.bool(False)
+)
+
+from Configuration.ProcessModifiers.ticlv5_TrackLinkingGNN_cff import ticlv5_TrackLinkingGNN
+ticlv5_TrackLinkingGNN.toModify(hltTiclTracksterInterpretations,
+    interpretationDescPSet = cms.PSet(
+        onnxTrkLinkingModelFirstDisk = cms.FileInPath('RecoHGCal/TICL/data/ticlv5/onnx_models/TrackLinking_GNN/FirstDiskPropGNN_v0.onnx'),
+        onnxTrkLinkingModelInterfaceDisk = cms.FileInPath('RecoHGCal/TICL/data/ticlv5/onnx_models/TrackLinking_GNN/InterfaceDiskPropGNN_v0.onnx'),
+        inputNames = cms.vstring('x', 'edge_index', 'edge_attr'),
+        output = cms.vstring('output'),
+        delta_tk_ts = cms.double(0.1),
+        thr_gnn = cms.double(0.5),
+        type = cms.string('GNNLink')
+    )
 )

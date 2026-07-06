@@ -151,18 +151,31 @@ def _build_egamma(target):
     return _cfi_default("EGammaSuperclusterProducer").clone()
 
 
-def _build_candidate(overrides, links_label, target):
-    base = _cfi_default("TICLCandidateProducer")
-    ov = {}
-    if target.lc_tag() is not None:  # HLT-style: remap shared inputs + link collections
+def _build_interpretations(overrides, links_label, sc_label, target):
+    """The interpretation stage: a ``TracksterLinksProducer`` in interpretation
+    mode, consuming the linked (hadronic) and superclustered (EM) views and
+    producing the final tracksters plus the per-track assignment maps."""
+    base = _cfi_default("TracksterLinksProducer")
+    ov = dict(
+        runInterpretation=cms.bool(True),
+        tracksters_collections=cms.VInputTag(links_label),
+        egamma_tracksters_collections=cms.VInputTag(cms.InputTag(sc_label)),
+        # The linking plugin is unused in interpretation mode; Recovery is the identity.
+        linkingPSet=cms.PSet(algo_verbosity=cms.int32(0), type=cms.string("Recovery")),
+    )
+    if target.lc_tag() is not None:  # HLT-style: remap shared inputs
         ov["layer_clusters"] = target.lc_tag()
         ov["layer_clustersTime"] = target.lc_time_tag()
         ov["original_masks"] = cms.VInputTag(target.initial_mask_str())
-        link_tag = cms.VInputTag(links_label)
-        ov["egamma_tracksters_collections"] = link_tag
-        ov["egamma_tracksterlinks_collections"] = cms.VInputTag(links_label)
-        ov["general_tracksters_collections"] = cms.VInputTag(links_label)
-        ov["general_tracksterlinks_collections"] = cms.VInputTag(links_label)
+    ov.update(overrides or {})
+    return base.clone(**ov)
+
+
+def _build_candidate(overrides, target):
+    """The candidate assembly: consumes the interpretation stage's final tracksters
+    and assignment maps (plus the GSF tracks) and builds the TICLCandidates."""
+    base = _cfi_default("TICLCandidateProducer")
+    ov = dict(interpretations=cms.InputTag(target.interpretations_label))
     ov.update(overrides or {})
     return base.clone(**ov)
 
@@ -285,9 +298,12 @@ def assemble(cfg):
         m[target.mtd_label] = _build_mtd()
         mkgroup(target.gname("mtd"), target.mtd_label)
     if cfg.include_candidate:
-        m[target.candidate_label] = _build_candidate(
-            cfg.candidate_spec, target.links_label, target)
-        mkgroup(target.gname("candidate"), target.candidate_label)
+        sc_label = (target.supercluster_dnn_label
+                    if cfg.superclustering_spec is not None else target.links_label)
+        m[target.interpretations_label] = _build_interpretations(
+            cfg.interpretations_spec, target.links_label, sc_label, target)
+        m[target.candidate_label] = _build_candidate(cfg.candidate_spec, target)
+        mkgroup(target.gname("candidate"), target.interpretations_label, target.candidate_label)
     if cfg.include_pf:
         m[target.pf_label] = _build_pf(cfg.pf_spec, target)
         mkgroup(target.gname("pf"), target.pf_label)

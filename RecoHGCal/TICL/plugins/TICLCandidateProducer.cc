@@ -67,7 +67,10 @@ private:
   const edm::EDGetTokenT<std::vector<int>> neutralIdx_token_;
   const edm::EDGetTokenT<std::vector<int>> neutralPdg_token_;
   const edm::EDGetTokenT<std::vector<reco::Track>> tracks_token_;
-  const edm::EDGetTokenT<std::vector<reco::GsfTrack>> gsf_tracks_token_;
+  // GSF electron upgrade: not every context provides a GSF collection (the HLT does
+  // not), so the consumption is optional; without it electrons keep KF kinematics.
+  const bool useGsfTracks_;
+  edm::EDGetTokenT<std::vector<reco::GsfTrack>> gsf_tracks_token_;
   edm::EDGetTokenT<MtdHostCollection> inputTimingToken_;
   const bool useMTDTiming_;
   const bool useTimingAverage_;
@@ -119,7 +122,7 @@ TICLCandidateProducer::TICLCandidateProducer(const edm::ParameterSet &ps)
                                                    "neutralPdg",
                                                    ps.getParameter<edm::InputTag>("interpretations").process()))),
       tracks_token_(consumes<std::vector<reco::Track>>(ps.getParameter<edm::InputTag>("tracks"))),
-      gsf_tracks_token_(consumes<std::vector<reco::GsfTrack>>(ps.getParameter<edm::InputTag>("gsf_tracks"))),
+      useGsfTracks_(ps.getParameter<bool>("useGsfTracks")),
       useMTDTiming_(ps.getParameter<bool>("useMTDTiming")),
       useTimingAverage_(ps.getParameter<bool>("useTimingAverage")),
       timingQualityThreshold_(ps.getParameter<double>("timingQualityThreshold")),
@@ -141,6 +144,9 @@ TICLCandidateProducer::TICLCandidateProducer(const edm::ParameterSet &ps)
       esConsumes<HGCalDDDConstants, IdealGeometryRecord, edm::Transition::BeginRun>(edm::ESInputTag("", detectorName_));
   if (useMTDTiming_) {
     inputTimingToken_ = consumes<MtdHostCollection>(ps.getParameter<edm::InputTag>("timingSoA"));
+  }
+  if (useGsfTracks_) {
+    gsf_tracks_token_ = consumes<std::vector<reco::GsfTrack>>(ps.getParameter<edm::InputTag>("gsf_tracks"));
   }
   produces<std::vector<TICLCandidate>>();
 }
@@ -170,8 +176,11 @@ void TICLCandidateProducer::produce(edm::Event &evt, const edm::EventSetup &es) 
                                        << "; the two producers must consume the same tracks.";
   }
   edm::Handle<std::vector<reco::GsfTrack>> gsfTracks_h;
-  evt.getByToken(gsf_tracks_token_, gsfTracks_h);
-  const auto &gsfTracks = *gsfTracks_h;
+  static const std::vector<reco::GsfTrack> emptyGsf;
+  if (useGsfTracks_) {
+    evt.getByToken(gsf_tracks_token_, gsfTracks_h);
+  }
+  const auto &gsfTracks = useGsfTracks_ ? *gsfTracks_h : emptyGsf;
 
   edm::Handle<MtdHostCollection> inputTiming_h;
   MtdHostCollection::ConstView inputTimingView;
@@ -432,6 +441,8 @@ void TICLCandidateProducer::fillDescriptions(edm::ConfigurationDescriptions &des
   desc.add<edm::InputTag>("interpretations", edm::InputTag("ticlTracksterInterpretations"))
       ->setComment("Final tracksters + assignment maps from TICLTracksterInterpretationsProducer.");
   desc.add<edm::InputTag>("tracks", edm::InputTag("generalTracks"));
+  desc.add<bool>("useGsfTracks", true)
+      ->setComment("Consume the GSF tracks for the electron upgrade (off at HLT: no GSF collection).");
   desc.add<edm::InputTag>("gsf_tracks", edm::InputTag("electronGsfTracks"));
   desc.add<edm::InputTag>("timingSoA", edm::InputTag("mtdSoA"));
   desc.add<bool>("useMTDTiming", true);
