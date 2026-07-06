@@ -1,8 +1,8 @@
 // Author: Mohamed Darwish
 //
-#include "RecoHGCal/TICL/interface/TICLInterpretationAlgoBase.h"
+#include "RecoTICL/Interpretation/interface/TICLInterpretationAlgoBase.h"
 #include "RecoTICL/Interface/interface/TICLUtils.h"
-#include "RecoHGCal/TICL/plugins/GNNInterpretationAlgo.h"
+#include "RecoTICL/Interpretation/interface/GNNInterpretationAlgo.h"
 
 #include "RecoParticleFlow/PFProducer/interface/PFMuonAlgo.h"
 #include "TrackingTools/TrajectoryState/interface/TrajectoryStateTransform.h"

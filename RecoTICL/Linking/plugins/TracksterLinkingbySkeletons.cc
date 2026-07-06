@@ -7,9 +7,9 @@
 #include "TrackingTools/TrajectoryState/interface/TrajectoryStateTransform.h"
 #include "RecoParticleFlow/PFProducer/interface/PFMuonAlgo.h"
 #include "RecoTICL/Interface/interface/TICLUtils.h"
-#include "RecoHGCal/TICL/interface/TracksterLinkingAlgoBase.h"
-#include "RecoHGCal/TICL/plugins/TracksterLinkingbySkeletons.h"
-#include "TICLGraph.h"
+#include "RecoTICL/Linking/interface/TracksterLinkingAlgoBase.h"
+#include "RecoTICL/Linking/interface/TracksterLinkingbySkeletons.h"
+#include "RecoTICL/Interface/interface/TICLGraph.h"
 
 namespace {
   bool isRoundTrackster(std::array<ticl::Vector, 3> skeleton) { return (skeleton[0].Z() == skeleton[2].Z()); }

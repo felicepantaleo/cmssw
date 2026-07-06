@@ -105,15 +105,15 @@ def hlt_clue3dhigh_inference():
     )
 
 
-def hlt_candidate_defaults():
-    """Overrides for hltTiclCandidate (PFN inference + HLT track/muon inputs)."""
+def hlt_interpretations_defaults():
+    """Overrides for hltTiclTracksterInterpretations (PFN inference + HLT
+    track/muon inputs; no MTD at HLT)."""
     return dict(
         inferenceAlgo=cms.string("TracksterInferenceByPFN"),
         regressionAndPid=cms.bool(True),
         tracks=cms.InputTag("hltGeneralTracks"),
         muons=cms.InputTag("hltPhase2L3Muons"),
         useMTDTiming=cms.bool(False),
-        useTimingAverage=cms.bool(False),
         pluginInferenceAlgoTracksterInferenceByPFN=cms.PSet(
             algo_verbosity=cms.int32(0),
             doPID=cms.int32(1),
@@ -128,6 +128,16 @@ def hlt_candidate_defaults():
             output_id=cms.vstring("pid_output"),
             type=cms.string("TracksterInferenceByPFN"),
         ),
+    )
+
+
+def hlt_candidate_defaults():
+    """Overrides for the slim hltTiclCandidate assembly (no MTD, no GSF at HLT)."""
+    return dict(
+        tracks=cms.InputTag("hltGeneralTracks"),
+        useGsfTracks=cms.bool(False),
+        useMTDTiming=cms.bool(False),
+        useTimingAverage=cms.bool(False),
     )
 
 
@@ -148,6 +158,7 @@ def v5_hlt(name="v5_hlt"):
            .iteration("CLUE3DHigh").preset().trackster_params(**hlt_clue3dhigh_inference())
            .iteration("Recovery").preset().masks_from("CLUE3DHigh")
            .links(["CLUE3DHigh", "Recovery"], **hlt_links_defaults())
+           .interpretations(**hlt_interpretations_defaults())
            .candidate(**hlt_candidate_defaults())
            .pf(**hlt_pf_defaults()))
     cfg.include_mtd = False   # the HLT iterTICL sequence has no mtdSoA stage

@@ -1,7 +1,7 @@
 #include <cmath>
 #include <string>
 #include "RecoTICL/Interface/interface/TICLUtils.h"
-#include "RecoHGCal/TICL/plugins/LinkingAlgoByDirectionGeometric.h"
+#include "RecoTICL/Interpretation/interface/LinkingAlgoByDirectionGeometric.h"
 
 #include "DataFormats/GeometrySurface/interface/BoundDisk.h"
 #include "DataFormats/HGCalReco/interface/Common.h"
