@@ -15,7 +15,7 @@ hgcalValidator = _hgcalValidator.clone(
         cms.InputTag("ticlSimTracksters", "fromCPs"),
         cms.InputTag("ticlSimTracksters")
     ),
-    ticlTrackstersMerge = cms.InputTag("ticlCandidate"),
+    ticlTrackstersMerge = cms.InputTag("ticlTracksterInterpretations"),
     mergeSimToRecoAssociator = cms.InputTag("allTrackstersToSimTrackstersAssociationsByLCs:ticlSimTrackstersfromCPsToticlCandidate"),
     mergeRecoToSimAssociator = cms.InputTag("allTrackstersToSimTrackstersAssociationsByLCs:ticlCandidateToticlSimTrackstersfromCPs"),
 )

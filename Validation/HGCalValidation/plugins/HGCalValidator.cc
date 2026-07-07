@@ -859,7 +859,7 @@ void HGCalValidator::fillDescriptions(edm::ConfigurationDescriptions& descriptio
       });
   desc.addUntracked<bool>("doCandidatesPlots", true);
   desc.add<std::string>("ticlCandidates", "ticlCandidates");
-  desc.add<edm::InputTag>("ticlTrackstersMerge", edm::InputTag("ticlCandidate"));
+  desc.add<edm::InputTag>("ticlTrackstersMerge", edm::InputTag("ticlTracksterInterpretations"));
   desc.add<edm::InputTag>("simTiclCandidates", edm::InputTag("ticlSimTracksters"));
   desc.add<edm::InputTag>("recoTracks", edm::InputTag("generalTracks"));
   desc.add<edm::InputTag>(
