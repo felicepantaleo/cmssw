@@ -140,11 +140,11 @@ private:
   // Truth (branch) side, vs eta / pt / energy: denominator and the reconstruction
   // ladder numerators (Q1, Q2). Index 0=eta, 1=pt, 2=energy.
   std::array<MonitorElement*, 3> denom_{};
-  std::array<MonitorElement*, 3> effNum_{};      // reconstructed (a candidate assigned)
-  std::array<MonitorElement*, 3> chargeNum_{};   // + charged/neutral correct
-  std::array<MonitorElement*, 3> pidNum_{};       // + PID class correct
-  std::array<MonitorElement*, 3> energyNum_{};    // + energy response in window
-  std::array<MonitorElement*, 3> dupNum_{};       // split into >=2 candidates
+  std::array<MonitorElement*, 3> effNum_{};     // reconstructed (a candidate assigned)
+  std::array<MonitorElement*, 3> chargeNum_{};  // + charged/neutral correct
+  std::array<MonitorElement*, 3> pidNum_{};     // + PID class correct
+  std::array<MonitorElement*, 3> energyNum_{};  // + energy response in window
+  std::array<MonitorElement*, 3> dupNum_{};     // split into >=2 candidates
   // Reco (candidate) side, vs eta / pt / energy (Q4).
   std::array<MonitorElement*, 3> recoDenom_{};
   std::array<MonitorElement*, 3> fakeNum_{};
@@ -219,12 +219,12 @@ void BranchTICLCandidateValidator::bookHistograms(DQMStore::IBooker& ib, edm::Ru
   book(mergeNum_, "mergenum", "Merged candidates (>=2 branches)");
 
   for (int a = 0; a < 2; ++a) {  // eta, pt only
-    trackCaloDenom_[a] = ib.book1D(std::string("trackcalo_denom_") + kAxis[a],
-                                   std::string("Charged candidates, track+calo matched vs ") + axisTitle[a] + ";" +
-                                       axisTitle[a] + ";candidates",
-                                   nbins[a],
-                                   lo[a],
-                                   hi[a]);
+    trackCaloDenom_[a] = ib.book1D(
+        std::string("trackcalo_denom_") + kAxis[a],
+        std::string("Charged candidates, track+calo matched vs ") + axisTitle[a] + ";" + axisTitle[a] + ";candidates",
+        nbins[a],
+        lo[a],
+        hi[a]);
     trackCaloConsistentNum_[a] =
         ib.book1D(std::string("trackcalo_consistentnum_") + kAxis[a],
                   std::string("Track and calo same branch vs ") + axisTitle[a] + ";" + axisTitle[a] + ";candidates",
@@ -239,17 +239,21 @@ void BranchTICLCandidateValidator::bookHistograms(DQMStore::IBooker& ib, edm::Ru
   responseRaw_ =
       ib.book1D("energy_response_raw", "Candidate raw-energy response;E_{raw}/E_{truth};candidates", 120, 0., 3.);
   for (int a = 0; a < 3; ++a)
-    responseVs_[a] = ib.bookProfile(std::string("energy_response_vs_") + kAxis[a],
-                                    std::string("Energy response vs ") + axisTitle[a] + ";" + axisTitle[a] +
-                                        ";E_{reco}/E_{truth}",
-                                    nbins[a],
-                                    lo[a],
-                                    hi[a],
-                                    0.,
-                                    3.);
+    responseVs_[a] =
+        ib.bookProfile(std::string("energy_response_vs_") + kAxis[a],
+                       std::string("Energy response vs ") + axisTitle[a] + ";" + axisTitle[a] + ";E_{reco}/E_{truth}",
+                       nbins[a],
+                       lo[a],
+                       hi[a],
+                       0.,
+                       3.);
   responseVsRaw_ = ib.bookProfile("energy_response_raw_vs_energy",
                                   "Raw-energy response vs E;E [GeV];E_{raw}/E_{truth}",
-                                  kEnergyBins, 0., energyMax_, 0., 3.);
+                                  kEnergyBins,
+                                  0.,
+                                  energyMax_,
+                                  0.,
+                                  3.);
   nCandPerBranch_ = ib.book1D(
       "n_candidates_per_branch", "Candidates per truth particle (fragmentation);N candidates;particles", 40, 0.5, 40.5);
 
@@ -287,9 +291,9 @@ void BranchTICLCandidateValidator::analyze(edm::Event const& event, edm::EventSe
   // candidate matched to the branch (the fragmentation multiplicity).
   struct BranchReco {
     int nCandidates = 0;
-    double repShared = -1.;     // shared energy of the representative candidate
-    double repEnergy = 0.;      // its regressed energy (for the energy response)
-    double repRawEnergy = 0.;   // its raw (trackster) energy
+    double repShared = -1.;    // shared energy of the representative candidate
+    double repEnergy = 0.;     // its regressed energy (for the energy response)
+    double repRawEnergy = 0.;  // its raw (trackster) energy
     bool chargeOk = false;
     bool pidOk = false;
     bool energyOk = false;

@@ -5,6 +5,7 @@ from DPGAnalysis.HGCalNanoAOD.hgcalTracksters_cfi import *
 from DPGAnalysis.HGCalNanoAOD.hgcalTICLCandidates_cfi import *
 from DPGAnalysis.HGCalNanoAOD.hgcalTICLSuperClusters_cfi import *
 from DPGAnalysis.HGCalNanoAOD.hgcalLayerClusters_cfi import *
+from DPGAnalysis.HGCalNanoAOD.hgcalTruthBranchTables_cfi import hgcalTruthBranchTables
 
 ######################################
 # Offline HGCAL NanoAOD Tables
@@ -39,6 +40,16 @@ hgcalNanoValidationSequence = cms.Sequence(
     OfflineHGCalTables
     + OfflineHGCalValidationTables
 )
+
+# Truth-branch training tables: reads the truth graph and the trackster-to-branch
+# association maps persisted by PhysicsTools/TruthInfo customiseTruthBranchTraining.
+hgcalTruthBranchTableSequence = cms.Sequence(hgcalTruthBranchTables)
+
+hgcalNanoTruthSequence = cms.Sequence(
+    hgcalNanoSequence.copy()
+    + hgcalTruthBranchTableSequence
+)
+
 
 def hgcalNanoCustomize(process):
     """

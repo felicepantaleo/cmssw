@@ -129,4 +129,6 @@ autoNANO = {
               'customize': 'DPGAnalysis/HGCalNanoAOD/HGCalNanoAOD_cff.hgcalNanoCustomize'},
     'HGCALVal': {'sequence': 'DPGAnalysis/HGCalNanoAOD/HGCalNanoAOD_cff.hgcalNanoValidationSequence',
                  'customize': 'DPGAnalysis/HGCalNanoAOD/HGCalNanoAOD_cff.hgcalNanoCustomize'},
+    'HGCALTruth': {'sequence': 'DPGAnalysis/HGCalNanoAOD/HGCalNanoAOD_cff.hgcalNanoTruthSequence',
+                   'customize': 'DPGAnalysis/HGCalNanoAOD/HGCalNanoAOD_cff.hgcalNanoCustomize'},
 }
