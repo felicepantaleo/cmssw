@@ -1032,7 +1032,7 @@ upgradeWFs['ticl_dev'] = UpgradeWorkflow_ticl_dev(
         'HARVESTGlobal'
     ],
     suffix = '_ticl_dev',
-    offset = 0.214,
+    offset = 0.8823,
 )
 upgradeWFs['ticl_dev'].step3 = {'--procModifiers': 'ticl_dev'}
 upgradeWFs['ticl_dev'].step4 = {'--procModifiers': 'ticl_dev'}
