@@ -43,13 +43,18 @@ private:
   const edm::EDGetTokenT<std::vector<reco::CaloCluster>> layerClustersToken_;
   std::vector<std::pair<std::string, edm::EDGetTokenT<std::vector<ticl::Trackster>>>> tracksterCollectionTokens_;
   const std::vector<int> branchPdgIds_;
+  edm::EDGetTokenT<std::vector<unsigned int>> rootsToken_;
+  const bool useExternalRoots_;
 };
 
 AllTracksterToTruthBranchAssociatorsProducer::AllTracksterToTruthBranchAssociatorsProducer(edm::ParameterSet const& cfg)
     : graphToken_(consumes<truth::Graph>(cfg.getParameter<edm::InputTag>("src"))),
       hitIndexToken_(consumes<truth::LogicalGraphHitIndex>(cfg.getParameter<edm::InputTag>("hitIndex"))),
       layerClustersToken_(consumes<std::vector<reco::CaloCluster>>(cfg.getParameter<edm::InputTag>("layerClusters"))),
-      branchPdgIds_(cfg.getParameter<std::vector<int>>("branchPdgIds")) {
+      branchPdgIds_(cfg.getParameter<std::vector<int>>("branchPdgIds")),
+      useExternalRoots_(!cfg.getParameter<edm::InputTag>("rootsSrc").label().empty()) {
+  if (useExternalRoots_)
+    rootsToken_ = consumes<std::vector<unsigned int>>(cfg.getParameter<edm::InputTag>("rootsSrc"));
   for (auto const& tag : cfg.getParameter<std::vector<edm::InputTag>>("tracksterCollections")) {
     std::string label = tag.label();
     if (!tag.instance().empty())
@@ -67,37 +72,37 @@ void AllTracksterToTruthBranchAssociatorsProducer::produce(edm::StreamID,
   auto const& hitIndex = event.get(hitIndexToken_);
   auto const& layerClusters = event.get(layerClustersToken_);
 
-  // Candidate branch roots: the physical shower-initiating species. Intermediate
-  // GEN particles (quarks, gluons, decayed resonances) must not be roots, or every
-  // trackster also matches all the ancestors of its particle. An empty list keeps
-  // every particle (not what training wants; see fillDescriptions).
-  // Candidate branch roots: the particles that PHYSICALLY ENTERED the calorimeter
-  // (SimTrack tracker-calo boundary checkpoint, id 0), excluding back-scattered
-  // re-entries. This is the CaloParticle boundary semantics read off the truth
-  // graph, and it is an antichain almost by construction: beam particles never
-  // cross, in-calo shower secondaries are born inside and never cross, and a
-  // particle interacting or converting BEFORE the calorimeter promotes its
-  // crossing products instead. An optional |pdgId| restriction narrows the species.
+  // Candidate branch roots. When rootsSrc is set (e.g. the node list of
+  // BranchSimTracksterProducer, i.e. every graph level), it wins; otherwise the
+  // particles that PHYSICALLY ENTERED the calorimeter (SimTrack tracker-calo
+  // boundary checkpoint, id 0), excluding back-scattered re-entries: the
+  // CaloParticle boundary semantics read off the truth graph, an antichain almost
+  // by construction. An optional |pdgId| restriction narrows the species.
   std::vector<uint32_t> roots;
-  for (uint32_t i = 0; i < graph.nParticles(); ++i) {
-    auto const& p = graph.particles()[i];
-    if (p.backscattered)
-      continue;
-    bool crossed = false;
-    for (auto const& cp : p.checkpoints) {
-      if (cp.checkpointId == 0) {
-        crossed = true;
-        break;
-      }
-    }
-    if (!crossed)
-      continue;
-    if (!branchPdgIds_.empty()) {
-      const int apdg = std::abs(p.pdgId);
-      if (std::find(branchPdgIds_.begin(), branchPdgIds_.end(), apdg) == branchPdgIds_.end())
+  if (useExternalRoots_) {
+    for (unsigned int r : event.get(rootsToken_))
+      roots.push_back(r);
+  } else {
+    for (uint32_t i = 0; i < graph.nParticles(); ++i) {
+      auto const& p = graph.particles()[i];
+      if (p.backscattered)
         continue;
+      bool crossed = false;
+      for (auto const& cp : p.checkpoints) {
+        if (cp.checkpointId == 0) {
+          crossed = true;
+          break;
+        }
+      }
+      if (!crossed)
+        continue;
+      if (!branchPdgIds_.empty()) {
+        const int apdg = std::abs(p.pdgId);
+        if (std::find(branchPdgIds_.begin(), branchPdgIds_.end(), apdg) == branchPdgIds_.end())
+          continue;
+      }
+      roots.push_back(i);
     }
-    roots.push_back(i);
   }
 
   truth::BranchHitAssociator assoc(hitIndex,
@@ -141,6 +146,8 @@ void AllTracksterToTruthBranchAssociatorsProducer::fillDescriptions(edm::Configu
   desc.add<std::vector<edm::InputTag>>(
       "tracksterCollections",
       {edm::InputTag("ticlTrackstersCLUE3DHigh"), edm::InputTag("ticlTracksterInterpretations")});
+  desc.add<edm::InputTag>("rootsSrc", edm::InputTag(""))
+      ->setComment("Optional external root list (vector<unsigned int>); overrides the boundary selection.");
   desc.add<std::vector<int>>("branchPdgIds", {})
       ->setComment(
           "Optional |pdgId| restriction on the branch roots; empty keeps every "

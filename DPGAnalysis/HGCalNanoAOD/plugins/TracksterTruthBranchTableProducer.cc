@@ -42,6 +42,7 @@ private:
   const double labelPurityMin_;
   const double contributorMinFraction_;
   const double minSharedEnergy_;
+  const bool computeLabels_;
 };
 
 TracksterTruthBranchTableProducer::TracksterTruthBranchTableProducer(edm::ParameterSet const& cfg)
@@ -49,7 +50,8 @@ TracksterTruthBranchTableProducer::TracksterTruthBranchTableProducer(edm::Parame
       branchTableName_(cfg.getParameter<std::string>("branchTableName")),
       labelPurityMin_(cfg.getParameter<double>("labelPurityMin")),
       contributorMinFraction_(cfg.getParameter<double>("contributorMinFraction")),
-      minSharedEnergy_(cfg.getParameter<double>("minSharedEnergy")) {
+      minSharedEnergy_(cfg.getParameter<double>("minSharedEnergy")),
+      computeLabels_(cfg.getParameter<bool>("computeLabels")) {
   auto tags = cfg.getParameter<std::vector<edm::InputTag>>("associations");
   auto tsTags = cfg.getParameter<std::vector<edm::InputTag>>("tracksterCollections");
   auto names = cfg.getParameter<std::vector<std::string>>("tableNames");
@@ -64,7 +66,8 @@ TracksterTruthBranchTableProducer::TracksterTruthBranchTableProducer(edm::Parame
     tableNames_.push_back(names[i]);
     tracksterTableNames_.push_back(tsNames[i]);
     produces<nanoaod::FlatTable>(names[i]);
-    produces<nanoaod::FlatTable>(names[i] + "Labels");
+    if (computeLabels_)
+      produces<nanoaod::FlatTable>(names[i] + "Labels");
   }
   produces<nanoaod::FlatTable>(branchTableName_);
 }
@@ -134,6 +137,9 @@ void TracksterTruthBranchTableProducer::produce(edm::Event& event, edm::EventSet
     table->addColumn<float>("sharedEnergy", sharedEnergy, "shared HGCAL rechit energy [GeV]");
     table->addColumn<float>("score", score, "association score (lower is better)");
     event.put(std::move(table), tableNames_[i]);
+
+    if (!computeLabels_)
+      continue;
 
     // Hierarchical labels, one row per trackster (extension of the trackster
     // feature table): the label is the LOWEST truth-graph node whose branch
@@ -231,6 +237,8 @@ void TracksterTruthBranchTableProducer::fillDescriptions(edm::ConfigurationDescr
   desc.add<std::vector<std::string>>("tracksterTableNames",
                                      {"ticlTrackstersCLUE3DHigh", "ticlTracksterInterpretations"});
   desc.add<std::string>("branchTableName", "TruthBranch");
+  desc.add<bool>("computeLabels", true)
+      ->setComment("Emit the hierarchical label extension tables (meaningful for leaf-level associations only).");
   desc.add<double>("labelPurityMin", 0.75)->setComment("Min purity (shared/raw) for a clean or ambiguous label.");
   desc.add<double>("contributorMinFraction", 0.1)
       ->setComment("Min fraction of the matched energy for a contributor to enter the ancestor search.");
