@@ -10,8 +10,8 @@
 using namespace ticl;
 
 TracksterLinkingByCornetto::TracksterLinkingByCornetto(const edm::ParameterSet& conf,
-                                                         edm::ConsumesCollector iC,
-                                                         cms::Ort::ONNXRuntime const* onnxRuntime)
+                                                       edm::ConsumesCollector iC,
+                                                       cms::Ort::ONNXRuntime const* onnxRuntime)
     : TracksterLinkingAlgoBase(conf, iC, onnxRuntime),
       etaWindow_(conf.getParameter<double>("etaWindow")),
       maxLongitudinalDistance_(conf.getParameter<double>("maxLongitudinalDistance")),
@@ -59,47 +59,66 @@ void TracksterLinkingByCornetto::linkTracksters(
     timeErr[i] = ts.timeError();
   }
 
-  // Eta-ordered sweep bounds the pair search (the GPU version replaces this with
-  // an (eta,phi) tile grid; the tested pair set only grows, never shrinks).
+  // (eta,phi) tile grid bounds the pair search (the same binning the GPU port
+  // uses as a histogram-fill kernel): only neighboring phi tiles are scanned, so
+  // the per-trackster candidate set stays local at PU200 densities.
+  const int nPhiTiles = std::max(4, static_cast<int>(2. * M_PI / etaWindow_));
+  const float phiTileWidth = 2.f * static_cast<float>(M_PI) / nPhiTiles;
+  auto phiTile = [&](float p) {
+    int t = static_cast<int>((p + static_cast<float>(M_PI)) / phiTileWidth);
+    return std::min(std::max(t, 0), nPhiTiles - 1);
+  };
+  std::vector<std::vector<unsigned int>> tiles(nPhiTiles);
   std::vector<unsigned int> order(n);
   std::iota(order.begin(), order.end(), 0u);
   std::sort(order.begin(), order.end(), [&eta](unsigned int a, unsigned int b) { return eta[a] < eta[b]; });
+  std::vector<unsigned int> rankOf(n);
+  for (unsigned int oi = 0; oi < n; ++oi)
+    rankOf[order[oi]] = oi;
+  for (unsigned int oi = 0; oi < n; ++oi)
+    tiles[phiTile(phi[order[oi]])].push_back(oi);
 
   std::vector<unsigned int> parent(n);
   std::iota(parent.begin(), parent.end(), 0u);
 
   for (unsigned int oi = 0; oi < n; ++oi) {
     const unsigned int i = order[oi];
-    for (unsigned int oj = oi + 1; oj < n; ++oj) {
-      const unsigned int j = order[oj];
-      if (eta[j] - eta[i] > etaWindow_)
-        break;  // sorted in eta: no candidate farther on
-      if (bary[i].z() * bary[j].z() < 0.f)
-        continue;  // same endcap only
-      if (std::abs(reco::deltaPhi(phi[i], phi[j])) > etaWindow_)
-        continue;
-
-      // Anchor = higher-energy trackster; its axis defines the cone.
-      const unsigned int a = (energy[i] >= energy[j]) ? i : j;
-      const unsigned int o = (a == i) ? j : i;
-      const auto D = bary[o] - bary[a];
-      const float s = D.Dot(axis[a]);
-      if (std::abs(s) > maxLongitudinalDistance_)
-        continue;
-      const float dT2 = std::max(0.f, D.Mag2() - s * s);
-      const float rT = transverseRadius0_ + transverseSlope_ * std::abs(s);
-      if (dT2 > rT * rT)
-        continue;
-
-      // Timing gate (pileup rejection); applies only when both times are valid.
-      if (timeErr[i] > 0.f && timeErr[j] > 0.f) {
-        const float sigma2 = timeErr[i] * timeErr[i] + timeErr[j] * timeErr[j];
-        const float dt = time[i] - time[j];
-        if (dt * dt > timeCompatibilityNSigma_ * timeCompatibilityNSigma_ * sigma2)
+    const int ti = phiTile(phi[i]);
+    for (int dt = -1; dt <= 1; ++dt) {
+      const int tj = (ti + dt + nPhiTiles) % nPhiTiles;
+      for (unsigned int oj : tiles[tj]) {
+        if (oj <= oi)
           continue;
-      }
+        const unsigned int j = order[oj];
+        if (eta[j] - eta[i] > etaWindow_)
+          continue;
+        if (bary[i].z() * bary[j].z() < 0.f)
+          continue;  // same endcap only
+        if (std::abs(reco::deltaPhi(phi[i], phi[j])) > etaWindow_)
+          continue;
 
-      unite(parent, i, j);
+        // Anchor = higher-energy trackster; its axis defines the cone.
+        const unsigned int a = (energy[i] >= energy[j]) ? i : j;
+        const unsigned int o = (a == i) ? j : i;
+        const auto D = bary[o] - bary[a];
+        const float s = D.Dot(axis[a]);
+        if (std::abs(s) > maxLongitudinalDistance_)
+          continue;
+        const float dT2 = std::max(0.f, D.Mag2() - s * s);
+        const float rT = transverseRadius0_ + transverseSlope_ * std::abs(s);
+        if (dT2 > rT * rT)
+          continue;
+
+        // Timing gate (pileup rejection); applies only when both times are valid.
+        if (timeErr[i] > 0.f && timeErr[j] > 0.f) {
+          const float sigma2 = timeErr[i] * timeErr[i] + timeErr[j] * timeErr[j];
+          const float dt = time[i] - time[j];
+          if (dt * dt > timeCompatibilityNSigma_ * timeCompatibilityNSigma_ * sigma2)
+            continue;
+        }
+
+        unite(parent, i, j);
+      }
     }
   }
 

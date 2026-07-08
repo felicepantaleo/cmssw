@@ -33,8 +33,8 @@ namespace ticl {
   class TracksterLinkingByCornetto : public TracksterLinkingAlgoBase {
   public:
     TracksterLinkingByCornetto(const edm::ParameterSet& conf,
-                                edm::ConsumesCollector iC,
-                                cms::Ort::ONNXRuntime const* onnxRuntime = nullptr);
+                               edm::ConsumesCollector iC,
+                               cms::Ort::ONNXRuntime const* onnxRuntime = nullptr);
     ~TracksterLinkingByCornetto() override = default;
 
     void linkTracksters(const Inputs& input,
@@ -50,8 +50,7 @@ namespace ticl {
     static void fillPSetDescription(edm::ParameterSetDescription& iDesc) {
       iDesc.add<double>("etaWindow", 0.3)
           ->setComment("Barycenter |deta| candidate window; pairs farther apart are never tested.");
-      iDesc.add<double>("maxLongitudinalDistance", 60.0)
-          ->setComment("Max |separation along the anchor axis| [cm].");
+      iDesc.add<double>("maxLongitudinalDistance", 60.0)->setComment("Max |separation along the anchor axis| [cm].");
       iDesc.add<double>("transverseRadius0", 5.0)->setComment("Cone transverse radius at zero separation [cm].");
       iDesc.add<double>("transverseSlope", 0.05)->setComment("Cone opening: radius growth per cm of separation.");
       iDesc.add<double>("timeCompatibilityNSigma", 3.0)
