@@ -16,8 +16,8 @@ hgcalValidator = _hgcalValidator.clone(
         cms.InputTag("ticlSimTracksters")
     ),
     ticlTrackstersMerge = cms.InputTag("ticlTracksterInterpretations"),
-    mergeSimToRecoAssociator = cms.InputTag("allTrackstersToSimTrackstersAssociationsByLCs:ticlSimTrackstersfromCPsToticlCandidate"),
-    mergeRecoToSimAssociator = cms.InputTag("allTrackstersToSimTrackstersAssociationsByLCs:ticlCandidateToticlSimTrackstersfromCPs"),
+    mergeSimToRecoAssociator = cms.InputTag("allTrackstersToSimTrackstersAssociationsByLCs:ticlSimTrackstersfromCPsToticlTracksterInterpretations"),
+    mergeRecoToSimAssociator = cms.InputTag("allTrackstersToSimTrackstersAssociationsByLCs:ticlTracksterInterpretationsToticlSimTrackstersfromCPs"),
 )
 
 from Configuration.ProcessModifiers.premix_stage2_cff import premix_stage2

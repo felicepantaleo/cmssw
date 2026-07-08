@@ -29,8 +29,9 @@ hltHgcalValidator = _hgcalValidator.clone(
     simClustersToCaloParticlesMap = cms.InputTag("SimClusterToCaloParticleAssociation","simClusterToCaloParticleMap"),
     simTiclCandidates = cms.InputTag("hltTiclSimTracksters"),
     ticlCandidates = cms.string('hltTiclCandidate'),
-    ticlTrackstersMerge = cms.InputTag("hltTiclCandidate"),
-    mergeRecoToSimAssociator = cms.InputTag("hltAllTrackstersToSimTrackstersAssociationsByLCs","hltTiclCandidateTohltTiclSimTrackstersfromCPs"),
-    mergeSimToRecoAssociator = cms.InputTag("hltAllTrackstersToSimTrackstersAssociationsByLCs","hltTiclSimTrackstersfromCPsTohltTiclCandidate"),
+    ticlTrackstersMerge = cms.InputTag("hltTiclTracksterInterpretations"),
+    ticlCandidatesSrc = cms.InputTag("hltTiclCandidate"),
+    mergeRecoToSimAssociator = cms.InputTag("hltAllTrackstersToSimTrackstersAssociationsByLCs","hltTiclTracksterInterpretationsTohltTiclSimTrackstersfromCPs"),
+    mergeSimToRecoAssociator = cms.InputTag("hltAllTrackstersToSimTrackstersAssociationsByLCs","hltTiclSimTrackstersfromCPsTohltTiclTracksterInterpretations"),
 )
 
