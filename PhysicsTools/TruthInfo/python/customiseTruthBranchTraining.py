@@ -14,12 +14,17 @@ def customise(process):
         truthLogicalGraphHitIndexProducer,
     )
     from PhysicsTools.TruthInfo.allTrackstersToTruthBranchAssociations_cfi import allTrackstersToTruthBranchAssociations
+    from PhysicsTools.TruthInfo.branchSimTracksters_cfi import branchSimTracksters
 
     process.truthGraphProducer = truthGraphProducer
     process.truthLogicalGraphProducer = truthLogicalGraphProducer
     process.detIdToRecHitMapProducer = detIdToRecHitMapProducer
     process.truthLogicalGraphHitIndexProducer = truthLogicalGraphHitIndexProducer
     process.allTrackstersToTruthBranchAssociations = allTrackstersToTruthBranchAssociations
+    process.branchSimTracksters = branchSimTracksters
+    process.allTrackstersToTruthBranchAssociationsAllLevels = allTrackstersToTruthBranchAssociations.clone(
+        rootsSrc=("branchSimTracksters", "roots"),
+    )
 
     process.truthBranchTrainingPath = cms.Path(
         process.truthGraphProducer
@@ -27,12 +32,16 @@ def customise(process):
         + process.detIdToRecHitMapProducer
         + process.truthLogicalGraphHitIndexProducer
         + process.allTrackstersToTruthBranchAssociations
+        + process.branchSimTracksters
+        + process.allTrackstersToTruthBranchAssociationsAllLevels
     )
     process.schedule.append(process.truthBranchTrainingPath)
 
     keeps = [
         "keep *_truthLogicalGraphProducer_*_*",
         "keep *_allTrackstersToTruthBranchAssociations_*_*",
+        "keep *_branchSimTracksters_*_*",
+        "keep *_allTrackstersToTruthBranchAssociationsAllLevels_*_*",
     ]
     for outName in ("FEVTDEBUGHLToutput", "RECOSIMoutput", "output"):
         if hasattr(process, outName):

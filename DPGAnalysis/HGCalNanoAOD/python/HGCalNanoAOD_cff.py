@@ -43,7 +43,18 @@ hgcalNanoValidationSequence = cms.Sequence(
 
 # Truth-branch training tables: reads the truth graph and the trackster-to-branch
 # association maps persisted by PhysicsTools/TruthInfo customiseTruthBranchTraining.
-hgcalTruthBranchTableSequence = cms.Sequence(hgcalTruthBranchTables)
+hgcalTruthBranchTablesAllLevels = hgcalTruthBranchTables.clone(
+    associations=[
+        cms.InputTag("allTrackstersToTruthBranchAssociationsAllLevels", "ticlTrackstersCLUE3DHighToTruthBranch"),
+        cms.InputTag("allTrackstersToTruthBranchAssociationsAllLevels", "ticlTracksterInterpretationsToTruthBranch"),
+    ],
+    tableNames=["ticlTrackstersCLUE3DHighToTruthBranchAllLevels",
+                "ticlTracksterInterpretationsToTruthBranchAllLevels"],
+    branchTableName="TruthBranchAllLevels",
+    computeLabels=False,
+)
+
+hgcalTruthBranchTableSequence = cms.Sequence(hgcalTruthBranchTables + hgcalTruthBranchTablesAllLevels)
 
 hgcalNanoTruthSequence = cms.Sequence(
     hgcalNanoSequence.copy()

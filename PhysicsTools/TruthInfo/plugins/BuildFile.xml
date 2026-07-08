@@ -50,6 +50,10 @@
 <use name="DQMServices/Core"/>
 <use name="SimDataFormats/Associations"/>
 
+<library file="BranchSimTracksterProducer.cc" name="BranchSimTracksterPlugins">
+  <flags EDM_PLUGIN="1"/>
+</library>
+
 <library file="AllTracksterToTruthBranchAssociatorsProducer.cc" name="AllTracksterToTruthBranchAssociatorsPlugins">
   <flags EDM_PLUGIN="1"/>
 </library>
