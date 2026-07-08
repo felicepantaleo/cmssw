@@ -104,19 +104,18 @@ ticlTracksterInterpretations = _tracksterLinksProducer.clone(
     ),
     inferenceAlgo=cms.string('TracksterInferenceByPFN'),
     regressionAndPid=cms.bool(True),
-    pluginInferenceAlgoTracksterInferenceByPFN=cms.PSet(
-        algo_verbosity=cms.int32(0),
-        onnxPIDModelPath=cms.string('RecoHGCal/TICL/data/ticlv5/onnx_models/CNN/linking/id_v0.onnx'),
-        onnxEnergyModelPath=cms.string('RecoHGCal/TICL/data/ticlv5/onnx_models/PFN/linking/energy_v1.onnx'),
-        inputNames=cms.vstring('input', 'input_tr_features'),
-        output_en=cms.vstring('enreg_output'),
-        output_id=cms.vstring('pid_output'),
-        eid_min_cluster_energy=cms.double(2.5),
-        eid_n_layers=cms.int32(50),
-        eid_n_clusters=cms.int32(10),
-        doPID=cms.int32(1),
-        doRegression=cms.int32(1),
-        type=cms.string('TracksterInferenceByPFN')
+    # dict-merge, not cms.PSet: an explicit PSet freezes the parameter list and
+    # silently drops later cfi additions (eid_blend_width was invisible to
+    # modifiers until this became a merge).
+    pluginInferenceAlgoTracksterInferenceByPFN=dict(
+        onnxPIDModelPath='RecoHGCal/TICL/data/ticlv5/onnx_models/CNN/linking/id_v0.onnx',
+        onnxEnergyModelPath='RecoHGCal/TICL/data/ticlv5/onnx_models/PFN/linking/energy_v1.onnx',
+        inputNames=['input', 'input_tr_features'],
+        output_en=['enreg_output'],
+        output_id=['pid_output'],
+        eid_min_cluster_energy=2.5,
+        doPID=1,
+        doRegression=1,
     )
 )
 
@@ -140,6 +139,10 @@ ticl_dev.toModify(
     ticlTracksterInterpretations,
     useArbitration=True,
     egammaInterpretationDescPSet=dict(eop_max=4.0),
+    # Smooth raw-to-regressed energy blend: removes the forbidden zone the hard
+    # eid_min_cluster_energy switch digs into the trackster energy spectrum (no
+    # object could carry 2.5-5 GeV; the candidate momentum notch).
+    pluginInferenceAlgoTracksterInferenceByPFN=dict(eid_blend_width=5.0),
 )
 ticl_dev.toModify(
     ticlCandidate,

@@ -120,7 +120,7 @@ private:
   bool useMTDTiming_ = false;
   bool useArbitration_ = false;
   double arbitrationMaxSharedEnergyFraction_ = 0.2;
-  const float tkEnergyCut_ = 2.0f;
+  const float tkEnergyCut_;
   const StringCutObjectSelector<reco::Track> cutTk_;
 };
 
@@ -137,6 +137,7 @@ TracksterLinksProducer::TracksterLinksProducer(const edm::ParameterSet &ps, cons
       propagator_token_(
           esConsumes<Propagator, TrackingComponentsRecord, edm::Transition::BeginRun>(edm::ESInputTag("", propName_))),
       runInterpretation_(ps.getParameter<bool>("runInterpretation")),
+      tkEnergyCut_(static_cast<float>(ps.getParameter<double>("tkEnergyCut"))),
       cutTk_(ps.getParameter<std::string>("cutTk")) {
   for (auto const &tag : ps.getParameter<std::vector<edm::InputTag>>("tracksters_collections")) {
     tracksters_tokens_.emplace_back(consumes<std::vector<Trackster>>(tag));
@@ -860,6 +861,8 @@ void TracksterLinksProducer::fillDescriptions(edm::ConfigurationDescriptions &de
   desc.add<edm::InputTag>("muons", edm::InputTag("muons1stStep"));
   desc.add<edm::InputTag>("timingSoA", edm::InputTag("mtdSoA"));
   desc.add<bool>("useMTDTiming", true);
+  desc.add<double>("tkEnergyCut", 2.0)
+      ->setComment("Min track energy sqrt(p^2+mpi^2) [GeV] for candidate linking; was hardcoded.");
   desc.add<std::string>("cutTk",
                         "1.48 < abs(eta) < 3.0 && pt > 1. && quality(\"highPurity\") && "
                         "hitPattern().numberOfLostHits(\"MISSING_OUTER_HITS\") < 5");
