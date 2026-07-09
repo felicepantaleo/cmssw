@@ -132,7 +132,7 @@ private:
   const bool collapsePileupGen_;
   const bool collapseSignalGen_;
 
-  std::unordered_map<int, int> pileupCountByBx_;
+  int pileupCount_ = 0;
 
   std::vector<TruthGraph::NodeRef> nodes_;
   std::vector<int32_t> pdgId_;
@@ -168,7 +168,7 @@ TruthGraphAccumulator::TruthGraphAccumulator(edm::ParameterSet const& cfg,
 }
 
 void TruthGraphAccumulator::initializeEvent(edm::Event const&, edm::EventSetup const&) {
-  pileupCountByBx_.clear();
+  pileupCount_ = 0;
   nodes_.clear();
   pdgId_.clear();
   status_.clear();
@@ -299,7 +299,10 @@ void TruthGraphAccumulator::accumulate(PileUpEventPrincipal const& pep, edm::Eve
   if (collapsePileupGen_)
     stableGen = readStableGen(pep, hepmc3Tag_, hepmc2Tag_);
 
-  const int puIndex = ++pileupCountByBx_[bx];
+  // Global counter across bunch crossings: EncodedEventId stores abs(bx), so a
+  // per-bx counter would give (-1,1) and (+1,1) identical packed ids. A single
+  // counter keeps every pileup interaction's tag unique regardless of bx sign.
+  const int puIndex = ++pileupCount_;
   addSubEvent(stableGen, *tracks, *vertices, EncodedEventId(bx, puIndex));
 }
 
