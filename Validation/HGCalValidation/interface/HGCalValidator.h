@@ -94,6 +94,7 @@ protected:
   std::string label_TS_, label_TSbyHitsCP_, label_TSbyHits_, label_TSbyLCsCP_, label_TSbyLCs_;
   std::vector<edm::InputTag> label_clustersmask;
   const bool doCandidatesPlots_;
+  const bool hardScatterOnly_;
   std::string label_candidates_;
   const edm::FileInPath cummatbudinxo_;
 

@@ -18,6 +18,7 @@
 #include "RecoHGCal/TICL/interface/TICLInterpretationAlgoBase.h"
 #include "RecoHGCal/TICL/plugins/TICLInterpretationPluginFactory.h"
 #include "DataFormats/TrackReco/interface/Track.h"
+#include "DataFormats/VertexReco/interface/Vertex.h"
 #include "DataFormats/TrackReco/interface/TrackFwd.h"
 #include "DataFormats/MuonReco/interface/Muon.h"
 #include "DataFormats/HGCalReco/interface/MtdHostCollection.h"
@@ -115,6 +116,9 @@ private:
   std::unique_ptr<TICLInterpretationAlgoBase<reco::Track>> jetInterpretationAlgo_;
   std::vector<edm::EDGetTokenT<std::vector<Trackster>>> egamma_tracksters_tokens_;
   edm::EDGetTokenT<std::vector<reco::Track>> tracks_token_;
+  edm::EDGetTokenT<std::vector<reco::Vertex>> vertices_token_;
+  bool usePrimaryVertex_;
+  float maxTrackPVdz_;
   edm::EDGetTokenT<std::vector<reco::Muon>> muons_token_;
   edm::EDGetTokenT<MtdHostCollection> inputTimingToken_;
   bool useMTDTiming_ = false;
@@ -151,6 +155,11 @@ TracksterLinksProducer::TracksterLinksProducer(const edm::ParameterSet &ps, cons
       egamma_tracksters_tokens_.emplace_back(consumes<std::vector<Trackster>>(tag));
     }
     tracks_token_ = consumes<std::vector<reco::Track>>(ps.getParameter<edm::InputTag>("tracks"));
+    usePrimaryVertex_ = ps.getParameter<bool>("usePrimaryVertex");
+    if (usePrimaryVertex_) {
+      vertices_token_ = consumes<std::vector<reco::Vertex>>(ps.getParameter<edm::InputTag>("primaryVertices"));
+    }
+    maxTrackPVdz_ = static_cast<float>(ps.getParameter<double>("maxTrackPVdz"));
     muons_token_ = consumes<std::vector<reco::Muon>>(ps.getParameter<edm::InputTag>("muons"));
     useMTDTiming_ = ps.getParameter<bool>("useMTDTiming");
     if (useMTDTiming_) {
@@ -382,6 +391,8 @@ static void interpretationsFilterTracks(edm::Handle<std::vector<reco::Track>> tk
                                         const edm::Handle<std::vector<reco::Muon>> &muons_h,
                                         const StringCutObjectSelector<reco::Track> cutTk_,
                                         const float tkEnergyCut_,
+                                        const reco::Vertex *primaryVertex,
+                                        const float maxTrackPVdz,
                                         std::vector<bool> &maskTracks) {
   auto const &tracks = *tkH;
   for (unsigned i = 0; i < tracks.size(); ++i) {
@@ -403,6 +414,13 @@ static void interpretationsFilterTracks(edm::Handle<std::vector<reco::Track>> tk
       continue;
     }
 
+    // pileup rejection: reject tracks incompatible with the primary vertex in z.
+    // The PV is already in the event (MTD-timing chain), so this gate is free.
+    if (primaryVertex != nullptr && maxTrackPVdz > 0.f && std::abs(tk.dz(primaryVertex->position())) > maxTrackPVdz) {
+      maskTracks[i] = false;
+      continue;
+    }
+
     // record tracks that can be used to make a ticlcandidate
     maskTracks[i] = true;
   }
@@ -419,6 +437,18 @@ void TracksterLinksProducer::produceInterpretations(edm::Event &evt,
   evt.getByToken(muons_token_, muons_h);
   edm::Handle<std::vector<reco::Track>> tracks_h;
   evt.getByToken(tracks_token_, tracks_h);
+
+  // Primary-vertex hook: the PV is already in the event (via the MTD-timing chain
+  // and standard reco), so consuming it is free. Held for pileup-rejection use in
+  // the linking/interpretation (e.g. a track-PV longitudinal-compatibility gate).
+  const reco::Vertex *primaryVertex = nullptr;
+  if (usePrimaryVertex_) {
+    edm::Handle<std::vector<reco::Vertex>> vertices_h;
+    evt.getByToken(vertices_token_, vertices_h);
+    if (vertices_h.isValid() && !vertices_h->empty())
+      primaryVertex = &(*vertices_h)[0];
+  }
+  (void)primaryVertex;
   const auto &tracks = *tracks_h;
   edm::Handle<MtdHostCollection> inputTiming_h;
   if (useMTDTiming_) {
@@ -429,7 +459,7 @@ void TracksterLinksProducer::produceInterpretations(edm::Event &evt,
   const std::vector<std::vector<unsigned>> generalTracksterLinksGlobalId;
   std::vector<bool> maskTracks;
   maskTracks.resize(tracks.size());
-  interpretationsFilterTracks(tracks_h, muons_h, cutTk_, tkEnergyCut_, maskTracks);
+  interpretationsFilterTracks(tracks_h, muons_h, cutTk_, tkEnergyCut_, primaryVertex, maxTrackPVdz_, maskTracks);
 
   // Split the selected tracks: identified muons go to the muon interpretation pass
   // (built from the track momentum), the rest to the general pass.
@@ -858,6 +888,11 @@ void TracksterLinksProducer::fillDescriptions(edm::ConfigurationDescriptions &de
   desc.add<std::vector<edm::InputTag>>("egamma_tracksters_collections",
                                        {edm::InputTag("ticlTracksterLinksSuperclusteringDNN")});
   desc.add<edm::InputTag>("tracks", edm::InputTag("generalTracks"));
+  desc.add<bool>("usePrimaryVertex", false)
+      ->setComment("Consume the reconstructed primary vertex (already in the event) for pileup rejection hooks.");
+  desc.add<edm::InputTag>("primaryVertices", edm::InputTag("offlinePrimaryVertices"));
+  desc.add<double>("maxTrackPVdz", -1.0)
+      ->setComment("Max |track dz(PV)| [cm] for linking; <=0 disables the gate. Requires usePrimaryVertex.");
   desc.add<edm::InputTag>("muons", edm::InputTag("muons1stStep"));
   desc.add<edm::InputTag>("timingSoA", edm::InputTag("mtdSoA"));
   desc.add<bool>("useMTDTiming", true);
