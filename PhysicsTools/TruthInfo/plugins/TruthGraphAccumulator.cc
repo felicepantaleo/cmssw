@@ -43,6 +43,7 @@
 #include "FWCore/Utilities/interface/InputTag.h"
 #include "FWCore/Utilities/interface/StreamID.h"
 
+#include "SimDataFormats/CaloHit/interface/PCaloHit.h"
 #include "SimGeneral/MixingModule/interface/DigiAccumulatorMixMod.h"
 #include "SimGeneral/MixingModule/interface/DigiAccumulatorMixModFactory.h"
 #include "SimGeneral/MixingModule/interface/PileUpEventPrincipal.h"
@@ -124,15 +125,26 @@ private:
                    edm::SimVertexContainer const& vertices,
                    EncodedEventId const& eid);
 
+  // Append this sub-event's HGCal PCaloHits, re-tagged with `eid` so the merged
+  // collection carries per-interaction provenance (native hits are all tagged (0,0)).
+  template <class EvT>
+  void addSubEventHits(EvT const& ev, EncodedEventId const& eid);
+
   const edm::InputTag simTrackTag_;
   const edm::InputTag simVertexTag_;
   const edm::InputTag hepmc3Tag_;
   const edm::InputTag hepmc2Tag_;
+  const std::vector<edm::InputTag> caloHitTags_;
   const std::vector<int> pileupBunchCrossings_;
   const bool collapsePileupGen_;
   const bool collapseSignalGen_;
 
   int pileupCount_ = 0;
+
+  // Merged HGCal calorimeter sim-hits across signal + kept pileup, each re-tagged
+  // with its sub-event EncodedEventId so the (eventId,trackId) hit-index key resolves
+  // pileup nodes at RECO (the native pileup PCaloHits are consumed transiently here).
+  std::vector<PCaloHit> mergedCaloHits_;
 
   std::vector<TruthGraph::NodeRef> nodes_;
   std::vector<int32_t> pdgId_;
@@ -157,18 +169,23 @@ TruthGraphAccumulator::TruthGraphAccumulator(edm::ParameterSet const& cfg,
       simVertexTag_(cfg.getParameter<edm::InputTag>("simVertices")),
       hepmc3Tag_(cfg.getParameter<edm::InputTag>("genEventHepMC3")),
       hepmc2Tag_(cfg.getParameter<edm::InputTag>("genEventHepMC")),
+      caloHitTags_(cfg.getParameter<std::vector<edm::InputTag>>("caloHits")),
       pileupBunchCrossings_(cfg.getParameter<std::vector<int>>("pileupBunchCrossings")),
       collapsePileupGen_(cfg.getParameter<bool>("collapsePileupGen")),
       collapseSignalGen_(cfg.getParameter<bool>("collapseSignalGen")) {
   producesCollector.produces<TruthGraph>();
+  producesCollector.produces<std::vector<PCaloHit>>("mergedHGCHits");
   iC.consumes<edm::SimTrackContainer>(simTrackTag_);
   iC.consumes<edm::SimVertexContainer>(simVertexTag_);
   iC.mayConsume<edm::HepMC3Product>(hepmc3Tag_);
   iC.mayConsume<edm::HepMCProduct>(hepmc2Tag_);
+  for (auto const& tag : caloHitTags_)
+    iC.mayConsume<std::vector<PCaloHit>>(tag);
 }
 
 void TruthGraphAccumulator::initializeEvent(edm::Event const&, edm::EventSetup const&) {
   pileupCount_ = 0;
+  mergedCaloHits_.clear();
   nodes_.clear();
   pdgId_.clear();
   status_.clear();
@@ -270,6 +287,21 @@ void TruthGraphAccumulator::addSubEvent(std::vector<std::pair<int, int>> const& 
   }
 }
 
+template <class EvT>
+void TruthGraphAccumulator::addSubEventHits(EvT const& ev, EncodedEventId const& eid) {
+  for (auto const& tag : caloHitTags_) {
+    edm::Handle<std::vector<PCaloHit>> hits;
+    ev.getByLabel(tag, hits);
+    if (!hits.isValid())
+      continue;
+    mergedCaloHits_.reserve(mergedCaloHits_.size() + hits->size());
+    for (PCaloHit hit : *hits) {  // copy: re-tag the eventId to this sub-event
+      hit.setEventId(eid);
+      mergedCaloHits_.push_back(hit);
+    }
+  }
+}
+
 void TruthGraphAccumulator::accumulate(edm::Event const& event, edm::EventSetup const&) {
   edm::Handle<edm::SimTrackContainer> tracks;
   edm::Handle<edm::SimVertexContainer> vertices;
@@ -280,7 +312,9 @@ void TruthGraphAccumulator::accumulate(edm::Event const& event, edm::EventSetup 
   std::vector<std::pair<int, int>> stableGen;
   if (collapseSignalGen_)
     stableGen = readStableGen(event, hepmc3Tag_, hepmc2Tag_);
-  addSubEvent(stableGen, *tracks, *vertices, EncodedEventId(0, 0));
+  const EncodedEventId sigEid(0, 0);
+  addSubEvent(stableGen, *tracks, *vertices, sigEid);
+  addSubEventHits(event, sigEid);
 }
 
 void TruthGraphAccumulator::accumulate(PileUpEventPrincipal const& pep, edm::EventSetup const&, edm::StreamID const&) {
@@ -303,7 +337,9 @@ void TruthGraphAccumulator::accumulate(PileUpEventPrincipal const& pep, edm::Eve
   // per-bx counter would give (-1,1) and (+1,1) identical packed ids. A single
   // counter keeps every pileup interaction's tag unique regardless of bx sign.
   const int puIndex = ++pileupCount_;
-  addSubEvent(stableGen, *tracks, *vertices, EncodedEventId(bx, puIndex));
+  const EncodedEventId puEid(bx, puIndex);
+  addSubEvent(stableGen, *tracks, *vertices, puEid);
+  addSubEventHits(pep, puEid);
 }
 
 void TruthGraphAccumulator::finalizeEvent(edm::Event& event, edm::EventSetup const&) {
@@ -343,6 +379,9 @@ void TruthGraphAccumulator::finalizeEvent(edm::Event& event, edm::EventSetup con
     throw cms::Exception("TruthGraphAccumulator") << "Produced TruthGraph is not consistent";
 
   event.put(std::move(out));
+
+  auto outHits = std::make_unique<std::vector<PCaloHit>>(std::move(mergedCaloHits_));
+  event.put(std::move(outHits), "mergedHGCHits");
 }
 
 DEFINE_DIGI_ACCUMULATOR(TruthGraphAccumulator);

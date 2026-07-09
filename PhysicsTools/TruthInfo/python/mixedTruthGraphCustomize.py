@@ -47,6 +47,11 @@ def addTruthGraphAccumulator(process,
         simVertices=cms.InputTag("g4SimHits"),
         genEventHepMC3=cms.InputTag("generatorSmeared"),
         genEventHepMC=cms.InputTag("generatorSmeared"),
+        caloHits=cms.VInputTag(
+            cms.InputTag("g4SimHits", "HGCHitsEE"),
+            cms.InputTag("g4SimHits", "HGCHitsHEfront"),
+            cms.InputTag("g4SimHits", "HGCHitsHEback"),
+        ),
         pileupBunchCrossings=cms.vint32(*pileupBunchCrossings),
         collapsePileupGen=cms.bool(collapsePileupGen),
         collapseSignalGen=cms.bool(False),
@@ -54,5 +59,6 @@ def addTruthGraphAccumulator(process,
 
     for out in process.outputModules_().values():
         out.outputCommands.append("keep TruthGraph_mix_*_*")
+        out.outputCommands.append("keep *_mix_mergedHGCHits_*")
 
     return process
