@@ -33,59 +33,55 @@ def addMixedTruthGraph(process):
 
 def addTruthGraphAccumulator(process,
                              pileupBunchCrossings=(0,),
-                             collapsePileupGen=True):
+                             collapsePileupGen=True,
+                             includeTrackingHits=False):
     """Phase-B (B1): register TruthGraphAccumulator inside the MixingModule.
 
     The accumulator builds the mixed (signal + pileup) raw TruthGraph from the
     native per-sub-event SimTrack/SimVertex collections. By default only in-time
     pileup (bx 0) is included; pass pileupBunchCrossings to widen. The mixed graph
     is kept in the output as TruthGraph_mix__<process>.
+
+    By default the accumulator captures only the CALORIMETER sim-hits (HGCAL plus
+    barrel ECAL/HCAL). The tracking detectors (tracker, muon chambers, MTD) are the
+    largest sim-hit family at PU200 and dominate the event size (the merged tracker
+    PSimHits alone are tens of MB/event), so they are OFF by default. Pass
+    includeTrackingHits=True for a full-detector truth graph.
     """
+    def tags(*names):
+        return cms.VInputTag(*[cms.InputTag("g4SimHits", n) for n in names])
+
+    # Tracking detectors only when explicitly requested; empty (calo-only) otherwise.
+    trackerHits = cms.VInputTag()
+    muonHits = cms.VInputTag()
+    mtdHits = cms.VInputTag()
+    if includeTrackingHits:
+        trackerHits = tags(
+            "TrackerHitsPixelBarrelLowTof", "TrackerHitsPixelBarrelHighTof",
+            "TrackerHitsPixelEndcapLowTof", "TrackerHitsPixelEndcapHighTof",
+            "TrackerHitsTIBLowTof", "TrackerHitsTIBHighTof",
+            "TrackerHitsTIDLowTof", "TrackerHitsTIDHighTof",
+            "TrackerHitsTOBLowTof", "TrackerHitsTOBHighTof",
+            "TrackerHitsTECLowTof", "TrackerHitsTECHighTof",
+        )
+        muonHits = tags("MuonDTHits", "MuonCSCHits", "MuonRPCHits", "MuonGEMHits", "MuonME0Hits")
+        mtdHits = tags("FastTimerHitsBarrel", "FastTimerHitsEndcap")
+
     process.mix.digitizers.truthGraph = cms.PSet(
         accumulatorType=cms.string("TruthGraphAccumulator"),
         simTracks=cms.InputTag("g4SimHits"),
         simVertices=cms.InputTag("g4SimHits"),
         genEventHepMC3=cms.InputTag("generatorSmeared"),
         genEventHepMC=cms.InputTag("generatorSmeared"),
-        caloHits=cms.VInputTag(
-            cms.InputTag("g4SimHits", "HGCHitsEE"),
-            cms.InputTag("g4SimHits", "HGCHitsHEfront"),
-            cms.InputTag("g4SimHits", "HGCHitsHEback"),
-        ),
+        caloHits=tags("HGCHitsEE", "HGCHitsHEfront", "HGCHitsHEback"),
         # Barrel calorimeters, kept in separate products so the RECO consumer applies
         # the right sim-to-reco DetId relabelling per collection (ECAL barrel needs
         # none, HCAL uses HcalHitRelabeller).
-        ecalHits=cms.VInputTag(cms.InputTag("g4SimHits", "EcalHitsEB")),
-        hcalHits=cms.VInputTag(cms.InputTag("g4SimHits", "HcalHits")),
-        # Tracking detectors, as PSimHit. WARNING: the tracker pileup PSimHits are by
-        # far the largest sim-hit family at PU200 (millions of hits/event); keeping the
-        # merged tracker collection dominates the event size. For a truth graph that only
-        # needs the calorimeter footprint, leave trackerHits empty.
-        trackerHits=cms.VInputTag(
-            cms.InputTag("g4SimHits", "TrackerHitsPixelBarrelLowTof"),
-            cms.InputTag("g4SimHits", "TrackerHitsPixelBarrelHighTof"),
-            cms.InputTag("g4SimHits", "TrackerHitsPixelEndcapLowTof"),
-            cms.InputTag("g4SimHits", "TrackerHitsPixelEndcapHighTof"),
-            cms.InputTag("g4SimHits", "TrackerHitsTIBLowTof"),
-            cms.InputTag("g4SimHits", "TrackerHitsTIBHighTof"),
-            cms.InputTag("g4SimHits", "TrackerHitsTIDLowTof"),
-            cms.InputTag("g4SimHits", "TrackerHitsTIDHighTof"),
-            cms.InputTag("g4SimHits", "TrackerHitsTOBLowTof"),
-            cms.InputTag("g4SimHits", "TrackerHitsTOBHighTof"),
-            cms.InputTag("g4SimHits", "TrackerHitsTECLowTof"),
-            cms.InputTag("g4SimHits", "TrackerHitsTECHighTof"),
-        ),
-        muonHits=cms.VInputTag(
-            cms.InputTag("g4SimHits", "MuonDTHits"),
-            cms.InputTag("g4SimHits", "MuonCSCHits"),
-            cms.InputTag("g4SimHits", "MuonRPCHits"),
-            cms.InputTag("g4SimHits", "MuonGEMHits"),
-            cms.InputTag("g4SimHits", "MuonME0Hits"),
-        ),
-        mtdHits=cms.VInputTag(
-            cms.InputTag("g4SimHits", "FastTimerHitsBarrel"),
-            cms.InputTag("g4SimHits", "FastTimerHitsEndcap"),
-        ),
+        ecalHits=tags("EcalHitsEB"),
+        hcalHits=tags("HcalHits"),
+        trackerHits=trackerHits,
+        muonHits=muonHits,
+        mtdHits=mtdHits,
         pileupBunchCrossings=cms.vint32(*pileupBunchCrossings),
         collapsePileupGen=cms.bool(collapsePileupGen),
         collapseSignalGen=cms.bool(False),
@@ -93,16 +89,16 @@ def addTruthGraphAccumulator(process,
 
     for out in process.outputModules_().values():
         out.outputCommands.append("keep TruthGraph_mix_*_*")
-        # mergedHGCHits is the union of signal + all kept pileup HGCal PCaloHits
-        # (O(1e5-1e6) hits, tens of MB/event at PU200). It is the dominant event-size
-        # term of this feature and must bridge a split DIGI->RECO job, since the pileup
-        # hits are gone after mixing; the RECO customise does not re-keep it. Drop this
-        # line for a single-job DIGI+RECO where the hit index is built in the same process.
+        # The merged sim-hit collections are the union of signal + all kept pileup hits,
+        # and must bridge a split DIGI->RECO job (the pileup hits are gone after mixing;
+        # the RECO customise does not re-keep them). Drop these lines for a single-job
+        # DIGI+RECO where the hit index is built in the same process.
         out.outputCommands.append("keep *_mix_mergedHGCHits_*")
         out.outputCommands.append("keep *_mix_mergedEcalHits_*")
         out.outputCommands.append("keep *_mix_mergedHcalHits_*")
-        out.outputCommands.append("keep *_mix_mergedTrackerHits_*")
-        out.outputCommands.append("keep *_mix_mergedMuonHits_*")
-        out.outputCommands.append("keep *_mix_mergedMtdHits_*")
+        if includeTrackingHits:
+            out.outputCommands.append("keep *_mix_mergedTrackerHits_*")
+            out.outputCommands.append("keep *_mix_mergedMuonHits_*")
+            out.outputCommands.append("keep *_mix_mergedMtdHits_*")
 
     return process
