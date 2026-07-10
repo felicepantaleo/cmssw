@@ -57,6 +57,35 @@ def addTruthGraphAccumulator(process,
         # none, HCAL uses HcalHitRelabeller).
         ecalHits=cms.VInputTag(cms.InputTag("g4SimHits", "EcalHitsEB")),
         hcalHits=cms.VInputTag(cms.InputTag("g4SimHits", "HcalHits")),
+        # Tracking detectors, as PSimHit. WARNING: the tracker pileup PSimHits are by
+        # far the largest sim-hit family at PU200 (millions of hits/event); keeping the
+        # merged tracker collection dominates the event size. For a truth graph that only
+        # needs the calorimeter footprint, leave trackerHits empty.
+        trackerHits=cms.VInputTag(
+            cms.InputTag("g4SimHits", "TrackerHitsPixelBarrelLowTof"),
+            cms.InputTag("g4SimHits", "TrackerHitsPixelBarrelHighTof"),
+            cms.InputTag("g4SimHits", "TrackerHitsPixelEndcapLowTof"),
+            cms.InputTag("g4SimHits", "TrackerHitsPixelEndcapHighTof"),
+            cms.InputTag("g4SimHits", "TrackerHitsTIBLowTof"),
+            cms.InputTag("g4SimHits", "TrackerHitsTIBHighTof"),
+            cms.InputTag("g4SimHits", "TrackerHitsTIDLowTof"),
+            cms.InputTag("g4SimHits", "TrackerHitsTIDHighTof"),
+            cms.InputTag("g4SimHits", "TrackerHitsTOBLowTof"),
+            cms.InputTag("g4SimHits", "TrackerHitsTOBHighTof"),
+            cms.InputTag("g4SimHits", "TrackerHitsTECLowTof"),
+            cms.InputTag("g4SimHits", "TrackerHitsTECHighTof"),
+        ),
+        muonHits=cms.VInputTag(
+            cms.InputTag("g4SimHits", "MuonDTHits"),
+            cms.InputTag("g4SimHits", "MuonCSCHits"),
+            cms.InputTag("g4SimHits", "MuonRPCHits"),
+            cms.InputTag("g4SimHits", "MuonGEMHits"),
+            cms.InputTag("g4SimHits", "MuonME0Hits"),
+        ),
+        mtdHits=cms.VInputTag(
+            cms.InputTag("g4SimHits", "FastTimerHitsBarrel"),
+            cms.InputTag("g4SimHits", "FastTimerHitsEndcap"),
+        ),
         pileupBunchCrossings=cms.vint32(*pileupBunchCrossings),
         collapsePileupGen=cms.bool(collapsePileupGen),
         collapseSignalGen=cms.bool(False),
@@ -72,5 +101,8 @@ def addTruthGraphAccumulator(process,
         out.outputCommands.append("keep *_mix_mergedHGCHits_*")
         out.outputCommands.append("keep *_mix_mergedEcalHits_*")
         out.outputCommands.append("keep *_mix_mergedHcalHits_*")
+        out.outputCommands.append("keep *_mix_mergedTrackerHits_*")
+        out.outputCommands.append("keep *_mix_mergedMuonHits_*")
+        out.outputCommands.append("keep *_mix_mergedMtdHits_*")
 
     return process

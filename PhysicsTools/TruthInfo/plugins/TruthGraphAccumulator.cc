@@ -45,6 +45,7 @@
 #include "FWCore/Utilities/interface/StreamID.h"
 
 #include "SimDataFormats/CaloHit/interface/PCaloHit.h"
+#include "SimDataFormats/TrackingHit/interface/PSimHit.h"
 #include "SimGeneral/MixingModule/interface/DigiAccumulatorMixMod.h"
 #include "SimGeneral/MixingModule/interface/DigiAccumulatorMixModFactory.h"
 #include "SimGeneral/MixingModule/interface/PileUpEventPrincipal.h"
@@ -148,6 +149,9 @@ private:
   const std::vector<edm::InputTag> caloHitTags_;
   const std::vector<edm::InputTag> ecalHitTags_;
   const std::vector<edm::InputTag> hcalHitTags_;
+  const std::vector<edm::InputTag> trackerHitTags_;
+  const std::vector<edm::InputTag> muonHitTags_;
+  const std::vector<edm::InputTag> mtdHitTags_;
   const std::vector<int> pileupBunchCrossings_;
   const bool collapsePileupGen_;
   const bool collapseSignalGen_;
@@ -162,6 +166,11 @@ private:
   std::vector<PCaloHit> mergedCaloHits_;
   std::vector<PCaloHit> mergedEcalHits_;
   std::vector<PCaloHit> mergedHcalHits_;
+  // Tracking sim-hits (tracker, muon chambers, MTD) as PSimHit, same per-interaction
+  // re-tagging. Tracker pileup is by far the largest family; see the customise note.
+  std::vector<PSimHit> mergedTrackerHits_;
+  std::vector<PSimHit> mergedMuonHits_;
+  std::vector<PSimHit> mergedMtdHits_;
 
   std::vector<TruthGraph::NodeRef> nodes_;
   std::vector<int32_t> pdgId_;
@@ -189,6 +198,9 @@ TruthGraphAccumulator::TruthGraphAccumulator(edm::ParameterSet const& cfg,
       caloHitTags_(cfg.getParameter<std::vector<edm::InputTag>>("caloHits")),
       ecalHitTags_(cfg.getParameter<std::vector<edm::InputTag>>("ecalHits")),
       hcalHitTags_(cfg.getParameter<std::vector<edm::InputTag>>("hcalHits")),
+      trackerHitTags_(cfg.getParameter<std::vector<edm::InputTag>>("trackerHits")),
+      muonHitTags_(cfg.getParameter<std::vector<edm::InputTag>>("muonHits")),
+      mtdHitTags_(cfg.getParameter<std::vector<edm::InputTag>>("mtdHits")),
       pileupBunchCrossings_(cfg.getParameter<std::vector<int>>("pileupBunchCrossings")),
       collapsePileupGen_(cfg.getParameter<bool>("collapsePileupGen")),
       collapseSignalGen_(cfg.getParameter<bool>("collapseSignalGen")) {
@@ -196,6 +208,9 @@ TruthGraphAccumulator::TruthGraphAccumulator(edm::ParameterSet const& cfg,
   producesCollector.produces<std::vector<PCaloHit>>("mergedHGCHits");
   producesCollector.produces<std::vector<PCaloHit>>("mergedEcalHits");
   producesCollector.produces<std::vector<PCaloHit>>("mergedHcalHits");
+  producesCollector.produces<std::vector<PSimHit>>("mergedTrackerHits");
+  producesCollector.produces<std::vector<PSimHit>>("mergedMuonHits");
+  producesCollector.produces<std::vector<PSimHit>>("mergedMtdHits");
   iC.consumes<edm::SimTrackContainer>(simTrackTag_);
   iC.consumes<edm::SimVertexContainer>(simVertexTag_);
   iC.mayConsume<edm::HepMC3Product>(hepmc3Tag_);
@@ -203,6 +218,9 @@ TruthGraphAccumulator::TruthGraphAccumulator(edm::ParameterSet const& cfg,
   for (auto const* tags : {&caloHitTags_, &ecalHitTags_, &hcalHitTags_})
     for (auto const& tag : *tags)
       iC.mayConsume<std::vector<PCaloHit>>(tag);
+  for (auto const* tags : {&trackerHitTags_, &muonHitTags_, &mtdHitTags_})
+    for (auto const& tag : *tags)
+      iC.mayConsume<std::vector<PSimHit>>(tag);
 }
 
 void TruthGraphAccumulator::initializeEvent(edm::Event const&, edm::EventSetup const&) {
@@ -210,6 +228,9 @@ void TruthGraphAccumulator::initializeEvent(edm::Event const&, edm::EventSetup c
   mergedCaloHits_.clear();
   mergedEcalHits_.clear();
   mergedHcalHits_.clear();
+  mergedTrackerHits_.clear();
+  mergedMuonHits_.clear();
+  mergedMtdHits_.clear();
   nodes_.clear();
   pdgId_.clear();
   status_.clear();
@@ -344,6 +365,9 @@ void TruthGraphAccumulator::addSubEventHits(EvT const& ev, EncodedEventId const&
   mergeHits(ev, caloHitTags_, eid, mergedCaloHits_);
   mergeHits(ev, ecalHitTags_, eid, mergedEcalHits_);
   mergeHits(ev, hcalHitTags_, eid, mergedHcalHits_);
+  mergeHits(ev, trackerHitTags_, eid, mergedTrackerHits_);
+  mergeHits(ev, muonHitTags_, eid, mergedMuonHits_);
+  mergeHits(ev, mtdHitTags_, eid, mergedMtdHits_);
 }
 
 void TruthGraphAccumulator::accumulate(edm::Event const& event, edm::EventSetup const&) {
@@ -432,6 +456,9 @@ void TruthGraphAccumulator::finalizeEvent(edm::Event& event, edm::EventSetup con
   event.put(std::make_unique<std::vector<PCaloHit>>(std::move(mergedCaloHits_)), "mergedHGCHits");
   event.put(std::make_unique<std::vector<PCaloHit>>(std::move(mergedEcalHits_)), "mergedEcalHits");
   event.put(std::make_unique<std::vector<PCaloHit>>(std::move(mergedHcalHits_)), "mergedHcalHits");
+  event.put(std::make_unique<std::vector<PSimHit>>(std::move(mergedTrackerHits_)), "mergedTrackerHits");
+  event.put(std::make_unique<std::vector<PSimHit>>(std::move(mergedMuonHits_)), "mergedMuonHits");
+  event.put(std::make_unique<std::vector<PSimHit>>(std::move(mergedMtdHits_)), "mergedMtdHits");
 }
 
 DEFINE_DIGI_ACCUMULATOR(TruthGraphAccumulator);
