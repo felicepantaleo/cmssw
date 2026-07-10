@@ -127,16 +127,27 @@ private:
                    edm::SimVertexContainer const& vertices,
                    EncodedEventId const& eid);
 
-  // Append this sub-event's HGCal PCaloHits, re-tagged with `eid` so the merged
-  // collection carries per-interaction provenance (native hits are all tagged (0,0)).
+  // Append this sub-event's sim-hits to the merged collections, re-tagged with `eid`
+  // so they carry per-interaction provenance (native hits are all tagged (0,0)).
   template <class EvT>
   void addSubEventHits(EvT const& ev, EncodedEventId const& eid);
+
+  // Merge one sim-hit collection family (PCaloHit or PSimHit) from the sub-event,
+  // re-tagging each hit's eventId. Kept per subdetector family so a downstream
+  // consumer can apply the right sim-to-reco DetId relabelling per collection.
+  template <class HitT, class EvT>
+  void mergeHits(EvT const& ev,
+                 std::vector<edm::InputTag> const& tags,
+                 EncodedEventId const& eid,
+                 std::vector<HitT>& out);
 
   const edm::InputTag simTrackTag_;
   const edm::InputTag simVertexTag_;
   const edm::InputTag hepmc3Tag_;
   const edm::InputTag hepmc2Tag_;
   const std::vector<edm::InputTag> caloHitTags_;
+  const std::vector<edm::InputTag> ecalHitTags_;
+  const std::vector<edm::InputTag> hcalHitTags_;
   const std::vector<int> pileupBunchCrossings_;
   const bool collapsePileupGen_;
   const bool collapseSignalGen_;
@@ -144,10 +155,13 @@ private:
   int pileupCount_ = 0;
   bool missingCaloHitsWarned_ = false;
 
-  // Merged HGCal calorimeter sim-hits across signal + kept pileup, each re-tagged
-  // with its sub-event EncodedEventId so the (eventId,trackId) hit-index key resolves
-  // pileup nodes at RECO (the native pileup PCaloHits are consumed transiently here).
+  // Merged calorimeter sim-hits across signal + kept pileup, each re-tagged with its
+  // sub-event EncodedEventId so the (eventId,trackId) hit-index key resolves pileup
+  // nodes at RECO (the native pileup hits are consumed transiently here). Kept one
+  // vector per subdetector family so the relabelling at RECO stays per collection.
   std::vector<PCaloHit> mergedCaloHits_;
+  std::vector<PCaloHit> mergedEcalHits_;
+  std::vector<PCaloHit> mergedHcalHits_;
 
   std::vector<TruthGraph::NodeRef> nodes_;
   std::vector<int32_t> pdgId_;
@@ -173,22 +187,29 @@ TruthGraphAccumulator::TruthGraphAccumulator(edm::ParameterSet const& cfg,
       hepmc3Tag_(cfg.getParameter<edm::InputTag>("genEventHepMC3")),
       hepmc2Tag_(cfg.getParameter<edm::InputTag>("genEventHepMC")),
       caloHitTags_(cfg.getParameter<std::vector<edm::InputTag>>("caloHits")),
+      ecalHitTags_(cfg.getParameter<std::vector<edm::InputTag>>("ecalHits")),
+      hcalHitTags_(cfg.getParameter<std::vector<edm::InputTag>>("hcalHits")),
       pileupBunchCrossings_(cfg.getParameter<std::vector<int>>("pileupBunchCrossings")),
       collapsePileupGen_(cfg.getParameter<bool>("collapsePileupGen")),
       collapseSignalGen_(cfg.getParameter<bool>("collapseSignalGen")) {
   producesCollector.produces<TruthGraph>();
   producesCollector.produces<std::vector<PCaloHit>>("mergedHGCHits");
+  producesCollector.produces<std::vector<PCaloHit>>("mergedEcalHits");
+  producesCollector.produces<std::vector<PCaloHit>>("mergedHcalHits");
   iC.consumes<edm::SimTrackContainer>(simTrackTag_);
   iC.consumes<edm::SimVertexContainer>(simVertexTag_);
   iC.mayConsume<edm::HepMC3Product>(hepmc3Tag_);
   iC.mayConsume<edm::HepMCProduct>(hepmc2Tag_);
-  for (auto const& tag : caloHitTags_)
-    iC.mayConsume<std::vector<PCaloHit>>(tag);
+  for (auto const* tags : {&caloHitTags_, &ecalHitTags_, &hcalHitTags_})
+    for (auto const& tag : *tags)
+      iC.mayConsume<std::vector<PCaloHit>>(tag);
 }
 
 void TruthGraphAccumulator::initializeEvent(edm::Event const&, edm::EventSetup const&) {
   pileupCount_ = 0;
   mergedCaloHits_.clear();
+  mergedEcalHits_.clear();
+  mergedHcalHits_.clear();
   nodes_.clear();
   pdgId_.clear();
   status_.clear();
@@ -290,29 +311,39 @@ void TruthGraphAccumulator::addSubEvent(std::vector<std::pair<int, int>> const& 
   }
 }
 
-template <class EvT>
-void TruthGraphAccumulator::addSubEventHits(EvT const& ev, EncodedEventId const& eid) {
-  for (auto const& tag : caloHitTags_) {
-    edm::Handle<std::vector<PCaloHit>> hits;
+template <class HitT, class EvT>
+void TruthGraphAccumulator::mergeHits(EvT const& ev,
+                                      std::vector<edm::InputTag> const& tags,
+                                      EncodedEventId const& eid,
+                                      std::vector<HitT>& out) {
+  for (auto const& tag : tags) {
+    edm::Handle<std::vector<HitT>> hits;
     ev.getByLabel(tag, hits);
     if (!hits.isValid()) {
-      // Under premixed pileup the pileup PCaloHits are already digitized away, so
-      // every pileup handle is invalid and the merged collection ends up signal-only,
-      // silently reverting the pileup-aware truth to signal-only. Warn once.
+      // Under premixed pileup the pileup sim-hits are already digitized away, so every
+      // pileup handle is invalid and the merged collection ends up signal-only, silently
+      // reverting the pileup-aware truth to signal-only. Warn once.
       if (!missingCaloHitsWarned_) {
         edm::LogWarning("TruthGraphAccumulator")
-            << "HGCal PCaloHit collection " << tag.encode()
+            << "sim-hit collection " << tag.encode()
             << " not found for a sub-event; pileup-aware truth needs classic (non-premixed) pileup.";
         missingCaloHitsWarned_ = true;
       }
       continue;
     }
-    mergedCaloHits_.reserve(mergedCaloHits_.size() + hits->size());
-    for (PCaloHit hit : *hits) {  // copy: re-tag the eventId to this sub-event
+    out.reserve(out.size() + hits->size());
+    for (HitT hit : *hits) {  // copy: re-tag the eventId to this sub-event
       hit.setEventId(eid);
-      mergedCaloHits_.push_back(hit);
+      out.push_back(hit);
     }
   }
+}
+
+template <class EvT>
+void TruthGraphAccumulator::addSubEventHits(EvT const& ev, EncodedEventId const& eid) {
+  mergeHits(ev, caloHitTags_, eid, mergedCaloHits_);
+  mergeHits(ev, ecalHitTags_, eid, mergedEcalHits_);
+  mergeHits(ev, hcalHitTags_, eid, mergedHcalHits_);
 }
 
 void TruthGraphAccumulator::accumulate(edm::Event const& event, edm::EventSetup const&) {
@@ -398,8 +429,9 @@ void TruthGraphAccumulator::finalizeEvent(edm::Event& event, edm::EventSetup con
 
   event.put(std::move(out));
 
-  auto outHits = std::make_unique<std::vector<PCaloHit>>(std::move(mergedCaloHits_));
-  event.put(std::move(outHits), "mergedHGCHits");
+  event.put(std::make_unique<std::vector<PCaloHit>>(std::move(mergedCaloHits_)), "mergedHGCHits");
+  event.put(std::make_unique<std::vector<PCaloHit>>(std::move(mergedEcalHits_)), "mergedEcalHits");
+  event.put(std::make_unique<std::vector<PCaloHit>>(std::move(mergedHcalHits_)), "mergedHcalHits");
 }
 
 DEFINE_DIGI_ACCUMULATOR(TruthGraphAccumulator);

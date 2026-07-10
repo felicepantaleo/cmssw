@@ -52,6 +52,11 @@ def addTruthGraphAccumulator(process,
             cms.InputTag("g4SimHits", "HGCHitsHEfront"),
             cms.InputTag("g4SimHits", "HGCHitsHEback"),
         ),
+        # Barrel calorimeters, kept in separate products so the RECO consumer applies
+        # the right sim-to-reco DetId relabelling per collection (ECAL barrel needs
+        # none, HCAL uses HcalHitRelabeller).
+        ecalHits=cms.VInputTag(cms.InputTag("g4SimHits", "EcalHitsEB")),
+        hcalHits=cms.VInputTag(cms.InputTag("g4SimHits", "HcalHits")),
         pileupBunchCrossings=cms.vint32(*pileupBunchCrossings),
         collapsePileupGen=cms.bool(collapsePileupGen),
         collapseSignalGen=cms.bool(False),
@@ -65,5 +70,7 @@ def addTruthGraphAccumulator(process,
         # hits are gone after mixing; the RECO customise does not re-keep it. Drop this
         # line for a single-job DIGI+RECO where the hit index is built in the same process.
         out.outputCommands.append("keep *_mix_mergedHGCHits_*")
+        out.outputCommands.append("keep *_mix_mergedEcalHits_*")
+        out.outputCommands.append("keep *_mix_mergedHcalHits_*")
 
     return process
