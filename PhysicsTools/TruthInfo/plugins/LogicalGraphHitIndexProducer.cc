@@ -587,6 +587,10 @@ void TruthLogicalGraphHitIndexProducer::fillMtdHits(edm::Event& event,
     const auto trackId = static_cast<uint32_t>(cluster.particleId());
     for (auto const& [packedHit, energy] : cluster.hits_and_energies()) {
       const uint32_t moduleDetId = static_cast<uint32_t>(packedHit >> 32);
+      // eventId 0 is correct only because the clusters above are filtered to the signal
+      // interaction (bx 0, event 0), so simKey(0, trackId) matches the signal track.
+      // If a merged pileup MTD collection is ever added, this must pass the real
+      // eventId like the calo/tracker channels or pileup tracks would alias the signal.
       builder.addHit(truth::HitChannel::MTD, 0ull, trackId, moduleDetId, energy, recHitIndex);
     }
   }

@@ -40,6 +40,7 @@
 #include "FWCore/Framework/interface/ProducesCollector.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/Utilities/interface/Exception.h"
+#include "FWCore/MessageLogger/interface/MessageLogger.h"
 #include "FWCore/Utilities/interface/InputTag.h"
 #include "FWCore/Utilities/interface/StreamID.h"
 
@@ -63,9 +64,10 @@
 
 namespace {
   uint64_t packEventId(EncodedEventId const& id) {
-    uint64_t out = 0;
-    std::memcpy(&out, &id, sizeof(EncodedEventId));
-    return out;
+    // EncodedEventId is a single uint32 rawId; use the typed accessor rather than a
+    // byte copy so the key stays portable and cannot pick up a future member/padding.
+    static_assert(sizeof(EncodedEventId) == sizeof(uint32_t));
+    return static_cast<uint64_t>(id.rawId());
   }
 
   // Stable (status 1) GEN particles as (barcode, pdgId). Used to collapse the GEN
@@ -140,6 +142,7 @@ private:
   const bool collapseSignalGen_;
 
   int pileupCount_ = 0;
+  bool missingCaloHitsWarned_ = false;
 
   // Merged HGCal calorimeter sim-hits across signal + kept pileup, each re-tagged
   // with its sub-event EncodedEventId so the (eventId,trackId) hit-index key resolves
@@ -292,8 +295,18 @@ void TruthGraphAccumulator::addSubEventHits(EvT const& ev, EncodedEventId const&
   for (auto const& tag : caloHitTags_) {
     edm::Handle<std::vector<PCaloHit>> hits;
     ev.getByLabel(tag, hits);
-    if (!hits.isValid())
+    if (!hits.isValid()) {
+      // Under premixed pileup the pileup PCaloHits are already digitized away, so
+      // every pileup handle is invalid and the merged collection ends up signal-only,
+      // silently reverting the pileup-aware truth to signal-only. Warn once.
+      if (!missingCaloHitsWarned_) {
+        edm::LogWarning("TruthGraphAccumulator")
+            << "HGCal PCaloHit collection " << tag.encode()
+            << " not found for a sub-event; pileup-aware truth needs classic (non-premixed) pileup.";
+        missingCaloHitsWarned_ = true;
+      }
       continue;
+    }
     mergedCaloHits_.reserve(mergedCaloHits_.size() + hits->size());
     for (PCaloHit hit : *hits) {  // copy: re-tag the eventId to this sub-event
       hit.setEventId(eid);
@@ -337,6 +350,11 @@ void TruthGraphAccumulator::accumulate(PileUpEventPrincipal const& pep, edm::Eve
   // per-bx counter would give (-1,1) and (+1,1) identical packed ids. A single
   // counter keeps every pileup interaction's tag unique regardless of bx sign.
   const int puIndex = ++pileupCount_;
+  // EncodedEventId packs the event number into 16 bits; an unrealistic pileup
+  // multiplicity would overflow into the bunch-crossing bits and alias ids.
+  if (puIndex > 0xFFFF)
+    throw cms::Exception("TruthGraphAccumulator")
+        << "pileup sub-event count " << puIndex << " exceeds the 16-bit EncodedEventId event field";
   const EncodedEventId puEid(bx, puIndex);
   addSubEvent(stableGen, *tracks, *vertices, puEid);
   addSubEventHits(pep, puEid);

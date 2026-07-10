@@ -59,6 +59,11 @@ def addTruthGraphAccumulator(process,
 
     for out in process.outputModules_().values():
         out.outputCommands.append("keep TruthGraph_mix_*_*")
+        # mergedHGCHits is the union of signal + all kept pileup HGCal PCaloHits
+        # (O(1e5-1e6) hits, tens of MB/event at PU200). It is the dominant event-size
+        # term of this feature and must bridge a split DIGI->RECO job, since the pileup
+        # hits are gone after mixing; the RECO customise does not re-keep it. Drop this
+        # line for a single-job DIGI+RECO where the hit index is built in the same process.
         out.outputCommands.append("keep *_mix_mergedHGCHits_*")
 
     return process
