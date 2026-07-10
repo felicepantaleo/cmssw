@@ -17,6 +17,11 @@ def customise(process):
     # standalone truthGraphProducer.
     process.truthLogicalGraphProducer = truthLogicalGraphProducer.clone(
         src=cms.InputTag("mix"),
+        # The hitless-subgraph pruning decides which SimTracks left a calo hit; feed it
+        # the merged (signal+pileup) HGCal sim-hits, else every pileup subgraph looks
+        # hitless (its hits are in mix:mergedHGCHits, not the signal-only g4SimHits) and
+        # is pruned, leaving pileup branches empty. Matches the hit index below.
+        simHitCollections=cms.VInputTag(cms.InputTag('mix', 'mergedHGCHits')),
     )
     process.detIdToRecHitMapProducer = detIdToRecHitMapProducer
     # The hit index also reads the RAW merged graph (for trackId->node); point it at mix.
@@ -44,7 +49,10 @@ def customise(process):
     for out in process.outputModules_().values():
         out.outputCommands.extend([
             "keep *_truthLogicalGraphProducer_*_*",
-            "keep *_truthLogicalGraphHitIndexProducer_*_*",
             "keep *_allTrackstersToTruthBranchAssociations_*_*",
         ])
+        # The hit index is an intermediate: it is consumed in-job by the branch
+        # associators above and is regenerable from the graph + mix:mergedHGCHits.
+        # Persisting it costs ~9.7 MB/event (subgraph-hit CSR over every retained
+        # pileup particle); keep it out of the event content on purpose.
     return process
