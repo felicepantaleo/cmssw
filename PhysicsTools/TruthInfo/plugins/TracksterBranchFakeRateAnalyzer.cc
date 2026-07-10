@@ -25,10 +25,16 @@ public:
     for (unsigned t = 0; t < n && t < m.size(); ++t) {
       bool has = false;
       for (auto const& el : m[t])
-        if (el.sharedEnergy() > eMin_) { has = true; break; }
-      if (has) ++matched;
+        if (el.sharedEnergy() > eMin_) {
+          has = true;
+          break;
+        }
+      if (has)
+        ++matched;
     }
-    tot_ += n; match_ += matched; ++nev_;
+    tot_ += n;
+    match_ += matched;
+    ++nev_;
   }
   void endJob() override {
     if (tot_)
@@ -39,6 +45,7 @@ public:
               << " matched=" << (tot_ ? double(match_) / tot_ : 0)
               << " fake_rate=" << (tot_ ? double(tot_ - match_) / tot_ : 0) << std::endl;
   }
+
 private:
   edm::EDGetTokenT<std::vector<ticl::Trackster>> tsToken_;
   edm::EDGetTokenT<ticl::AssociationMap<ticl::mapWithSharedEnergyAndScore>> mapToken_;

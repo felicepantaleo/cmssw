@@ -30,11 +30,19 @@ public:
       float bestE = -1.f;
       unsigned bestIdx = 0;
       for (auto const& el : m[t])
-        if (el.sharedEnergy() > bestE) { bestE = el.sharedEnergy(); bestIdx = el.index(); }
+        if (el.sharedEnergy() > bestE) {
+          bestE = el.sharedEnergy();
+          bestIdx = el.index();
+        }
       if (bestE > eMin_) {
         bool sig = (bestIdx < g.nParticles() && g.particles()[bestIdx].eventId == 0ull);
-        if (sig) { ++sigT; matchedSignalRoots.insert(bestIdx); } else ++puT;
-      } else ++fakeT;
+        if (sig) {
+          ++sigT;
+          matchedSignalRoots.insert(bestIdx);
+        } else
+          ++puT;
+      } else
+        ++fakeT;
     }
     // signal-branch denominator: eventId 0, not backscattered, crossed calo (checkpoint 0)
     unsigned sigBr = 0, sigBrMatched = 0;
@@ -44,25 +52,33 @@ public:
         continue;
       bool crossed = false;
       for (auto const& cp : pd.checkpoints)
-        if (cp.checkpointId == 0) { crossed = true; break; }
+        if (cp.checkpointId == 0) {
+          crossed = true;
+          break;
+        }
       if (!crossed)
         continue;
       ++sigBr;
       if (matchedSignalRoots.count(i))
         ++sigBrMatched;
     }
-    totT_ += n; sigT_ += sigT; puT_ += puT; fakeT_ += fakeT;
-    sigBr_ += sigBr; sigBrMatched_ += sigBrMatched; ++nev_;
+    totT_ += n;
+    sigT_ += sigT;
+    puT_ += puT;
+    fakeT_ += fakeT;
+    sigBr_ += sigBr;
+    sigBrMatched_ += sigBrMatched;
+    ++nev_;
   }
   void endJob() override {
-    if (!totT_) return;
-    std::cout << "TBMATCH tracksters/evt=" << double(totT_) / nev_
-              << " matchSignal=" << double(sigT_) / totT_
-              << " matchPU=" << double(puT_) / totT_
-              << " fake=" << double(fakeT_) / totT_
+    if (!totT_)
+      return;
+    std::cout << "TBMATCH tracksters/evt=" << double(totT_) / nev_ << " matchSignal=" << double(sigT_) / totT_
+              << " matchPU=" << double(puT_) / totT_ << " fake=" << double(fakeT_) / totT_
               << " | signalBranches/evt=" << double(sigBr_) / nev_
               << " signalBranchEff=" << (sigBr_ ? double(sigBrMatched_) / sigBr_ : 0) << std::endl;
   }
+
 private:
   edm::EDGetTokenT<truth::Graph> gTok_;
   edm::EDGetTokenT<std::vector<ticl::Trackster>> tsTok_;

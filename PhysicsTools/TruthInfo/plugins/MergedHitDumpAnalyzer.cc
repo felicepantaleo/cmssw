@@ -15,17 +15,24 @@ public:
       : tok_(consumes<std::vector<PCaloHit>>(p.getParameter<edm::InputTag>("src"))) {}
   void analyze(edm::Event const& e, edm::EventSetup const&) override {
     auto const& hits = e.get(tok_);
-    std::map<std::pair<int,int>, unsigned> byId;
-    for (auto const& h : hits) { auto ee = h.eventId(); byId[{ee.bunchCrossing(), ee.event()}]++; }
+    std::map<std::pair<int, int>, unsigned> byId;
+    for (auto const& h : hits) {
+      auto ee = h.eventId();
+      byId[{ee.bunchCrossing(), ee.event()}]++;
+    }
     unsigned sig = 0, pu = 0, npu = 0;
     for (auto const& kv : byId) {
-      if (kv.first == std::make_pair(0,0)) sig += kv.second;
-      else { pu += kv.second; ++npu; }
+      if (kv.first == std::make_pair(0, 0))
+        sig += kv.second;
+      else {
+        pu += kv.second;
+        ++npu;
+      }
     }
-    std::cout << "HITDUMP evt: total=" << hits.size() << " signal(0,0)=" << sig
-              << " PU_hits=" << pu << " PU_subevents=" << npu
-              << " hits_per_PU_subevent=" << (npu ? double(pu)/npu : 0) << std::endl;
+    std::cout << "HITDUMP evt: total=" << hits.size() << " signal(0,0)=" << sig << " PU_hits=" << pu
+              << " PU_subevents=" << npu << " hits_per_PU_subevent=" << (npu ? double(pu) / npu : 0) << std::endl;
   }
+
 private:
   edm::EDGetTokenT<std::vector<PCaloHit>> tok_;
 };

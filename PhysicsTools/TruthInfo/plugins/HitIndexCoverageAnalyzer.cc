@@ -25,13 +25,22 @@ public:
       auto direct = hi.directHits(truth::HitChannel::HGCalCalo, pid);
       auto sub = hi.subgraphHits(truth::HitChannel::HGCalCalo, pid);
       unsigned nh = direct.size() + sub.size();
-      if (sig) { ++nSig; if (nh) ++sigHit; sigHitCount += nh; }
-      else     { ++nPU;  if (nh) ++puHit;  puHitCount += nh; }
+      if (sig) {
+        ++nSig;
+        if (nh)
+          ++sigHit;
+        sigHitCount += nh;
+      } else {
+        ++nPU;
+        if (nh)
+          ++puHit;
+        puHitCount += nh;
+      }
     }
-    std::cout << "COVERAGE evt: SIG particles=" << nSig << " withHits=" << sigHit
-              << " hits=" << sigHitCount << " | PU particles=" << nPU
-              << " withHits=" << puHit << " hits=" << puHitCount << std::endl;
+    std::cout << "COVERAGE evt: SIG particles=" << nSig << " withHits=" << sigHit << " hits=" << sigHitCount
+              << " | PU particles=" << nPU << " withHits=" << puHit << " hits=" << puHitCount << std::endl;
   }
+
 private:
   edm::EDGetTokenT<truth::Graph> gTok_;
   edm::EDGetTokenT<truth::LogicalGraphHitIndex> hTok_;
