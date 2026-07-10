@@ -54,6 +54,26 @@
   <flags EDM_PLUGIN="1"/>
 </library>
 
+<library file="MergedVsIndexAnalyzer.cc" name="MergedVsIndexPlugins">
+  <flags EDM_PLUGIN="1"/>
+</library>
+
+<library file="TruthBranchMatchAnalyzer.cc" name="TruthBranchMatchPlugins">
+  <flags EDM_PLUGIN="1"/>
+</library>
+
+<library file="HitIndexCoverageAnalyzer.cc" name="HitIndexCoveragePlugins">
+  <flags EDM_PLUGIN="1"/>
+</library>
+
+<library file="MergedHitDumpAnalyzer.cc" name="MergedHitDumpPlugins">
+  <flags EDM_PLUGIN="1"/>
+</library>
+
+<library file="TracksterBranchFakeRateAnalyzer.cc" name="TracksterBranchFakeRatePlugins">
+  <flags EDM_PLUGIN="1"/>
+</library>
+
 <library file="AllTracksterToTruthBranchAssociatorsProducer.cc" name="AllTracksterToTruthBranchAssociatorsPlugins">
   <flags EDM_PLUGIN="1"/>
 </library>
