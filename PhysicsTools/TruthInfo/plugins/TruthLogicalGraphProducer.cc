@@ -892,9 +892,7 @@ public:
       // be namespaced by the packed EncodedEventId or signal and pileup collide and
       // the wrong particles get flagged as hit-bearing. Mirrors the same key in
       // LogicalGraphHitIndexBuilder so the pruned graph stays consistent with the index.
-      auto simKey = [](uint64_t eventId, uint32_t trackId) {
-        return (eventId << 32) | static_cast<uint64_t>(trackId);
-      };
+      auto simKey = [](uint64_t eventId, uint32_t trackId) { return (eventId << 32) | static_cast<uint64_t>(trackId); };
       std::unordered_set<uint64_t> hitKeys;
       bool anyCollectionValid = false;
 
