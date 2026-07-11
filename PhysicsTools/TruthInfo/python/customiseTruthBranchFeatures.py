@@ -41,9 +41,10 @@ def _feature_table(process):
         layerClusters=cms.InputTag("hgcalMergeLayerClusters"),
         association=cms.InputTag("allTrackstersToTruthBranchAssociations",
                                  "ticlTrackstersCLUE3DHighToTruthBranch"),
+        associationAdaptive=cms.InputTag("allTrackstersToTruthBranchAssociations",
+                                         "ticlTrackstersCLUE3DHighToTruthBranchAdaptive"),
         graph=cms.InputTag("truthLogicalGraphProducer"),
         minSharedEnergy=cms.double(0.5),
-        ambiguousFraction=cms.double(0.5),
     )
     return process.tracksterFeatureTable
 
@@ -58,6 +59,27 @@ def customiseNano(process):
     process.tracksterFeatureTablePath = cms.Path(table)
     if process.schedule is not None:
         process.schedule.append(process.tracksterFeatureTablePath)
+    return process
+
+
+# Pileup-aware single-job features: the mixed (signal + pileup) truth graph built by
+# the MixingModule accumulator, instead of the signal-only graph. Pairs with
+# mixedTruthGraphCustomize.addTruthGraphAccumulator at DIGI (which produces TruthGraph
+# 'mix' and keeps mix:mergedHGCHits). Use this at RECO for a PU sample so pileup
+# tracksters get their real particle type and the is_primary flag is meaningful,
+# instead of every pileup trackster falling to the fake class.
+def customiseMixed(process):
+    process = _disable_trackster_filtering(process)
+    from PhysicsTools.TruthInfo.customiseTruthMixedReco import customise as _mixed
+    process = _mixed(process)  # mixed graph + hit index + trackster-to-branch associators
+    table = _feature_table(process)
+    process.tracksterFeatureTablePath = cms.Path(table)
+    if process.schedule is not None:
+        process.schedule.append(process.tracksterFeatureTablePath)
+    for outName in ("FEVTDEBUGHLToutput", "RECOSIMoutput", "NANOAODoutput", "output"):
+        if hasattr(process, outName):
+            getattr(process, outName).outputCommands.append(
+                "keep nanoaodFlatTable_tracksterFeatureTable_*_*")
     return process
 
 

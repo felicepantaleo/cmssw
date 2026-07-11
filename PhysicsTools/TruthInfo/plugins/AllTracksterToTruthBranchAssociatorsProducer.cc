@@ -8,6 +8,8 @@
 // (dumped to NanoAOD by TracksterTruthBranchTableProducer) and for branch-based
 // validation.
 
+#include <algorithm>
+#include <limits>
 #include <memory>
 #include <span>
 #include <vector>
@@ -29,7 +31,28 @@
 
 namespace {
   using BranchAssociationMap = ticl::AssociationMap<ticl::mapWithSharedEnergyAndScore>;
-}
+
+  // Hadronization ceiling for the adaptive climb: a truth type is a valid stopping
+  // level only if it is a real particle (lepton, photon, meson, or baryon). Bare
+  // partons (quarks, gluon), diquarks, the string/cluster hadronization nodes, and
+  // the electroweak bosons are NOT physical calorimeter objects, so the climb must
+  // never select or cross into them; excluding them from the candidate closure caps
+  // the climb at the last hadron/lepton/photon (e.g. a pi0 or a rho, not a quark).
+  bool isLabelableTruthType(int pdgId) {
+    const int a = std::abs(pdgId);
+    if (a <= 8)
+      return false;  // quarks (and b'/t')
+    if (a == 9 || a == 21)
+      return false;  // gluon
+    if (a == 91 || a == 92)
+      return false;  // cluster / string
+    if (a == 23 || a == 24 || a == 25 || a == 32 || a == 33 || a == 34 || a == 37)
+      return false;  // Z/W/H and extended EWK bosons
+    if (a >= 1000 && (a / 100) % 10 == 0)
+      return false;  // diquarks (nq3 digit == 0)
+    return true;
+  }
+}  // namespace
 
 class AllTracksterToTruthBranchAssociatorsProducer : public edm::global::EDProducer<> {
 public:
@@ -45,6 +68,10 @@ private:
   const std::vector<int> branchPdgIds_;
   edm::EDGetTokenT<std::vector<unsigned int>> rootsToken_;
   const bool useExternalRoots_;
+  // Adaptive-level match: how strongly the branch-spread (reverse) score counts
+  // against climbing up, and the spread ceiling above which a level is rejected.
+  const double adaptiveReverseWeight_;
+  const double adaptiveMaxReverseScore_;
 };
 
 AllTracksterToTruthBranchAssociatorsProducer::AllTracksterToTruthBranchAssociatorsProducer(edm::ParameterSet const& cfg)
@@ -52,7 +79,9 @@ AllTracksterToTruthBranchAssociatorsProducer::AllTracksterToTruthBranchAssociato
       hitIndexToken_(consumes<truth::LogicalGraphHitIndex>(cfg.getParameter<edm::InputTag>("hitIndex"))),
       layerClustersToken_(consumes<std::vector<reco::CaloCluster>>(cfg.getParameter<edm::InputTag>("layerClusters"))),
       branchPdgIds_(cfg.getParameter<std::vector<int>>("branchPdgIds")),
-      useExternalRoots_(!cfg.getParameter<edm::InputTag>("rootsSrc").label().empty()) {
+      useExternalRoots_(!cfg.getParameter<edm::InputTag>("rootsSrc").label().empty()),
+      adaptiveReverseWeight_(cfg.getParameter<double>("adaptiveReverseWeight")),
+      adaptiveMaxReverseScore_(cfg.getParameter<double>("adaptiveMaxReverseScore")) {
   if (useExternalRoots_)
     rootsToken_ = consumes<std::vector<unsigned int>>(cfg.getParameter<edm::InputTag>("rootsSrc"));
   for (auto const& tag : cfg.getParameter<std::vector<edm::InputTag>>("tracksterCollections")) {
@@ -62,6 +91,10 @@ AllTracksterToTruthBranchAssociatorsProducer::AllTracksterToTruthBranchAssociato
     tracksterCollectionTokens_.emplace_back(label, consumes<std::vector<ticl::Trackster>>(tag));
     produces<BranchAssociationMap>(label + "ToTruthBranch");
     produces<BranchAssociationMap>("TruthBranchTo" + label);
+    // Adaptive-level maps: one best branch per trackster, chosen at the graph
+    // level that balances completeness against branch spread.
+    produces<BranchAssociationMap>(label + "ToTruthBranchAdaptive");
+    produces<BranchAssociationMap>("TruthBranchTo" + label + "Adaptive");
   }
 }
 
@@ -105,8 +138,33 @@ void AllTracksterToTruthBranchAssociatorsProducer::produce(edm::StreamID,
     }
   }
 
+  // Ancestor closure of the antichain: the leaves plus every ancestor reachable
+  // by climbing the graph. This is the candidate set for the adaptive match; the
+  // leaves alone reproduce the original fixed-level association. antichain stays
+  // sorted so leaf-vs-ancestor membership is a binary search.
+  std::vector<uint32_t> antichain = roots;
+  std::sort(antichain.begin(), antichain.end());
+  antichain.erase(std::unique(antichain.begin(), antichain.end()), antichain.end());
+
+  std::vector<uint32_t> closure = antichain;
+  for (const uint32_t r : antichain) {
+    if (r >= graph.nParticles())
+      continue;
+    // Climb only through labelable particle levels; the hadronization ceiling drops
+    // partons/strings/bosons so the adaptive match stays on a real calo object.
+    for (auto const& a : graph.particle(r).ancestors())
+      if (isLabelableTruthType(a.pdgId()))
+        closure.push_back(a.id());
+  }
+  std::sort(closure.begin(), closure.end());
+  closure.erase(std::unique(closure.begin(), closure.end()), closure.end());
+
+  auto isAntichain = [&antichain](uint32_t id) {
+    return std::binary_search(antichain.begin(), antichain.end(), id);
+  };
+
   truth::BranchHitAssociator assoc(hitIndex,
-                                   roots,
+                                   closure,
                                    truth::BranchHitAssociator::Metric::SharedEnergy,
                                    truth::HitChannel::HGCalCalo,
                                    /*emptyRootsMeansAll=*/false);
@@ -121,20 +179,49 @@ void AllTracksterToTruthBranchAssociatorsProducer::produce(edm::StreamID,
     auto const& tracksters = event.get(token);
     auto tracksterToBranch = std::make_unique<BranchAssociationMap>(static_cast<unsigned int>(tracksters.size()));
     auto branchToTrackster = std::make_unique<BranchAssociationMap>(graph.nParticles());
+    auto tracksterToBranchAdaptive =
+        std::make_unique<BranchAssociationMap>(static_cast<unsigned int>(tracksters.size()));
+    auto branchToTracksterAdaptive = std::make_unique<BranchAssociationMap>(graph.nParticles());
 
     for (unsigned int t = 0; t < tracksters.size(); ++t) {
       const auto hits = truth::recoHits(tracksters[t], layerClusters);
       if (hits.empty())
         continue;
-      for (auto const& m : assoc.bestBranches(std::span<const truth::RecoHit>(hits))) {
-        tracksterToBranch->insert(t, m.rootParticleId, m.sharedEnergy, m.score);
-        branchToTrackster->insert(m.rootParticleId, t, m.sharedEnergy, m.reverseScore);
+      const std::span<const truth::RecoHit> hitSpan(hits);
+
+      // Fixed-level (leaf) association: all matches restricted to the antichain,
+      // identical to the original single-associator behavior.
+      double bestObj = std::numeric_limits<double>::infinity();
+      truth::BranchMatch adaptive;
+      adaptive.rootParticleId = truth::BranchMatch::kInvalidRoot;
+      for (auto const& m : assoc.bestBranches(hitSpan)) {
+        if (isAntichain(m.rootParticleId)) {
+          tracksterToBranch->insert(t, m.rootParticleId, m.sharedEnergy, m.score);
+          branchToTrackster->insert(m.rootParticleId, t, m.sharedEnergy, m.reverseScore);
+        }
+        // Adaptive level: argmin over ALL levels (leaves and ancestors) of the
+        // balanced objective, under the branch-spread ceiling.
+        if (m.reverseScore <= adaptiveMaxReverseScore_) {
+          const double obj = static_cast<double>(m.score) + adaptiveReverseWeight_ * m.reverseScore;
+          if (obj < bestObj) {
+            bestObj = obj;
+            adaptive = m;
+          }
+        }
+      }
+      if (adaptive.rootParticleId != truth::BranchMatch::kInvalidRoot) {
+        tracksterToBranchAdaptive->insert(t, adaptive.rootParticleId, adaptive.sharedEnergy, adaptive.score);
+        branchToTracksterAdaptive->insert(adaptive.rootParticleId, t, adaptive.sharedEnergy, adaptive.reverseScore);
       }
     }
     tracksterToBranch->sort(byAscendingScore);
     branchToTrackster->sort(byAscendingScore);
+    tracksterToBranchAdaptive->sort(byAscendingScore);
+    branchToTracksterAdaptive->sort(byAscendingScore);
     event.put(std::move(tracksterToBranch), label + "ToTruthBranch");
     event.put(std::move(branchToTrackster), "TruthBranchTo" + label);
+    event.put(std::move(tracksterToBranchAdaptive), label + "ToTruthBranchAdaptive");
+    event.put(std::move(branchToTracksterAdaptive), "TruthBranchTo" + label + "Adaptive");
   }
 }
 
@@ -152,6 +239,14 @@ void AllTracksterToTruthBranchAssociatorsProducer::fillDescriptions(edm::Configu
       ->setComment(
           "Optional |pdgId| restriction on the branch roots; empty keeps every "
           "calo-boundary-crossing particle (the training default).");
+  desc.add<double>("adaptiveReverseWeight", 1.0)
+      ->setComment(
+          "Weight of the branch-spread (reverse) score in the adaptive-level "
+          "objective score + w*reverseScore; higher penalizes climbing up.");
+  desc.add<double>("adaptiveMaxReverseScore", 1.0)
+      ->setComment(
+          "Reject adaptive levels whose branch-spread (reverse) score exceeds this "
+          "ceiling; 1.0 keeps every level (the reverse score is normalized to [0,1]).");
   descriptions.add("allTrackstersToTruthBranchAssociations", desc);
 }
 
