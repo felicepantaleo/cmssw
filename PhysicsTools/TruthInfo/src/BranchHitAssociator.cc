@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <limits>
 #include <numeric>
 #include <utility>
 
@@ -200,6 +201,44 @@ namespace truth {
       result.resize(maxResults);
 
     return result;
+  }
+
+  BranchMatch BranchHitAssociator::bestAdaptiveBranch(std::span<const RecoHit> recoHits,
+                                                      float reverseWeight,
+                                                      float maxReverseScore) const {
+    // Reuse the full merge-join (both scores per candidate) and re-rank by the
+    // balanced objective. The candidate set already encodes the climb: with the
+    // ancestor closure as roots, a reco hit lands on its leaf and every ancestor,
+    // so all levels appear here and the argmin selects the best one.
+    const auto all = bestBranches(recoHits, 0);
+    const auto objective = [reverseWeight](BranchMatch const& m) {
+      return static_cast<double>(m.score) + static_cast<double>(reverseWeight) * m.reverseScore;
+    };
+
+    BranchMatch best;
+    best.rootParticleId = BranchMatch::kInvalidRoot;
+    double bestObj = std::numeric_limits<double>::infinity();
+    for (auto const& m : all) {
+      if (m.reverseScore > maxReverseScore)
+        continue;
+      const double obj = objective(m);
+      if (obj < bestObj) {
+        bestObj = obj;
+        best = m;
+      }
+    }
+    // The ceiling rejected every level (e.g. a very fragmented reco object): fall
+    // back to the unconstrained minimum rather than reporting no match.
+    if (best.rootParticleId == BranchMatch::kInvalidRoot) {
+      for (auto const& m : all) {
+        const double obj = objective(m);
+        if (obj < bestObj) {
+          bestObj = obj;
+          best = m;
+        }
+      }
+    }
+    return best;
   }
 
 }  // namespace truth

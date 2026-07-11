@@ -11,9 +11,20 @@
 //                layer = RecHitTools per-endcap layer (both endcaps map identically;
 //                the signed z/eta in the trackster row carry the endcap).
 //
-// Label comes from the trackster -> truth-branch association: best branch pdgId ->
-// class; a second branch sharing above ambiguousFraction of the best -> ambiguous; no
-// branch above minSharedEnergy -> unknown (fake). Class ids match ttpid/config.py.
+// Per-trackster CLUE3D-stage labels from the trackster -> truth-branch association:
+//   label          (leaf/fixed level): class of the best calo-crossing branch, a
+//                  diagnostic single-particle label.
+//   label_adaptive (scored adaptive level): the branch chosen by the associator's
+//                  adaptive search, which climbs the truth graph (under the
+//                  hadronization ceiling) to the level balancing completeness against
+//                  branch spread. If that level is a single calo-crossing particle ->
+//                  em/mip/hadronic; if it is an ancestor merging several -> merged_em
+//                  or merged_hadron. This is the primary training target.
+//   is_primary     provenance: 1 if the matched particle is from the hard scatter,
+//                  0 if pileup. Orthogonal to type (pileup particles carry their real
+//                  type); trained as a separate head, meaningful only with PU.
+// No track exists at pattern-recognition time, so charge/species are deliberately not
+// labeled here. Class ids match ttpid/config.py.
 #include <cmath>
 #include <memory>
 #include <vector>
@@ -35,26 +46,72 @@
 
 #include "SimDataFormats/Associations/interface/TICLAssociationMap.h"
 #include "SimDataFormats/TruthInfo/interface/Graph.h"
+#include "SimDataFormats/TruthInfo/interface/Particle.h"
+#include "SimDataFormats/EncodedEventId/interface/EncodedEventId.h"
+
+#include <cstring>
 
 namespace {
-  // |pdgId| -> ttpid class. ambiguous(8)/unknown(9) come from the association, not pdg.
-  int classFromPdg(int pdg) {
-    switch (std::abs(pdg)) {
-      case 22: return 0;    // photon
-      case 11: return 1;    // electron
-      case 13: return 2;    // muon
-      case 111: return 3;   // neutral_pion
-      case 211: return 4;   // charged_pion
-      case 321: return 5;   // charged_kaon
-      case 2212: return 6;  // proton
-      case 130:
-      case 310:
-      case 2112: return 7;  // neutral_hadron (K0L, K0S, neutron)
-      default: return 9;    // unknown
-    }
+  // CLUE3D-stage PID classes. There is no track at pattern-recognition time, so the
+  // label is what the calorimeter alone separates: charge and hadron species are NOT
+  // resolved (electron==photon=="em", charged==neutral hadron=="hadronic", muon=="mip").
+  // merged_em / merged_hadron mark two overlapping showers from one decay (pi0->gg,
+  // rho->pipi), which shape distinguishes without a track. Ids match ttpid/config.py.
+  enum {
+    kEM = 0,
+    kMIP = 1,
+    kHAD = 2,
+    kMergedEM = 3,
+    kMergedHad = 4,
+    kFake = 5,
+  };
+
+  bool isEMpdg(int pdg) {
+    const int a = std::abs(pdg);
+    return a == 11 || a == 22;  // electron, photon
   }
-  constexpr int kAmbiguous = 8;
-  constexpr int kUnknown = 9;
+  bool isMIPpdg(int pdg) { return std::abs(pdg) == 13; }  // muon
+  bool isHadronPdg(int pdg) {
+    const int a = std::abs(pdg);
+    if (a < 100)
+      return false;  // leptons, photon, bosons
+    if (a >= 1000 && (a / 100) % 10 == 0)
+      return false;  // diquarks
+    return true;     // mesons and baryons
+  }
+  // Class of a single calo-crossing particle from its pdgId (no merging).
+  int singleClass(int pdg) {
+    if (isEMpdg(pdg))
+      return kEM;
+    if (isMIPpdg(pdg))
+      return kMIP;
+    if (isHadronPdg(pdg))
+      return kHAD;
+    return kFake;
+  }
+
+  // A logical particle physically entered the calorimeter if it has the tracker-calo
+  // boundary checkpoint (id 0). The adaptive level is either such a crossing particle
+  // (a single shower) or an ancestor of several (a merged shower).
+  bool caloCrossing(truth::Particle const& p) {
+    if (!p.hasCheckpoints())
+      return false;
+    for (auto const& cp : p.checkpoints())
+      if (cp.checkpointId == 0)
+        return true;
+    return false;
+  }
+
+  // EncodedEventId is packed into the low word of the 64-bit eventId (same helper as
+  // truth::Branch). Signal (hard scatter) is bunchCrossing 0 and event 0; anything
+  // else is pileup.
+  bool isPrimary(truth::Particle const& p) {
+    uint32_t raw = 0;
+    const uint64_t packed = p.eventId();
+    std::memcpy(&raw, &packed, sizeof(raw));
+    const EncodedEventId id(raw);
+    return id.bunchCrossing() == 0 && id.event() == 0;
+  }
 
   float wrapPi(float d) {
     while (d > M_PI)
@@ -74,10 +131,10 @@ public:
         tracksterToken_(consumes<std::vector<ticl::Trackster>>(p.getParameter<edm::InputTag>("tracksters"))),
         lcToken_(consumes<std::vector<reco::CaloCluster>>(p.getParameter<edm::InputTag>("layerClusters"))),
         assocToken_(consumes<BranchAssociationMap>(p.getParameter<edm::InputTag>("association"))),
+        assocAdaptiveToken_(consumes<BranchAssociationMap>(p.getParameter<edm::InputTag>("associationAdaptive"))),
         graphToken_(consumes<truth::Graph>(p.getParameter<edm::InputTag>("graph"))),
         geomToken_(esConsumes<CaloGeometry, CaloGeometryRecord, edm::Transition::BeginRun>()),
-        minSharedEnergy_(p.getParameter<double>("minSharedEnergy")),
-        ambiguousFraction_(p.getParameter<double>("ambiguousFraction")) {
+        minSharedEnergy_(p.getParameter<double>("minSharedEnergy")) {
     produces<nanoaod::FlatTable>();          // per-trackster
     produces<nanoaod::FlatTable>("LC");      // per layer cluster
   }
@@ -89,13 +146,14 @@ public:
     auto const& tracksters = ev.get(tracksterToken_);
     auto const& lcs = ev.get(lcToken_);
     auto const& assoc = ev.get(assocToken_);
+    auto const& assocA = ev.get(assocAdaptiveToken_);
     auto const& graph = ev.get(graphToken_);
     const unsigned nP = graph.nParticles();
 
     // per-trackster
-    std::vector<int> label, n_lc, lc_offset;
-    std::vector<float> R_bary, z_bary, eta_bary, log_e, best_shared;
-    std::vector<int> best_pdg;
+    std::vector<int> label, label_adaptive, is_primary, n_lc, lc_offset;
+    std::vector<float> R_bary, z_bary, eta_bary, log_e, best_shared, adaptive_shared, adaptive_score;
+    std::vector<int> best_pdg, adaptive_pdg;
     // per-LC
     std::vector<int> lc_trkIdx, lc_layer;
     std::vector<float> lc_u, lc_v, lc_energy, lc_size;
@@ -106,29 +164,58 @@ public:
       const float Rb = std::hypot(b.x(), b.y());
       const float phib = std::atan2(b.y(), b.x());
 
-      // label from the best-matching truth branch
-      float be = -1.f, se = -1.f;
+      // Leaf (fixed-level) label: best calo-crossing branch by shared energy. Leaves
+      // are single particles, so this is always a single-class label (diagnostic).
+      float be = -1.f;
       int bidx = -1;
       if (t < assoc.size()) {
         for (auto const& el : assoc[t]) {
-          const float e = el.sharedEnergy();
-          if (e > be) {
-            se = be;
-            be = e;
+          if (el.sharedEnergy() > be) {
+            be = el.sharedEnergy();
             bidx = static_cast<int>(el.index());
-          } else if (e > se) {
-            se = e;
           }
         }
       }
-      int lab, pdg = 0;
-      if (be < minSharedEnergy_) {
-        lab = kUnknown;
-      } else if (se > ambiguousFraction_ * be) {
-        lab = kAmbiguous;
-      } else {
-        pdg = (bidx >= 0 && bidx < static_cast<int>(nP)) ? graph.particles()[bidx].pdgId : 0;
-        lab = classFromPdg(pdg);
+      int lab = kFake, pdg = 0;
+      if (be >= minSharedEnergy_ && bidx >= 0 && bidx < static_cast<int>(nP)) {
+        pdg = graph.particles()[bidx].pdgId;
+        lab = singleClass(pdg);
+      }
+
+      // Adaptive-level label: the branch the adaptive search picked (the graph level
+      // balancing completeness against branch spread). A calo-crossing particle -> a
+      // single-shower class; an ancestor merging several children -> merged_em or
+      // merged_hadron by the nature of its children.
+      float ae = -1.f, ascore = -1.f;
+      int aidx = -1;
+      if (t < assocA.size()) {
+        for (auto const& el : assocA[t]) {
+          if (el.sharedEnergy() > ae) {
+            ae = el.sharedEnergy();
+            ascore = el.score();
+            aidx = static_cast<int>(el.index());
+          }
+        }
+      }
+      int labA = kFake, pdgA = 0, prim = 0;
+      if (ae >= minSharedEnergy_ && aidx >= 0 && aidx < static_cast<int>(nP)) {
+        const auto ap = graph.particle(static_cast<uint32_t>(aidx));
+        pdgA = ap.pdgId();
+        prim = isPrimary(ap) ? 1 : 0;
+        if (caloCrossing(ap)) {
+          labA = singleClass(pdgA);
+        } else {
+          // Merging node: classify by the children's shower nature. Any hadronic
+          // child makes it a merged hadronic system; otherwise overlapping EM.
+          bool anyHad = false, anyEM = false;
+          for (auto const& c : ap.children()) {
+            if (isHadronPdg(c.pdgId()))
+              anyHad = true;
+            else if (isEMpdg(c.pdgId()))
+              anyEM = true;
+          }
+          labA = anyHad ? kMergedHad : (anyEM ? kMergedEM : singleClass(pdgA));
+        }
       }
 
       lc_offset.push_back(static_cast<int>(lc_trkIdx.size()));
@@ -157,8 +244,13 @@ public:
       }
 
       label.push_back(lab);
+      label_adaptive.push_back(labA);
+      is_primary.push_back(prim);
       best_pdg.push_back(pdg);
+      adaptive_pdg.push_back(pdgA);
       best_shared.push_back(be > 0 ? be : 0.f);
+      adaptive_shared.push_back(ae > 0 ? ae : 0.f);
+      adaptive_score.push_back(ascore >= 0 ? ascore : -1.f);
       n_lc.push_back(static_cast<int>(lc_trkIdx.size()) - lc_offset.back());
       R_bary.push_back(Rb);
       z_bary.push_back(b.z());
@@ -167,9 +259,16 @@ public:
     }
 
     auto trkTab = std::make_unique<nanoaod::FlatTable>(label.size(), name_, false, false);
-    trkTab->addColumn<int>("label", label, "ttpid class (0..9); 8=ambiguous, 9=unknown/fake");
-    trkTab->addColumn<int>("best_pdg", best_pdg, "pdgId of the best-matching truth branch");
-    trkTab->addColumn<float>("best_sharedE", best_shared, "shared energy with the best branch");
+    trkTab->addColumn<int>("label", label, "leaf single-particle class (0=em,1=mip,2=hadronic,5=fake)");
+    trkTab->addColumn<int>("label_adaptive", label_adaptive,
+                           "adaptive class: 0=em,1=mip,2=hadronic,3=merged_em,4=merged_hadron,5=fake");
+    trkTab->addColumn<int>("is_primary", is_primary, "1 if matched particle is hard-scatter, 0 if pileup");
+    trkTab->addColumn<int>("best_pdg", best_pdg, "pdgId of the best-matching leaf branch");
+    trkTab->addColumn<int>("adaptive_pdg", adaptive_pdg, "pdgId of the adaptive-level branch");
+    trkTab->addColumn<float>("best_sharedE", best_shared, "shared energy with the best leaf branch");
+    trkTab->addColumn<float>("adaptive_sharedE", adaptive_shared, "shared energy with the adaptive branch");
+    trkTab->addColumn<float>("adaptive_score", adaptive_score,
+                             "reco-normalized contamination score of the adaptive match (lower is better)");
     trkTab->addColumn<int>("n_lc", n_lc, "number of layer clusters");
     trkTab->addColumn<int>("lc_offset", lc_offset, "offset into the LC table");
     trkTab->addColumn<float>("R_bary", R_bary, "barycenter cylindrical radius (cm)");
@@ -197,9 +296,11 @@ public:
     desc.add<edm::InputTag>("association",
                             edm::InputTag("allTrackstersToTruthBranchAssociations",
                                           "ticlTrackstersCLUE3DHighToTruthBranch"));
+    desc.add<edm::InputTag>("associationAdaptive",
+                            edm::InputTag("allTrackstersToTruthBranchAssociations",
+                                          "ticlTrackstersCLUE3DHighToTruthBranchAdaptive"));
     desc.add<edm::InputTag>("graph", edm::InputTag("truthLogicalGraphProducer"));
     desc.add<double>("minSharedEnergy", 0.5);
-    desc.add<double>("ambiguousFraction", 0.5);
     descriptions.addWithDefaultLabel(desc);
   }
 
@@ -208,10 +309,10 @@ private:
   const edm::EDGetTokenT<std::vector<ticl::Trackster>> tracksterToken_;
   const edm::EDGetTokenT<std::vector<reco::CaloCluster>> lcToken_;
   const edm::EDGetTokenT<BranchAssociationMap> assocToken_;
+  const edm::EDGetTokenT<BranchAssociationMap> assocAdaptiveToken_;
   const edm::EDGetTokenT<truth::Graph> graphToken_;
   const edm::ESGetToken<CaloGeometry, CaloGeometryRecord> geomToken_;
   const double minSharedEnergy_;
-  const double ambiguousFraction_;
   hgcal::RecHitTools rhtools_;
 };
 
