@@ -106,6 +106,10 @@
   <flags EDM_PLUGIN="1"/>
 </library>
 
+<library file="TracksterFeatureFlatTableProducer.cc" name="TracksterFeatureFlatTablePlugins">
+  <flags EDM_PLUGIN="1"/>
+</library>
+
 <library file="RecHitFlatTableProducer.cc" name="RecHitFlatTableProducerPlugins">
   <flags EDM_PLUGIN="1"/>
 </library>
