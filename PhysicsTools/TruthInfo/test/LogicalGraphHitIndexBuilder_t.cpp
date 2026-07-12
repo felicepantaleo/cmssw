@@ -40,7 +40,7 @@ void TestLogicalGraphHitIndexBuilder::testSubgraphHitsAreSortedContiguousAndAccu
   builder.addHit(truth::HitChannel::HGCalCalo, 0, 100, /*detId=*/10, /*energy=*/1.0f, /*recHitIndex=*/0);
   builder.addHit(truth::HitChannel::HGCalCalo, 0, 100, /*detId=*/5, /*energy=*/2.0f, /*recHitIndex=*/1);
   builder.addHit(
-      truth::HitChannel::HGCalCalo, 101, /*detId=*/10, /*energy=*/3.0f, /*recHitIndex=*/0);  // same detId as parent
+      truth::HitChannel::HGCalCalo, 0, 101, /*detId=*/10, /*energy=*/3.0f, /*recHitIndex=*/0);  // same detId as parent
   builder.addHit(truth::HitChannel::HGCalCalo, 0, 101, /*detId=*/20, /*energy=*/1.5f, /*recHitIndex=*/2);
 
   auto index = builder.finish();
