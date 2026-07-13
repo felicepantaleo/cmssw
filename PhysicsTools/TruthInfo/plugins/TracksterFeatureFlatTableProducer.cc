@@ -155,15 +155,64 @@ public:
     std::vector<float> R_bary, z_bary, eta_bary, log_e, best_shared, adaptive_shared, adaptive_score;
     std::vector<int> best_pdg, adaptive_pdg;
     std::vector<float> signal_energy_fraction;
+    std::vector<float> local_density_e, event_lc_e;
+    std::vector<int> local_density_n, event_lc_n;
     // per-LC
     std::vector<int> lc_trkIdx, lc_layer;
     std::vector<float> lc_u, lc_v, lc_energy, lc_size;
+
+    // Per-event (eta, phi) layer-cluster occupancy histogram, built ONCE over all LCs
+    // (O(N_LC)). Each trackster then reads its local pileup density as an O(1) window
+    // lookup around its barycenter, instead of a per-object nearest-neighbor search:
+    // the same idea as the CLUE tiles, rebuilt here because the tiles are transient.
+    constexpr float kEtaMin = -3.3f, kDEta = 0.05f, kDPhi = 0.05f;
+    constexpr int kNEta = 132;                          // (3.3-(-3.3))/0.05
+    const int kNPhi = static_cast<int>(2.0 * M_PI / kDPhi) + 1;
+    std::vector<float> tileE(kNEta * kNPhi, 0.f);
+    std::vector<int> tileN(kNEta * kNPhi, 0);
+    double evtE = 0.0;
+    int evtN = 0;
+    auto phiBin = [&](float phi) {
+      while (phi < -M_PI) phi += 2.f * M_PI;
+      while (phi >= M_PI) phi -= 2.f * M_PI;
+      int ip = static_cast<int>((phi + M_PI) / kDPhi);
+      return std::min(std::max(ip, 0), kNPhi - 1);
+    };
+    for (auto const& lc : lcs) {
+      const int ie = static_cast<int>((lc.eta() - kEtaMin) / kDEta);
+      if (ie >= 0 && ie < kNEta) {
+        tileE[ie * kNPhi + phiBin(lc.phi())] += lc.energy();
+        tileN[ie * kNPhi + phiBin(lc.phi())] += 1;
+      }
+      evtE += lc.energy();
+      ++evtN;
+    }
 
     for (unsigned t = 0; t < tracksters.size(); ++t) {
       auto const& trk = tracksters[t];
       const auto b = trk.barycenter();
       const float Rb = std::hypot(b.x(), b.y());
       const float phib = std::atan2(b.y(), b.x());
+
+      // Local crowding: sum tile energy/count in a +/-W (~0.1 in eta-phi) window around
+      // the barycenter - the pileup density the object sits in. O(W^2) per trackster.
+      float locE = 0.f;
+      int locN = 0;
+      {
+        constexpr int W = 2;
+        const int ie0 = static_cast<int>((trk.barycenter().eta() - kEtaMin) / kDEta);
+        const int ip0 = phiBin(phib);
+        for (int de = -W; de <= W; ++de) {
+          const int ie = ie0 + de;
+          if (ie < 0 || ie >= kNEta)
+            continue;
+          for (int dp = -W; dp <= W; ++dp) {
+            const int ip = ((ip0 + dp) % kNPhi + kNPhi) % kNPhi;  // phi wraparound
+            locE += tileE[ie * kNPhi + ip];
+            locN += tileN[ie * kNPhi + ip];
+          }
+        }
+      }
 
       // Leaf (fixed-level) label: best calo-crossing branch by shared energy. Leaves
       // are single particles, so this is always a single-class label (diagnostic).
@@ -280,6 +329,10 @@ public:
       z_bary.push_back(b.z());
       eta_bary.push_back(trk.barycenter().eta());
       log_e.push_back(std::log1p(trk.raw_energy()));
+      local_density_e.push_back(locE);
+      local_density_n.push_back(locN);
+      event_lc_e.push_back(static_cast<float>(evtE));
+      event_lc_n.push_back(evtN);
     }
 
     auto trkTab = std::make_unique<nanoaod::FlatTable>(label.size(), name_, false, false);
@@ -301,6 +354,11 @@ public:
     trkTab->addColumn<float>("z_bary", z_bary, "barycenter z (cm, signed = endcap)");
     trkTab->addColumn<float>("eta_bary", eta_bary, "barycenter eta");
     trkTab->addColumn<float>("log_raw_energy", log_e, "log1p(raw energy)");
+    trkTab->addColumn<float>("local_density_e", local_density_e,
+                             "LC energy in a +/-0.1 eta-phi window around the barycenter (local pileup crowding)");
+    trkTab->addColumn<int>("local_density_n", local_density_n, "LC count in that window");
+    trkTab->addColumn<float>("event_lc_e", event_lc_e, "total event LC energy (global PU proxy)");
+    trkTab->addColumn<int>("event_lc_n", event_lc_n, "total event LC count (global PU proxy)");
 
     auto lcTab = std::make_unique<nanoaod::FlatTable>(lc_trkIdx.size(), name_ + "LC", false, false);
     lcTab->addColumn<int>("trkIdx", lc_trkIdx, "index into the trackster table");
