@@ -202,19 +202,32 @@ public:
         const auto ap = graph.particle(static_cast<uint32_t>(aidx));
         pdgA = ap.pdgId();
         prim = isPrimary(ap) ? 1 : 0;
-        if (caloCrossing(ap)) {
+        if (caloCrossing(ap) && singleClass(pdgA) != kFake) {
           labA = singleClass(pdgA);
         } else {
-          // Merging node: classify by the children's shower nature. Any hadronic
-          // child makes it a merged hadronic system; otherwise overlapping EM.
-          bool anyHad = false, anyEM = false;
-          for (auto const& c : ap.children()) {
-            if (isHadronPdg(c.pdgId()))
-              anyHad = true;
-            else if (isEMpdg(c.pdgId()))
-              anyEM = true;
+          // A merge node (ancestor of several showers), or a particle that has no direct
+          // calo class because it decays before showering (a tau). Classify by its
+          // calo-crossing descendant leaves, the actual shower-makers, not its direct
+          // children, which for a tau are neutrinos and intermediate resonances (rho/a1).
+          bool anyHad = false, anyEM = false, anyMIP = false;
+          for (auto const& d : ap.descendants()) {
+            if (!caloCrossing(d))
+              continue;
+            switch (singleClass(d.pdgId())) {
+              case kEM:
+                anyEM = true;
+                break;
+              case kMIP:
+                anyMIP = true;
+                break;
+              case kHAD:
+                anyHad = true;
+                break;
+              default:
+                break;
+            }
           }
-          labA = anyHad ? kMergedHad : (anyEM ? kMergedEM : singleClass(pdgA));
+          labA = anyHad ? kMergedHad : (anyEM ? kMergedEM : (anyMIP ? kMIP : singleClass(pdgA)));
         }
       }
 
