@@ -154,6 +154,7 @@ public:
     std::vector<int> label, label_adaptive, is_primary, n_lc, lc_offset;
     std::vector<float> R_bary, z_bary, eta_bary, log_e, best_shared, adaptive_shared, adaptive_score;
     std::vector<int> best_pdg, adaptive_pdg;
+    std::vector<float> signal_energy_fraction;
     // per-LC
     std::vector<int> lc_trkIdx, lc_layer;
     std::vector<float> lc_u, lc_v, lc_energy, lc_size;
@@ -166,16 +167,25 @@ public:
 
       // Leaf (fixed-level) label: best calo-crossing branch by shared energy. Leaves
       // are single particles, so this is always a single-class label (diagnostic).
-      float be = -1.f;
+      // Accumulate signal vs total shared energy over ALL leaf branches: a trackster
+      // contains signal if any of its energy comes from a hard-scatter/gun (isPrimary)
+      // particle. signal_energy_fraction lets training drop pure-PU tracksters (== 0) and
+      // keep signal or signal-contaminated ones.
+      float be = -1.f, sigE = 0.f, totE = 0.f;
       int bidx = -1;
       if (t < assoc.size()) {
         for (auto const& el : assoc[t]) {
-          if (el.sharedEnergy() > be) {
-            be = el.sharedEnergy();
+          const float e = el.sharedEnergy();
+          totE += e;
+          if (el.index() < nP && isPrimary(graph.particle(static_cast<uint32_t>(el.index()))))
+            sigE += e;
+          if (e > be) {
+            be = e;
             bidx = static_cast<int>(el.index());
           }
         }
       }
+      const float signal_frac = totE > 0.f ? sigE / totE : 0.f;
       int lab = kFake, pdg = 0;
       if (be >= minSharedEnergy_ && bidx >= 0 && bidx < static_cast<int>(nP)) {
         pdg = graph.particles()[bidx].pdgId;
@@ -259,6 +269,7 @@ public:
       label.push_back(lab);
       label_adaptive.push_back(labA);
       is_primary.push_back(prim);
+      signal_energy_fraction.push_back(signal_frac);
       best_pdg.push_back(pdg);
       adaptive_pdg.push_back(pdgA);
       best_shared.push_back(be > 0 ? be : 0.f);
@@ -276,6 +287,8 @@ public:
     trkTab->addColumn<int>("label_adaptive", label_adaptive,
                            "adaptive class: 0=em,1=mip,2=hadronic,3=merged_em,4=merged_hadron,5=fake");
     trkTab->addColumn<int>("is_primary", is_primary, "1 if matched particle is hard-scatter, 0 if pileup");
+    trkTab->addColumn<float>("signal_energy_fraction", signal_energy_fraction,
+                             "fraction of shared energy from hard-scatter/gun (signal) particles; 0 = pure pileup");
     trkTab->addColumn<int>("best_pdg", best_pdg, "pdgId of the best-matching leaf branch");
     trkTab->addColumn<int>("adaptive_pdg", adaptive_pdg, "pdgId of the adaptive-level branch");
     trkTab->addColumn<float>("best_sharedE", best_shared, "shared energy with the best leaf branch");
