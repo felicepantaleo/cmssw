@@ -64,7 +64,7 @@ def main():
     parser.add_argument("--caloparticles-tag", default="mix:MergedCaloTruth:HLT")
     parser.add_argument("--layerclusters-tag", default="hgcalMergeLayerClusters::RECO")
     parser.add_argument("--tracksters-clue3dhigh-tag", default="ticlTrackstersCLUE3DHigh::RECO")
-    parser.add_argument("--tracksters-merge-tag", default="ticlTrackstersMerge::RECO")
+    parser.add_argument("--tracksters-merge-tag", default="ticlCandidate::RECO")
 
     args = parser.parse_args()
 
@@ -122,20 +122,31 @@ def main():
         "sumEnergyLayerClustersInTrackstersMerge/F",
     )
 
+    miss_counts = {}
+    n_processed = 0
+
+    def fetch(ev, type_name, tag_text):
+        product = get_by_label(ev, type_name, tag_text)
+        if product is None:
+            miss_counts[tag_text] = miss_counts.get(tag_text, 0) + 1
+        return product
+
     for ievt, ev in enumerate(events):
         if args.max_events >= 0 and ievt >= args.max_events:
             break
+
+        n_processed += 1
 
         aux = ev.eventAuxiliary()
         run[0] = aux.run()
         lumi[0] = aux.luminosityBlock()
         event[0] = aux.event()
 
-        simclusters = get_by_label(ev, simcluster_type, args.simclusters_tag)
-        caloparticles = get_by_label(ev, caloparticle_type, args.caloparticles_tag)
-        layerclusters = get_by_label(ev, layercluster_type, args.layerclusters_tag)
-        tracksters_clue = get_by_label(ev, trackster_type, args.tracksters_clue3dhigh_tag)
-        tracksters_merge = get_by_label(ev, trackster_type, args.tracksters_merge_tag)
+        simclusters = fetch(ev, simcluster_type, args.simclusters_tag)
+        caloparticles = fetch(ev, caloparticle_type, args.caloparticles_tag)
+        layerclusters = fetch(ev, layercluster_type, args.layerclusters_tag)
+        tracksters_clue = fetch(ev, trackster_type, args.tracksters_clue3dhigh_tag)
+        tracksters_merge = fetch(ev, trackster_type, args.tracksters_merge_tag)
 
         nSimClusters[0] = safe_len(simclusters)
         nCaloParticles[0] = safe_len(caloparticles)
@@ -164,6 +175,16 @@ def main():
     print("  layerclusters            =", args.layerclusters_tag)
     print("  tracksters clue3d high   =", args.tracksters_clue3dhigh_tag)
     print("  tracksters merge         =", args.tracksters_merge_tag)
+
+    if miss_counts:
+        for tag_text, count in sorted(miss_counts.items()):
+            print(
+                f"[error] product missing for tag '{tag_text}' in {count}/{n_processed} events",
+                file=sys.stderr,
+            )
+        return 1
+
+    return 0
 
 
 if __name__ == "__main__":

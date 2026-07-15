@@ -31,6 +31,7 @@ try:
     import ROOT
 
     ROOT.gROOT.SetBatch(True)
+    ROOT.EnableThreadSafety()
 except ImportError:
     ROOT = None
 
@@ -506,10 +507,16 @@ def make_step_status(samples: List[Sample]) -> Dict[str, Dict[str, str]]:
 
 
 def set_status(step_status: Dict[str, Dict[str, str]], sample_name: str, key: str, ok: bool, message: str) -> None:
+    if sample_name not in step_status:
+        logging.error("Status update for unknown sample '%s' (%s): %s", sample_name, key, message)
+        return
     step_status[sample_name][key] = "ok" if ok else f"failed: {message}"
 
 
 def mark_status_skipped(step_status: Dict[str, Dict[str, str]], sample_name: str, key: str, message: str) -> None:
+    if sample_name not in step_status:
+        logging.error("Status update for unknown sample '%s' (%s): %s", sample_name, key, message)
+        return
     step_status[sample_name][key] = f"skipped: {message}"
 
 
@@ -967,18 +974,32 @@ def write_compare_summaries(base_dirs: Dict[str, Path], config: Dict[str, Any], 
 
     write_text(summary_json, json.dumps(rows, indent=2), overwrite=True)
 
-    if rows:
-        fieldnames = list(rows[0].keys())
-        with summary_csv.open("w", newline="", encoding="utf-8") as handle:
-            writer = csv.DictWriter(handle, fieldnames=fieldnames)
-            writer.writeheader()
-            writer.writerows(rows)
+    if not rows:
+        logging.warning("Comparison produced no rows; no summary CSVs written.")
+        for stale in (summary_csv, different_csv):
+            if stale.exists():
+                stale.unlink()
+                logging.warning("Removed stale %s from a previous run.", stale)
+        return
 
-        flagged = [row for row in rows if row["flagged"]]
-        with different_csv.open("w", newline="", encoding="utf-8") as handle:
-            writer = csv.DictWriter(handle, fieldnames=fieldnames)
-            writer.writeheader()
-            writer.writerows(flagged)
+    fieldnames = list(rows[0].keys())
+    with summary_csv.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+
+    flagged = [row for row in rows if row["flagged"]]
+    with different_csv.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(flagged)
+
+    logging.info(
+        "Comparison summary: %d rows, %d flagged (see %s).",
+        len(rows),
+        len(flagged),
+        different_csv,
+    )
 
 
 def execute_tasks(
@@ -988,6 +1009,8 @@ def execute_tasks(
     continue_on_error: bool,
     executor_kind: str = "thread",
     worker=None,
+    ok_index: int = 1,
+    on_exception=None,
 ):
     results = []
     total = len(items)
@@ -1019,7 +1042,18 @@ def execute_tasks(
 
     def normalize_exception(exc: Exception):
         logging.exception("[%s] task raised an exception", step_name)
-        return ("<exception>", False, f"{type(exc).__name__}: {exc}")
+        message = f"{type(exc).__name__}: {exc}"
+        if on_exception is not None:
+            return on_exception(message)
+        return ("<exception>", False, message)
+
+    def result_ok(result) -> bool:
+        return len(result) > ok_index and bool(result[ok_index])
+
+    def result_message(result) -> str:
+        if len(result) > ok_index + 1:
+            return result[ok_index + 1]
+        return "Task failed."
 
     def run_item(item):
         if executor_kind == "process":
@@ -1039,15 +1073,15 @@ def execute_tasks(
 
             results.append(result)
             done += 1
-            if len(result) >= 2 and result[1]:
+            if result_ok(result):
                 ok_count += 1
             else:
                 fail_count += 1
 
             log_progress(running=0)
 
-            if not continue_on_error and len(result) >= 2 and not result[1]:
-                raise RuntimeError(result[2] if len(result) > 2 else "Task failed.")
+            if not continue_on_error and not result_ok(result):
+                raise RuntimeError(result_message(result))
 
             now = time.time()
             if now - last_heartbeat >= heartbeat_seconds:
@@ -1079,7 +1113,7 @@ def execute_tasks(
 
                 results.append(result)
                 done += 1
-                if len(result) >= 2 and result[1]:
+                if result_ok(result):
                     ok_count += 1
                 else:
                     fail_count += 1
@@ -1087,10 +1121,10 @@ def execute_tasks(
                 running = min(len(pending), max_concurrent_jobs)
                 log_progress(running=running)
 
-                if not continue_on_error and len(result) >= 2 and not result[1]:
+                if not continue_on_error and not result_ok(result):
                     for f in pending:
                         f.cancel()
-                    raise RuntimeError(result[2] if len(result) > 2 else "Task failed.")
+                    raise RuntimeError(result_message(result))
 
             now = time.time()
             if now - last_heartbeat >= heartbeat_seconds:
@@ -1166,6 +1200,21 @@ def main() -> int:
     selected_patterns = [item.strip() for item in args.samples.split(",") if item.strip()]
     samples = build_samples(config, selected_patterns)
     step_status = make_step_status(samples)
+    if args.resume:
+        status_path = base_dirs["config"] / "step_status.json"
+        if status_path.exists():
+            try:
+                saved_status = json.loads(status_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError) as exc:
+                logging.warning("Could not load previous step_status.json: %s", exc)
+                saved_status = {}
+            for name, keys in saved_status.items():
+                if name in step_status:
+                    for key, value in keys.items():
+                        if key in step_status[name] and value != "pending":
+                            step_status[name][key] = value
+                elif isinstance(keys, dict):
+                    step_status[name] = keys
     write_step_status(base_dirs, step_status)
 
     if args.dump_resolved_config:
@@ -1192,7 +1241,13 @@ def main() -> int:
             lambda sample=sample: run_gen_for_sample(sample, base_dirs, config, args, threads_per_job)
             for sample in samples
         ]
-        results = execute_tasks("gen", tasks, max_concurrent_jobs=args.max_concurrent_jobs, continue_on_error=args.continue_on_error)
+        results = execute_tasks(
+            "gen",
+            tasks,
+            max_concurrent_jobs=args.max_concurrent_jobs,
+            continue_on_error=args.continue_on_error,
+            on_exception=lambda message: ("<exception>", False, message),
+        )
         for name, ok, message in results:
             set_status(step_status, name, "gen", ok, message)
             logging.debug("[%s] %s | %s", "gen", name, message)
@@ -1213,7 +1268,14 @@ def main() -> int:
                     sample, "candidate", base_dirs, config, args, threads_per_job, step_status
                 )
             )
-        results = execute_tasks("step2", tasks, max_concurrent_jobs=args.max_concurrent_jobs, continue_on_error=args.continue_on_error)
+        results = execute_tasks(
+            "step2",
+            tasks,
+            max_concurrent_jobs=args.max_concurrent_jobs,
+            continue_on_error=args.continue_on_error,
+            ok_index=2,
+            on_exception=lambda message: ("<exception>", "<exception>", False, message),
+        )
         for setup_key, name, ok, message in results:
             target_key = f"step2_{setup_key}"
             if message.startswith("Skipped because"):
@@ -1238,7 +1300,14 @@ def main() -> int:
                     sample, "candidate", base_dirs, config, args, threads_per_job, step_status
                 )
             )
-        results = execute_tasks("step3", tasks, max_concurrent_jobs=args.max_concurrent_jobs, continue_on_error=args.continue_on_error)
+        results = execute_tasks(
+            "step3",
+            tasks,
+            max_concurrent_jobs=args.max_concurrent_jobs,
+            continue_on_error=args.continue_on_error,
+            ok_index=2,
+            on_exception=lambda message: ("<exception>", "<exception>", False, message),
+        )
         for setup_key, name, ok, message in results:
             target_key = f"step3_{setup_key}"
             if message.startswith("Skipped because"):
@@ -1263,7 +1332,14 @@ def main() -> int:
                     sample, "candidate", base_dirs, config, args, analysis_threads_per_job, step_status
                 )
             )
-        results = execute_tasks("analysis", tasks, max_concurrent_jobs=args.max_concurrent_jobs, continue_on_error=args.continue_on_error)
+        results = execute_tasks(
+            "analysis",
+            tasks,
+            max_concurrent_jobs=args.max_concurrent_jobs,
+            continue_on_error=args.continue_on_error,
+            ok_index=2,
+            on_exception=lambda message: ("<exception>", "<exception>", False, message),
+        )
         for setup_key, name, ok, message in results:
             target_key = f"analysis_{setup_key}"
             if message.startswith("Skipped because"):
@@ -1284,6 +1360,7 @@ def main() -> int:
             continue_on_error=args.continue_on_error,
             executor_kind="process",
             worker=run_compare_task,
+            on_exception=lambda message: ("<exception>", False, message, []),
         )
 
         all_rows = []
