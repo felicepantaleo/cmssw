@@ -127,7 +127,7 @@ commands:
       {step2_eventcontent} --datatier {step2_datatier} --filein file:{gen_output}
       --fileout file:{step2_output} --conditions {conditions} --geometry {geometry}
       --era {era} --step {step2_steps} -n {n_events} --no_exec --nThreads {threads}
-      {step2_proc_modifiers} && cmsRun {step2_cfg}
+      --nStreams 12 {step2_proc_modifiers} && cmsRun {step2_cfg}
 
       '
   step3:
@@ -135,7 +135,7 @@ commands:
       {step3_eventcontent} --datatier {step3_datatier} --filein file:{step2_output}
       --fileout file:{step3_output} --conditions {conditions} --geometry {geometry}
       --era {era} --step {step3_steps} -n {n_events} --no_exec --nThreads {threads}
-      {step3_proc_modifiers} && cmsRun {step3_cfg}
+      --nStreams 12 {step3_proc_modifiers} && cmsRun {step3_cfg}
 
       '
   analysis:
