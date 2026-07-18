@@ -895,7 +895,7 @@ void TracksterLinksProducer::fillDescriptions(edm::ConfigurationDescriptions &de
       ->setComment("Max |track dz(PV)| [cm] for linking; <=0 disables the gate. Requires usePrimaryVertex.");
   desc.add<edm::InputTag>("muons", edm::InputTag("muons1stStep"));
   desc.add<edm::InputTag>("timingSoA", edm::InputTag("mtdSoA"));
-  desc.add<bool>("useMTDTiming", true);
+  desc.add<bool>("useMTDTiming", false);
   desc.add<double>("tkEnergyCut", 2.0)
       ->setComment("Min track energy sqrt(p^2+mpi^2) [GeV] for candidate linking; was hardcoded.");
   desc.add<std::string>("cutTk",
