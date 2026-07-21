@@ -94,6 +94,7 @@ HGCalValidator::HGCalValidator(const edm::ParameterSet& pset)
       label_TSbyLCs_(pset.getParameter<std::string>("label_TSbyLCs")),
       label_clustersmask(pset.getParameter<std::vector<edm::InputTag>>("LayerClustersInputMask")),
       doCandidatesPlots_(pset.getUntrackedParameter<bool>("doCandidatesPlots")),
+      hardScatterOnly_(pset.getParameter<bool>("hardScatterOnly")),
       label_candidates_(pset.getParameter<std::string>("ticlCandidates")),
       cummatbudinxo_(pset.getParameter<edm::FileInPath>("cummatbudinxo")),
       hitsToken_(consumes<edm::RefProdVector<HGCRecHitCollection>>(pset.getParameter<edm::InputTag>("hits"))),
@@ -133,7 +134,7 @@ HGCalValidator::HGCalValidator(const edm::ParameterSet& pset)
 
   if (doCandidatesPlots_) {
     edm::EDGetTokenT<std::vector<TICLCandidate>> TICLCandidatesToken =
-        consumes<std::vector<TICLCandidate>>(pset.getParameter<edm::InputTag>("ticlTrackstersMerge"));
+        consumes<std::vector<TICLCandidate>>(pset.getParameter<edm::InputTag>("ticlCandidatesSrc"));
     edm::EDGetTokenT<std::vector<TICLCandidate>> simTICLCandidatesToken =
         consumes<std::vector<TICLCandidate>>(pset.getParameter<edm::InputTag>("simTiclCandidates"));
     edm::EDGetTokenT<std::vector<reco::Track>> recoTracksToken =
@@ -439,7 +440,7 @@ void HGCalValidator::dqmAnalyze(const edm::Event& event,
   std::vector<size_t> cPIndices;
   //Consider CaloParticles coming from the hard scatterer
   //excluding the PU contribution and save the indices.
-  removeCPFromPU(caloParticles, cPIndices);
+  removeCPFromPU(caloParticles, cPIndices, hardScatterOnly_);
 
   // ##############################################
   // Fill caloparticles histograms
@@ -859,7 +860,13 @@ void HGCalValidator::fillDescriptions(edm::ConfigurationDescriptions& descriptio
       });
   desc.addUntracked<bool>("doCandidatesPlots", true);
   desc.add<std::string>("ticlCandidates", "ticlCandidates");
-  desc.add<edm::InputTag>("ticlTrackstersMerge", edm::InputTag("ticlCandidate"));
+  desc.add<edm::InputTag>("ticlTrackstersMerge", edm::InputTag("ticlTracksterInterpretations"));
+  desc.add<bool>("hardScatterOnly", true)
+      ->setComment("Keep only hard-scatter CaloParticles (drop pileup). Set false for a pileup-aware fake rate.");
+  desc.add<edm::InputTag>("ticlCandidatesSrc", edm::InputTag("ticlCandidate"))
+      ->setComment(
+          "TICLCandidate collection; split from ticlTrackstersMerge since the assembler no longer produces "
+          "tracksters.");
   desc.add<edm::InputTag>("simTiclCandidates", edm::InputTag("ticlSimTracksters"));
   desc.add<edm::InputTag>("recoTracks", edm::InputTag("generalTracks"));
   desc.add<edm::InputTag>(

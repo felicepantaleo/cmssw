@@ -81,6 +81,7 @@ T_MASK = "std::vector<float>"
 T_TRACKSTERS = "std::vector<ticl::Trackster>"
 T_SEEDS = "std::vector<ticl::TICLSeedingRegion>"
 T_LINKS = "std::vector<std::vector<unsigned int>>"
+T_INTS = "std::vector<int>"
 T_CANDIDATES = "std::vector<ticl::TICLCandidate>"
 T_TIME = "edm::ValueMap<std::pair<float,float>>"
 T_TILES = "ticl::TICLLayerTiles"
@@ -155,13 +156,21 @@ _SPECS = [
             Product(T_LINKS),
             Product(T_LINKS, "fixed:linkedTracksterIdToInputTracksterId"),
             Product(T_MASK),
+            # Interpretation mode (runInterpretation): per-track assignment maps.
+            Product(T_INTS, "fixed:trackToTrackster"),
+            Product(T_INTS, "fixed:trackMode"),
+            Product(T_INTS, "fixed:neutralIdx"),
+            Product(T_INTS, "fixed:neutralPdg"),
         ),
         consumes=(
             Consumed("layer_clusters", T_CALOCLUSTERS),
             Consumed("layer_clustersTime", T_TIME),
             Consumed("tracksters_collections", T_TRACKSTERS, vector=True),
             Consumed("original_masks", T_MASK, vector=True),
+            # Interpretation mode: the superclustering (EM) view.
+            Consumed("egamma_tracksters_collections", T_TRACKSTERS, vector=True),
         ),
+        external_inputs=("tracks", "muons", "timingSoA"),
     ),
     ModuleSpec(
         key="EGammaSuperclusterProducer",
@@ -181,20 +190,16 @@ _SPECS = [
         key="TICLCandidateProducer",
         cfi_module="RecoHGCal.TICL.ticlCandidateProducer_cfi",
         cfi_symbol="ticlCandidateProducer",
+        # The candidate ASSEMBLY: candidates only; the final tracksters and the
+        # assignment maps come from the interpretation stage (TracksterLinksProducer
+        # in interpretation mode).
         produces=(
             Product(T_CANDIDATES),
-            Product(T_TRACKSTERS),
         ),
         consumes=(
-            Consumed("layer_clusters", T_CALOCLUSTERS),
-            Consumed("layer_clustersTime", T_TIME),
-            Consumed("egamma_tracksters_collections", T_TRACKSTERS, vector=True),
-            Consumed("egamma_tracksterlinks_collections", T_LINKS, vector=True),
-            Consumed("general_tracksters_collections", T_TRACKSTERS, vector=True),
-            Consumed("general_tracksterlinks_collections", T_LINKS, vector=True),
-            Consumed("original_masks", T_MASK, vector=True),
+            Consumed("interpretations", T_TRACKSTERS),
         ),
-        external_inputs=("tracks", "muons", "timingSoA"),
+        external_inputs=("tracks", "gsf_tracks", "timingSoA"),
     ),
     ModuleSpec(
         key="MTDSoAProducer",

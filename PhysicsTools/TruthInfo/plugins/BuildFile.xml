@@ -50,6 +50,34 @@
 <use name="DQMServices/Core"/>
 <use name="SimDataFormats/Associations"/>
 
+<library file="BranchSimTracksterProducer.cc" name="BranchSimTracksterPlugins">
+  <flags EDM_PLUGIN="1"/>
+</library>
+
+<library file="MergedVsIndexAnalyzer.cc" name="MergedVsIndexPlugins">
+  <flags EDM_PLUGIN="1"/>
+</library>
+
+<library file="TruthBranchMatchAnalyzer.cc" name="TruthBranchMatchPlugins">
+  <flags EDM_PLUGIN="1"/>
+</library>
+
+<library file="HitIndexCoverageAnalyzer.cc" name="HitIndexCoveragePlugins">
+  <flags EDM_PLUGIN="1"/>
+</library>
+
+<library file="MergedHitDumpAnalyzer.cc" name="MergedHitDumpPlugins">
+  <flags EDM_PLUGIN="1"/>
+</library>
+
+<library file="TracksterBranchFakeRateAnalyzer.cc" name="TracksterBranchFakeRatePlugins">
+  <flags EDM_PLUGIN="1"/>
+</library>
+
+<library file="AllTracksterToTruthBranchAssociatorsProducer.cc" name="AllTracksterToTruthBranchAssociatorsPlugins">
+  <flags EDM_PLUGIN="1"/>
+</library>
+
 <library file="TruthGraphProducer.cc" name="TruthGraphProducerPlugins">
   <flags EDM_PLUGIN="1"/>
 </library>
@@ -75,6 +103,10 @@
 </library>
 
 <library file="LogicalGraphHitIndexProducer.cc" name="LogicalGraphHitIndexProducerPlugins">
+  <flags EDM_PLUGIN="1"/>
+</library>
+
+<library file="TracksterFeatureFlatTableProducer.cc" name="TracksterFeatureFlatTablePlugins">
   <flags EDM_PLUGIN="1"/>
 </library>
 
@@ -115,6 +147,10 @@
 </library>
 
 <library file="BranchRecoValidator.cc" name="BranchRecoValidatorPlugins">
+  <flags EDM_PLUGIN="1"/>
+</library>
+
+<library file="BranchTICLCandidateValidator.cc" name="BranchTICLCandidateValidatorPlugins">
   <flags EDM_PLUGIN="1"/>
 </library>
 

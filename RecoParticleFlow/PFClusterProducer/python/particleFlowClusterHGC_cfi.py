@@ -48,7 +48,7 @@ _hgcalTracksterMapper_HGCal = cms.PSet(
     algoName = cms.string("PFClusterFromHGCalTrackster"),
     thresholdsByDetector = cms.VPSet(
     ),
-    tracksterSrc = cms.InputTag("ticlCandidate"),
+    tracksterSrc = cms.InputTag("ticlTracksterInterpretations"),
     clusterSrc = cms.InputTag("hgcalMergeLayerClusters"),
     filterByTracksterPID = cms.bool(True),
     pid_threshold = cms.double(0.8),

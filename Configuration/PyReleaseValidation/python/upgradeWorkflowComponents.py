@@ -1011,6 +1011,33 @@ upgradeWFs['ticlv5_TrackLinkingGNN'].step2 = {'--procModifiers': 'ticlv5_TrackLi
 upgradeWFs['ticlv5_TrackLinkingGNN'].step3 = {'--procModifiers': 'ticlv5_TrackLinkingGNN'}
 upgradeWFs['ticlv5_TrackLinkingGNN'].step4 = {'--procModifiers': 'ticlv5_TrackLinkingGNN'}
 
+# TICL development chain (TICLv6): interpretation opinions and arbitration in the
+# reconstruction, gated behind the ticl_dev process modifier. Without the modifier
+# the reconstruction runs the TICLv5-equivalent masking chain.
+class UpgradeWorkflow_ticl_dev(UpgradeWorkflow):
+    def setup_(self, step, stepName, stepDict, k, properties):
+        if 'RecoGlobal' in step:
+            stepDict[stepName][k] = merge([self.step3, stepDict[step][k]])
+        if 'HARVESTGlobal' in step:
+            stepDict[stepName][k] = merge([self.step4, stepDict[step][k]])
+    def condition(self, fragment, stepList, key, hasHarvest):
+        return 'Run4' in key
+
+upgradeWFs['ticl_dev'] = UpgradeWorkflow_ticl_dev(
+    steps = [
+        'RecoGlobal',
+        'HARVESTGlobal'
+    ],
+    PU = [
+        'RecoGlobal',
+        'HARVESTGlobal'
+    ],
+    suffix = '_ticl_dev',
+    offset = 0.8823,
+)
+upgradeWFs['ticl_dev'].step3 = {'--procModifiers': 'ticl_dev'}
+upgradeWFs['ticl_dev'].step4 = {'--procModifiers': 'ticl_dev'}
+
 
 
 class UpgradeWorkflow_enableTruth(UpgradeWorkflow):

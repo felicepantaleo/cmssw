@@ -12,7 +12,7 @@ layerClusterToCLUE3DTracksterAssociation = LCToTSAssociatorProducer.clone(
 )
 
 layerClusterToTracksterMergeAssociation = LCToTSAssociatorProducer.clone(
-    tracksters = cms.InputTag("ticlCandidate")
+    tracksters = cms.InputTag("ticlTracksterInterpretations")
 )
 
 layerClusterToSimTracksterAssociation = LCToTSAssociatorProducer.clone(

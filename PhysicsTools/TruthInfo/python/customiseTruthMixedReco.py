@@ -1,8 +1,8 @@
 """RECO-side customise for the pileup truth chain: build the merged (signal+pileup)
-logical graph from the MixingModule accumulator's raw TruthGraph (label mix) and
-resolve its SimHit associations against the mixed rechits. Pairs with
-mixedTruthGraphCustomize.addTruthGraphAccumulator at DIGI, giving a pileup-aware
-truth graph at RECO."""
+logical graph from the MixingModule accumulator's raw TruthGraph (label mix),
+resolve its SimHit associations against the mixed rechits, and run the
+trackster-to-branch associators. Pairs with mixedTruthGraphCustomize.addTruthGraph
+Accumulator at DIGI. Gives a pileup-aware truth for fake-rate measurement."""
 
 import FWCore.ParameterSet.Config as cms
 
@@ -33,18 +33,26 @@ def customise(process):
         simHitCollections=cms.VInputTag(cms.InputTag('mix', 'mergedHGCHits')),
     )
 
+    from PhysicsTools.TruthInfo.allTrackstersToTruthBranchAssociations_cfi import (
+        allTrackstersToTruthBranchAssociations,
+    )
+    process.allTrackstersToTruthBranchAssociations = allTrackstersToTruthBranchAssociations
+
     process.truthMixedRecoPath = cms.Path(
         process.truthLogicalGraphProducer
         + process.detIdToRecHitMapProducer
         + process.truthLogicalGraphHitIndexProducer
+        + process.allTrackstersToTruthBranchAssociations
     )
     process.schedule.append(process.truthMixedRecoPath)
 
     for out in process.outputModules_().values():
         out.outputCommands.extend([
             "keep *_truthLogicalGraphProducer_*_*",
+            "keep *_allTrackstersToTruthBranchAssociations_*_*",
         ])
-        # The hit index is an intermediate graph footprint, regenerable from the graph
-        # plus mix:mergedHGCHits; persisting it costs ~9.7 MB/event (subgraph-hit CSR
-        # over every retained pileup particle), so it is kept out of the event content.
+        # The hit index is an intermediate: it is consumed in-job by the branch
+        # associators above and is regenerable from the graph + mix:mergedHGCHits.
+        # Persisting it costs ~9.7 MB/event (subgraph-hit CSR over every retained
+        # pileup particle); keep it out of the event content on purpose.
     return process

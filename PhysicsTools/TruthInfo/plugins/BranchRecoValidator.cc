@@ -14,7 +14,13 @@
 //   * BranchTracksterRecoValidator - ticl::Trackster, calo channel, shared energy.
 // The truth side (efficiency denominator) is the set of "interesting" branches
 // (interestingPdgIds, empty = all) that carry hits in the relevant channel and pass
-// a kinematic selection; the harvester (DQMGenericClient) forms the ratios.
+// a kinematic selection; the harvester (DQMGenericClient) forms the ratios. A
+// single-particle gun is best measured with onlyGenPrimaries=True, which restricts
+// the branch side to the fired GEN particle (a clean antichain).
+//
+// NOTE: a TICLCandidate mixes a track and tracksters (two hit channels at once), so
+// it is NOT one of these single-channel instantiations - see the dedicated
+// BranchTICLCandidateValidator.
 
 #include <cstdint>
 #include <span>
@@ -146,6 +152,12 @@ private:
   const double maxAbsEta_;
   const double matchThreshold_;
   const double mergeThreshold_;
+  // Restrict the branch (truth) side to GEN primaries. For a single-particle gun the
+  // fired particle is the only GEN particle of its species, so this turns the
+  // interestingPdgIds selection into a clean antichain (the gun particle, whose
+  // subgraph hits are its whole shower) instead of also selecting nested SIM
+  // secondaries of the same PDG id. Off by default (matches the legacy behaviour).
+  const bool onlyGenPrimaries_;
   Traits traits_;
 
   // Truth (sim) side, vs eta and vs x.
@@ -179,6 +191,7 @@ BranchRecoValidatorT<Traits>::BranchRecoValidatorT(edm::ParameterSet const& cfg)
       maxAbsEta_(cfg.getParameter<double>("maxAbsEta")),
       matchThreshold_(cfg.getParameter<double>("matchThreshold")),
       mergeThreshold_(cfg.getParameter<double>("mergeThreshold")),
+      onlyGenPrimaries_(cfg.getParameter<bool>("onlyGenPrimaries")),
       traits_(cfg, consumesCollector()) {}
 
 template <class Traits>
@@ -215,16 +228,33 @@ void BranchRecoValidatorT<Traits>::analyze(edm::Event const& event, edm::EventSe
   auto const& graph = event.get(graphToken_);
   auto const& hitIndex = event.get(hitIndexToken_);
 
-  // Candidate / associator roots = the interesting particles (empty config -> all).
+  // A particle is an eligible branch root when it matches the interesting-PDG filter
+  // (empty = any) and, if onlyGenPrimaries_, is a GEN primary. Used identically to
+  // build the associator roots and to select the efficiency denominator, so the two
+  // sides are always consistent.
+  auto matchesPid = [&](int pdgId) {
+    return interestingPdgIds_.empty() ||
+           std::find(interestingPdgIds_.begin(), interestingPdgIds_.end(), pdgId) != interestingPdgIds_.end();
+  };
+  auto isRootParticle = [&](uint32_t i) {
+    auto const& pd = graph.particles()[i];
+    if (onlyGenPrimaries_ && !pd.hasGen())
+      return false;
+    return matchesPid(pd.pdgId);
+  };
+
+  // When a selection is active, build the explicit root set and tell the associator
+  // that an empty result means "match nothing" (not "all particles"): a restriction
+  // that selects no particle in this event must not silently fall back to the whole
+  // graph. With no selection at all, keep the legacy "empty roots = all" behaviour.
+  const bool restricted = !interestingPdgIds_.empty() || onlyGenPrimaries_;
   std::vector<uint32_t> roots;
-  if (!interestingPdgIds_.empty()) {
-    for (uint32_t i = 0; i < graph.nParticles(); ++i) {
-      const int pdgId = graph.particles()[i].pdgId;
-      if (std::find(interestingPdgIds_.begin(), interestingPdgIds_.end(), pdgId) != interestingPdgIds_.end())
+  if (restricted)
+    for (uint32_t i = 0; i < graph.nParticles(); ++i)
+      if (isRootParticle(i))
         roots.push_back(i);
-    }
-  }
-  truth::BranchHitAssociator assoc(hitIndex, roots, Traits::metric(), Traits::channel());
+  truth::BranchHitAssociator assoc(
+      hitIndex, roots, Traits::metric(), Traits::channel(), /*emptyRootsMeansAll=*/!restricted);
 
   // Reco -> sim: match every reco object, accumulate per-branch match multiplicity.
   std::unordered_map<uint32_t, int> recoMatchCount;
@@ -263,14 +293,8 @@ void BranchRecoValidatorT<Traits>::analyze(edm::Event const& event, edm::EventSe
 
   // Sim -> reco: efficiency / duplicate over the selected branches that carry hits.
   const uint32_t nP = graph.nParticles();
-  auto considerRoot = [&](uint32_t r) {
-    if (interestingPdgIds_.empty())
-      return true;
-    return std::find(interestingPdgIds_.begin(), interestingPdgIds_.end(), graph.particles()[r].pdgId) !=
-           interestingPdgIds_.end();
-  };
   for (uint32_t r = 0; r < nP; ++r) {
-    if (!considerRoot(r) || channelHits(hitIndex, r).empty())
+    if (!isRootParticle(r) || channelHits(hitIndex, r).empty())
       continue;
     auto const& p = graph.particles()[r].momentum;
     const double eta = p.eta();
@@ -309,6 +333,9 @@ void BranchRecoValidatorT<Traits>::fillDescriptions(edm::ConfigurationDescriptio
   desc.add<double>("matchThreshold", 0.5)->setComment("Min best-branch purity for a reco object to count as matched.");
   desc.add<double>("mergeThreshold", 0.3)
       ->setComment("Min shared fraction for a branch to count toward a merge (>=2 -> merged reco object).");
+  desc.add<bool>("onlyGenPrimaries", false)
+      ->setComment(
+          "Restrict the branch side to GEN primaries (turns a per-species gun selection into a clean antichain).");
   Traits::fillDescriptions(desc);
   descriptions.addWithDefaultLabel(desc);
 }
