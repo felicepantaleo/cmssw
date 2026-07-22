@@ -136,3 +136,31 @@
 <library file="TruthGraphTopologyChecker.cc" name="TruthGraphTopologyCheckerPlugins">
   <flags EDM_PLUGIN="1"/>
 </library>
+
+<library file="BranchSimTracksterProducer.cc" name="BranchSimTracksterPlugins">
+  <flags EDM_PLUGIN="1"/>
+</library>
+
+<library file="MergedVsIndexAnalyzer.cc" name="MergedVsIndexPlugins">
+  <flags EDM_PLUGIN="1"/>
+</library>
+
+<library file="TruthBranchMatchAnalyzer.cc" name="TruthBranchMatchPlugins">
+  <flags EDM_PLUGIN="1"/>
+</library>
+
+<library file="HitIndexCoverageAnalyzer.cc" name="HitIndexCoveragePlugins">
+  <flags EDM_PLUGIN="1"/>
+</library>
+
+<library file="MergedHitDumpAnalyzer.cc" name="MergedHitDumpPlugins">
+  <flags EDM_PLUGIN="1"/>
+</library>
+
+<library file="TracksterBranchFakeRateAnalyzer.cc" name="TracksterBranchFakeRatePlugins">
+  <flags EDM_PLUGIN="1"/>
+</library>
+
+<library file="TracksterFeatureFlatTableProducer.cc" name="TracksterFeatureFlatTablePlugins">
+  <flags EDM_PLUGIN="1"/>
+</library>

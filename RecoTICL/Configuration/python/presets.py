@@ -227,8 +227,9 @@ def supercluster_dnn_defaults():
     )
 
 
-def candidate_defaults():
-    """Standard ``ticlCandidate`` overrides (PFN inference + regression/PID)."""
+def interpretations_defaults():
+    """Standard ``ticlTracksterInterpretations`` overrides (PFN inference on the
+    final tracksters; the masking interpretation passes are the default)."""
     return dict(
         inferenceAlgo=cms.string("TracksterInferenceByPFN"),
         regressionAndPid=cms.bool(True),
@@ -249,6 +250,12 @@ def candidate_defaults():
     )
 
 
+def candidate_defaults():
+    """Standard ``ticlCandidate`` overrides: the candidate assembly runs on its
+    ``_cfi`` defaults."""
+    return dict()
+
+
 def pf_defaults():
     """Standard ``pfTICL`` overrides."""
     return dict(useTimingAverage=cms.bool(True))
@@ -266,12 +273,35 @@ def barrel(name="barrel"):
 
 
 def v5(name="v5"):
-    """Return a :class:`TICLConfig` reproducing the default ``iterTICLTask`` (v5)."""
+    """Return a :class:`TICLConfig` reproducing the default ``iterTICLTask`` (v5:
+    the two-stage candidate chain in masking mode, physics-equivalent to the
+    single-producer TICLv5)."""
     cfg = (TICLConfig(name)
            .iteration("CLUE3DHigh").preset()
            .iteration("Recovery").preset()
            .links(["CLUE3DHigh", "Recovery"], **links_defaults())
            .superclustering_dnn(source="CLUE3DHigh", **supercluster_dnn_defaults())
+           .interpretations(**interpretations_defaults())
            .candidate(**candidate_defaults())
+           .pf(**pf_defaults()))
+    return cfg
+
+
+def v6(name="v6"):
+    """Return a :class:`TICLConfig` for TICLv6: opinion arbitration across the
+    interpretations, the widened electron E/p window and the track-only charged
+    candidates, i.e. the configuration the ``ticl_dev`` process modifier enables."""
+    interp = dict(interpretations_defaults())
+    interp["useArbitration"] = cms.bool(True)
+    interp["egammaInterpretationDescPSet"] = dict(eop_max=cms.double(4.0))
+    cand = dict(candidate_defaults())
+    cand["buildTrackOnlyCandidates"] = cms.bool(True)
+    cfg = (TICLConfig(name)
+           .iteration("CLUE3DHigh").preset()
+           .iteration("Recovery").preset()
+           .links(["CLUE3DHigh", "Recovery"], **links_defaults())
+           .superclustering_dnn(source="CLUE3DHigh", **supercluster_dnn_defaults())
+           .interpretations(**interp)
+           .candidate(**cand)
            .pf(**pf_defaults()))
     return cfg

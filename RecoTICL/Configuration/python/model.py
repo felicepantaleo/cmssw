@@ -92,6 +92,7 @@ class TICLConfig:
         self.links_spec: Optional[LinksSpec] = None
         self.superclustering_spec: Optional[SuperclusterSpec] = None
         self.candidate_spec: Optional[Dict] = None
+        self.interpretations_spec: Optional[Dict] = None
         self.pf_spec: Optional[Dict] = None
         self.include_layer_tile = True
         self.include_mtd = True
@@ -203,6 +204,14 @@ class TICLConfig:
     def superclustering_dnn(self, source, **overrides):
         self.superclustering_spec = SuperclusterSpec("DNN", source, overrides)
         self._current = None
+        return self
+
+    def interpretations(self, **overrides):
+        """Overrides for the interpretation stage (``ticlTracksterInterpretations``,
+        a ``TracksterLinksProducer`` instance in interpretation mode). The stage is
+        emitted whenever the candidate stage is included; this call only customizes
+        it."""
+        self.interpretations_spec = overrides
         return self
 
     def candidate(self, **overrides):
