@@ -86,6 +86,7 @@ def customiseMixedAll(process, stages=None):
     from PhysicsTools.TruthInfo.customiseTruthMixedReco import customise as _mixed
     process = _mixed(process)
     from PhysicsTools.TruthInfo.allTrackstersToTruthBranchAssociations_cfi import allTrackstersToTruthBranchAssociations
+    from PhysicsTools.TruthInfo.allLayerClustersToTruthBranchAssociations_cfi import allLayerClustersToTruthBranchAssociations
     from PhysicsTools.TruthInfo.branchSimTracksters_cfi import branchSimTracksters
     process.allTrackstersToTruthBranchAssociations = allTrackstersToTruthBranchAssociations.clone(
         tracksterCollections=labels,
@@ -95,10 +96,14 @@ def customiseMixedAll(process, stages=None):
         tracksterCollections=labels,
         rootsSrc=("branchSimTracksters", "roots"),
     )
+    # LC-granularity truth reference: the layer-cluster analogue of the trackster
+    # association, keyed by layer-cluster index (default hgcalMergeLayerClusters).
+    process.allLayerClustersToTruthBranchAssociations = allLayerClustersToTruthBranchAssociations.clone()
     process.truthMixedAssocPath = cms.Path(
         process.allTrackstersToTruthBranchAssociations
         + process.branchSimTracksters
         + process.allTrackstersToTruthBranchAssociationsAllLevels
+        + process.allLayerClustersToTruthBranchAssociations
     )
     tables = [_feature_table_for(process, n, c) for (n, c) in stages]
     seq = tables[0]

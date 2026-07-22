@@ -79,6 +79,10 @@
   <flags EDM_PLUGIN="1"/>
 </library>
 
+<library file="AllLayerClustersToTruthBranchAssociatorsProducer.cc" name="AllLayerClustersToTruthBranchAssociatorsPlugins">
+  <flags EDM_PLUGIN="1"/>
+</library>
+
 <library file="TruthGraphProducer.cc" name="TruthGraphProducerPlugins">
   <flags EDM_PLUGIN="1"/>
 </library>

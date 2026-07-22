@@ -46,6 +46,19 @@ namespace truth {
     return hits;
   }
 
+  // reco::CaloCluster (a single layer cluster) -> its (DetId, fraction) hits (unit
+  // energy; the calo shared-energy metric compares cell fractions). A layer cluster
+  // owns its hitsAndFractions with each cell listed once, so no coalescing is needed;
+  // the hits are sorted by detId for the merge-join in BranchHitAssociator.
+  inline std::vector<RecoHit> recoHits(reco::CaloCluster const& layerCluster) {
+    std::vector<RecoHit> hits;
+    hits.reserve(layerCluster.hitsAndFractions().size());
+    for (auto const& [detId, fraction] : layerCluster.hitsAndFractions())
+      hits.push_back(RecoHit{detId.rawId(), 1.f, fraction});
+    std::sort(hits.begin(), hits.end(), [](RecoHit const& a, RecoHit const& b) { return a.detId < b.detId; });
+    return hits;
+  }
+
   // ticl::Trackster -> the (DetId, fraction) of its layer clusters (unit energy; the
   // calo shared-energy metric then compares cell fractions). Duplicate cells across
   // the trackster's layer clusters are coalesced (fractions summed) so the
