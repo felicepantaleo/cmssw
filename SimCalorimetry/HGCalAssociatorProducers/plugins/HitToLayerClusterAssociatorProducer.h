@@ -33,7 +33,7 @@ private:
   void produce(edm::StreamID, edm::Event &, const edm::EventSetup &) const override;
 
   edm::EDGetTokenT<std::vector<reco::CaloCluster>> LCCollectionToken_;
-  edm::EDGetTokenT<std::unordered_map<DetId, unsigned int>> hitMapToken_;
+  edm::EDGetTokenT<std::unordered_map<DetId, const unsigned int>> hitMapToken_;
   std::vector<edm::EDGetTokenT<std::vector<HIT>>> hitsTokens_;
 };
 
