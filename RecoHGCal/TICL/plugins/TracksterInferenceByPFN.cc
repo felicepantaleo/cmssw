@@ -17,6 +17,7 @@ namespace ticl {
         output_en_(conf.getParameter<std::vector<std::string>>("output_en")),
         output_id_(conf.getParameter<std::vector<std::string>>("output_id")),
         eidMinClusterEnergy_(conf.getParameter<double>("eid_min_cluster_energy")),
+        eidBlendWidth_(static_cast<float>(conf.getParameter<double>("eid_blend_width"))),
         eidNLayers_(conf.getParameter<int>("eid_n_layers")),
         eidNClusters_(conf.getParameter<int>("eid_n_clusters")),
         doPID_(conf.getParameter<int>("doPID")),
@@ -161,7 +162,20 @@ namespace ticl {
           for (int bi = 0; bi < n; ++bi) {
             auto& ts = tracksters[indices[start + bi]];
             const float regE = energy[bi];
-            const float finalE = (ts.raw_energy() > eidMinClusterEnergy_) ? regE : static_cast<float>(ts.raw_energy());
+            // The hard raw/regressed switch at eidMinClusterEnergy plus a network
+            // that never predicts below its training range dig a forbidden zone
+            // into the energy spectrum (no trackster can carry 2.5-5 GeV: the
+            // candidate momentum distributions inherit the notch). A nonzero
+            // blend width replaces the switch with a linear raw-to-regressed
+            // ramp; zero keeps the historical behavior bit for bit.
+            const float raw = static_cast<float>(ts.raw_energy());
+            float finalE = raw;
+            if (eidBlendWidth_ > 0.f) {
+              const float w = std::clamp((raw - eidMinClusterEnergy_) / eidBlendWidth_, 0.f, 1.f);
+              finalE = w * regE + (1.f - w) * raw;
+            } else if (raw > eidMinClusterEnergy_) {
+              finalE = regE;
+            }
             ts.setRegressedEnergy(finalE);
           }
         }
@@ -197,6 +211,8 @@ namespace ticl {
     iDesc.add<std::vector<std::string>>("output_id", {"pid_output"});
 
     iDesc.add<double>("eid_min_cluster_energy", 1.0);
+    iDesc.add<double>("eid_blend_width", 0.0)
+        ->setComment("Linear raw-to-regressed blend width above eid_min_cluster_energy [GeV]; 0 = hard switch.");
     iDesc.add<int>("eid_n_layers", 50);
     iDesc.add<int>("eid_n_clusters", 10);
     iDesc.add<int>("doPID", 1);

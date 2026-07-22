@@ -36,6 +36,26 @@ namespace {
     return b.finish();
   }
 
+  // Forked topology: parent 0 -> children 1 and 2 (no direct parent hits).
+  //   p1 direct: cell11 (e2), cell12 (e2)   [a clean leaf]
+  //   p2 direct: cell20 (e5), cell21 (e5)   [a big, separate sibling]
+  // => subgraph(0) = {11:2,12:2,20:5,21:5}; subgraph(1) = {11:2,12:2};
+  //    subgraph(2) = {20:5,21:5}. A reco object that is only p1 matches the child
+  //    tightly; climbing to the parent drags in p2's cells (pure branch spread).
+  truth::LogicalGraphHitIndex buildForkedIndex() {
+    truth::LogicalGraphHitIndexBuilder b(3);
+    b.setSimTrackForParticle(0, 0, 100);
+    b.setSimTrackForParticle(1, 0, 101);
+    b.setSimTrackForParticle(2, 0, 102);
+    b.addParticleChild(0, 1);
+    b.addParticleChild(0, 2);
+    b.addHit(truth::HitChannel::HGCalCalo, 0, 101, 11, 2.0f, 0);
+    b.addHit(truth::HitChannel::HGCalCalo, 0, 101, 12, 2.0f, 0);
+    b.addHit(truth::HitChannel::HGCalCalo, 0, 102, 20, 5.0f, 0);
+    b.addHit(truth::HitChannel::HGCalCalo, 0, 102, 21, 5.0f, 0);
+    return b.finish();
+  }
+
   // Same topology populated on the *tracker* channel (cells 20,21,22), plus one
   // calo cell (10) that the tracker associator must ignore.
   truth::LogicalGraphHitIndex buildTrackerIndex() {
@@ -61,6 +81,7 @@ class TestBranchHitAssociator : public CppUnit::TestFixture {
   CPPUNIT_TEST(testTrackerChannel);
   CPPUNIT_TEST(testEmptyRootsMatchNothingWhenRestricted);
   CPPUNIT_TEST(testReverseScoreIsBranchNormalized);
+  CPPUNIT_TEST(testAdaptiveBranchPicksLevel);
   CPPUNIT_TEST_SUITE_END();
 
 public:
@@ -70,6 +91,7 @@ public:
   void testTrackerChannel();
   void testEmptyRootsMatchNothingWhenRestricted();
   void testReverseScoreIsBranchNormalized();
+  void testAdaptiveBranchPicksLevel();
 };
 
 CPPUNIT_TEST_SUITE_REGISTRATION(TestBranchHitAssociator);
@@ -194,4 +216,24 @@ void TestBranchHitAssociator::testReverseScoreIsBranchNormalized() {
     }
   }
   CPPUNIT_ASSERT(sawRoot1);
+}
+
+void TestBranchHitAssociator::testAdaptiveBranchPicksLevel() {
+  auto index = buildForkedIndex();  // parent 0 -> child 1 {11,12}, child 2 {20,21}
+  truth::BranchHitAssociator assoc(index);
+
+  // Reco == child 1 exactly. Climbing to the parent would add child 2's cells
+  // {20,21} (pure branch spread the reco object has none of), so the balanced
+  // objective keeps the match at the child leaf.
+  std::vector<truth::RecoHit> leafReco{{11, 2.0f, 1.0f}, {12, 2.0f, 1.0f}};
+  CPPUNIT_ASSERT_EQUAL(uint32_t(1), assoc.bestAdaptiveBranch(leafReco).rootParticleId);
+
+  // Reco == the whole shower {11,12,20,21}. Now the parent covers it perfectly both
+  // ways while either child leaves the other half uncovered, so it climbs up.
+  std::vector<truth::RecoHit> mergedReco{{11, 2.0f, 1.0f}, {12, 2.0f, 1.0f}, {20, 5.0f, 1.0f}, {21, 5.0f, 1.0f}};
+  CPPUNIT_ASSERT_EQUAL(uint32_t(0), assoc.bestAdaptiveBranch(mergedReco).rootParticleId);
+
+  // No shared hits -> invalid sentinel, not a spurious match.
+  std::vector<truth::RecoHit> noneReco{{99, 1.0f, 1.0f}};
+  CPPUNIT_ASSERT_EQUAL(truth::BranchMatch::kInvalidRoot, assoc.bestAdaptiveBranch(noneReco).rootParticleId);
 }

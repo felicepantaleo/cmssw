@@ -32,6 +32,7 @@ namespace ticl {
     const std::vector<std::string> output_id_;
 
     const float eidMinClusterEnergy_;
+    const float eidBlendWidth_;
     const int eidNLayers_;
     const int eidNClusters_;
     static constexpr int eidNFeatures_ = 7;
