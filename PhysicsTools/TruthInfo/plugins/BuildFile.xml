@@ -40,6 +40,7 @@
 <use name="DataFormats/TrackingRecHit"/>
 <use name="DataFormats/TrackerRecHit2D"/>
 <use name="DataFormats/HGCalReco"/>
+<use name="DataFormats/HGCRecHit"/>
 <use name="DataFormats/CaloRecHit"/>
 <use name="DataFormats/HcalRecHit"/>
 <use name="DataFormats/EcalRecHit"/>
