@@ -45,6 +45,14 @@ namespace ticl {
                         std::vector<int> &resultCandidate,
                         std::vector<bool> &maskedTracksters) override;
 
+    // Arbitration mode: one scored muon hypothesis per MIP-like track; a track whose
+    // trajectory points to a shower emits nothing (the general interpretation's
+    // charged-hadron opinion covers it, and the arbiter decides).
+    void makeOpinions(const Inputs &input,
+                      edm::Handle<MtdHostCollection> inputTiming_h,
+                      std::vector<Trackster> &hypothesisTracksters,
+                      std::vector<Hypothesis> &hypotheses) override;
+
     void initialize(const HGCalDDDConstants *hgcons,
                     const hgcal::RecHitTools rhtools,
                     const edm::ESHandle<MagneticField> bfieldH,
