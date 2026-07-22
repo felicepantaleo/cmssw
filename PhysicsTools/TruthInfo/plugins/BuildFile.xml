@@ -177,3 +177,7 @@
 <library file="AllLayerClustersToTruthBranchAssociatorsProducer.cc" name="AllLayerClustersToTruthBranchAssociatorsPlugins">
   <flags EDM_PLUGIN="1"/>
 </library>
+
+<library file="AllTracksterToTruthBranchByHitsAssociatorsProducer.cc" name="AllTracksterToTruthBranchByHitsAssociatorsPlugins">
+  <flags EDM_PLUGIN="1"/>
+</library>

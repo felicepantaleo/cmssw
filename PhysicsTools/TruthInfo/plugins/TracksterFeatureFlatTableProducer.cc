@@ -134,7 +134,10 @@ public:
         assocAdaptiveToken_(consumes<BranchAssociationMap>(p.getParameter<edm::InputTag>("associationAdaptive"))),
         graphToken_(consumes<truth::Graph>(p.getParameter<edm::InputTag>("graph"))),
         geomToken_(esConsumes<CaloGeometry, CaloGeometryRecord, edm::Transition::BeginRun>()),
-        minSharedEnergy_(p.getParameter<double>("minSharedEnergy")) {
+        minSharedEnergy_(p.getParameter<double>("minSharedEnergy")),
+        hasByHits_(!p.getParameter<edm::InputTag>("associationByHitsAdaptive").label().empty()) {
+    if (hasByHits_)
+      assocByHitsToken_ = consumes<BranchAssociationMap>(p.getParameter<edm::InputTag>("associationByHitsAdaptive"));
     produces<nanoaod::FlatTable>();          // per-trackster
     produces<nanoaod::FlatTable>("LC");      // per layer cluster
   }
@@ -149,8 +152,56 @@ public:
     auto const& assocA = ev.get(assocAdaptiveToken_);
     auto const& graph = ev.get(graphToken_);
     const unsigned nP = graph.nParticles();
+    BranchAssociationMap const* assocBH = hasByHits_ ? &ev.get(assocByHitsToken_) : nullptr;
+
+    // Adaptive label from an adaptive association map: the max-shared branch, mapped to a
+    // single-shower class, or to merged_em/merged_hadron by descendant scan for an
+    // ancestor/merge node. Reused for the default (BranchHitAssociator) and the parallel
+    // by-hits (composition) associations. Returns {label, pdg, is_primary, sharedE, score}.
+    struct AdaptiveResult {
+      int lab = kFake, pdg = 0, prim = 0;
+      float shared = -1.f, score = -1.f;
+    };
+    auto classifyAdaptive = [&graph, nP, this](BranchAssociationMap const& amap, unsigned t) {
+      AdaptiveResult r;
+      float ae = -1.f, ascore = -1.f;
+      int aidx = -1;
+      if (t < amap.size())
+        for (auto const& el : amap[t])
+          if (el.sharedEnergy() > ae) {
+            ae = el.sharedEnergy();
+            ascore = el.score();
+            aidx = static_cast<int>(el.index());
+          }
+      r.shared = ae;
+      r.score = ascore;
+      if (ae >= minSharedEnergy_ && aidx >= 0 && aidx < static_cast<int>(nP)) {
+        const auto ap = graph.particle(static_cast<uint32_t>(aidx));
+        r.pdg = ap.pdgId();
+        r.prim = isPrimary(ap) ? 1 : 0;
+        if (caloCrossing(ap) && singleClass(r.pdg) != kFake) {
+          r.lab = singleClass(r.pdg);
+        } else {
+          bool anyHad = false, anyEM = false, anyMIP = false;
+          for (auto const& d : ap.descendants()) {
+            if (!caloCrossing(d))
+              continue;
+            switch (singleClass(d.pdgId())) {
+              case kEM: anyEM = true; break;
+              case kMIP: anyMIP = true; break;
+              case kHAD: anyHad = true; break;
+              default: break;
+            }
+          }
+          r.lab = anyHad ? kMergedHad : (anyEM ? kMergedEM : (anyMIP ? kMIP : singleClass(r.pdg)));
+        }
+      }
+      return r;
+    };
 
     // per-trackster
+    std::vector<int> label_adaptive_byhits, adaptive_pdg_byhits;
+    std::vector<float> adaptive_shared_byhits, adaptive_score_byhits;
     std::vector<int> label, label_adaptive, is_primary, n_lc, lc_offset;
     std::vector<float> R_bary, z_bary, eta_bary, log_e, best_shared, adaptive_shared, adaptive_score;
     std::vector<int> best_pdg, adaptive_pdg;
@@ -249,49 +300,16 @@ public:
       // balancing completeness against branch spread). A calo-crossing particle -> a
       // single-shower class; an ancestor merging several children -> merged_em or
       // merged_hadron by the nature of its children.
-      float ae = -1.f, ascore = -1.f;
-      int aidx = -1;
-      if (t < assocA.size()) {
-        for (auto const& el : assocA[t]) {
-          if (el.sharedEnergy() > ae) {
-            ae = el.sharedEnergy();
-            ascore = el.score();
-            aidx = static_cast<int>(el.index());
-          }
-        }
-      }
-      int labA = kFake, pdgA = 0, prim = 0;
-      if (ae >= minSharedEnergy_ && aidx >= 0 && aidx < static_cast<int>(nP)) {
-        const auto ap = graph.particle(static_cast<uint32_t>(aidx));
-        pdgA = ap.pdgId();
-        prim = isPrimary(ap) ? 1 : 0;
-        if (caloCrossing(ap) && singleClass(pdgA) != kFake) {
-          labA = singleClass(pdgA);
-        } else {
-          // A merge node (ancestor of several showers), or a particle that has no direct
-          // calo class because it decays before showering (a tau). Classify by its
-          // calo-crossing descendant leaves, the actual shower-makers, not its direct
-          // children, which for a tau are neutrinos and intermediate resonances (rho/a1).
-          bool anyHad = false, anyEM = false, anyMIP = false;
-          for (auto const& d : ap.descendants()) {
-            if (!caloCrossing(d))
-              continue;
-            switch (singleClass(d.pdgId())) {
-              case kEM:
-                anyEM = true;
-                break;
-              case kMIP:
-                anyMIP = true;
-                break;
-              case kHAD:
-                anyHad = true;
-                break;
-              default:
-                break;
-            }
-          }
-          labA = anyHad ? kMergedHad : (anyEM ? kMergedEM : (anyMIP ? kMIP : singleClass(pdgA)));
-        }
+      const AdaptiveResult A = classifyAdaptive(assocA, t);
+      const int labA = A.lab, pdgA = A.pdg, prim = A.prim;
+      const float ae = A.shared, ascore = A.score;
+      // Parallel by-hits (composition) adaptive label, when that association is present.
+      if (assocBH) {
+        const AdaptiveResult B = classifyAdaptive(*assocBH, t);
+        label_adaptive_byhits.push_back(B.lab);
+        adaptive_pdg_byhits.push_back(B.pdg);
+        adaptive_shared_byhits.push_back(B.shared > 0 ? B.shared : 0.f);
+        adaptive_score_byhits.push_back(B.score >= 0 ? B.score : -1.f);
       }
 
       lc_offset.push_back(static_cast<int>(lc_trkIdx.size()));
@@ -404,6 +422,17 @@ public:
     trkTab->addColumn<float>("adaptive_sharedE", adaptive_shared, "shared energy with the adaptive branch");
     trkTab->addColumn<float>("adaptive_score", adaptive_score,
                              "reco-normalized contamination score of the adaptive match (lower is better)");
+    if (hasByHits_) {
+      // Parallel labels from the by-hits (composition) association, for comparison at
+      // training time against the default (BranchHitAssociator) labels above.
+      trkTab->addColumn<int>("label_adaptive_byhits", label_adaptive_byhits,
+                             "adaptive class from the by-hits (composition) association");
+      trkTab->addColumn<int>("adaptive_pdg_byhits", adaptive_pdg_byhits, "pdgId of the by-hits adaptive branch");
+      trkTab->addColumn<float>("adaptive_sharedE_byhits", adaptive_shared_byhits,
+                               "shared energy with the by-hits adaptive branch");
+      trkTab->addColumn<float>("adaptive_score_byhits", adaptive_score_byhits,
+                               "reco-normalized score of the by-hits adaptive match");
+    }
     trkTab->addColumn<int>("n_lc", n_lc, "number of layer clusters");
     trkTab->addColumn<int>("lc_offset", lc_offset, "offset into the LC table");
     trkTab->addColumn<float>("R_bary", R_bary, "barycenter cylindrical radius (cm)");
@@ -461,6 +490,8 @@ public:
     desc.add<edm::InputTag>("associationAdaptive",
                             edm::InputTag("allTrackstersToTruthBranchAssociations",
                                           "ticlTrackstersCLUE3DHighToTruthBranchAdaptive"));
+    desc.add<edm::InputTag>("associationByHitsAdaptive", edm::InputTag(""))
+        ->setComment("Optional parallel by-hits (composition) adaptive association; empty disables the byhits columns.");
     desc.add<edm::InputTag>("graph", edm::InputTag("truthLogicalGraphProducer"));
     desc.add<double>("minSharedEnergy", 0.5);
     descriptions.addWithDefaultLabel(desc);
@@ -475,6 +506,8 @@ private:
   const edm::EDGetTokenT<truth::Graph> graphToken_;
   const edm::ESGetToken<CaloGeometry, CaloGeometryRecord> geomToken_;
   const double minSharedEnergy_;
+  const bool hasByHits_;
+  edm::EDGetTokenT<BranchAssociationMap> assocByHitsToken_;
   hgcal::RecHitTools rhtools_;
 };
 

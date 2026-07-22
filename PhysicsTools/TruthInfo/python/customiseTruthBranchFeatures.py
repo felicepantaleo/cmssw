@@ -67,6 +67,8 @@ def _feature_table_for(process, name, collection):
         layerClusters=cms.InputTag("hgcalMergeLayerClusters"),
         association=cms.InputTag("allTrackstersToTruthBranchAssociations", collection + "ToTruthBranch"),
         associationAdaptive=cms.InputTag("allTrackstersToTruthBranchAssociations", collection + "ToTruthBranchAdaptive"),
+        associationByHitsAdaptive=cms.InputTag("allTrackstersToTruthBranchByHitsAssociations",
+                                               collection + "ToTruthBranchByHitsAdaptive"),
         graph=cms.InputTag("truthLogicalGraphProducer"),
         minSharedEnergy=cms.double(0.5),
     )
@@ -86,8 +88,24 @@ def customiseMixedAll(process, stages=None):
     from PhysicsTools.TruthInfo.customiseTruthMixedReco import customise as _mixed
     process = _mixed(process)
     from PhysicsTools.TruthInfo.allTrackstersToTruthBranchAssociations_cfi import allTrackstersToTruthBranchAssociations
+    from PhysicsTools.TruthInfo.allTrackstersToTruthBranchByHitsAssociations_cfi import allTrackstersToTruthBranchByHitsAssociations
     from PhysicsTools.TruthInfo.allLayerClustersToTruthBranchAssociations_cfi import allLayerClustersToTruthBranchAssociations
     from PhysicsTools.TruthInfo.branchSimTracksters_cfi import branchSimTracksters
+    # Shared low-level hit maps that the by-hits (composition) associators walk against (no
+    # per-object merge-join): the rechit index map, hit -> LC, and hit -> trackster. All are
+    # standard modules, added only if the chain lacks them.
+    from RecoLocalCalo.HGCalRecProducers.recHitMapProducer_cfi import recHitMapProducer
+    from SimCalorimetry.HGCalAssociatorProducers.hitToLayerClusterAssociator_cfi import hitToLayerClusterAssociator
+    from SimCalorimetry.HGCalAssociatorProducers.AllHitToTracksterAssociatorsProducer_cfi import AllHitToTracksterAssociatorsProducer
+    if not hasattr(process, "recHitMapProducer"):
+        process.recHitMapProducer = recHitMapProducer.clone()
+    if not hasattr(process, "hitToLayerClusterAssociator"):
+        process.hitToLayerClusterAssociator = hitToLayerClusterAssociator.clone()
+    process.allHitToTracksterAssociations = AllHitToTracksterAssociatorsProducer.clone(
+        tracksterCollections=labels,
+    )
+    # Default trackster<->branch association: the BranchHitAssociator (unchanged, the
+    # deployed PID training labels).
     process.allTrackstersToTruthBranchAssociations = allTrackstersToTruthBranchAssociations.clone(
         tracksterCollections=labels,
     )
@@ -96,23 +114,20 @@ def customiseMixedAll(process, stages=None):
         tracksterCollections=labels,
         rootsSrc=("branchSimTracksters", "roots"),
     )
-    # LC-granularity truth reference: the layer-cluster analogue of the trackster
-    # association, built by composing the branch hit index with hitToLayerClusterMap
-    # (rechit -> LC), no per-LC hit merge-join. Needs the rechit index map + the hit->LC
-    # associator upstream; both are standard modules, added only if the chain lacks them.
-    from RecoLocalCalo.HGCalRecProducers.recHitMapProducer_cfi import recHitMapProducer
-    from SimCalorimetry.HGCalAssociatorProducers.hitToLayerClusterAssociator_cfi import hitToLayerClusterAssociator
-    if not hasattr(process, "recHitMapProducer"):
-        process.recHitMapProducer = recHitMapProducer.clone()
-    if not hasattr(process, "hitToLayerClusterAssociator"):
-        process.hitToLayerClusterAssociator = hitToLayerClusterAssociator.clone()
+    # Parallel "by hits" (composition) association, dumped alongside for label comparison.
+    process.allTrackstersToTruthBranchByHitsAssociations = allTrackstersToTruthBranchByHitsAssociations.clone(
+        tracksterCollections=labels,
+        hitToTracksterProducer="allHitToTracksterAssociations",
+    )
     process.allLayerClustersToTruthBranchAssociations = allLayerClustersToTruthBranchAssociations.clone()
     process.truthMixedAssocPath = cms.Path(
-        process.allTrackstersToTruthBranchAssociations
+        process.recHitMapProducer
+        + process.hitToLayerClusterAssociator
+        + process.allHitToTracksterAssociations
+        + process.allTrackstersToTruthBranchAssociations
+        + process.allTrackstersToTruthBranchByHitsAssociations
         + process.branchSimTracksters
         + process.allTrackstersToTruthBranchAssociationsAllLevels
-        + process.recHitMapProducer
-        + process.hitToLayerClusterAssociator
         + process.allLayerClustersToTruthBranchAssociations
     )
     tables = [_feature_table_for(process, n, c) for (n, c) in stages]
