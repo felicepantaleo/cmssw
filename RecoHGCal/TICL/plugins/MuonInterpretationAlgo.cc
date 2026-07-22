@@ -8,7 +8,7 @@
 // energetic signature, and consume the MIP tracksters) with a rule-based decision as a
 // placeholder for the neural network. TODOs marked below are the upgrade path:
 //   - replace the direction-based association with full track propagation to the HGCAL
-//     layers (as GeneralInterpretationAlgo does) and per-layer layer-cluster collection;
+//     layers (as ChargedHadronInterpretationAlgo does) and per-layer layer-cluster collection;
 //   - run the ONNX muon-ID network over those layer clusters (onnx_model_path_).
 
 using namespace ticl;
@@ -99,6 +99,58 @@ void MuonInterpretationAlgo::makeCandidates(const Inputs &input,
     } else {
       resultCandidate[iTrack] = -1;  // muon with no HGCAL deposit: track-only candidate
     }
+  }
+}
+
+void MuonInterpretationAlgo::makeOpinions(const Inputs &input,
+                                          edm::Handle<MtdHostCollection> /*inputTiming_h*/,
+                                          std::vector<Trackster> &hypothesisTracksters,
+                                          std::vector<Hypothesis> &hypotheses) {
+  const auto &tracks = *input.tracksHandle;
+  const auto &maskTracks = input.maskedTracks;
+  const auto &tracksters = input.tracksters;
+
+  for (size_t iTrack = 0; iTrack < tracks.size(); ++iTrack) {
+    if (!maskTracks[iTrack])
+      continue;
+    const auto &tk = tracks[iTrack];
+    const auto dir = tk.outerOk() ? tk.outerMomentum() : tk.momentum();
+    const double tkEta = dir.eta();
+    const double tkPhi = dir.phi();
+
+    std::vector<unsigned> nearby;
+    double nearbyEnergy = 0.;
+    for (unsigned iTs = 0; iTs < tracksters.size(); ++iTs) {
+      const auto &bary = tracksters[iTs].barycenter();
+      if (bary.eta() * tkEta < 0.)  // same endcap
+        continue;
+      if (reco::deltaR(bary.eta(), bary.phi(), tkEta, tkPhi) < delta_tk_ts_) {
+        nearby.push_back(iTs);
+        nearbyEnergy += tracksters[iTs].raw_energy();
+      }
+    }
+
+    Hypothesis h;
+    h.type = Hypothesis::Type::Muon;
+    h.trackIdx = static_cast<int>(iTrack);
+    if (isMuonLike(nearbyEnergy, nearby.size())) {
+      h.score = static_cast<float>(std::max(0., 1. - nearbyEnergy / mip_energy_max_));
+      if (!nearby.empty()) {
+        Trackster muonTrackster;
+        for (unsigned iTs : nearby)
+          muonTrackster.mergeTracksters(tracksters[iTs]);
+        h.tracksterIdx = static_cast<int>(hypothesisTracksters.size());
+        hypothesisTracksters.push_back(muonTrackster);
+      }
+    } else {
+      // The trajectory points at substantial energy (routine in pileup or when the
+      // muon sits inside a jet), so no MIP trackster is claimed; but the muon system
+      // vouches for this track (PFMuonAlgo::isMuon), so a LOW-SCORE track-only muon
+      // opinion keeps an advocate in the arbitration: the muon takes the track, the
+      // calorimetric energy around it stays available to the other hypotheses.
+      h.score = 0.1f;
+    }
+    hypotheses.push_back(h);
   }
 }
 
