@@ -97,13 +97,22 @@ def customiseMixedAll(process, stages=None):
         rootsSrc=("branchSimTracksters", "roots"),
     )
     # LC-granularity truth reference: the layer-cluster analogue of the trackster
-    # association, built by composing the branch hit index with the layer-cluster
-    # hits (detId -> LC), no per-LC hit merge-join.
+    # association, built by composing the branch hit index with hitToLayerClusterMap
+    # (rechit -> LC), no per-LC hit merge-join. Needs the rechit index map + the hit->LC
+    # associator upstream; both are standard modules, added only if the chain lacks them.
+    from RecoLocalCalo.HGCalRecProducers.recHitMapProducer_cfi import recHitMapProducer
+    from SimCalorimetry.HGCalAssociatorProducers.hitToLayerClusterAssociator_cfi import hitToLayerClusterAssociator
+    if not hasattr(process, "recHitMapProducer"):
+        process.recHitMapProducer = recHitMapProducer.clone()
+    if not hasattr(process, "hitToLayerClusterAssociator"):
+        process.hitToLayerClusterAssociator = hitToLayerClusterAssociator.clone()
     process.allLayerClustersToTruthBranchAssociations = allLayerClustersToTruthBranchAssociations.clone()
     process.truthMixedAssocPath = cms.Path(
         process.allTrackstersToTruthBranchAssociations
         + process.branchSimTracksters
         + process.allTrackstersToTruthBranchAssociationsAllLevels
+        + process.recHitMapProducer
+        + process.hitToLayerClusterAssociator
         + process.allLayerClustersToTruthBranchAssociations
     )
     tables = [_feature_table_for(process, n, c) for (n, c) in stages]
