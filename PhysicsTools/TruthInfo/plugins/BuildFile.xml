@@ -164,3 +164,7 @@
 <library file="TracksterFeatureFlatTableProducer.cc" name="TracksterFeatureFlatTablePlugins">
   <flags EDM_PLUGIN="1"/>
 </library>
+
+<library file="BranchSimTracksterFlatTableProducer.cc" name="BranchSimTracksterFlatTablePlugins">
+  <flags EDM_PLUGIN="1"/>
+</library>
