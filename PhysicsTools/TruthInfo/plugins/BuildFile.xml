@@ -110,6 +110,10 @@
   <flags EDM_PLUGIN="1"/>
 </library>
 
+<library file="BranchSimTracksterFlatTableProducer.cc" name="BranchSimTracksterFlatTablePlugins">
+  <flags EDM_PLUGIN="1"/>
+</library>
+
 <library file="RecHitFlatTableProducer.cc" name="RecHitFlatTableProducerPlugins">
   <flags EDM_PLUGIN="1"/>
 </library>
