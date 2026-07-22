@@ -5,10 +5,12 @@
 #include "TracksterLinkingbySuperClusteringMustache.h"
 #include "TracksterLinkingbySkeletons.h"
 #include "TracksterLinkingRecovery.h"
+#include "TracksterLinkingByCornetto.h"
 #include "RecoHGCal/TICL/plugins/TracksterLinkingPluginFactory.h"
 
 EDM_REGISTER_VALIDATED_PLUGINFACTORY(TracksterLinkingPluginFactory, "TracksterLinkingPluginFactory");
 DEFINE_EDM_VALIDATED_PLUGIN(TracksterLinkingPluginFactory, ticl::TracksterLinkingbySkeletons, "Skeletons");
+DEFINE_EDM_VALIDATED_PLUGIN(TracksterLinkingPluginFactory, ticl::TracksterLinkingByCornetto, "Cornetto");
 DEFINE_EDM_VALIDATED_PLUGIN(TracksterLinkingPluginFactory,
                             ticl::TracksterLinkingbySuperClusteringDNN,
                             "SuperClusteringDNN");
