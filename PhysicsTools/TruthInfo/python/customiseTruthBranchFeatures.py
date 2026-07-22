@@ -97,7 +97,8 @@ def customiseMixedAll(process, stages=None):
         rootsSrc=("branchSimTracksters", "roots"),
     )
     # LC-granularity truth reference: the layer-cluster analogue of the trackster
-    # association, keyed by layer-cluster index (default hgcalMergeLayerClusters).
+    # association, built by composing the branch hit index with the layer-cluster
+    # hits (detId -> LC), no per-LC hit merge-join.
     process.allLayerClustersToTruthBranchAssociations = allLayerClustersToTruthBranchAssociations.clone()
     process.truthMixedAssocPath = cms.Path(
         process.allTrackstersToTruthBranchAssociations
@@ -127,6 +128,18 @@ def customiseMixedAll(process, stages=None):
         minContribFraction=cms.double(0.1),
     )
     seq = seq + process.simBranchTableCLUE3D
+    # per-LC truth table: consumes the LC-to-branch adaptive association, one row per
+    # layer cluster with its single-shower truth class, match score/shared energy and
+    # signal/pileup provenance (LC-granularity validation).
+    process.layerClusterTruthTable = cms.EDProducer(
+        "LayerClusterTruthFlatTableProducer",
+        name=cms.string("LayerClusterTruth"),
+        layerClusters=cms.InputTag("hgcalMergeLayerClusters"),
+        association=cms.InputTag("allLayerClustersToTruthBranchAssociations",
+                                 "hgcalMergeLayerClustersToTruthBranch"),
+        graph=cms.InputTag("truthLogicalGraphProducer"),
+    )
+    seq = seq + process.layerClusterTruthTable
     process.tracksterFeatureTablesPath = cms.Path(seq)
     if process.schedule is not None:
         process.schedule.append(process.truthMixedAssocPath)
@@ -135,6 +148,7 @@ def customiseMixedAll(process, stages=None):
         if hasattr(process, outName):
             getattr(process, outName).outputCommands.append("keep nanoaodFlatTable_tracksterFeatureTable*_*_*")
             getattr(process, outName).outputCommands.append("keep nanoaodFlatTable_simBranchTable*_*_*")
+            getattr(process, outName).outputCommands.append("keep nanoaodFlatTable_layerClusterTruthTable*_*_*")
     return process
 
 

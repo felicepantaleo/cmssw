@@ -66,6 +66,10 @@
   <flags EDM_PLUGIN="1"/>
 </library>
 
+<library file="LayerClusterTruthFlatTableProducer.cc" name="LayerClusterTruthFlatTablePlugins">
+  <flags EDM_PLUGIN="1"/>
+</library>
+
 <library file="TruthGraphProducer.cc" name="TruthGraphProducerPlugins">
   <flags EDM_PLUGIN="1"/>
 </library>
