@@ -65,6 +65,9 @@ def persisted_labels(cfg, tier=RECO):
     if cfg.superclustering_spec:
         take("supercluster", target.supercluster_dnn_label)
     if cfg.include_candidate:
+        # The trackster collection of the candidate stage lives in the
+        # interpretation module; the candidate module holds the candidates.
+        take("candidate", target.interpretations_label)
         take("candidate", target.candidate_label)
     if cfg.include_pf:
         take("pf", target.pf_label)
