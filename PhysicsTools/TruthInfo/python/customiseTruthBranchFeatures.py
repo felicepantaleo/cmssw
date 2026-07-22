@@ -115,11 +115,11 @@ def customiseMixedAll(process, stages=None):
         rootId=cms.InputTag("branchSimTracksters", "rootId"),
         pdgId=cms.InputTag("branchSimTracksters", "pdgId"),
         recoCollection=cms.InputTag("ticlTrackstersCLUE3DHigh"),
-        reverseAssociation=cms.InputTag("allTrackstersToTruthBranchAssociations",
-                                        "TruthBranchToticlTrackstersCLUE3DHighAdaptive"),
+        layerClusters=cms.InputTag("hgcalMergeLayerClusters"),
+        hitIndex=cms.InputTag("truthLogicalGraphHitIndexProducer"),
         graph=cms.InputTag("truthLogicalGraphProducer"),
-        minSharedEnergy=cms.double(0.5),
-        maxScore=cms.double(0.75),
+        minSharedFraction=cms.double(0.5),
+        minContribFraction=cms.double(0.1),
     )
     seq = seq + process.simBranchTableCLUE3D
     process.tracksterFeatureTablesPath = cms.Path(seq)
