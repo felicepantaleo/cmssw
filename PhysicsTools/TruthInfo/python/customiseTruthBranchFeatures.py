@@ -104,6 +104,24 @@ def customiseMixedAll(process, stages=None):
     seq = tables[0]
     for t in tables[1:]:
         seq = seq + t
+    # sim-side adaptive-branch table: one row per truth branch with its best reco match
+    # from the reverse adaptive association. Supplies the efficiency/duplicate
+    # denominators that the reco-side trackster tables lack (adaptive-branch validation).
+    process.simBranchTableCLUE3D = cms.EDProducer(
+        "BranchSimTracksterFlatTableProducer",
+        name=cms.string("SimBranchCLUE3D"),
+        branches=cms.InputTag("branchSimTracksters"),
+        level=cms.InputTag("branchSimTracksters", "level"),
+        rootId=cms.InputTag("branchSimTracksters", "rootId"),
+        pdgId=cms.InputTag("branchSimTracksters", "pdgId"),
+        recoCollection=cms.InputTag("ticlTrackstersCLUE3DHigh"),
+        reverseAssociation=cms.InputTag("allTrackstersToTruthBranchAssociations",
+                                        "TruthBranchToticlTrackstersCLUE3DHighAdaptive"),
+        graph=cms.InputTag("truthLogicalGraphProducer"),
+        minSharedEnergy=cms.double(0.5),
+        maxScore=cms.double(0.75),
+    )
+    seq = seq + process.simBranchTableCLUE3D
     process.tracksterFeatureTablesPath = cms.Path(seq)
     if process.schedule is not None:
         process.schedule.append(process.truthMixedAssocPath)
@@ -111,6 +129,7 @@ def customiseMixedAll(process, stages=None):
     for outName in ("FEVTDEBUGHLToutput", "RECOSIMoutput", "NANOAODoutput", "output"):
         if hasattr(process, outName):
             getattr(process, outName).outputCommands.append("keep nanoaodFlatTable_tracksterFeatureTable*_*_*")
+            getattr(process, outName).outputCommands.append("keep nanoaodFlatTable_simBranchTable*_*_*")
     return process
 
 
