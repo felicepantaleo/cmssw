@@ -16,7 +16,7 @@
 template <typename HIT>
 HitToLayerClusterAssociatorProducerT<HIT>::HitToLayerClusterAssociatorProducerT(const edm::ParameterSet &pset)
     : LCCollectionToken_(consumes<std::vector<reco::CaloCluster>>(pset.getParameter<edm::InputTag>("layer_clusters"))),
-      hitMapToken_(consumes<std::unordered_map<DetId, unsigned int>>(pset.getParameter<edm::InputTag>("hitMap"))) {
+      hitMapToken_(consumes<std::unordered_map<DetId, const unsigned int>>(pset.getParameter<edm::InputTag>("hitMap"))) {
   auto hitsTags = pset.getParameter<std::vector<edm::InputTag>>("hits");
   for (const auto &tag : hitsTags) {
     hitsTokens_.push_back(consumes<std::vector<HIT>>(tag));
@@ -36,7 +36,7 @@ void HitToLayerClusterAssociatorProducerT<HIT>::produce(edm::StreamID,
   Handle<std::vector<reco::CaloCluster>> layer_clusters;
   iEvent.getByToken(LCCollectionToken_, layer_clusters);
 
-  Handle<std::unordered_map<DetId, unsigned int>> hitMap;
+  Handle<std::unordered_map<DetId, const unsigned int>> hitMap;
   iEvent.getByToken(hitMapToken_, hitMap);
 
   edm::MultiSpan<HIT> rechitSpan;

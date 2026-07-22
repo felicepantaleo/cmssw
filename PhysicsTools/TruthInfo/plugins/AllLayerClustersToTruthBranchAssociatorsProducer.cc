@@ -1,13 +1,14 @@
-// Layer-cluster to truth-branch associations, built by COMPOSING low-level hit maps
-// instead of a per-LC hit merge-join (no combinatorics). One detId -> layer cluster
-// table (from the layer clusters' hitsAndFractions) and one detId -> rechit energy
-// table are built once per event; walking each candidate branch's subtree hits from
-// the LogicalGraphHitIndex then follows each cell into its layer cluster, accumulating
-// the branch<->LC shared energy directly in O(truth hits + LC hits), with no
-// bestBranches call per layer cluster. This is the detId-keyed equivalent of composing
-// hitToLayerClusterMap with the branch hit index; it is self-contained (no dependence
-// on recHitMapProducer / hitToLayerClusterAssociator, whose standard pairing carries a
-// const/dictionary mismatch in this release) and needs no rechit-index alignment.
+// Layer-cluster to truth-branch associations, built by COMPOSING existing ticl
+// association maps instead of a per-LC hit merge-join (no combinatorics). The truth
+// side is the LogicalGraphHitIndex (branch subtree -> rechits, each with its global
+// rechit index); the reco side is hitToLayerClusterMap (rechit -> layer cluster +
+// fraction). Walking each candidate branch's subtree hits once and following the
+// rechit into its layer cluster yields the branch<->LC shared energy directly in
+// O(truth hits), with no bestBranches call per layer cluster. The rechit index is
+// shared: recHitMapProducer (which keys hitToLayerClusterMap) and detIdToRecHitMapProducer
+// (which sets the hit index recHitIndex) both concatenate HGCEE,HGCHEF,HGCHEB in the
+// same order, so the HGCAL indices coincide; the rechit energy vector is filled in the
+// same order.
 //
 // Output mirrors AllTracksterToTruthBranchAssociatorsProducer: a pair of maps per
 // direction, fixed (leaf/antichain) and adaptive (best graph level), instance labels
@@ -37,6 +38,7 @@
 
 namespace {
   using BranchAssociationMap = ticl::AssociationMap<ticl::mapWithSharedEnergyAndScore>;
+  using HitToLCMap = ticl::AssociationMap<ticl::mapWithFraction>;
 
   // Hadronization ceiling for the adaptive climb (same as the trackster associator):
   // stop only on real particles, never on partons/gluon/diquarks/strings/EWK bosons.
@@ -65,6 +67,7 @@ public:
 private:
   const edm::EDGetTokenT<truth::Graph> graphToken_;
   const edm::EDGetTokenT<truth::LogicalGraphHitIndex> hitIndexToken_;
+  const edm::EDGetTokenT<HitToLCMap> hitToLCToken_;
   const edm::EDGetTokenT<std::vector<reco::CaloCluster>> layerClustersToken_;
   std::vector<edm::EDGetTokenT<HGCRecHitCollection>> recHitTokens_;
   const std::string lcLabel_;
@@ -79,6 +82,7 @@ AllLayerClustersToTruthBranchAssociatorsProducer::AllLayerClustersToTruthBranchA
     edm::ParameterSet const& cfg)
     : graphToken_(consumes<truth::Graph>(cfg.getParameter<edm::InputTag>("src"))),
       hitIndexToken_(consumes<truth::LogicalGraphHitIndex>(cfg.getParameter<edm::InputTag>("hitIndex"))),
+      hitToLCToken_(consumes<HitToLCMap>(cfg.getParameter<edm::InputTag>("hitToLayerClusterMap"))),
       layerClustersToken_(consumes<std::vector<reco::CaloCluster>>(cfg.getParameter<edm::InputTag>("layerClusters"))),
       lcLabel_([&] {
         auto const& tag = cfg.getParameter<edm::InputTag>("layerClusters");
@@ -103,23 +107,19 @@ void AllLayerClustersToTruthBranchAssociatorsProducer::produce(edm::StreamID,
                                                                edm::EventSetup const&) const {
   auto const& graph = event.get(graphToken_);
   auto const& hitIndex = event.get(hitIndexToken_);
+  auto const& hitToLC = event.get(hitToLCToken_);
   auto const& layerClusters = event.get(layerClustersToken_);
   const unsigned nLC = layerClusters.size();
 
-  // Rechit energy per detId (the branch's deposited rechit energy) and detId -> layer
-  // clusters (with cell fraction), both built once. A cell can be shared across layer
-  // clusters via fractions, so keep a list.
-  std::unordered_map<uint32_t, float> rechitEnergy;
+  // Rechit energy per global rechit index (HGCEE,HGCHEF,HGCHEB concatenation): the same
+  // index the branch hit index and hitToLayerClusterMap use.
+  std::vector<float> rechitEnergy;
   for (auto const& token : recHitTokens_) {
     auto const& hits = event.get(token);
     rechitEnergy.reserve(rechitEnergy.size() + hits.size());
     for (auto const& rh : hits)
-      rechitEnergy[rh.detid().rawId()] = rh.energy();
+      rechitEnergy.push_back(rh.energy());
   }
-  std::unordered_map<uint32_t, std::vector<std::pair<uint32_t, float>>> cellToLC;
-  for (unsigned lc = 0; lc < nLC; ++lc)
-    for (auto const& [detId, fraction] : layerClusters[lc].hitsAndFractions())
-      cellToLC[detId.rawId()].emplace_back(lc, fraction);
 
   // Candidate branch roots (default: calo-boundary-crossing particles, an antichain).
   std::vector<uint32_t> roots;
@@ -186,18 +186,19 @@ void AllLayerClustersToTruthBranchAssociatorsProducer::produce(edm::StreamID,
     double branchDep = 0.0;
     touched.clear();
     for (auto const& h : hitIndex.subgraphHits(truth::HitChannel::HGCalCalo, r)) {
-      auto reh = rechitEnergy.find(h.detId);
-      if (reh == rechitEnergy.end())
+      if (!h.hasRecHit() || h.recHitIndex >= rechitEnergy.size())
         continue;  // branch sim hit with no associated rechit
-      const double e = reh->second;
+      const double e = rechitEnergy[h.recHitIndex];
       branchDep += e;
-      auto lcs = cellToLC.find(h.detId);
-      if (lcs == cellToLC.end())
-        continue;  // rechit not in any layer cluster
-      for (auto const& [lc, fraction] : lcs->second) {
+      if (h.recHitIndex >= hitToLC.size())
+        continue;
+      for (auto const& el : hitToLC[h.recHitIndex]) {
+        const unsigned lc = el.index();
+        if (lc >= nLC)
+          continue;  // rechit not in any layer cluster (or out of range)
         if (sharedScratch[lc] == 0.0)
           touched.push_back(lc);
-        sharedScratch[lc] += e * fraction;
+        sharedScratch[lc] += e * el.fraction();
       }
     }
     const bool anti = isAntichain(r);
@@ -247,6 +248,8 @@ void AllLayerClustersToTruthBranchAssociatorsProducer::fillDescriptions(
   edm::ParameterSetDescription desc;
   desc.add<edm::InputTag>("src", edm::InputTag("truthLogicalGraphProducer"));
   desc.add<edm::InputTag>("hitIndex", edm::InputTag("truthLogicalGraphHitIndexProducer"));
+  desc.add<edm::InputTag>("hitToLayerClusterMap",
+                          edm::InputTag("hitToLayerClusterAssociator", "hitToLayerClusterMap"));
   desc.add<edm::InputTag>("layerClusters", edm::InputTag("hgcalMergeLayerClusters"));
   desc.add<std::vector<edm::InputTag>>("recHits",
                                        {edm::InputTag("HGCalRecHit", "HGCEERecHits"),
