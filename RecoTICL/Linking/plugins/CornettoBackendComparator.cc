@@ -50,7 +50,7 @@ public:
   static void fillDescriptions(edm::ConfigurationDescriptions &descriptions) {
     edm::ParameterSetDescription desc;
     desc.add<edm::InputTag>("reference", edm::InputTag("ticlTracksterLinks", "linkedTracksterIdToInputTracksterId"));
-    desc.add<edm::InputTag>("test", edm::InputTag("ticlCornettoLinksHost"));
+    desc.add<edm::InputTag>("test", edm::InputTag("ticlCornettoLinksHost", "linkedTracksterIdToInputTracksterId"));
     descriptions.addWithDefaultLabel(desc);
   }
 

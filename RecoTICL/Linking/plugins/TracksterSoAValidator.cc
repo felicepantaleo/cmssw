@@ -1,13 +1,15 @@
-// Round-trip check for LegacyTracksterToSoAProducer: read the legacy
-// std::vector<ticl::Trackster> and the SoA produced from it, and require every
-// column to match bit for bit. Fields are copied, not computed, so anything
-// other than exact equality is a bug; eta/phi/rawPt are compared exactly too
-// because the producer takes them from the same accessors this analyzer calls.
+// Round-trip check for LegacyTracksterToSoAProducer: rebuild the same
+// edm::MultiSpan<Trackster> the producer flattened, and require every SoA column
+// to match the corresponding trackster bit for bit. Fields are copied, not
+// computed, so anything other than exact equality is a bug; eta/phi/rawPt are
+// compared exactly too because the producer takes them from the same accessors
+// this analyzer calls.
 //
 // Throws on the first mismatch so it can be used as a gate in a test job.
 
 #include <vector>
 
+#include "DataFormats/Common/interface/MultiSpan.h"
 #include "DataFormats/HGCalReco/interface/Trackster.h"
 #include "DataFormats/HGCalReco/interface/TracksterHostCollection.h"
 #include "FWCore/Framework/interface/Event.h"
@@ -23,24 +25,26 @@
 class TracksterSoAValidator : public edm::global::EDAnalyzer<> {
 public:
   explicit TracksterSoAValidator(const edm::ParameterSet &ps)
-      : legacyToken_(consumes<std::vector<ticl::Trackster>>(ps.getParameter<edm::InputTag>("tracksters"))),
-        soaToken_(consumes<TracksterHostCollection>(ps.getParameter<edm::InputTag>("tracksterSoA"))),
-        label_(ps.getParameter<edm::InputTag>("tracksters").label()) {}
+      : soaToken_(consumes<TracksterHostCollection>(ps.getParameter<edm::InputTag>("tracksterSoA"))) {
+    for (auto const &tag : ps.getParameter<std::vector<edm::InputTag>>("tracksters_collections"))
+      trackstersTokens_.push_back(consumes<std::vector<ticl::Trackster>>(tag));
+  }
 
   void analyze(edm::StreamID, const edm::Event &evt, const edm::EventSetup &) const override {
-    const auto &legacy = evt.get(legacyToken_);
-    const auto &soa = evt.get(soaToken_);
-    const auto view = soa.const_view();
+    edm::MultiSpan<ticl::Trackster> tracksters;
+    for (const auto &token : trackstersTokens_)
+      tracksters.add(evt.get(token));
 
-    const int32_t n = static_cast<int32_t>(legacy.size());
+    const auto view = evt.get(soaToken_).const_view();
+    const int32_t n = static_cast<int32_t>(tracksters.size());
     if (view.metadata().size() != n) {
       throw edm::Exception(edm::errors::LogicError)
-          << label_ << ": SoA size " << view.metadata().size() << " != legacy size " << n;
+          << "SoA size " << view.metadata().size() << " != trackster count " << n;
     }
 
     uint32_t expectedOffset = 0;
     for (int32_t i = 0; i < n; ++i) {
-      const auto &ts = legacy[i];
+      const auto &ts = tracksters[i];
       const auto element = view[i];
       check(i, "baryX", element.baryX(), ts.barycenter().x());
       check(i, "baryY", element.baryY(), ts.barycenter().y());
@@ -61,18 +65,18 @@ public:
       const uint32_t nVertices = static_cast<uint32_t>(ts.vertices().size());
       if (element.nVertices() != nVertices || element.verticesOffset() != expectedOffset) {
         throw edm::Exception(edm::errors::LogicError)
-            << label_ << " trackster " << i << ": vertices range (" << element.verticesOffset() << ", "
-            << element.nVertices() << ") != expected (" << expectedOffset << ", " << nVertices << ")";
+            << "trackster " << i << ": vertices range (" << element.verticesOffset() << ", " << element.nVertices()
+            << ") != expected (" << expectedOffset << ", " << nVertices << ")";
       }
       expectedOffset += nVertices;
     }
 
-    edm::LogPrint("TracksterSoAValidator") << label_ << ": " << n << " tracksters, SoA matches legacy exactly";
+    edm::LogPrint("TracksterSoAValidator") << n << " tracksters, SoA matches legacy exactly";
   }
 
   static void fillDescriptions(edm::ConfigurationDescriptions &descriptions) {
     edm::ParameterSetDescription desc;
-    desc.add<edm::InputTag>("tracksters", edm::InputTag("ticlTrackstersCLUE3DHigh"));
+    desc.add<std::vector<edm::InputTag>>("tracksters_collections", {edm::InputTag("ticlTrackstersCLUE3DHigh")});
     desc.add<edm::InputTag>("tracksterSoA", edm::InputTag("tracksterSoACLUE3D"));
     descriptions.addWithDefaultLabel(desc);
   }
@@ -81,13 +85,12 @@ private:
   void check(int32_t i, const char *field, float got, float expected) const {
     if (got != expected) {
       throw edm::Exception(edm::errors::LogicError)
-          << label_ << " trackster " << i << " field " << field << ": SoA " << got << " != legacy " << expected;
+          << "trackster " << i << " field " << field << ": SoA " << got << " != legacy " << expected;
     }
   }
 
-  const edm::EDGetTokenT<std::vector<ticl::Trackster>> legacyToken_;
+  std::vector<edm::EDGetTokenT<std::vector<ticl::Trackster>>> trackstersTokens_;
   const edm::EDGetTokenT<TracksterHostCollection> soaToken_;
-  const std::string label_;
 };
 
 DEFINE_FWK_MODULE(TracksterSoAValidator);

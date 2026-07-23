@@ -22,13 +22,14 @@ def useCornetto(process):
         legacyTracksterToSoAProducer,
     )
 
-    # One instance on the CLUE3D input of the linking step, one on its output: the
-    # two collections a device-side Cornetto would consume and produce.
+    # The SoA the device-side Cornetto would consume: the concatenation of the same
+    # collections the CPU linking step links over (CLUE3DHigh + Recovery), and one
+    # on the linked output.
     process.tracksterSoACLUE3D = legacyTracksterToSoAProducer.clone(
-        tracksters=cms.InputTag("ticlTrackstersCLUE3DHigh")
+        tracksters_collections=process.ticlTracksterLinks.tracksters_collections
     )
     process.tracksterSoALinks = legacyTracksterToSoAProducer.clone(
-        tracksters=cms.InputTag("ticlTracksterLinks")
+        tracksters_collections=cms.VInputTag("ticlTracksterLinks")
     )
     process.tracksterSoATask = cms.Task(
         process.tracksterSoACLUE3D, process.tracksterSoALinks

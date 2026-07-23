@@ -1,18 +1,24 @@
-// Convert a legacy std::vector<ticl::Trackster> into the portable TracksterSoA.
+// Flatten one or more legacy std::vector<ticl::Trackster> collections into a
+// single portable TracksterSoA.
 //
-// Generic by construction: it is configured by InputTag only, so one module type
-// serves ticlTrackstersCLUE3DHigh, ticlTracksterLinks, ticlSimTracksters or any
-// other std::vector<Trackster> product. It is the entry point of every Alpaka
-// TICL step: an Alpaka consumer declares a device::EDGetToken against the host
-// product produced here and the framework performs the host to device copy
-// through the PortableHostCollection CopyToDevice specialisation, so no explicit
-// memcpy is needed anywhere downstream.
+// The concatenation uses edm::MultiSpan<Trackster>, built in the SAME order and
+// with the SAME empty-span skipping as TracksterLinksProducer (the CPU linking
+// driver). That is what makes this faithful: the CPU TracksterLinkingAlgoBase
+// links over exactly this MultiSpan, so its global index is the concatenated
+// index space, and by filling SoA row i from multiSpan[i] the SoA row index IS
+// that global index. A device linker then sees the same index space the CPU
+// plugin does, and the component labels are directly comparable.
 //
-// eta, phi and rawPt are materialised here, once per event on host, rather than
-// being recomputed inside device inner loops.
+// (When cms-sw/cmssw PR #51458 lands an SoA row-concatenation view, this producer
+// can consume the device collections directly and drop the host flatten; until
+// then MultiSpan is the concatenation primitive and it is host-only.)
+//
+// Configured by VInputTag only, so one module type serves any set of trackster
+// collections. eta/phi/rawPt are materialised here, once per event on host.
 
 #include <vector>
 
+#include "DataFormats/Common/interface/MultiSpan.h"
 #include "DataFormats/HGCalReco/interface/Trackster.h"
 #include "DataFormats/HGCalReco/interface/TracksterHostCollection.h"
 #include "FWCore/Framework/interface/Event.h"
@@ -27,18 +33,24 @@
 class LegacyTracksterToSoAProducer : public edm::global::EDProducer<> {
 public:
   explicit LegacyTracksterToSoAProducer(const edm::ParameterSet &ps)
-      : trackstersToken_(consumes<std::vector<ticl::Trackster>>(ps.getParameter<edm::InputTag>("tracksters"))),
-        soaToken_(produces<TracksterHostCollection>()) {}
+      : soaToken_(produces<TracksterHostCollection>()) {
+    for (auto const &tag : ps.getParameter<std::vector<edm::InputTag>>("tracksters_collections"))
+      trackstersTokens_.push_back(consumes<std::vector<ticl::Trackster>>(tag));
+  }
 
   void produce(edm::StreamID, edm::Event &evt, const edm::EventSetup &) const override {
-    const auto &tracksters = evt.get(trackstersToken_);
-    const int32_t nTracksters = static_cast<int32_t>(tracksters.size());
+    // Build the MultiSpan exactly as TracksterLinksProducer does: add each
+    // collection in configuration order; edm::MultiSpan::add skips empty spans.
+    edm::MultiSpan<ticl::Trackster> tracksters;
+    for (const auto &token : trackstersTokens_)
+      tracksters.add(evt.get(token));
 
-    TracksterHostCollection soa{cms::alpakatools::host(), nTracksters};
+    const int32_t n = static_cast<int32_t>(tracksters.size());
+    TracksterHostCollection soa{cms::alpakatools::host(), n};
     auto view = soa.view();
 
     uint32_t verticesOffset = 0;
-    for (int32_t i = 0; i < nTracksters; ++i) {
+    for (int32_t i = 0; i < n; ++i) {
       const auto &ts = tracksters[i];
       const auto &bary = ts.barycenter();
       const auto &axis = ts.eigenvectors(0);
@@ -71,8 +83,6 @@ public:
       element.sigmaPCA1() = sigmas[1];
       element.sigmaPCA2() = sigmas[2];
 
-      // Filled even though the companion vertices collection is not produced yet:
-      // the range is what makes the SoA self-describing, and it costs nothing.
       const uint32_t nVertices = static_cast<uint32_t>(ts.vertices().size());
       element.verticesOffset() = verticesOffset;
       element.nVertices() = nVertices;
@@ -84,13 +94,13 @@ public:
 
   static void fillDescriptions(edm::ConfigurationDescriptions &descriptions) {
     edm::ParameterSetDescription desc;
-    desc.add<edm::InputTag>("tracksters", edm::InputTag("ticlTrackstersCLUE3DHigh"))
-        ->setComment("Any std::vector<ticl::Trackster> collection to expose as a portable SoA.");
+    desc.add<std::vector<edm::InputTag>>("tracksters_collections", {edm::InputTag("ticlTrackstersCLUE3DHigh")})
+        ->setComment("Trackster collections to concatenate (in order) into one portable SoA.");
     descriptions.addWithDefaultLabel(desc);
   }
 
 private:
-  const edm::EDGetTokenT<std::vector<ticl::Trackster>> trackstersToken_;
+  std::vector<edm::EDGetTokenT<std::vector<ticl::Trackster>>> trackstersTokens_;
   const edm::EDPutTokenT<TracksterHostCollection> soaToken_;
 };
 

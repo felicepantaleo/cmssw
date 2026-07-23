@@ -3,12 +3,16 @@
 //
 // This is the tail of TracksterLinkingByCornetto::linkTracksters (the merge loop),
 // unchanged: group by label, mergeTracksters, emit EVERY component including
-// singletons. Keeping it here rather than on device means the emitted products are
-// structurally identical to the CPU plugin's, which is what makes the backend
-// comparison in the validation a plain diff.
+// singletons. It rebuilds the SAME edm::MultiSpan<Trackster> the SoA producer
+// flattened (same tracksters_collections, same order), so the component labels
+// (which are SoA row indices = MultiSpan global indices) resolve back to the right
+// tracksters, and the merge uses the MultiSpan overload just like the CPU plugin.
+// Keeping this on host means the emitted products are structurally identical to
+// the CPU plugin's, which is what makes the backend comparison a plain diff.
 
 #include <vector>
 
+#include "DataFormats/Common/interface/MultiSpan.h"
 #include "DataFormats/HGCalReco/interface/Trackster.h"
 #include "DataFormats/HGCalReco/interface/TracksterComponentsHostCollection.h"
 #include "FWCore/Framework/interface/Event.h"
@@ -23,13 +27,18 @@
 class TracksterLinksFromComponentsProducer : public edm::global::EDProducer<> {
 public:
   explicit TracksterLinksFromComponentsProducer(const edm::ParameterSet &ps)
-      : trackstersToken_(consumes<std::vector<ticl::Trackster>>(ps.getParameter<edm::InputTag>("tracksters"))),
-        componentsToken_(consumes<TracksterComponentsHostCollection>(ps.getParameter<edm::InputTag>("components"))),
+      : componentsToken_(consumes<TracksterComponentsHostCollection>(ps.getParameter<edm::InputTag>("components"))),
         tracksterToken_(produces<std::vector<ticl::Trackster>>()),
-        linksToken_(produces<std::vector<std::vector<unsigned int>>>()) {}
+        linksToken_(produces<std::vector<std::vector<unsigned int>>>("linkedTracksterIdToInputTracksterId")) {
+    for (auto const &tag : ps.getParameter<std::vector<edm::InputTag>>("tracksters_collections"))
+      trackstersTokens_.push_back(consumes<std::vector<ticl::Trackster>>(tag));
+  }
 
   void produce(edm::StreamID, edm::Event &evt, const edm::EventSetup &) const override {
-    const auto &tracksters = evt.get(trackstersToken_);
+    edm::MultiSpan<ticl::Trackster> tracksters;
+    for (const auto &token : trackstersTokens_)
+      tracksters.add(evt.get(token));
+
     const auto view = evt.get(componentsToken_).const_view();
     const int32_t n = static_cast<int32_t>(tracksters.size());
     if (view.metadata().size() != n) {
@@ -66,15 +75,15 @@ public:
 
   static void fillDescriptions(edm::ConfigurationDescriptions &descriptions) {
     edm::ParameterSetDescription desc;
-    desc.add<edm::InputTag>("tracksters", edm::InputTag("ticlTrackstersCLUE3DHigh"))
-        ->setComment("The legacy collection the SoA was built from; the merge reads its layer clusters.");
+    desc.add<std::vector<edm::InputTag>>("tracksters_collections", {edm::InputTag("ticlTrackstersCLUE3DHigh")})
+        ->setComment("Same collections, same order, as the SoA producer; the merge reads their layer clusters.");
     desc.add<edm::InputTag>("components", edm::InputTag("ticlCornettoLinksAlpaka"))
         ->setComment("Per-trackster component labels from the Cornetto device producer.");
     descriptions.addWithDefaultLabel(desc);
   }
 
 private:
-  const edm::EDGetTokenT<std::vector<ticl::Trackster>> trackstersToken_;
+  std::vector<edm::EDGetTokenT<std::vector<ticl::Trackster>>> trackstersTokens_;
   const edm::EDGetTokenT<TracksterComponentsHostCollection> componentsToken_;
   const edm::EDPutTokenT<std::vector<ticl::Trackster>> tracksterToken_;
   const edm::EDPutTokenT<std::vector<std::vector<unsigned int>>> linksToken_;
