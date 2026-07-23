@@ -135,6 +135,7 @@ public:
         graphToken_(consumes<truth::Graph>(p.getParameter<edm::InputTag>("graph"))),
         geomToken_(esConsumes<CaloGeometry, CaloGeometryRecord, edm::Transition::BeginRun>()),
         minSharedEnergy_(p.getParameter<double>("minSharedEnergy")),
+        minSharedByHits_(p.getParameter<double>("minSharedByHits")),
         hasByHits_(!p.getParameter<edm::InputTag>("associationByHitsAdaptive").label().empty()) {
     if (hasByHits_)
       assocByHitsToken_ = consumes<BranchAssociationMap>(p.getParameter<edm::InputTag>("associationByHitsAdaptive"));
@@ -162,7 +163,7 @@ public:
       int lab = kFake, pdg = 0, prim = 0;
       float shared = -1.f, score = -1.f;
     };
-    auto classifyAdaptive = [&graph, nP, this](BranchAssociationMap const& amap, unsigned t) {
+    auto classifyAdaptive = [&graph, nP](BranchAssociationMap const& amap, unsigned t, double minShared) {
       AdaptiveResult r;
       float ae = -1.f, ascore = -1.f;
       int aidx = -1;
@@ -175,7 +176,7 @@ public:
           }
       r.shared = ae;
       r.score = ascore;
-      if (ae >= minSharedEnergy_ && aidx >= 0 && aidx < static_cast<int>(nP)) {
+      if (ae >= minShared && aidx >= 0 && aidx < static_cast<int>(nP)) {
         const auto ap = graph.particle(static_cast<uint32_t>(aidx));
         r.pdg = ap.pdgId();
         r.prim = isPrimary(ap) ? 1 : 0;
@@ -300,12 +301,16 @@ public:
       // balancing completeness against branch spread). A calo-crossing particle -> a
       // single-shower class; an ancestor merging several children -> merged_em or
       // merged_hadron by the nature of its children.
-      const AdaptiveResult A = classifyAdaptive(assocA, t);
+      const AdaptiveResult A = classifyAdaptive(assocA, t, minSharedEnergy_);
       const int labA = A.lab, pdgA = A.pdg, prim = A.prim;
       const float ae = A.shared, ascore = A.score;
       // Parallel by-hits (composition) adaptive label, when that association is present.
+      // Uses its own threshold: the composition shared energy is branch-owned (no PU
+      // cellTotal inflation) and runs ~10-25x lower than BranchHitAssociator's, so the
+      // 0.5 GeV default cut is far too strict for it; minSharedByHits sets the matched
+      // operating point.
       if (assocBH) {
-        const AdaptiveResult B = classifyAdaptive(*assocBH, t);
+        const AdaptiveResult B = classifyAdaptive(*assocBH, t, minSharedByHits_);
         label_adaptive_byhits.push_back(B.lab);
         adaptive_pdg_byhits.push_back(B.pdg);
         adaptive_shared_byhits.push_back(B.shared > 0 ? B.shared : 0.f);
@@ -494,6 +499,10 @@ public:
         ->setComment("Optional parallel by-hits (composition) adaptive association; empty disables the byhits columns.");
     desc.add<edm::InputTag>("graph", edm::InputTag("truthLogicalGraphProducer"));
     desc.add<double>("minSharedEnergy", 0.5);
+    desc.add<double>("minSharedByHits", 0.5)
+        ->setComment("Shared-energy cut for the by-hits label; the composition shared energy runs "
+                     "~10-25x lower than BranchHitAssociator's, so this needs a much smaller value "
+                     "(~0.02 GeV) to reach a comparable matched fraction.");
     descriptions.addWithDefaultLabel(desc);
   }
 
@@ -506,6 +515,7 @@ private:
   const edm::EDGetTokenT<truth::Graph> graphToken_;
   const edm::ESGetToken<CaloGeometry, CaloGeometryRecord> geomToken_;
   const double minSharedEnergy_;
+  const double minSharedByHits_;
   const bool hasByHits_;
   edm::EDGetTokenT<BranchAssociationMap> assocByHitsToken_;
   hgcal::RecHitTools rhtools_;
