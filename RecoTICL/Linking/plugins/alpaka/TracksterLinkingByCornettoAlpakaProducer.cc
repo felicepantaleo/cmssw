@@ -36,6 +36,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       params_.transverseRadius0 = config.getParameter<double>("transverseRadius0");
       params_.transverseSlope = config.getParameter<double>("transverseSlope");
       params_.timeCompatibilityNSigma = config.getParameter<double>("timeCompatibilityNSigma");
+      params_.maxLongitudinalSlope = config.getParameter<double>("maxLongitudinalSlope");
+      params_.longitudinalZRef = config.getParameter<double>("longitudinalZRef");
     }
 
     void produce(device::Event& event, device::EventSetup const&) override {
@@ -61,7 +63,12 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
           ->setComment("Portable trackster SoA, from LegacyTracksterToSoAProducer.");
       desc.add<double>("etaWindow", 0.3)
           ->setComment("Barycenter |deta| candidate window; pairs farther apart are never tested.");
-      desc.add<double>("maxLongitudinalDistance", 60.0)->setComment("Max |separation along the anchor axis| [cm].");
+      desc.add<double>("maxLongitudinalDistance", 60.0)
+          ->setComment("Longitudinal window at the reference depth: max |separation along the anchor axis| [cm].");
+      desc.add<double>("maxLongitudinalSlope", 0.0)
+          ->setComment("Longitudinal window growth per cm of anchor |z| beyond longitudinalZRef; 0 = flat.");
+      desc.add<double>("longitudinalZRef", 320.0)
+          ->setComment("Reference |z| [cm] (HGCAL front face); window stays at maxLongitudinalDistance below it.");
       desc.add<double>("transverseRadius0", 5.0)->setComment("Cone transverse radius at zero separation [cm].");
       desc.add<double>("transverseSlope", 0.05)->setComment("Cone opening: radius growth per cm of separation.");
       desc.add<double>("timeCompatibilityNSigma", 3.0)

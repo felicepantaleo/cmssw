@@ -93,7 +93,12 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       const float dy = ts[o].baryY() - ts[a].baryY();
       const float dz = ts[o].baryZ() - ts[a].baryZ();
       const float s = dx * ts[a].axisX() + dy * ts[a].axisY() + dz * ts[a].axisZ();
-      if (std::abs(s) > p.maxLongitudinalDistance)
+      // Depth-dependent longitudinal window (same formula and float order as the CPU
+      // plugin, so the two backends stay bitwise identical): widen with the anchor's
+      // calorimeter depth |z|, since hadronic showers reach deeper into CE-H.
+      const float zrel = std::abs(ts[a].baryZ()) - p.longitudinalZRef;
+      const float maxLong = p.maxLongitudinalDistance + p.maxLongitudinalSlope * (zrel > 0.f ? zrel : 0.f);
+      if (std::abs(s) > maxLong)
         return false;
 
       const float mag2 = dx * dx + dy * dy + dz * dz;
