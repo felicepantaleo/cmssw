@@ -97,9 +97,18 @@ void TracksterLinkingByCornetto::linkTracksters(
         if (std::abs(reco::deltaPhi(phi[i], phi[j])) > etaWindow_)
           continue;
 
-        // Anchor = higher-energy trackster; its axis defines the cone.
-        const unsigned int a = (energy[i] >= energy[j]) ? i : j;
-        const unsigned int o = (a == i) ? j : i;
+        // Anchor = higher-energy trackster; its axis defines the cone. Ties are
+        // broken by the smaller INPUT index, which makes the pair test a function
+        // of the unordered pair alone. Without the tie-break the anchor of an
+        // equal-energy pair is whichever trackster the eta sort happened to put
+        // first, and std::sort is not stable for equal eta, so the linking is not
+        // reproducible; equal raw_energy is not exotic, single layer cluster
+        // tracksters carrying one identical cell energy hit it. It also makes the
+        // test order-free for a device port, where the two elements examining the
+        // same pair have no common ordering to agree on.
+        const bool iIsAnchor = (energy[i] > energy[j]) or (energy[i] == energy[j] and i < j);
+        const unsigned int a = iIsAnchor ? i : j;
+        const unsigned int o = iIsAnchor ? j : i;
         const auto D = bary[o] - bary[a];
         const float s = D.Dot(axis[a]);
         if (std::abs(s) > maxLongitudinalDistance_)
