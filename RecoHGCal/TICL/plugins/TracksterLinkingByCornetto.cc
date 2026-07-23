@@ -17,7 +17,9 @@ TracksterLinkingByCornetto::TracksterLinkingByCornetto(const edm::ParameterSet& 
       maxLongitudinalDistance_(conf.getParameter<double>("maxLongitudinalDistance")),
       transverseRadius0_(conf.getParameter<double>("transverseRadius0")),
       transverseSlope_(conf.getParameter<double>("transverseSlope")),
-      timeCompatibilityNSigma_(conf.getParameter<double>("timeCompatibilityNSigma")) {}
+      timeCompatibilityNSigma_(conf.getParameter<double>("timeCompatibilityNSigma")),
+      maxLongitudinalSlope_(conf.getParameter<double>("maxLongitudinalSlope")),
+      longitudinalZRef_(conf.getParameter<double>("longitudinalZRef")) {}
 
 namespace {
   // Union-find with path halving. On GPU this stage becomes iterative label
@@ -111,7 +113,14 @@ void TracksterLinkingByCornetto::linkTracksters(
         const unsigned int o = iIsAnchor ? j : i;
         const auto D = bary[o] - bary[a];
         const float s = D.Dot(axis[a]);
-        if (std::abs(s) > maxLongitudinalDistance_)
+        // Longitudinal window grows with the anchor's calorimeter depth: hadronic
+        // showers reach deeper into CE-H and string their fragments out along the
+        // axis (measured req_s median 15 cm in the CE-E front to 38 cm in the CE-H
+        // back at PU200), while the transverse width stays roughly fixed.
+        // maxLongitudinalSlope = 0 recovers a flat window.
+        const float zrel = std::abs(bary[a].z()) - longitudinalZRef_;
+        const float maxLong = maxLongitudinalDistance_ + maxLongitudinalSlope_ * (zrel > 0.f ? zrel : 0.f);
+        if (std::abs(s) > maxLong)
           continue;
         const float dT2 = std::max(0.f, D.Mag2() - s * s);
         const float rT = transverseRadius0_ + transverseSlope_ * std::abs(s);

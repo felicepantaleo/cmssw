@@ -20,7 +20,9 @@
 // The pair test: for tracksters i, j the anchor a is the higher-energy one.
 // With D = bary_j - bary_i, s = D dot axis_a (longitudinal separation along the
 // anchor shower axis) and dT = |D - s axis_a| (transverse distance from the
-// axis), the pair is linked when |s| < maxLongitudinalDistance and
+// axis), the pair is linked when |s| < maxLongitudinalDistance + maxLongitudinalSlope
+// * max(0, |z_anchor| - longitudinalZRef) (a longitudinal window that widens with
+// calorimeter depth, since hadronic showers reach deeper into CE-H) and
 // dT < transverseRadius0 + transverseSlope * |s| (a linearly opening cone) and
 // the trackster times are compatible within timeCompatibilityNSigma when both
 // are valid. All windows are continuous in energy by construction.
@@ -50,7 +52,12 @@ namespace ticl {
     static void fillPSetDescription(edm::ParameterSetDescription& iDesc) {
       iDesc.add<double>("etaWindow", 0.3)
           ->setComment("Barycenter |deta| candidate window; pairs farther apart are never tested.");
-      iDesc.add<double>("maxLongitudinalDistance", 60.0)->setComment("Max |separation along the anchor axis| [cm].");
+      iDesc.add<double>("maxLongitudinalDistance", 60.0)
+          ->setComment("Longitudinal window at the reference depth: max |separation along the anchor axis| [cm].");
+      iDesc.add<double>("maxLongitudinalSlope", 0.0)
+          ->setComment("Growth of the longitudinal window per cm of anchor |z| beyond longitudinalZRef; 0 = flat window.");
+      iDesc.add<double>("longitudinalZRef", 320.0)
+          ->setComment("Reference |z| [cm] (HGCAL front face); the window stays at maxLongitudinalDistance for |z| below it.");
       iDesc.add<double>("transverseRadius0", 5.0)->setComment("Cone transverse radius at zero separation [cm].");
       iDesc.add<double>("transverseSlope", 0.05)->setComment("Cone opening: radius growth per cm of separation.");
       iDesc.add<double>("timeCompatibilityNSigma", 3.0)
@@ -64,6 +71,8 @@ namespace ticl {
     const float transverseRadius0_;
     const float transverseSlope_;
     const float timeCompatibilityNSigma_;
+    const float maxLongitudinalSlope_;
+    const float longitudinalZRef_;
   };
 
 }  // namespace ticl
