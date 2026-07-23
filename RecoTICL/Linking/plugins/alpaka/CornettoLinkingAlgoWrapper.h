@@ -18,6 +18,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     float transverseRadius0;
     float transverseSlope;
     float timeCompatibilityNSigma;
+    float maxLongitudinalSlope;
+    float longitudinalZRef;
   };
 
   class CornettoLinkingAlgoWrapper {

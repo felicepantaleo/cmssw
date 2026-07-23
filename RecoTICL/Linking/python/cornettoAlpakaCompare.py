@@ -16,10 +16,12 @@ def compareCornettoBackends(process):
         type=cms.string("Cornetto"),
         algo_verbosity=cms.int32(0),
         etaWindow=cms.double(0.3),
-        maxLongitudinalDistance=cms.double(60.0),
+        maxLongitudinalDistance=cms.double(30.0),
         transverseRadius0=cms.double(5.0),
         transverseSlope=cms.double(0.05),
         timeCompatibilityNSigma=cms.double(3.0),
+        maxLongitudinalSlope=cms.double(0.3),
+        longitudinalZRef=cms.double(320.0),
     )
 
     from RecoTICL.Linking.legacyTracksterToSoAProducer_cfi import legacyTracksterToSoAProducer
@@ -33,10 +35,12 @@ def compareCornettoBackends(process):
     process.ticlCornettoLinksAlpaka = tracksterLinkingByCornettoAlpakaProducer.clone(
         tracksterSoA=cms.InputTag("tracksterSoACLUE3D"),
         etaWindow=cms.double(0.3),
-        maxLongitudinalDistance=cms.double(60.0),
+        maxLongitudinalDistance=cms.double(30.0),
         transverseRadius0=cms.double(5.0),
         transverseSlope=cms.double(0.05),
         timeCompatibilityNSigma=cms.double(3.0),
+        maxLongitudinalSlope=cms.double(0.3),
+        longitudinalZRef=cms.double(320.0),
     )
     process.ticlCornettoLinksHost = tracksterLinksFromComponentsProducer.clone(
         tracksters_collections=collections,
