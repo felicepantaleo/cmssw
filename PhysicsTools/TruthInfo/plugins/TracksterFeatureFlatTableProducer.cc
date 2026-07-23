@@ -160,7 +160,7 @@ public:
     // ancestor/merge node. Reused for the default (BranchHitAssociator) and the parallel
     // by-hits (composition) associations. Returns {label, pdg, is_primary, sharedE, score}.
     struct AdaptiveResult {
-      int lab = kFake, pdg = 0, prim = 0;
+      int lab = kFake, pdg = 0, prim = 0, node = -1;
       float shared = -1.f, score = -1.f;
     };
     auto classifyAdaptive = [&graph, nP](BranchAssociationMap const& amap, unsigned t, double minShared) {
@@ -177,6 +177,7 @@ public:
       r.shared = ae;
       r.score = ascore;
       if (ae >= minShared && aidx >= 0 && aidx < static_cast<int>(nP)) {
+        r.node = aidx;  // unique matched branch node (for grouping true siblings)
         const auto ap = graph.particle(static_cast<uint32_t>(aidx));
         r.pdg = ap.pdgId();
         r.prim = isPrimary(ap) ? 1 : 0;
@@ -204,6 +205,8 @@ public:
     std::vector<int> label_adaptive_byhits, adaptive_pdg_byhits;
     std::vector<float> adaptive_shared_byhits, adaptive_score_byhits;
     std::vector<int> label, label_adaptive, is_primary, n_lc, lc_offset;
+    std::vector<int> adaptive_node;
+    std::vector<float> phi_bary, pid_em, pid_mip, pid_had;
     std::vector<float> R_bary, z_bary, eta_bary, log_e, best_shared, adaptive_shared, adaptive_score;
     std::vector<int> best_pdg, adaptive_pdg;
     std::vector<float> signal_energy_fraction;
@@ -384,6 +387,18 @@ public:
       R_bary.push_back(Rb);
       z_bary.push_back(b.z());
       eta_bary.push_back(trk.barycenter().eta());
+      phi_bary.push_back(b.phi());
+      adaptive_node.push_back(A.node);
+      // PID network output (transformer inference already filled id_probabilities on
+      // CLUE3DHigh before linking); collapse the 8-class ParticleType array to the three
+      // shower archetypes the linking cone cares about. em = photon+electron+neutral_pion,
+      // mip = muon, had = charged+neutral hadron.
+      {
+        auto const& _ip = trk.id_probabilities();
+        pid_em.push_back(_ip[0] + _ip[1] + _ip[3]);
+        pid_mip.push_back(_ip[2]);
+        pid_had.push_back(_ip[4] + _ip[5]);
+      }
       log_e.push_back(std::log1p(trk.raw_energy()));
       local_density_e.push_back(locE);
       local_density_n.push_back(locN);
@@ -443,6 +458,12 @@ public:
     trkTab->addColumn<float>("R_bary", R_bary, "barycenter cylindrical radius (cm)");
     trkTab->addColumn<float>("z_bary", z_bary, "barycenter z (cm, signed = endcap)");
     trkTab->addColumn<float>("eta_bary", eta_bary, "barycenter eta");
+    trkTab->addColumn<float>("phi_bary", phi_bary, "barycenter phi (rad); with R_bary,z_bary gives 3D position for linking geometry");
+    trkTab->addColumn<int>("adaptive_node", adaptive_node,
+                           "unique matched adaptive-branch node index (same value = true siblings; -1 if unmatched)");
+    trkTab->addColumn<float>("pid_em", pid_em, "PID network EM belief (photon+electron+neutral_pion prob)");
+    trkTab->addColumn<float>("pid_mip", pid_mip, "PID network MIP belief (muon prob)");
+    trkTab->addColumn<float>("pid_had", pid_had, "PID network hadronic belief (charged+neutral hadron prob)");
     trkTab->addColumn<float>("log_raw_energy", log_e, "log1p(raw energy)");
     trkTab->addColumn<float>("local_density_e", local_density_e,
                              "LC energy in a +/-0.1 eta-phi window around the barycenter (local pileup crowding)");
