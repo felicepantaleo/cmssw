@@ -270,7 +270,7 @@ FILTER_TYPES = frozenset(
 )
 PATTERN_TYPES = frozenset(["CLUE3D", "CA", "FastJet", "Recovery"])
 LINKING_TYPES = frozenset(
-    ["Skeletons", "SuperClusteringDNN", "SuperClusteringMustache", "FastJet", "Recovery"]
+    ["Skeletons", "SuperClusteringDNN", "SuperClusteringMustache", "FastJet", "Recovery", "Cornetto"]
 )
 INFERENCE_TYPES = frozenset(
     ["TracksterInferenceByCNN", "TracksterInferenceByDNN", "TracksterInferenceByPFN"]
