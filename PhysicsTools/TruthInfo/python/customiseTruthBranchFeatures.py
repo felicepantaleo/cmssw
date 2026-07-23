@@ -71,6 +71,7 @@ def _feature_table_for(process, name, collection):
                                                collection + "ToTruthBranchByHitsAdaptive"),
         graph=cms.InputTag("truthLogicalGraphProducer"),
         minSharedEnergy=cms.double(0.5),
+        minSharedByHits=cms.double(0.02),  # coverage-matched to the default (composition E ~25x lower)
     )
     setattr(process, "tracksterFeatureTable" + name, tbl)  # no underscore in module labels
     return tbl
