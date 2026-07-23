@@ -1,0 +1,27 @@
+<use name="DataFormats/Common"/>
+<use name="DataFormats/HGCalReco"/>
+<use name="DataFormats/Math"/>
+<use name="DataFormats/Portable"/>
+<use name="FWCore/Framework"/>
+<use name="FWCore/MessageLogger"/>
+<use name="FWCore/ParameterSet"/>
+<use name="FWCore/PluginManager"/>
+<use name="FWCore/Utilities"/>
+<use name="HeterogeneousCore/AlpakaInterface"/>
+<library file="*.cc" name="RecoTICLLinkingPlugins">
+  <flags EDM_PLUGIN="1"/>
+</library>
+
+<library file="alpaka/*.cc" name="RecoTICLLinkingPluginsPortable">
+  <use name="alpaka"/>
+  <use name="DataFormats/HGCalReco"/>
+  <use name="DataFormats/Portable"/>
+  <use name="FWCore/Framework"/>
+  <use name="FWCore/MessageLogger"/>
+  <use name="FWCore/ParameterSet"/>
+  <use name="FWCore/Utilities"/>
+  <use name="HeterogeneousCore/AlpakaCore"/>
+  <use name="HeterogeneousCore/AlpakaInterface"/>
+  <flags ALPAKA_BACKENDS="1"/>
+  <flags EDM_PLUGIN="1"/>
+</library>
