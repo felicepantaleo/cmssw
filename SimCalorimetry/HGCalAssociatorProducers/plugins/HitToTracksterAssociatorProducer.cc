@@ -59,12 +59,20 @@ void HitToTracksterAssociatorProducerT<HIT>::produce(edm::StreamID,
   auto tracksterToHitMap = std::make_unique<ticl::AssociationMap<ticl::mapWithFraction>>(tracksters->size());
 
   // Loop over tracksters
+  const unsigned int nLC = layer_clusters->size();
   for (unsigned int tracksterId = 0; tracksterId < tracksters->size(); ++tracksterId) {
     const auto &trackster = (*tracksters)[tracksterId];
     // Loop over vertices in trackster
     for (unsigned int i = 0; i < trackster.vertices().size(); ++i) {
+      const unsigned int lcIdx = trackster.vertices()[i];
+      if (lcIdx >= nLC) {
+        edm::LogWarning("HitToTracksterAssociatorProducer")
+            << "Out-of-range layer-cluster index " << lcIdx << " (>= " << nLC << ") in trackster " << tracksterId
+            << " vertex " << i << "; skipping.";
+        continue;
+      }
       // Get layerCluster
-      const auto &lc = (*layer_clusters)[trackster.vertices()[i]];
+      const auto &lc = (*layer_clusters)[lcIdx];
       float invMultiplicity = 1.0f / trackster.vertex_multiplicity()[i];
 
       for (const auto &hitAndFraction : lc.hitsAndFractions()) {
