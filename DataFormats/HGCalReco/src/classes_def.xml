@@ -92,4 +92,16 @@
   <class name="HGCalSoAClusters"/>
   <class name="edm::Wrapper<HGCalSoAClustersHostCollection>" splitLevel="0"/>
 
+  <class name="TracksterHostCollection" rntupleStreamerMode="true"/>
+  <!-- TracksterHostCollection::Layout must be listed before the aliased-to type -->
+  <class name="TracksterHostCollection::Layout"/>
+  <class name="TracksterSoA"/>
+  <class name="edm::Wrapper<TracksterHostCollection>" splitLevel="0"/>
+
+  <class name="TracksterComponentsHostCollection" rntupleStreamerMode="true"/>
+  <!-- TracksterComponentsHostCollection::Layout must be listed before the aliased-to type -->
+  <class name="TracksterComponentsHostCollection::Layout"/>
+  <class name="TracksterComponentsSoA"/>
+  <class name="edm::Wrapper<TracksterComponentsHostCollection>" splitLevel="0"/>
+
 </lcgdict>

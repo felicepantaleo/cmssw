@@ -1,0 +1,9 @@
+#ifndef DataFormats_HGCalReco_interface_TracksterComponentsHostCollection_h
+#define DataFormats_HGCalReco_interface_TracksterComponentsHostCollection_h
+
+#include "DataFormats/Portable/interface/PortableHostCollection.h"
+#include "DataFormats/HGCalReco/interface/TracksterComponentsSoA.h"
+
+using TracksterComponentsHostCollection = PortableHostCollection<TracksterComponentsSoA>;
+
+#endif  // DataFormats_HGCalReco_interface_TracksterComponentsHostCollection_h
