@@ -215,6 +215,28 @@ def links_defaults():
     )
 
 
+def cornetto_links_defaults():
+    """``ticlTracksterLinks`` overrides for the v6 default: Cornetto linking.
+
+    Same links singleton as :func:`links_defaults` (identical linking-stage inference
+    plugins), only the linking algorithm changes from Skeletons to Cornetto. The
+    parameters are the validated operating point (flat longitudinal window of 60 cm,
+    physics-neutral vs the region-aware widening, so maxLongitudinalSlope stays 0)."""
+    d = links_defaults()
+    d["linkingPSet"] = cms.PSet(
+        type=cms.string("Cornetto"),
+        algo_verbosity=cms.int32(0),
+        etaWindow=cms.double(0.3),
+        maxLongitudinalDistance=cms.double(60.0),
+        maxLongitudinalSlope=cms.double(0.0),
+        longitudinalZRef=cms.double(320.0),
+        transverseRadius0=cms.double(5.0),
+        transverseSlope=cms.double(0.05),
+        timeCompatibilityNSigma=cms.double(3.0),
+    )
+    return d
+
+
 def supercluster_dnn_defaults():
     """Standard ``ticlTracksterLinksSuperclusteringDNN`` overrides."""
     return dict(
@@ -299,7 +321,7 @@ def v6(name="v6"):
     cfg = (TICLConfig(name)
            .iteration("CLUE3DHigh").preset()
            .iteration("Recovery").preset()
-           .links(["CLUE3DHigh", "Recovery"], **links_defaults())
+           .links(["CLUE3DHigh", "Recovery"], **cornetto_links_defaults())
            .superclustering_dnn(source="CLUE3DHigh", **supercluster_dnn_defaults())
            .interpretations(**interp)
            .candidate(**cand)
