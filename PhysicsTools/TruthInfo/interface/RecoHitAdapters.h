@@ -46,6 +46,28 @@ namespace truth {
     return hits;
   }
 
+  // reco::CaloCluster (a single layer cluster) -> its (DetId, fraction) hits (unit
+  // energy; the calo shared-energy metric compares cell fractions). Sorted by detId,
+  // and coalesced (fractions summed) so a repeated cell is seen once by the merge-join
+  // in BranchHitAssociator. HGCAL layer clusters list each cell once, but the overload
+  // is generic over reco::CaloCluster, so the dedup keeps it correct for any input.
+  inline std::vector<RecoHit> recoHits(reco::CaloCluster const& layerCluster) {
+    std::vector<RecoHit> hits;
+    hits.reserve(layerCluster.hitsAndFractions().size());
+    for (auto const& [detId, fraction] : layerCluster.hitsAndFractions())
+      hits.push_back(RecoHit{detId.rawId(), 1.f, fraction});
+    std::sort(hits.begin(), hits.end(), [](RecoHit const& a, RecoHit const& b) { return a.detId < b.detId; });
+    std::vector<RecoHit> coalesced;
+    coalesced.reserve(hits.size());
+    for (auto const& h : hits) {
+      if (!coalesced.empty() && coalesced.back().detId == h.detId)
+        coalesced.back().fraction += h.fraction;
+      else
+        coalesced.push_back(h);
+    }
+    return coalesced;
+  }
+
   // ticl::Trackster -> the (DetId, fraction) of its layer clusters (unit energy; the
   // calo shared-energy metric then compares cell fractions). Duplicate cells across
   // the trackster's layer clusters are coalesced (fractions summed) so the

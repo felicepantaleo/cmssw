@@ -32,6 +32,7 @@ namespace truth {
   };
 
   struct BranchMatch {
+    static constexpr uint32_t kInvalidRoot = 0xFFFFFFFFu;
     uint32_t rootParticleId = 0;
     float sharedEnergy = 0.f;  // (SharedHits metric: number of shared cells)
     // Reco-normalized score: how much of the reco object the branch fails to
@@ -77,6 +78,21 @@ namespace truth {
         hits.push_back(RecoHit{h.detId, h.energy, h.fraction});
       return bestBranches(std::span<const RecoHit>(hits), maxResults);
     }
+
+    // Adaptive-level match. Among every candidate root that shares hits with the
+    // reco object (leaves AND their ancestors, when the candidate set is the
+    // ancestor closure), returns the single one minimizing the balanced objective
+    //     score + reverseWeight * reverseScore
+    // where score falls as the branch climbs up (it covers more of the reco
+    // object) and reverseScore rises (the branch spreads to energy the reco object
+    // does not have). The minimum is the level that best matches the reco object.
+    // Candidates whose reverseScore exceeds maxReverseScore (the branch-spread /
+    // contamination ceiling) are rejected; if that empties the set, the ceiling is
+    // ignored and the global minimum is returned. rootParticleId is
+    // BranchMatch::kInvalidRoot if the reco object shares no hits with any root.
+    [[nodiscard]] BranchMatch bestAdaptiveBranch(std::span<const RecoHit> recoHits,
+                                                 float reverseWeight = 1.f,
+                                                 float maxReverseScore = 1.f) const;
 
   private:
     // Fill the coalesced per-root hit store used by the shared layout. A no-op for a
