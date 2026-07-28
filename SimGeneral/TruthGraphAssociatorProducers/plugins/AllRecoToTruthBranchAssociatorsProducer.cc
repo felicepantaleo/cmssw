@@ -147,10 +147,9 @@ private:
   // Composite domains read their constituents' association maps instead of hits. The
   // upstream module is named by a cms.string and the instance labels are rebuilt here,
   // the same way the HGCal All* producers reach allHitToTracksterAssociations.
-  using ConstituentMapType =
-      typename std::conditional_t<ConstituentBasedDomain<RECO>,
-                                  TruthAssociationTraits<reco::Track>,
-                                  TruthAssociationTraits<reco::Track>>::MapType;
+  using ConstituentMapType = typename std::conditional_t<ConstituentBasedDomain<RECO>,
+                                                         TruthAssociationTraits<reco::Track>,
+                                                         TruthAssociationTraits<reco::Track>>::MapType;
   std::vector<std::vector<edm::EDGetTokenT<ConstituentMapType>>> constituentMapTokens_;
 };
 
@@ -191,10 +190,8 @@ AllRecoToTruthBranchAssociatorsProducer<RECO>::AllRecoToTruthBranchAssociatorsPr
   }
   for (std::size_t i = 0; i < names.size(); ++i) {
     // "Fixed" means the plain per-root match; every other point drives the climb.
-    workingPoints_.push_back({names[i],
-                              static_cast<float>(weights[i]),
-                              static_cast<float>(ceilings[i]),
-                              names[i] != "Fixed"});
+    workingPoints_.push_back(
+        {names[i], static_cast<float>(weights[i]), static_cast<float>(ceilings[i]), names[i] != "Fixed"});
   }
 
   // The selected candidate roots are published so a consumer can use exactly the same
@@ -220,8 +217,8 @@ AllRecoToTruthBranchAssociatorsProducer<RECO>::AllRecoToTruthBranchAssociatorsPr
       std::vector<edm::EDGetTokenT<ConstituentMapType>> perWp;
       perWp.reserve(workingPoints_.size());
       for (auto const& wp : workingPoints_) {
-        perWp.push_back(consumes<ConstituentMapType>(
-            edm::InputTag(upstream, constituentKey + "ToTruthBranch" + wp.name)));
+        perWp.push_back(
+            consumes<ConstituentMapType>(edm::InputTag(upstream, constituentKey + "ToTruthBranch" + wp.name)));
       }
       constituentMapTokens_.push_back(std::move(perWp));
     }
@@ -236,8 +233,8 @@ AllRecoToTruthBranchAssociatorsProducer<RECO>::AllRecoToTruthBranchAssociatorsPr
 template <typename RECO>
   requires(AdaptableToTruthHits<RECO> || ConstituentBasedDomain<RECO>)
 void AllRecoToTruthBranchAssociatorsProducer<RECO>::produce(edm::StreamID,
-                                                           edm::Event& event,
-                                                           edm::EventSetup const&) const {
+                                                            edm::Event& event,
+                                                            edm::EventSetup const&) const {
   auto const& graph = event.get(graphToken_);
   auto const& hitIndex = event.get(hitIndexToken_);
 

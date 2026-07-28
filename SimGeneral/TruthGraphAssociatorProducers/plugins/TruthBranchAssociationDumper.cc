@@ -22,8 +22,7 @@ namespace {
   using FractionMap = ticl::AssociationMap<ticl::mapWithFractionAndScore>;
 
   template <typename MAP>
-  void report(edm::Event const& event,
-              std::vector<std::pair<std::string, edm::EDGetTokenT<MAP>>> const& tokens) {
+  void report(edm::Event const& event, std::vector<std::pair<std::string, edm::EDGetTokenT<MAP>>> const& tokens) {
     for (auto const& [name, token] : tokens) {
       edm::Handle<MAP> handle;
       event.getByToken(token, handle);
