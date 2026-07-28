@@ -1,4 +1,5 @@
 <use name="DQMServices/Core"/>
+<use name="SimDataFormats/TruthInfo"/>
 <use name="FWCore/ParameterSet"/>
 <use name="FWCore/Utilities"/>
 <export>

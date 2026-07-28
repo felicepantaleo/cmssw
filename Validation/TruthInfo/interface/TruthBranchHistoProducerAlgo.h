@@ -54,6 +54,12 @@ namespace truth {
     // a branch from a pileup interaction.
     std::vector<MERow> h_duplicate, h_pileup;
 
+    // Efficiency and duplicate rate against the Geant4 process that CREATED the
+    // branch, which only the graph can supply: the production vertex of the branch
+    // root carries its VertexReason, so a loss can be attributed to the physics that
+    // made the particle rather than only to where it landed.
+    std::vector<METype> h_simul_reason, h_assoc_simToReco_reason, h_duplicate_reason;
+
     // Quality of the match itself.
     std::vector<METype> h_score, h_sharedQuantity;
 
@@ -88,6 +94,15 @@ namespace truth {
                    bool associated,
                    bool pileup) const;
 
+    // Categorical fill against the VertexReason of the branch root's production
+    // vertex, passed as its underlying integer so this header stays free of the
+    // graph data formats.
+    void fill_reason(TruthBranchHistograms const& histograms,
+                     std::size_t index,
+                     unsigned int reason,
+                     bool associated,
+                     bool duplicate) const;
+
     void fill_match(TruthBranchHistograms const& histograms,
                     std::size_t index,
                     double score,
@@ -110,6 +125,10 @@ namespace truth {
     std::vector<Axis> axes_;  // one per Variable, in enum order
     int nintScore_, nintShared_, nintRes_;
     double minScore_, maxScore_, minShared_, maxShared_, minRes_, maxRes_;
+    // The resolution 2D uses its OWN, coarser x binning: each x slice is fitted with a
+    // Gaussian, so it needs enough entries per slice to constrain the fit, which the
+    // efficiency binning does not provide.
+    Axis resEtaAxis_, resPtAxis_;
   };
 
 }  // namespace truth

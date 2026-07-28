@@ -1,6 +1,12 @@
 // Original author: Felice Pantaleo (CERN) <felice.pantaleo@cern.ch>
 
+#include "SimDataFormats/TruthInfo/interface/VertexData.h"
 #include "Validation/TruthInfo/interface/TruthBranchHistoProducerAlgo.h"
+
+namespace {
+  // One bin per VertexReason, the enum being contiguous from Unknown to Other.
+  constexpr int kNReasons = static_cast<int>(truth::VertexReason::Other) + 1;
+}  // namespace
 
 namespace truth {
 
@@ -13,7 +19,13 @@ namespace truth {
         minShared_(pset.getParameter<double>("minShared")),
         maxShared_(pset.getParameter<double>("maxShared")),
         minRes_(pset.getParameter<double>("minRes")),
-        maxRes_(pset.getParameter<double>("maxRes")) {
+        maxRes_(pset.getParameter<double>("maxRes")),
+        resEtaAxis_{pset.getParameter<int>("nint_res_eta"),
+                    pset.getParameter<double>("min_res_eta"),
+                    pset.getParameter<double>("max_res_eta")},
+        resPtAxis_{pset.getParameter<int>("nint_res_pt"),
+                   pset.getParameter<double>("min_res_pt"),
+                   pset.getParameter<double>("max_res_pt")} {
     // One axis per Variable, read in the enum order so the vectors line up.
     for (auto const& name : kVariableNames) {
       axes_.push_back({pset.getParameter<int>("nint_" + name),
@@ -42,14 +54,26 @@ namespace truth {
     bookRow(h.h_duplicate, "num_duplicate");
     bookRow(h.h_pileup, "num_pileup");
 
+    // Categorical axis: one labelled bin per Geant4 creation process.
+    auto bookReason = [&](std::vector<TruthBranchHistograms::METype>& v, std::string const& name) {
+      auto* me = booker.book1D(name, name, kNReasons, -0.5, kNReasons - 0.5);
+      for (int r = 0; r < kNReasons; ++r) {
+        me->setBinLabel(r + 1, truth::vertexReasonName(static_cast<truth::VertexReason>(r)));
+      }
+      v.push_back(me);
+    };
+    bookReason(h.h_simul_reason, "num_simul_reason");
+    bookReason(h.h_assoc_simToReco_reason, "num_assoc(simToReco)_reason");
+    bookReason(h.h_duplicate_reason, "num_duplicate_reason");
+
     h.h_score.push_back(booker.book1D("association_score", "Association score", nintScore_, minScore_, maxScore_));
     h.h_sharedQuantity.push_back(
         booker.book1D("shared_quantity", "Shared hits or energy", nintShared_, minShared_, maxShared_));
 
     // 2D inputs for the Gaussian slice fit the harvester runs. Same naming as MTV so
     // the resolution strings and the plot script read the same way.
-    auto const& etaAxis = axes_[static_cast<std::size_t>(Variable::Eta)];
-    auto const& ptAxis = axes_[static_cast<std::size_t>(Variable::Pt)];
+    auto const& etaAxis = resEtaAxis_;
+    auto const& ptAxis = resPtAxis_;
     h.h_ptres_vs_eta.push_back(booker.book2D("ptres_vs_eta",
                                              "Relative p_{T} residual vs #eta",
                                              etaAxis.nbins,
@@ -97,6 +121,19 @@ namespace truth {
       if (pileup) {
         h.h_pileup[i][v]->Fill(values[v]);
       }
+    }
+  }
+
+  void TruthBranchHistoProducerAlgo::fill_reason(
+      TruthBranchHistograms const& h, std::size_t i, unsigned int reason, bool associated, bool duplicate) const {
+    const double bin = (reason < static_cast<unsigned int>(kNReasons)) ? reason
+                                                                      : static_cast<double>(truth::VertexReason::Other);
+    h.h_simul_reason[i]->Fill(bin);
+    if (associated) {
+      h.h_assoc_simToReco_reason[i]->Fill(bin);
+    }
+    if (duplicate) {
+      h.h_duplicate_reason[i]->Fill(bin);
     }
   }
 

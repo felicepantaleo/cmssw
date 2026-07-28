@@ -38,7 +38,15 @@ for _name, (_n, _lo, _hi) in _axes.items():
 _algoBlockArgs.update(
     nintScore=cms.int32(50), minScore=cms.double(0.0), maxScore=cms.double(1.0),
     nintShared=cms.int32(50), minShared=cms.double(0.0), maxShared=cms.double(50.0),
-    nintRes=cms.int32(60), minRes=cms.double(-0.6), maxRes=cms.double(0.6),
+    # Wide on purpose. The truth reference is the BRANCH ROOT, and a track matched to a
+    # branch by shared hits can belong to a descendant of that root, so (reco - truth)/truth
+    # has a long tail that a +-0.6 window pushes into the overflow, leaving the slice fit
+    # with a nearly flat in-range distribution and no convergence.
+    nintRes=cms.int32(120), minRes=cms.double(-1.5), maxRes=cms.double(1.5),
+    # Coarser than the efficiency axes on purpose: every x slice of these 2D gets a
+    # Gaussian fit, and a slice with a handful of entries returns a meaningless width.
+    nint_res_eta=cms.int32(20), min_res_eta=cms.double(-4.0), max_res_eta=cms.double(4.0),
+    nint_res_pt=cms.int32(15), min_res_pt=cms.double(0.0), max_res_pt=cms.double(100.0),
 )
 _algoBlock = cms.PSet(**_algoBlockArgs)
 
@@ -87,13 +95,26 @@ for var in truthPlotVariables:
         f"purity_vs_{var} 'Purity vs {var}' num_assoc(recoToSim)_{var} num_reco_{var}"
     )
 
+# Efficiency and duplicate rate against the Geant4 creation process of the branch. The
+# axis is categorical, one bin per truth::VertexReason, and it exists only because the
+# graph keeps the process that made each particle; a frozen truth object does not.
+_efficiencies.append(
+    "efficiency_vs_reason 'Branch efficiency vs creation process' "
+    "num_assoc(simToReco)_reason num_simul_reason"
+)
+_efficiencies.append(
+    "duplicate_vs_reason 'Duplicate rate vs creation process' num_duplicate_reason num_simul_reason"
+)
+
 # Gaussian slice fits, the same mechanism MTV uses: DQMGenericClient books
-# <prefix>_Mean and <prefix>_Sigma from each 2D.
+# <prefix>_Mean and <prefix>_Sigma from each 2D. The string is three tokens,
+# "<outputPrefix> '<title>' <sourceHistogram>"; a two-token form parses without an
+# error and silently produces nothing.
 _resolutions = [
-    "ptres_vs_eta 'Relative p_{T} residual vs #eta'",
-    "ptres_vs_pt 'Relative p_{T} residual vs p_{T}'",
-    "etares_vs_eta '#eta residual vs #eta'",
-    "phires_vs_eta '#phi residual vs #eta'",
+    "ptres_vs_eta 'Relative p_{T} residual vs #eta' ptres_vs_eta",
+    "ptres_vs_pt 'Relative p_{T} residual vs p_{T}' ptres_vs_pt",
+    "etares_vs_eta '#eta residual vs #eta' etares_vs_eta",
+    "phires_vs_eta '#phi residual vs #eta' phires_vs_eta",
 ]
 
 truthBranchPostProcessor = DQMEDHarvester(
@@ -101,6 +122,9 @@ truthBranchPostProcessor = DQMEDHarvester(
     subDirs=cms.untracked.vstring(*_subDirs),
     efficiency=cms.vstring(*_efficiencies),
     resolution=cms.vstring(*_resolutions),
+    # Fit the core, not the tail: the slice fit is restricted to a window around the peak,
+    # which is what makes Sigma a resolution rather than the width of the axis.
+    resolutionLimitedFit=cms.untracked.bool(True),
     verbose=cms.untracked.uint32(0),
     outputFileName=cms.untracked.string(""),
 )

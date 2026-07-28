@@ -23,6 +23,7 @@
 #include "SimDataFormats/TruthInfo/interface/Graph.h"
 #include "SimDataFormats/TruthInfo/interface/Particle.h"
 #include "SimDataFormats/TruthInfo/interface/LogicalGraphHitIndex.h"
+#include "SimDataFormats/TruthInfo/interface/VertexData.h"
 
 #include "Validation/TruthInfo/interface/TruthBranchHistoProducerAlgo.h"
 
@@ -176,7 +177,11 @@ void TruthBranchTrackValidator::dqmAnalyze(edm::Event const& event,
       kin.nhits = hitIndex.subgraphHits(truth::HitChannel::Tracker, b).size();
       // Position from the production vertex of the root particle.
       const auto vertices = truth::Particle(&graph, b).productionVertices();
+      // Why this particle exists, taken from the Geant4 creator process of its
+      // production vertex. A branch with no production vertex is a beam-level object.
+      auto reason = static_cast<unsigned int>(truth::VertexReason::Unknown);
       if (!vertices.empty()) {
+        reason = vertices.front().data().reason;
         const auto& pos = vertices.front().position();
         kin.vertpos = std::sqrt(pos.x() * pos.x() + pos.y() * pos.y());
         kin.zpos = pos.z();
@@ -189,6 +194,7 @@ void TruthBranchTrackValidator::dqmAnalyze(edm::Event const& event,
       const bool associated = !simToReco[b].empty();
       const bool duplicate = simToReco[b].size() > 1;
       algo_.fill_simul(histograms.histos, i, kin, associated, duplicate);
+      algo_.fill_reason(histograms.histos, i, reason, associated, duplicate);
       if (associated) {
         const unsigned int r = simToReco[b][0].index();
         if (r < recoHandle->size()) {
@@ -229,9 +235,15 @@ void TruthBranchTrackValidator::fillDescriptions(edm::ConfigurationDescriptions&
   algo.add<int>("nintShared", 50);
   algo.add<double>("minShared", 0.);
   algo.add<double>("maxShared", 50.);
-  algo.add<int>("nintRes", 60);
-  algo.add<double>("minRes", -0.6);
-  algo.add<double>("maxRes", 0.6);
+  algo.add<int>("nint_res_eta", 20);
+  algo.add<double>("min_res_eta", -4.);
+  algo.add<double>("max_res_eta", 4.);
+  algo.add<int>("nint_res_pt", 15);
+  algo.add<double>("min_res_pt", 0.);
+  algo.add<double>("max_res_pt", 100.);
+  algo.add<int>("nintRes", 120);
+  algo.add<double>("minRes", -1.5);
+  algo.add<double>("maxRes", 1.5);
   desc.add<edm::ParameterSetDescription>("histoProducerAlgoBlock", algo);
 
   descriptions.add("truthBranchTrackValidator", desc);
