@@ -138,17 +138,21 @@ def plot_metric(category, collection, metric, var, per_wp, outdir, index):
         )
 
     label, meaning = METRICS[metric]
-    # The title states the finding, not the variable name.
+    # The plot title stays generic. A bin-averaged summary in the title reads as a
+    # conclusion the plot has not earned, so the measured numbers go in the README
+    # caption instead, where they can be qualified.
+    title = f"{label} vs {var}"
     ref = means.get(REFERENCE_WP)
     others = [means[w] for w in wps if w != REFERENCE_WP]
     if ref and others:
         adaptive = sum(others) / len(others)
         delta = (adaptive - ref) / ref * 100.0 if ref else 0.0
-        headline = f"{label} vs {var}: adaptive {adaptive:.2f} vs fixed {ref:.2f} ({delta:+.0f}%)"
+        caption = (f"{title}. Bin-averaged over filled bins: adaptive {adaptive:.2f}, "
+                   f"fixed {ref:.2f} ({delta:+.0f}%).")
     else:
-        headline = f"{label} vs {var}"
+        caption = title
 
-    fig.suptitle(headline, fontsize=16, y=0.965)
+    fig.suptitle(title, fontsize=16, y=0.965)
     ax.set_ylabel(label)
     ax.set_ylim(0.0, 1.15)
     ax.grid(alpha=0.3)
@@ -185,7 +189,7 @@ def plot_metric(category, collection, metric, var, per_wp, outdir, index):
     name = f"{index:02d}_{category}_{collection}_{metric}_vs_{var}.png"
     fig.savefig(os.path.join(outdir, name), dpi=150)
     plt.close(fig)
-    return name, headline
+    return name, caption
 
 
 def main():
