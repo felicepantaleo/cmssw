@@ -250,6 +250,12 @@ def collect(files):
                             0.5 * (obj.GetYaxis().GetXmax() - obj.GetYaxis().GetXmin()),
                             (obj.GetYaxis().GetXmax() - obj.GetYaxis().GetXmin()) / obj.GetNbinsY(),
                         )
+                        (
+                            data.setdefault(category, {})
+                            .setdefault(collection, {})
+                            .setdefault("_residual", {})
+                            .setdefault(key.GetName(), {})[wp]
+                        ) = hist_arrays(obj.ProjectionY())
                     continue
                 res = _RES_RE.match(key.GetName())
                 if res:
@@ -287,7 +293,7 @@ def collect(files):
     return data
 
 
-def _fit_ok(wp, values, slices, is_sigma=False):
+def _fit_ok(wp, values, slices, is_sigma=False, errors=None):
     """Mask of slices whose Gaussian fit can be believed.
 
     Three ways a slice fit is worthless: too few entries to constrain it, a width wider
@@ -303,6 +309,11 @@ def _fit_ok(wp, values, slices, is_sigma=False):
     ok &= np.abs(values) <= half_range
     if is_sigma:
         ok &= values > bin_width
+    if errors is not None:
+        # An error comparable to the value means the fit did not converge on anything.
+        with np.errstate(divide="ignore", invalid="ignore"):
+            rel = np.where(values != 0, np.abs(errors / values), np.inf)
+        ok &= rel <= 0.5
     return ok
 
 
@@ -328,7 +339,7 @@ def plot_metric(category, collection, metric, var, per_wp, outdir, index, slices
         edges, values, errors = per_wp[wp]
         centers = 0.5 * (edges[:-1] + edges[1:])
         filled = values > 0
-        filled = filled & _fit_ok(wp, values, slices, is_sigma)
+        filled = filled & _fit_ok(wp, values, slices, is_sigma, errors if metric == "resolution" else None)
         if denom is not None and wp in denom and len(denom[wp]) == len(values):
             filled = filled & (denom[wp] >= MIN_DENOM_ENTRIES)
         means[wp] = float(values[filled].mean()) if filled.any() else 0.0
@@ -496,6 +507,50 @@ def plot_categorical(category, collection, metric, var, per_wp, counts, outdir, 
     return name, caption
 
 
+def plot_residual(category, collection, source, per_wp, outdir, index):
+    """The residual distribution itself, overlaid across working points.
+
+    The Gaussian slice fit summarises this distribution; when the distribution is not
+    Gaussian the fit says nothing and only the distribution does.
+    """
+    wps = [w for w in WP_ORDER if w in per_wp] + [w for w in sorted(per_wp) if w not in WP_ORDER]
+    if not wps:
+        return None
+    colors = plt.rcParams["axes.prop_cycle"].by_key()["color"]
+    styles = ["-", "--", "-.", ":"]
+    fig, ax = plt.subplots(figsize=(10, 8))
+    fig.subplots_adjust(top=0.88, bottom=0.16)
+
+    cores = {}
+    for i, wp in enumerate(wps):
+        edges, values, _ = per_wp[wp]
+        total = values.sum()
+        if total <= 0:
+            continue
+        centers = 0.5 * (edges[:-1] + edges[1:])
+        # Fraction inside +-10%, a scale-free statement about how peaked it is that does
+        # not depend on a fit converging.
+        cores[wp] = float(values[np.abs(centers) <= 0.1].sum() / total)
+        hep.histplot(values / total, edges, ax=ax, label=wp, yerr=False,
+                     color=colors[i % len(colors)], linestyle=styles[i % len(styles)], linewidth=1.6)
+
+    ax.set_yscale("log")
+    ax.set_xlabel("(reco - truth) / truth" if source.startswith("ptres") else "reco - truth")
+    ax.set_ylabel("fraction of matched pairs per bin")
+    ax.grid(alpha=0.3)
+    ax.legend(fontsize=13, frameon=False)
+    fig.suptitle(f"{source} residual distribution", fontsize=16, y=0.965)
+    hep.cms.label(ax=ax, llabel="Private Work", rlabel="Phase-2 Simulation", fontsize=15)
+
+    ref = cores.get(REFERENCE_WP)
+    caption = (f"{source} residual distribution, area normalised. Fraction within 10%: "
+               + ", ".join(f"{w} {cores[w]:.2f}" for w in wps if w in cores) + ".") if cores else source
+    name = f"{index:02d}_{category}_{collection}_{source}_distribution.png"
+    fig.savefig(os.path.join(outdir, "resolution", name), dpi=150)
+    plt.close(fig)
+    return name, caption
+
+
 def plot_composition(category, collection, counts, outdir, index):
     """What the selected truth branches ARE, by the process that created them."""
     entry = counts.get(REFERENCE_WP) or next(iter(counts.values()))
@@ -552,6 +607,7 @@ def main():
             all_counts = data[category][collection].get("_counts", {})
             all_slices = data[category][collection].get("_slices", {})
             all_denom = data[category][collection].get("_denom", {})
+            all_residual = data[category][collection].get("_residual", {})
             if "reason" in all_counts:
                 result = plot_composition(category, collection, all_counts["reason"], args.outputDir, index)
                 if result:
@@ -574,6 +630,17 @@ def main():
                                         "var": var, "png": name, "caption": caption})
                         index += 1
                 if metric == "resolution":
+                    for source in RESOLUTION_SOURCES:
+                        if source not in all_residual:
+                            continue
+                        result = plot_residual(
+                            category, collection, source, all_residual[source], args.outputDir, index
+                        )
+                        if result:
+                            name, caption = result
+                            written.append({"collection": collection, "metric": metric,
+                                            "var": source, "png": name, "caption": caption})
+                            index += 1
                     for var in RESOLUTION_ORDER:
                         if var not in per_metric:
                             continue
