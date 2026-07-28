@@ -414,7 +414,7 @@ def plot_metric(category, collection, metric, var, per_wp, outdir, index, slices
     rax.grid(alpha=0.3)
 
     name = f"{index:02d}_{category}_{collection}_{metric}_vs_{var}.png"
-    fig.savefig(os.path.join(outdir, name), dpi=150)
+    fig.savefig(os.path.join(outdir, metric, name), dpi=150)
     plt.close(fig)
     return name, caption
 
@@ -491,7 +491,7 @@ def plot_categorical(category, collection, metric, var, per_wp, counts, outdir, 
                if population is not None else title)
 
     name = f"{index:02d}_{category}_{collection}_{metric}_vs_{var}.png"
-    fig.savefig(os.path.join(outdir, name), dpi=150)
+    fig.savefig(os.path.join(outdir, metric, name), dpi=150)
     plt.close(fig)
     return name, caption
 
@@ -522,7 +522,7 @@ def plot_composition(category, collection, counts, outdir, index):
     caption = ("Composition of the truth-branch denominator by the Geant4 process that created each branch root. "
                f"Leading process {labels[order[0]]} at {frac[0]*100:.0f}% of {int(values.sum())} branches.")
     name = f"{index:02d}_{category}_{collection}_composition_by_reason.png"
-    fig.savefig(os.path.join(outdir, name), dpi=150)
+    fig.savefig(os.path.join(outdir, "composition", name), dpi=150)
     plt.close(fig)
     return name, caption
 
@@ -536,6 +536,10 @@ def main():
     args = ap.parse_args()
 
     os.makedirs(args.outputDir, exist_ok=True)
+    # One real directory per metric, so the gallery browses as folders and not as one
+    # flat list of sixty files.
+    for metric in METRIC_ORDER:
+        os.makedirs(os.path.join(args.outputDir, metric), exist_ok=True)
     data = collect(args.files)
     if not data:
         print("no populated monitor elements found", file=sys.stderr)
@@ -625,8 +629,33 @@ def main():
             for collection in sorted({e["collection"] for e in entries}):
                 page.write(f"<h2>{collection}</h2><div class='grid'>")
                 for e in [x for x in entries if x["collection"] == collection]:
-                    page.write("<a href='%s'><img src='%s' width='400'></a>" % (e["png"], e["png"]))
+                    href = f"{metric}/{e['png']}"
+                    page.write(f"<a href='{href}'><img src='{href}' width='400'></a>")
                 page.write("</div>")
+
+    # Each folder carries its own definitions, so a reader who lands in the folder
+    # without going through the index still knows what the plots in it mean.
+    for metric, entries in by_metric.items():
+        label, meaning, formula = METRICS[metric]
+        with open(os.path.join(args.outputDir, metric, "DEFINITIONS.md"), "w") as defs:
+            defs.write(f"# {label}\n\nSample: {args.sample}.\n\n## Definition\n\n{meaning}\n\n")
+            defs.write(f"    {formula}\n\n## Working points\n\n")
+            defs.write("Each plot overlays the four branch-association working points. Fixed keeps every matching\n"
+                       "branch; the Adaptive points keep the single graph level that best matches the reco object,\n"
+                       "differing only in how much branch spread they tolerate. The lower panel is the ratio to\n"
+                       "Fixed.\n\n## Variables on the x axis\n\n")
+            used = [v for v in VARIABLE_ORDER + CATEGORICAL
+                    if any(e["var"] == v or e["var"].endswith("_vs_" + v) for e in entries)]
+            for v in used:
+                defs.write(f"- `{v}`: {VARIABLE_MEANING.get(v) or CATEGORICAL_MEANING.get(v, v)}\n")
+            defs.write("\n## Quality cuts\n\n"
+                       f"- A ratio bin is drawn only if its denominator has at least {MIN_DENOM_ENTRIES} entries.\n"
+                       f"- A Gaussian slice fit is drawn only if its slice has at least {MIN_SLICE_ENTRIES} entries\n"
+                       "  and the fitted width is inside the fit range and wider than one bin.\n"
+                       "- A named category is drawn only if the sample populated it.\n")
+            defs.write("\n## Plots in this folder\n\n")
+            for e in entries:
+                defs.write(f"- `{e['png']}`: {e['caption']}\n")
 
     with open(os.path.join(args.outputDir, "index.html"), "w") as idx:
         idx.write(f"<!doctype html><meta charset='utf-8'><title>{args.title}</title><style>{STYLE}</style>")
@@ -672,8 +701,9 @@ def main():
                 continue
             label, meaning, formula = METRICS[metric]
             readme.write(f"\n## {label}\n\n{meaning}\n\n    {formula}\n\n")
+            readme.write(f"Folder `{metric}/`, definitions in `{metric}/DEFINITIONS.md`.\n\n")
             for e in entries:
-                readme.write(f"- `{e['png']}`: {e['caption']}\n")
+                readme.write(f"- `{metric}/{e['png']}`: {e['caption']}\n")
         readme.write("\n## Proposed plots, not yet implemented\n\n")
         for title, why in PROPOSED:
             readme.write(f"- **{title}.** {why}\n")
