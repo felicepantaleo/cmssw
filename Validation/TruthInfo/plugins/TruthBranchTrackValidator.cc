@@ -174,9 +174,19 @@ void TruthBranchTrackValidator::dqmAnalyze(edm::Event const& event,
       kin.phi = p4.phi();
       // The branch's own detector footprint, which is the truth analogue of a track's
       // hit count.
-      kin.nhits = hitIndex.subgraphHits(truth::HitChannel::Tracker, b).size();
+      const auto subgraph = hitIndex.subgraphHits(truth::HitChannel::Tracker, b);
+      kin.nhits = subgraph.size();
+      // How deep in the graph the branch root sits. A frozen truth object has one fixed
+      // level and no such axis.
+      const truth::Particle branchRoot(&graph, b);
+      kin.depth = branchRoot.ancestors().size();
+      // How much of the branch footprint is the root particle's own hits rather than its
+      // descendants'. Near 1 is a clean single particle, near 0 a branch whose hits all
+      // come from what it produced.
+      const auto direct = hitIndex.directHits(truth::HitChannel::Tracker, b);
+      kin.rootfrac = subgraph.empty() ? 0. : static_cast<double>(direct.size()) / subgraph.size();
       // Position from the production vertex of the root particle.
-      const auto vertices = truth::Particle(&graph, b).productionVertices();
+      const auto vertices = branchRoot.productionVertices();
       // Why this particle exists, taken from the Geant4 creator process of its
       // production vertex. A branch with no production vertex is a beam-level object.
       auto reason = static_cast<unsigned int>(truth::VertexReason::Unknown);
@@ -223,7 +233,9 @@ void TruthBranchTrackValidator::fillDescriptions(edm::ConfigurationDescriptions&
                                                                           {"vertpos", 40, 0., 60.},
                                                                           {"zpos", 40, -30., 30.},
                                                                           {"dxy", 40, -5., 5.},
-                                                                          {"dz", 40, -20., 20.}};
+                                                                          {"dz", 40, -20., 20.},
+                                                                          {"depth", 15, 0., 15.},
+                                                                          {"rootfrac", 20, 0., 1.}};
   for (auto const& [name, nbins, lo, hi] : axes) {
     algo.add<int>("nint_" + name, nbins);
     algo.add<double>("min_" + name, lo);

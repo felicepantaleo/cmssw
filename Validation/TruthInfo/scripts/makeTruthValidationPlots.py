@@ -92,6 +92,9 @@ VARIABLE_MEANING = {
     "zpos": "z of the branch production vertex",
     "dxy": "transverse impact parameter of the branch",
     "dz": "longitudinal impact parameter of the branch",
+    "depth": "number of ancestors of the branch root in the graph, that is how far down the event history it sits",
+    "rootfrac": "fraction of the branch tracker footprint that belongs to the root particle itself rather than to "
+                "its descendants; near 1 is a clean single particle",
 }
 STYLE = (
     "body{font-family:sans-serif;margin:2em;max-width:1500px;color:#222}"
@@ -106,9 +109,6 @@ STYLE = (
 # Plots the graph makes possible that a frozen truth object cannot answer. Shown in the
 # gallery so the next step is visible rather than tribal knowledge.
 PROPOSED = [
-    ("Efficiency versus graph depth",
-     "A branch is recomputed on demand at any level of the graph, so efficiency can be plotted against the depth "
-     "of the branch root. A frozen CaloParticle has no such axis: it is one fixed level."),
     ("Merge rate by lowest common ancestor",
      "When two branches are reconstructed as one object the graph gives the LCA of the contributors, so the merge "
      "rate can be plotted against the LCA pdgId: WHICH physical object the merge corresponds to, for instance a "
@@ -116,9 +116,6 @@ PROPOSED = [
     ("Adaptive-level agreement",
      "Fraction of reco objects whose adaptive level equals the fixed best match, versus pt and eta. The direct "
      "measure of what the adaptive climb buys, and flat by construction on single particles."),
-    ("Energy fraction carried by the branch root",
-     "From subgraph hits, how much of the branch energy sits in the root particle itself, separating clean single "
-     "particles from branches dominated by their descendants."),
     ("Two-channel candidate matching",
      "A TICLCandidate should be matched on calo shared energy AND tracker shared hits at once; the payload for "
      "that is the natural next extension of the shared-hits type."),
@@ -128,7 +125,7 @@ PROPOSED = [
 ]
 # Metric order drives the page order, so a reader meets efficiency before its failure modes.
 METRIC_ORDER = ["composition", "efficiency", "purity", "fakerate", "duplicate", "pileuprate", "resolution"]
-VARIABLE_ORDER = ["pt", "eta", "phi", "nhits", "vertpos", "zpos", "dxy", "dz"]
+VARIABLE_ORDER = ["pt", "eta", "phi", "nhits", "vertpos", "zpos", "dxy", "dz", "depth", "rootfrac"]
 # Axes whose bins are named categories rather than numbers, drawn as grouped bars.
 CATEGORICAL = ["reason"]
 # Gaussian slice fits, ordered so bias is read before width for each quantity.
@@ -143,6 +140,18 @@ RESOLUTION_SOURCES = ["ptres_vs_eta", "ptres_vs_pt", "etares_vs_eta", "phires_vs
 # A Gaussian fitted to a slice with a handful of entries returns a width that is not a
 # resolution. Below this many entries the point is dropped, not drawn.
 MIN_SLICE_ENTRIES = 20
+# A ratio formed from a handful of entries is noise with a large error bar, not a
+# measurement. Bins whose DENOMINATOR is below this are not drawn.
+MIN_DENOM_ENTRIES = 10
+# Which num_* histogram is the denominator of each metric, so a bin can be dropped when
+# there was nothing there to divide by.
+DENOMINATOR = {
+    "efficiency": "num_simul",
+    "duplicate": "num_simul",
+    "purity": "num_reco",
+    "fakerate": "num_reco",
+    "pileuprate": "num_reco",
+}
 CATEGORICAL_MEANING = {
     "reason": (
         "the Geant4 process that CREATED the branch root, read from the VertexReason of its production vertex. "
@@ -205,6 +214,17 @@ def collect(files):
                 # The per-process population is the denominator of the categorical
                 # ratios; it is carried along so a bar can be dropped when the process
                 # simply does not occur, rather than drawn as a zero efficiency.
+                name = key.GetName()
+                if name.startswith("num_simul_") or name.startswith("num_reco_"):
+                    obj = key.ReadObj()
+                    if obj.InheritsFrom("TH1") and not obj.InheritsFrom("TH2"):
+                        _, counts, _ = hist_arrays(obj)
+                        (
+                            data.setdefault(category, {})
+                            .setdefault(collection, {})
+                            .setdefault("_denom", {})
+                            .setdefault(name, {})[wp]
+                        ) = counts
                 if key.GetName() == "num_simul_reason":
                     obj = key.ReadObj()
                     if obj.InheritsFrom("TH1"):
@@ -286,7 +306,7 @@ def _fit_ok(wp, values, slices, is_sigma=False):
     return ok
 
 
-def plot_metric(category, collection, metric, var, per_wp, outdir, index, slices=None):
+def plot_metric(category, collection, metric, var, per_wp, outdir, index, slices=None, denom=None):
     """One overlay plot with a ratio panel against the reference working point."""
     wps = [w for w in WP_ORDER if w in per_wp] + [w for w in sorted(per_wp) if w not in WP_ORDER]
     if not wps:
@@ -309,6 +329,8 @@ def plot_metric(category, collection, metric, var, per_wp, outdir, index, slices
         centers = 0.5 * (edges[:-1] + edges[1:])
         filled = values > 0
         filled = filled & _fit_ok(wp, values, slices, is_sigma)
+        if denom is not None and wp in denom and len(denom[wp]) == len(values):
+            filled = filled & (denom[wp] >= MIN_DENOM_ENTRIES)
         means[wp] = float(values[filled].mean()) if filled.any() else 0.0
         ax.errorbar(
             centers[filled],
@@ -372,6 +394,10 @@ def plot_metric(category, collection, metric, var, per_wp, outdir, index, slices
             _, values, _ = per_wp[wp]
             ok = (ref_values > 0) & (values > 0)
             ok = ok & _fit_ok(REFERENCE_WP, ref_values, slices, is_sigma) & _fit_ok(wp, values, slices, is_sigma)
+            if denom is not None:
+                for w in (REFERENCE_WP, wp):
+                    if w in denom and len(denom[w]) == len(values):
+                        ok = ok & (denom[w] >= MIN_DENOM_ENTRIES)
             if ok.any():
                 rax.plot(
                     ref_centers[ok],
@@ -383,7 +409,7 @@ def plot_metric(category, collection, metric, var, per_wp, outdir, index, slices
     rax.axhline(1.0, linestyle="--", color="gray", linewidth=1.2)
     rax.set_ylabel(f"ratio to {REFERENCE_WP}", fontsize=12)
     xvar = var.rsplit("_vs_", 1)[-1].split("_")[0] if "_vs_" in var else var
-    rax.set_xlabel(f"{xvar}  ({VARIABLE_MEANING.get(xvar, xvar)})")
+    rax.set_xlabel(xvar)
     rax.set_ylim(0.0, 2.0)
     rax.grid(alpha=0.3)
 
@@ -521,6 +547,7 @@ def main():
         for collection in sorted(data[category]):
             all_counts = data[category][collection].get("_counts", {})
             all_slices = data[category][collection].get("_slices", {})
+            all_denom = data[category][collection].get("_denom", {})
             if "reason" in all_counts:
                 result = plot_composition(category, collection, all_counts["reason"], args.outputDir, index)
                 if result:
@@ -534,7 +561,8 @@ def main():
                     if var not in per_metric:
                         continue
                     result = plot_metric(
-                        category, collection, metric, var, per_metric[var], args.outputDir, index
+                        category, collection, metric, var, per_metric[var], args.outputDir, index,
+                        denom=all_denom.get(f"{DENOMINATOR.get(metric, '')}_{var}"),
                     )
                     if result:
                         name, caption = result
@@ -586,6 +614,14 @@ def main():
                        "the reco object, differing only in how much branch spread they tolerate. The lower panel "
                        "is the ratio to Fixed.</div>")
             page.write(f"<p>Sample: {args.sample}.</p>")
+            used = [v for v in VARIABLE_ORDER + CATEGORICAL
+                    if any(e["var"] == v or e["var"].endswith("_vs_" + v) for e in entries)]
+            if used:
+                page.write("<div class='def'><b>What is on the x axis.</b><ul>")
+                for v in used:
+                    meaning = VARIABLE_MEANING.get(v) or CATEGORICAL_MEANING.get(v, v)
+                    page.write(f"<li><span class='f'>{v}</span> {meaning}</li>")
+                page.write("</ul></div>")
             for collection in sorted({e["collection"] for e in entries}):
                 page.write(f"<h2>{collection}</h2><div class='grid'>")
                 for e in [x for x in entries if x["collection"] == collection]:
@@ -595,6 +631,9 @@ def main():
     with open(os.path.join(args.outputDir, "index.html"), "w") as idx:
         idx.write(f"<!doctype html><meta charset='utf-8'><title>{args.title}</title><style>{STYLE}</style>")
         idx.write(f"<h1>{args.title}</h1><p>Sample: {args.sample}.</p>")
+        if os.path.exists(os.path.join(args.outputDir, "resource_cost.md")):
+            idx.write("<p><a href='resource_cost.md'>Measured computing cost of the graph against the legacy "
+                      "frozen truth objects</a></p>")
         idx.write("<div class='def'>Truth objects here are <b>branches</b> of the MC-truth graph, not frozen "
                   "TrackingParticles or CaloParticles. A branch is recomputed on demand from the graph, so the "
                   "same validation can be re-run against a different definition of what counts as one truth "
@@ -611,7 +650,15 @@ def main():
             idx.write(f"<li><span class='f'>{var}</span> {VARIABLE_MEANING[var]}</li>")
         for var in CATEGORICAL:
             idx.write(f"<li><span class='f'>{var}</span> {CATEGORICAL_MEANING[var]}</li>")
-        idx.write("</ul><h2>Proposed plots, not yet implemented</h2>"
+        idx.write("</ul><h2>Quality cuts applied to every plot</h2><ul class='idx'>"
+                  f"<li>A ratio bin is drawn only if its denominator has at least {MIN_DENOM_ENTRIES} entries. "
+                  "A ratio built from a handful of entries is noise with a large error bar, not a measurement.</li>"
+                  f"<li>A Gaussian slice fit is drawn only if its slice has at least {MIN_SLICE_ENTRIES} entries, "
+                  "and only if the fitted width is inside the fit range and wider than one bin. The other two cases "
+                  "are a fit that ran away and a fit that collapsed onto a single bin.</li>"
+                  "<li>A named category is drawn only if the sample populated it. A process that never happened is "
+                  "not an inefficiency.</li></ul>"
+                  "<h2>Proposed plots, not yet implemented</h2>"
                   "<p>What the graph makes possible that a frozen truth object cannot answer.</p><ul class='idx'>")
         for title, why in PROPOSED:
             idx.write(f"<li><b>{title}.</b> {why}</li>")

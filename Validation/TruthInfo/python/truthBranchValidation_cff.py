@@ -13,7 +13,7 @@ from SimGeneral.TruthGraphAssociatorProducers.truthGraphAssociationLabels_cff im
     instanceKey,
 )
 
-truthPlotVariables = ["pt", "eta", "phi", "nhits", "vertpos", "zpos", "dxy", "dz"]
+truthPlotVariables = ["pt", "eta", "phi", "nhits", "vertpos", "zpos", "dxy", "dz", "depth", "rootfrac"]
 
 _wps = list(truthBranchWorkingPointsPSet.names)
 truthInfoDqmDir = "TruthInfo/Tracking/"
@@ -29,6 +29,10 @@ _axes = {
     "zpos": (40, -30.0, 30.0),
     "dxy": (40, -5.0, 5.0),
     "dz": (40, -20.0, 20.0),
+    # Graph-only axes: depth of the branch root in the graph, and the fraction of the
+    # branch footprint that belongs to the root particle itself.
+    "depth": (15, 0.0, 15.0),
+    "rootfrac": (20, 0.0, 1.0),
 }
 _algoBlockArgs = {}
 for _name, (_n, _lo, _hi) in _axes.items():

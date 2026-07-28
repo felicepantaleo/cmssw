@@ -30,9 +30,13 @@ namespace truth {
   // MTVHistoProducerAlgoForTracker set restricted to what a truth branch can supply:
   // kinematics from the root particle, position from its production vertex, and the
   // hit count from the branch's own footprint in the hit index.
-  enum class Variable { Pt, Eta, Phi, Nhits, Vertpos, Zpos, Dxy, Dz };
+  // The last two have no counterpart in MTV, and none in a frozen truth object either:
+  // depth is how far down the graph the branch root sits, and rootfrac is how much of
+  // the branch footprint belongs to the root particle itself rather than to its
+  // descendants. Both exist only because the truth is a navigable graph.
+  enum class Variable { Pt, Eta, Phi, Nhits, Vertpos, Zpos, Dxy, Dz, Depth, Rootfrac };
   inline static const std::vector<std::string> kVariableNames = {
-      "pt", "eta", "phi", "nhits", "vertpos", "zpos", "dxy", "dz"};
+      "pt", "eta", "phi", "nhits", "vertpos", "zpos", "dxy", "dz", "depth", "rootfrac"};
 
   struct TruthBranchHistograms {
     using METype = dqm::reco::MonitorElement*;
@@ -79,7 +83,10 @@ namespace truth {
     // Values of every x variable for one object, in the enum order.
     struct Kinematics {
       double pt = 0., eta = 0., phi = 0., nhits = 0., vertpos = 0., zpos = 0., dxy = 0., dz = 0.;
-      std::vector<double> asVector() const { return {pt, eta, phi, nhits, vertpos, zpos, dxy, dz}; }
+      double depth = 0., rootfrac = 0.;
+      std::vector<double> asVector() const {
+        return {pt, eta, phi, nhits, vertpos, zpos, dxy, dz, depth, rootfrac};
+      }
     };
 
     void fill_simul(TruthBranchHistograms const& histograms,
