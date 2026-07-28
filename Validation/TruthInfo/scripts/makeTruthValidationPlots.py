@@ -36,11 +36,16 @@ WP_ORDER = ["Fixed", "AdaptiveTight", "AdaptiveNominal", "AdaptiveLoose"]
 
 # Which metrics we plot, and how each should be read.
 METRICS = {
-    "efficiency": ("Branch efficiency", "fraction of selected branches matched"),
-    "fakerate": ("Fake rate", "fraction of reco objects with no branch"),
+    "efficiency": ("Branch efficiency", "selected branches matched to a reco object"),
+    "purity": ("Purity", "reco objects whose match belongs to the branch"),
+    "fakerate": ("Fake rate", "reco objects with no branch"),
     "duplicate": ("Duplicate rate", "branches matched more than once"),
+    "pileuprate": ("Pileup rate", "reco objects matched to a pileup branch"),
 }
-_ME_RE = re.compile(r"^(?P<metric>efficiency|fakerate|duplicate)_vs_(?P<var>\w+)$")
+# Metric order drives the page order, so a reader meets efficiency before its failure modes.
+METRIC_ORDER = ["efficiency", "purity", "fakerate", "duplicate", "pileuprate"]
+VARIABLE_ORDER = ["pt", "eta", "phi", "nhits", "vertpos", "zpos", "dxy", "dz"]
+_ME_RE = re.compile(r"^(?P<metric>efficiency|purity|fakerate|duplicate|pileuprate)_vs_(?P<var>\w+)$")
 
 
 def hist_arrays(h):
@@ -209,9 +214,9 @@ def main():
     index = 1
     for category in sorted(data):
         for collection in sorted(data[category]):
-            for metric in ["efficiency", "fakerate", "duplicate"]:
+            for metric in METRIC_ORDER:
                 per_metric = data[category][collection].get(metric, {})
-                for var in ["pt", "eta", "phi"]:
+                for var in VARIABLE_ORDER:
                     if var not in per_metric:
                         continue
                     result = plot_metric(

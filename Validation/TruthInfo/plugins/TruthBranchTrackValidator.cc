@@ -7,7 +7,9 @@
 // MonitorElements live in a per-run cache, which is the modern convention shared by
 // MultiTrackValidator and HGCalValidator.
 
+#include <cmath>
 #include <string>
+#include <tuple>
 #include <vector>
 
 #include "DQMServices/Core/interface/DQMGlobalEDAnalyzer.h"
@@ -19,6 +21,8 @@
 #include "DataFormats/TrackReco/interface/Track.h"
 #include "SimDataFormats/Associations/interface/TICLAssociationMap.h"
 #include "SimDataFormats/TruthInfo/interface/Graph.h"
+#include "SimDataFormats/TruthInfo/interface/Particle.h"
+#include "SimDataFormats/TruthInfo/interface/LogicalGraphHitIndex.h"
 
 #include "Validation/TruthInfo/interface/TruthBranchHistoProducerAlgo.h"
 
@@ -48,6 +52,7 @@ private:
   };
 
   const edm::EDGetTokenT<truth::Graph> graphToken_;
+  const edm::EDGetTokenT<truth::LogicalGraphHitIndex> hitIndexToken_;
   edm::EDGetTokenT<std::vector<unsigned int>> selectedRootsToken_;
   const std::string dirName_;
   std::vector<Entry> entries_;
@@ -56,6 +61,7 @@ private:
 
 TruthBranchTrackValidator::TruthBranchTrackValidator(edm::ParameterSet const& cfg)
     : graphToken_(consumes<truth::Graph>(cfg.getParameter<edm::InputTag>("src"))),
+      hitIndexToken_(consumes<truth::LogicalGraphHitIndex>(cfg.getParameter<edm::InputTag>("hitIndex"))),
       dirName_(cfg.getParameter<std::string>("dirName")),
       algo_(cfg.getParameter<edm::ParameterSet>("histoProducerAlgoBlock")) {
   const auto associator = cfg.getParameter<std::string>("associator");
@@ -113,11 +119,32 @@ void TruthBranchTrackValidator::dqmAnalyze(edm::Event const& event,
     auto const& recoToSim = recoToSimHandle->getMap();
     auto const& simToReco = simToRecoHandle->getMap();
 
-    // Reco side: every object, and whether it found a branch.
+    auto const& hitIndex = event.get(hitIndexToken_);
+
+    // Reco side: every object, whether it found a branch, and whether that branch came
+    // from a pileup interaction rather than the signal one.
     for (std::size_t r = 0; r < recoHandle->size(); ++r) {
       auto const& track = (*recoHandle)[r];
       const bool associated = r < recoToSim.size() && !recoToSim[r].empty();
-      algo_.fill_reco(histograms.histos, i, track.pt(), track.eta(), track.phi(), associated);
+      truth::TruthBranchHistoProducerAlgo::Kinematics kin;
+      kin.pt = track.pt();
+      kin.eta = track.eta();
+      kin.phi = track.phi();
+      kin.nhits = track.numberOfValidHits();
+      kin.vertpos = std::sqrt(track.vx() * track.vx() + track.vy() * track.vy());
+      kin.zpos = track.vz();
+      kin.dxy = track.dxy();
+      kin.dz = track.dz();
+
+      bool pileup = false;
+      if (associated) {
+        const unsigned int branch = recoToSim[r][0].index();
+        if (branch < graph.nParticles()) {
+          // eventId 0 is the signal interaction; anything else is overlaid pileup.
+          pileup = graph.particles()[branch].eventId != 0;
+        }
+      }
+      algo_.fill_reco(histograms.histos, i, kin, associated, pileup);
       if (associated) {
         algo_.fill_match(histograms.histos, i, recoToSim[r][0].score(), recoToSim[r][0].sharedHits());
       }
@@ -140,9 +167,35 @@ void TruthBranchTrackValidator::dqmAnalyze(edm::Event const& event,
       if (p4.pt() <= 0.) {
         continue;
       }
+      truth::TruthBranchHistoProducerAlgo::Kinematics kin;
+      kin.pt = p4.pt();
+      kin.eta = p4.eta();
+      kin.phi = p4.phi();
+      // The branch's own detector footprint, which is the truth analogue of a track's
+      // hit count.
+      kin.nhits = hitIndex.subgraphHits(truth::HitChannel::Tracker, b).size();
+      // Position from the production vertex of the root particle.
+      const auto vertices = truth::Particle(&graph, b).productionVertices();
+      if (!vertices.empty()) {
+        const auto& pos = vertices.front().position();
+        kin.vertpos = std::sqrt(pos.x() * pos.x() + pos.y() * pos.y());
+        kin.zpos = pos.z();
+        // Transverse and longitudinal impact parameter of the branch direction with
+        // respect to the origin, the truth counterpart of the track dxy and dz.
+        kin.dxy = (p4.pt() > 0.) ? (-pos.x() * p4.py() + pos.y() * p4.px()) / p4.pt() : 0.;
+        kin.dz =
+            (p4.pt() > 0.) ? pos.z() - (pos.x() * p4.px() + pos.y() * p4.py()) / p4.pt() * (p4.pz() / p4.pt()) : 0.;
+      }
       const bool associated = !simToReco[b].empty();
       const bool duplicate = simToReco[b].size() > 1;
-      algo_.fill_simul(histograms.histos, i, p4.pt(), p4.eta(), p4.phi(), associated, duplicate);
+      algo_.fill_simul(histograms.histos, i, kin, associated, duplicate);
+      if (associated) {
+        const unsigned int r = simToReco[b][0].index();
+        if (r < recoHandle->size()) {
+          auto const& matched = (*recoHandle)[r];
+          algo_.fill_resolution(histograms.histos, i, kin, matched.pt(), matched.eta(), matched.phi());
+        }
+      }
     }
   }
 }
@@ -150,27 +203,35 @@ void TruthBranchTrackValidator::dqmAnalyze(edm::Event const& event,
 void TruthBranchTrackValidator::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
   edm::ParameterSetDescription desc;
   desc.add<edm::InputTag>("src", edm::InputTag("truthLogicalGraphProducer"));
+  desc.add<edm::InputTag>("hitIndex", edm::InputTag("truthLogicalGraphHitIndexProducer"));
   desc.add<std::string>("dirName", "TruthInfo/Tracking/");
   desc.add<std::string>("associator", "allTrackToTruthBranchAssociators");
   desc.add<std::vector<edm::InputTag>>("recoCollections", {edm::InputTag("generalTracks")});
   desc.add<std::vector<std::string>>("workingPoints", {"Fixed"});
 
   edm::ParameterSetDescription algo;
-  algo.add<int>("nintPt", 50);
-  algo.add<double>("minPt", 0.);
-  algo.add<double>("maxPt", 100.);
-  algo.add<int>("nintEta", 50);
-  algo.add<double>("minEta", -4.);
-  algo.add<double>("maxEta", 4.);
-  algo.add<int>("nintPhi", 36);
-  algo.add<double>("minPhi", -3.2);
-  algo.add<double>("maxPhi", 3.2);
+  const std::vector<std::tuple<std::string, int, double, double>> axes = {{"pt", 50, 0., 100.},
+                                                                          {"eta", 50, -4., 4.},
+                                                                          {"phi", 36, -3.2, 3.2},
+                                                                          {"nhits", 40, 0., 40.},
+                                                                          {"vertpos", 40, 0., 60.},
+                                                                          {"zpos", 40, -30., 30.},
+                                                                          {"dxy", 40, -5., 5.},
+                                                                          {"dz", 40, -20., 20.}};
+  for (auto const& [name, nbins, lo, hi] : axes) {
+    algo.add<int>("nint_" + name, nbins);
+    algo.add<double>("min_" + name, lo);
+    algo.add<double>("max_" + name, hi);
+  }
   algo.add<int>("nintScore", 50);
   algo.add<double>("minScore", 0.);
   algo.add<double>("maxScore", 1.);
   algo.add<int>("nintShared", 50);
   algo.add<double>("minShared", 0.);
   algo.add<double>("maxShared", 50.);
+  algo.add<int>("nintRes", 60);
+  algo.add<double>("minRes", -0.6);
+  algo.add<double>("maxRes", 0.6);
   desc.add<edm::ParameterSetDescription>("histoProducerAlgoBlock", algo);
 
   descriptions.add("truthBranchTrackValidator", desc);
