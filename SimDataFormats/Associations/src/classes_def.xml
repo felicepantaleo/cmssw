@@ -77,6 +77,10 @@
   <class name="ticl::AssociationMap<ticl::mapWithFractionAndScore, std::vector<ticl::Trackster>, std::vector<ticl::Trackster> >"/>
   <class name="edm::Wrapper<ticl::AssociationMap<ticl::mapWithFractionAndScore, std::vector<ticl::Trackster>, std::vector<ticl::Trackster> > >"/>
   <class name="ticl::AssociationMap<ticl::mapWithFractionAndScore, void, void >"/>
+  <class name="ticl::AssociationMap<ticl::mapWithSharedHits, void, void >"/>
+  <class name="edm::Wrapper<ticl::AssociationMap<ticl::mapWithSharedHits, void, void > >"/>
+  <class name="ticl::AssociationMap<ticl::mapWithSharedHitsAndScore, void, void >"/>
+  <class name="edm::Wrapper<ticl::AssociationMap<ticl::mapWithSharedHitsAndScore, void, void > >"/>
   <class name="edm::Wrapper<ticl::AssociationMap<ticl::mapWithFractionAndScore, void, void > >"/>
   <!-- For one-to-one map with FractionType -->
   <class name="ticl::AssociationMap<ticl::oneToOneMapWithFraction, std::vector<io_v1::SimCluster>, std::vector<io_v1::CaloParticle> >"/>

@@ -1,0 +1,12 @@
+<use name="Validation/TruthInfo"/>
+<use name="DQMServices/Core"/>
+<use name="FWCore/Framework"/>
+<use name="FWCore/ParameterSet"/>
+<use name="FWCore/Utilities"/>
+<use name="DataFormats/TrackReco"/>
+<use name="SimDataFormats/Associations"/>
+<use name="SimDataFormats/TruthInfo"/>
+
+<library file="TruthBranchTrackValidator.cc" name="ValidationTruthInfoPlugins">
+  <flags EDM_PLUGIN="1"/>
+</library>

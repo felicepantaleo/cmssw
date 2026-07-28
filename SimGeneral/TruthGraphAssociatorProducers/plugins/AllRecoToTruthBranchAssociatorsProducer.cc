@@ -1,0 +1,386 @@
+// Original author: Felice Pantaleo (CERN) <felice.pantaleo@cern.ch>
+
+// One producer, every configured reco collection of one type, every branch-association
+// working point. Follows the All* pattern of
+// SimCalorimetry/HGCalAssociatorProducers: the module takes a VInputTag of reco
+// collections and emits one pair of association maps per (collection, working point),
+// with instance labels derived from the input tags.
+//
+// The reco type only has to be adaptable to (DetId, fraction) hits. Which adapter
+// applies is decided by a concept rather than by a per-type producer, so a new domain
+// is a truth::recoHits overload plus a label in truthGraphAssociationLabels_cff, not a
+// new plugin.
+//
+// Working points differ only in the arguments passed to bestAdaptiveBranch, not in the
+// associator itself, so the inverted DetId index is built ONCE per event and reused
+// across every working point.
+
+#include <concepts>
+#include <memory>
+#include <span>
+#include <unordered_map>
+#include <string>
+#include <vector>
+
+#include "FWCore/Framework/interface/Event.h"
+#include "FWCore/Framework/interface/global/EDProducer.h"
+#include "FWCore/ParameterSet/interface/ConfigurationDescriptions.h"
+#include "FWCore/ParameterSet/interface/ParameterSet.h"
+#include "FWCore/ParameterSet/interface/ParameterSetDescription.h"
+
+#include "DataFormats/CaloRecHit/interface/CaloCluster.h"
+#include "DataFormats/TrackReco/interface/Track.h"
+#include "DataFormats/VertexReco/interface/Vertex.h"
+#include "SimDataFormats/Associations/interface/TICLAssociationMap.h"
+
+#include "PhysicsTools/TruthInfo/interface/Branch.h"
+#include "PhysicsTools/TruthInfo/interface/BranchHitAssociator.h"
+#include "PhysicsTools/TruthInfo/interface/BranchSelector.h"
+#include "PhysicsTools/TruthInfo/interface/RecoHitAdapters.h"
+#include "SimDataFormats/TruthInfo/interface/Graph.h"
+#include "SimDataFormats/TruthInfo/interface/LogicalGraphHitIndex.h"
+
+namespace {
+  // A reco type that yields its own hits needs nothing but itself.
+  template <typename RECO>
+  concept SelfContainedRecoHits = requires(RECO const& r) {
+    { truth::recoHits(r) } -> std::same_as<std::vector<truth::RecoHit>>;
+  };
+
+  // A reco type built out of layer clusters needs the layer-cluster collection too.
+  template <typename RECO>
+  concept LayerClusterBackedRecoHits = requires(RECO const& r, std::vector<reco::CaloCluster> const& lcs) {
+    { truth::recoHits(r, lcs) } -> std::same_as<std::vector<truth::RecoHit>>;
+  };
+
+  template <typename RECO>
+  concept AdaptableToTruthHits = SelfContainedRecoHits<RECO> || LayerClusterBackedRecoHits<RECO>;
+
+  // How a domain reaches the truth is a property of its reco type, not of runtime
+  // configuration. Two strategies cover everything:
+  //
+  //   HitBased         the object owns detector hits, so it is matched directly
+  //                    (tracks by shared hits, tracksters by shared energy).
+  //   ConstituentBased the object is BUILT from objects that are already associated,
+  //                    so its truth is aggregated from theirs rather than recomputed
+  //                    from hits. A vertex shares tracks, a jet shares constituents,
+  //                    a candidate shares a track and clusters. This is the layering
+  //                    CMSSW already uses: VertexAssociatorByPositionAndTracks
+  //                    consumes the track maps, it does not revisit hits.
+  //
+  // Binding payload and strategy to the type means the declared product type and the
+  // produced one cannot drift apart, which they did when the metric was a config string.
+  enum class AssociationStrategy { HitBased, ConstituentBased };
+
+  template <typename RECO>
+  struct TruthAssociationTraits;
+
+  template <>
+  struct TruthAssociationTraits<reco::Track> {
+    static constexpr auto strategy = AssociationStrategy::HitBased;
+    using MapType = ticl::AssociationMap<ticl::mapWithSharedHitsAndScore>;
+    static constexpr truth::HitChannel channel = truth::HitChannel::Tracker;
+    static constexpr auto metric = truth::BranchHitAssociator::Metric::SharedHits;
+    static constexpr const char* cfiName = "allTrackToTruthBranchAssociators";
+  };
+
+  // A vertex carries no hits of its own: its truth is whatever its tracks point to.
+  // The payload is therefore a FRACTION of the vertex's tracks, weighted the way
+  // calculateVertexSharedTracks weights them, not an energy.
+  template <>
+  struct TruthAssociationTraits<reco::Vertex> {
+    static constexpr auto strategy = AssociationStrategy::ConstituentBased;
+    using ConstituentType = reco::Track;
+    using MapType = ticl::AssociationMap<ticl::mapWithFractionAndScore>;
+    static constexpr const char* cfiName = "allVertexToTruthBranchAssociators";
+
+    // Visit (constituent index into its own collection, weight). The index is the Ref
+    // key, which is exactly the row the constituent's association map is indexed by.
+    template <typename F>
+    static void forEachConstituent(reco::Vertex const& vertex, F&& visit) {
+      for (auto it = vertex.tracks_begin(); it != vertex.tracks_end(); ++it) {
+        visit(static_cast<unsigned int>(it->key()), vertex.trackWeight(*it));
+      }
+    }
+
+    static float totalWeight(reco::Vertex const& vertex) {
+      float total = 0.f;
+      forEachConstituent(vertex, [&total](unsigned int, float w) { total += w; });
+      return total;
+    }
+  };
+
+  template <typename RECO>
+  concept HitBasedDomain = TruthAssociationTraits<RECO>::strategy == AssociationStrategy::HitBased;
+
+  template <typename RECO>
+  concept ConstituentBasedDomain = TruthAssociationTraits<RECO>::strategy == AssociationStrategy::ConstituentBased;
+}  // namespace
+
+template <typename RECO>
+  requires(AdaptableToTruthHits<RECO> || ConstituentBasedDomain<RECO>)
+class AllRecoToTruthBranchAssociatorsProducer : public edm::global::EDProducer<> {
+public:
+  explicit AllRecoToTruthBranchAssociatorsProducer(edm::ParameterSet const&);
+  void produce(edm::StreamID, edm::Event&, edm::EventSetup const&) const override;
+  static void fillDescriptions(edm::ConfigurationDescriptions&);
+
+private:
+  struct WorkingPoint {
+    std::string name;
+    float reverseWeight;
+    float maxReverseScore;
+    bool adaptive;
+  };
+
+  const edm::EDGetTokenT<truth::Graph> graphToken_;
+  const edm::EDGetTokenT<truth::LogicalGraphHitIndex> hitIndexToken_;
+  edm::EDGetTokenT<std::vector<reco::CaloCluster>> layerClustersToken_;
+
+  std::vector<std::pair<std::string, edm::EDGetTokenT<std::vector<RECO>>>> recoTokens_;
+  std::vector<WorkingPoint> workingPoints_;
+  truth::BranchSelector branchSelector_;
+
+  using Traits = TruthAssociationTraits<RECO>;
+  using MapType = typename Traits::MapType;
+
+  // Composite domains read their constituents' association maps instead of hits. The
+  // upstream module is named by a cms.string and the instance labels are rebuilt here,
+  // the same way the HGCal All* producers reach allHitToTracksterAssociations.
+  using ConstituentMapType =
+      typename std::conditional_t<ConstituentBasedDomain<RECO>,
+                                  TruthAssociationTraits<reco::Track>,
+                                  TruthAssociationTraits<reco::Track>>::MapType;
+  std::vector<std::vector<edm::EDGetTokenT<ConstituentMapType>>> constituentMapTokens_;
+};
+
+template <typename RECO>
+  requires(AdaptableToTruthHits<RECO> || ConstituentBasedDomain<RECO>)
+AllRecoToTruthBranchAssociatorsProducer<RECO>::AllRecoToTruthBranchAssociatorsProducer(edm::ParameterSet const& cfg)
+    : graphToken_(consumes<truth::Graph>(cfg.getParameter<edm::InputTag>("src"))),
+      hitIndexToken_(consumes<truth::LogicalGraphHitIndex>(cfg.getParameter<edm::InputTag>("hitIndex"))) {
+  if constexpr (LayerClusterBackedRecoHits<RECO>) {
+    layerClustersToken_ = consumes<std::vector<reco::CaloCluster>>(cfg.getParameter<edm::InputTag>("layerClusters"));
+  }
+
+  {
+    // Restrict which branches are candidates at all. Without this the maps and the
+    // efficiency denominators are dominated by soft particles that no reconstruction
+    // was ever going to find, exactly as CaloParticleSelector and the TrackingParticle
+    // selectors guard their own denominators.
+    auto const& sel = cfg.getParameter<edm::ParameterSet>("branchSelector");
+    truth::BranchSelector::Config selectorConfig;
+    selectorConfig.ptMin = sel.getParameter<double>("ptMin");
+    selectorConfig.ptMax = sel.getParameter<double>("ptMax");
+    selectorConfig.etaMin = sel.getParameter<double>("etaMin");
+    selectorConfig.etaMax = sel.getParameter<double>("etaMax");
+    selectorConfig.pdgIds = sel.getParameter<std::vector<int>>("pdgIds");
+    selectorConfig.signalOnly = sel.getParameter<bool>("signalOnly");
+    selectorConfig.intimeOnly = sel.getParameter<bool>("intimeOnly");
+    selectorConfig.chargedOnly = sel.getParameter<bool>("chargedOnly");
+    selectorConfig.invertEta = sel.getParameter<bool>("invertEta");
+    branchSelector_ = truth::BranchSelector(std::move(selectorConfig));
+  }
+
+  const auto names = cfg.getParameter<std::vector<std::string>>("workingPointNames");
+  const auto weights = cfg.getParameter<std::vector<double>>("adaptiveReverseWeight");
+  const auto ceilings = cfg.getParameter<std::vector<double>>("adaptiveMaxReverseScore");
+  if (names.size() != weights.size() || names.size() != ceilings.size()) {
+    throw cms::Exception("Configuration")
+        << "workingPointNames, adaptiveReverseWeight and adaptiveMaxReverseScore must have the same length";
+  }
+  for (std::size_t i = 0; i < names.size(); ++i) {
+    // "Fixed" means the plain per-root match; every other point drives the climb.
+    workingPoints_.push_back({names[i],
+                              static_cast<float>(weights[i]),
+                              static_cast<float>(ceilings[i]),
+                              names[i] != "Fixed"});
+  }
+
+  // The selected candidate roots are published so a consumer can use exactly the same
+  // set as the efficiency DENOMINATOR. Without it a validator counts every particle in
+  // the graph, including those the selector rejected, and every efficiency comes out
+  // low by the rejection factor.
+  produces<std::vector<unsigned int>>("selectedBranchRoots");
+
+  for (auto const& tag : cfg.getParameter<std::vector<edm::InputTag>>("recoCollections")) {
+    // Key rule for this package: label and instance joined by an underscore, the same
+    // string that names the DQM folder. HGCal concatenates for products and
+    // underscores for folders; keeping one rule avoids that asymmetry.
+    std::string key = tag.label();
+    if (!tag.instance().empty()) {
+      key += "_" + tag.instance();
+    }
+    recoTokens_.emplace_back(key, consumes<std::vector<RECO>>(tag));
+
+    if constexpr (ConstituentBasedDomain<RECO>) {
+      // One constituent map per working point, in the same order as workingPoints_.
+      const auto upstream = cfg.getParameter<std::string>("constituentAssociator");
+      const auto constituentKey = cfg.getParameter<std::string>("constituentCollection");
+      std::vector<edm::EDGetTokenT<ConstituentMapType>> perWp;
+      perWp.reserve(workingPoints_.size());
+      for (auto const& wp : workingPoints_) {
+        perWp.push_back(consumes<ConstituentMapType>(
+            edm::InputTag(upstream, constituentKey + "ToTruthBranch" + wp.name)));
+      }
+      constituentMapTokens_.push_back(std::move(perWp));
+    }
+
+    for (auto const& wp : workingPoints_) {
+      produces<MapType>(key + "ToTruthBranch" + wp.name);
+      produces<MapType>("TruthBranchTo" + key + wp.name);
+    }
+  }
+}
+
+template <typename RECO>
+  requires(AdaptableToTruthHits<RECO> || ConstituentBasedDomain<RECO>)
+void AllRecoToTruthBranchAssociatorsProducer<RECO>::produce(edm::StreamID,
+                                                           edm::Event& event,
+                                                           edm::EventSetup const&) const {
+  auto const& graph = event.get(graphToken_);
+  auto const& hitIndex = event.get(hitIndexToken_);
+
+  std::vector<reco::CaloCluster> const* layerClusters = nullptr;
+  if constexpr (LayerClusterBackedRecoHits<RECO>) {
+    layerClusters = &event.get(layerClustersToken_);
+  }
+
+  const unsigned int nBranches = graph.nParticles();
+
+  // Selected candidate roots, computed once. emptyRootsMeansAll is false on purpose:
+  // if the selection accepts nothing the answer is "no candidates", not "every
+  // particle", which would silently undo the selection.
+  std::vector<uint32_t> selectedRoots;
+  selectedRoots.reserve(nBranches);
+  for (uint32_t id = 0; id < nBranches; ++id) {
+    if (branchSelector_(truth::Branch(&graph, id))) {
+      selectedRoots.push_back(id);
+    }
+  }
+
+  event.put(std::make_unique<std::vector<unsigned int>>(selectedRoots.begin(), selectedRoots.end()),
+            "selectedBranchRoots");
+
+  for (std::size_t collectionIndex = 0; collectionIndex < recoTokens_.size(); ++collectionIndex) {
+    auto const& [key, token] = recoTokens_[collectionIndex];
+    edm::Handle<std::vector<RECO>> handle;
+    event.getByToken(token, handle);
+    const bool valid = handle.isValid();
+    const unsigned int nReco = valid ? handle->size() : 0u;
+
+    for (std::size_t wpIndex = 0; wpIndex < workingPoints_.size(); ++wpIndex) {
+      auto const& wp = workingPoints_[wpIndex];
+      auto forward = std::make_unique<MapType>(nReco);
+      auto backward = std::make_unique<MapType>(nBranches);
+
+      if constexpr (ConstituentBasedDomain<RECO>) {
+        // Aggregate the constituents' existing association instead of revisiting hits:
+        // a branch's share of a composite object is the weight of the constituents that
+        // already point at it, over the object's total weight.
+        auto const& constituentMap = event.get(constituentMapTokens_[collectionIndex][wpIndex]);
+        for (unsigned int i = 0; i < nReco; ++i) {
+          auto const& object = (*handle)[i];
+          const float total = Traits::totalWeight(object);
+          if (total <= 0.f) {
+            continue;
+          }
+          std::unordered_map<unsigned int, float> weightPerBranch;
+          Traits::forEachConstituent(object, [&](unsigned int constituentIndex, float weight) {
+            if (constituentIndex >= constituentMap.size()) {
+              return;
+            }
+            // The constituent's best branch carries the object's weight for that branch.
+            for (auto const& match : constituentMap[constituentIndex]) {
+              weightPerBranch[match.index()] += weight;
+              break;  // maps are score-sorted, so [0] is the constituent's best match
+            }
+          });
+          for (auto const& [branch, weight] : weightPerBranch) {
+            const float fraction = weight / total;
+            forward->insert(i, branch, fraction, 1.f - fraction);
+            backward->insert(branch, i, fraction, 1.f - fraction);
+          }
+        }
+      } else {
+        // Built once per collection: the inverted DetId index and the per-cell
+        // denominators do not depend on the working point.
+        const truth::BranchHitAssociator associator(
+            hitIndex, selectedRoots, Traits::metric, Traits::channel, /*emptyRootsMeansAll=*/false);
+        for (unsigned int i = 0; i < nReco; ++i) {
+          std::vector<truth::RecoHit> hits;
+          if constexpr (LayerClusterBackedRecoHits<RECO>) {
+            hits = truth::recoHits((*handle)[i], *layerClusters);
+          } else {
+            hits = truth::recoHits((*handle)[i]);
+          }
+          if (hits.empty()) {
+            continue;
+          }
+          const std::span<const truth::RecoHit> span(hits);
+
+          if (wp.adaptive) {
+            const auto match = associator.bestAdaptiveBranch(span, wp.reverseWeight, wp.maxReverseScore);
+            if (match.rootParticleId != truth::BranchMatch::kInvalidRoot) {
+              forward->insert(i, match.rootParticleId, match.sharedEnergy, match.score);
+              backward->insert(match.rootParticleId, i, match.sharedEnergy, match.score);
+            }
+          } else {
+            for (auto const& match : associator.bestBranches(span)) {
+              forward->insert(i, match.rootParticleId, match.sharedEnergy, match.score);
+              backward->insert(match.rootParticleId, i, match.sharedEnergy, match.score);
+            }
+          }
+        }
+      }
+
+      // Ascending score, so [0] is the best match; consumers rely on this.
+      forward->sort(true);
+      backward->sort(true);
+      // Every declared instance label must be put on every path, including the one
+      // where the reco collection was absent: a missing put is a framework error.
+      event.put(std::move(forward), key + "ToTruthBranch" + wp.name);
+      event.put(std::move(backward), "TruthBranchTo" + key + wp.name);
+    }
+  }
+}
+
+template <typename RECO>
+  requires(AdaptableToTruthHits<RECO> || ConstituentBasedDomain<RECO>)
+void AllRecoToTruthBranchAssociatorsProducer<RECO>::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
+  edm::ParameterSetDescription desc;
+  desc.add<edm::InputTag>("src", edm::InputTag("truthLogicalGraphProducer"));
+  desc.add<edm::InputTag>("hitIndex", edm::InputTag("truthLogicalGraphHitIndexProducer"));
+  desc.add<std::vector<edm::InputTag>>("recoCollections", {});
+
+  edm::ParameterSetDescription selector;
+  selector.add<double>("ptMin", 1.0)->setComment("Reject branches whose root is softer than this");
+  selector.add<double>("ptMax", 1e100);
+  selector.add<double>("etaMin", -4.0);
+  selector.add<double>("etaMax", 4.0);
+  selector.add<std::vector<int>>("pdgIds", {})->setComment("Empty accepts every species");
+  selector.add<bool>("signalOnly", false);
+  selector.add<bool>("intimeOnly", false);
+  selector.add<bool>("chargedOnly", false);
+  selector.add<bool>("invertEta", false);
+  desc.add<edm::ParameterSetDescription>("branchSelector", selector);
+  desc.add<std::vector<std::string>>("workingPointNames", {"Fixed"});
+  desc.add<std::vector<double>>("adaptiveReverseWeight", {0.0});
+  desc.add<std::vector<double>>("adaptiveMaxReverseScore", {0.0});
+  if constexpr (LayerClusterBackedRecoHits<RECO>) {
+    desc.add<edm::InputTag>("layerClusters", edm::InputTag("hgcalMergeLayerClusters"));
+  }
+  if constexpr (ConstituentBasedDomain<RECO>) {
+    desc.add<std::string>("constituentAssociator", "allTrackToTruthBranchAssociators")
+        ->setComment("Module that produced the constituents' association maps");
+    desc.add<std::string>("constituentCollection", "generalTracks")
+        ->setComment("Constituent collection key, used to rebuild the instance labels");
+  }
+  descriptions.add(Traits::cfiName, desc);
+}
+
+#include "FWCore/Framework/interface/MakerMacros.h"
+using AllTrackToTruthBranchAssociatorsProducer = AllRecoToTruthBranchAssociatorsProducer<reco::Track>;
+DEFINE_FWK_MODULE(AllTrackToTruthBranchAssociatorsProducer);
+using AllVertexToTruthBranchAssociatorsProducer = AllRecoToTruthBranchAssociatorsProducer<reco::Vertex>;
+DEFINE_FWK_MODULE(AllVertexToTruthBranchAssociatorsProducer);

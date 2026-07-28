@@ -1,0 +1,76 @@
+# Original author: Felice Pantaleo (CERN) <felice.pantaleo@cern.ch>
+
+# The association producers, one per domain, all driven by the label and working-point
+# lists in truthGraphAssociationLabels_cff so a collection is configured in exactly one
+# place. Composite domains consume the constituent domain's maps, so the order in
+# truthGraphAssociatorsTask matters only for readability: the framework resolves the
+# data dependency itself.
+
+import FWCore.ParameterSet.Config as cms
+
+from SimGeneral.TruthGraphAssociatorProducers.truthGraphAssociationLabels_cff import (
+    truthBranchWorkingPointsPSet,
+    recoLabels,
+)
+
+# Shared selection of which truth branches are candidates at all. A 1 GeV floor keeps
+# the maps and the efficiency denominators from being dominated by soft particles that
+# no reconstruction was going to find; loosen it per domain if a study needs to.
+truthBranchSelectorBlock = cms.PSet(
+    ptMin=cms.double(1.0),
+    ptMax=cms.double(1e100),
+    etaMin=cms.double(-4.0),
+    etaMax=cms.double(4.0),
+    pdgIds=cms.vint32(),
+    signalOnly=cms.bool(False),
+    intimeOnly=cms.bool(False),
+    chargedOnly=cms.bool(False),
+    invertEta=cms.bool(False),
+)
+
+_workingPointArgs = dict(
+    workingPointNames=cms.vstring(*truthBranchWorkingPointsPSet.names),
+    adaptiveReverseWeight=cms.vdouble(*truthBranchWorkingPointsPSet.adaptiveReverseWeight),
+    adaptiveMaxReverseScore=cms.vdouble(*truthBranchWorkingPointsPSet.adaptiveMaxReverseScore),
+)
+
+_truthSources = dict(
+    src=cms.InputTag("truthLogicalGraphProducer"),
+    hitIndex=cms.InputTag("truthLogicalGraphHitIndexProducer"),
+)
+
+
+def _tags(domain):
+    return cms.VInputTag(*[cms.InputTag(*label.split(":")) for label in recoLabels(domain)])
+
+
+# Hit-based: the object owns detector hits.
+allTrackToTruthBranchAssociators = cms.EDProducer(
+    "AllTrackToTruthBranchAssociatorsProducer",
+    recoCollections=_tags("tracks"),
+    branchSelector=truthBranchSelectorBlock.clone(),
+    **_truthSources,
+    **_workingPointArgs,
+)
+
+# Constituent-based: a vertex has no hits of its own, its truth is aggregated from the
+# tracks it is built from, which the track associator has already matched.
+allVertexToTruthBranchAssociators = cms.EDProducer(
+    "AllVertexToTruthBranchAssociatorsProducer",
+    recoCollections=_tags("vertices"),
+    branchSelector=truthBranchSelectorBlock.clone(),
+    constituentAssociator=cms.string("allTrackToTruthBranchAssociators"),
+    constituentCollection=cms.string("generalTracks"),
+    **_truthSources,
+    **_workingPointArgs,
+)
+
+allSecondaryVertexToTruthBranchAssociators = allVertexToTruthBranchAssociators.clone(
+    recoCollections=_tags("secondaryVertices"),
+)
+
+truthGraphAssociatorsTask = cms.Task(
+    allTrackToTruthBranchAssociators,
+    allVertexToTruthBranchAssociators,
+    allSecondaryVertexToTruthBranchAssociators,
+)

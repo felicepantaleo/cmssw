@@ -73,9 +73,21 @@ namespace ticl {
   template <typename T>
   concept AssociationPayload = ScalarPayload<T> || ScoredPayload<T>;
 
-  // AssociationElement class to store index and value, and provide methods directly
-  template <AssociationPayload V>
+  // AssociationElement class to store index and value, and provide methods directly.
+  //
+  // The payload contract is enforced by the static_assert below rather than by a
+  // constraint on the template parameter: rootcling emits its forward declaration of
+  // this class UNCONSTRAINED ("template <class V> class AssociationElement;"), so a
+  // constrained declaration here is a redeclaration mismatch that cling reports as
+  // "type constraint differs in template redeclaration" and that then crashes product
+  // registration. The static_assert gives the same compile-time guarantee without
+  // changing the declaration the dictionary has to match.
+  template <typename V>
   class AssociationElement {
+    static_assert(AssociationPayload<V>,
+                  "ticl::AssociationElement payload must be a ScalarPayload or a ScoredPayload; "
+                  "add the type to the concept and to the branches that switch on it");
+
   public:
     using value_type = V;
     AssociationElement() : index_(std::numeric_limits<unsigned int>::max()) {
