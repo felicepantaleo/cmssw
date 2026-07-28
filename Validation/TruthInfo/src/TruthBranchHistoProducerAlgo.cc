@@ -126,8 +126,8 @@ namespace truth {
 
   void TruthBranchHistoProducerAlgo::fill_reason(
       TruthBranchHistograms const& h, std::size_t i, unsigned int reason, bool associated, bool duplicate) const {
-    const double bin = (reason < static_cast<unsigned int>(kNReasons)) ? reason
-                                                                      : static_cast<double>(truth::VertexReason::Other);
+    const double bin =
+        (reason < static_cast<unsigned int>(kNReasons)) ? reason : static_cast<double>(truth::VertexReason::Other);
     h.h_simul_reason[i]->Fill(bin);
     if (associated) {
       h.h_assoc_simToReco_reason[i]->Fill(bin);

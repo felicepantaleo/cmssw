@@ -84,9 +84,7 @@ namespace truth {
     struct Kinematics {
       double pt = 0., eta = 0., phi = 0., nhits = 0., vertpos = 0., zpos = 0., dxy = 0., dz = 0.;
       double depth = 0., rootfrac = 0.;
-      std::vector<double> asVector() const {
-        return {pt, eta, phi, nhits, vertpos, zpos, dxy, dz, depth, rootfrac};
-      }
+      std::vector<double> asVector() const { return {pt, eta, phi, nhits, vertpos, zpos, dxy, dz, depth, rootfrac}; }
     };
 
     void fill_simul(TruthBranchHistograms const& histograms,
