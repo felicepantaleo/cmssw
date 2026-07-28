@@ -38,6 +38,14 @@
   <class name="edm::Wrapper<ticl::LayerClusterToSimTracksterAssociator>" persistent="false"/>
   
   <class name="ticl::SharedEnergyType"/>
+  <class name="ticl::SharedHitsType"/>
+  <class name="std::pair<ticl::SharedHitsType, float>"/>
+  <class name="ticl::AssociationElement<ticl::SharedHitsType>"/>
+  <class name="std::vector<ticl::AssociationElement<ticl::SharedHitsType> >"/>
+  <class name="std::vector<std::vector<ticl::AssociationElement<ticl::SharedHitsType> > >"/>
+  <class name="ticl::AssociationElement<std::pair<ticl::SharedHitsType, float> >"/>
+  <class name="std::vector<ticl::AssociationElement<std::pair<ticl::SharedHitsType, float> > >"/>
+  <class name="std::vector<std::vector<ticl::AssociationElement<std::pair<ticl::SharedHitsType, float> > > >"/>
   <class name="std::pair<ticl::SharedEnergyType, float>"/>
   <class name="ticl::FractionType"/>
   <class name="std::pair<ticl::FractionType, float>"/>
