@@ -18,6 +18,7 @@
 #include <algorithm>
 #include <concepts>
 #include <memory>
+#include <optional>
 #include <span>
 #include <unordered_map>
 #include <string>
@@ -28,6 +29,7 @@
 #include "FWCore/ParameterSet/interface/ConfigurationDescriptions.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/ParameterSet/interface/ParameterSetDescription.h"
+#include "FWCore/Utilities/interface/Exception.h"
 
 #include "DataFormats/CaloRecHit/interface/CaloCluster.h"
 #include "DataFormats/HGCalReco/interface/Trackster.h"
@@ -98,10 +100,19 @@ namespace {
 
     // Visit (constituent index into its own collection, weight). The index is the Ref
     // key, which is exactly the row the constituent's association map is indexed by.
+    //
+    // The weight is pt SQUARED, which is what CMSSW's own vertex association uses:
+    // calculateVertexSharedTracks returns sharedPt2Fraction as
+    // sum(pt^2 of shared tracks) / sum(pt^2 of ALL the vertex's tracks)
+    // (SimTracker/VertexAssociation/src/calculateVertexSharedTracks.cc). The vertex FIT
+    // weight, which this used before, answers a different question: it says how strongly
+    // a track constrained the fit, not how much of the vertex's momentum it carries, and
+    // it gives a soft pileup track the same standing as a hard signal one.
     template <typename F>
     static void forEachConstituent(reco::Vertex const& vertex, F&& visit) {
       for (auto it = vertex.tracks_begin(); it != vertex.tracks_end(); ++it) {
-        visit(static_cast<unsigned int>(it->key()), vertex.trackWeight(*it));
+        const float pt = (*it)->pt();
+        visit(static_cast<unsigned int>(it->key()), pt * pt);
       }
     }
 
@@ -124,6 +135,86 @@ namespace {
     static constexpr auto metric = truth::BranchHitAssociator::Metric::SharedEnergy;
     static constexpr const char* cfiName = "truthBranchTracksterAssociators";
   };
+
+  // Which truth vertex a constituent should be counted at.
+  //
+  //   Immediate    the production vertex of the matched particle itself. Right for a
+  //                secondary vertex, which IS a decay or interaction vertex: the tracks
+  //                that belong to it were produced there.
+  //   Interaction  the production vertex of that particle's topmost ancestor, so a track
+  //                from a decay downstream of the vertex is counted at the vertex the
+  //                chain started from. Right for a primary vertex, where the question is
+  //                which interaction a track came from, not which decay.
+  enum class VertexResolution { Immediate, Interaction };
+
+  // Walk to the top of the chain. The graph is a DAG and a particle has at most a few
+  // ancestors, but the counter keeps a malformed graph from spinning here.
+  [[nodiscard]] inline std::optional<uint32_t> topmostProductionVertex(truth::Graph const& graph, uint32_t particleId) {
+    truth::Particle current(&graph, particleId);
+    for (unsigned int step = 0; step < 1000u; ++step) {
+      const auto parents = current.parents();
+      if (parents.empty()) {
+        break;
+      }
+      current = parents.front();
+    }
+    const auto production = current.productionVertices();
+    if (production.empty()) {
+      return std::nullopt;
+    }
+    return production.front().id();
+  }
+
+  // One representative vertex per interaction, for Interaction resolution.
+  //
+  // Walking to the topmost ancestor is NOT enough on its own. Measured on a ttbar event:
+  // 405 of 481 particles reach one vertex but ten more GEN source vertices remain (beam
+  // remnants, initial-state activity), and no VertexRole::Interaction node is
+  // materialised in this graph, all 219 vertices being Normal. Counting those ten as
+  // separate targets would call one interaction's own tracks contamination.
+  //
+  // eventId IS the interaction: 0 is the signal, anything else an overlaid pileup
+  // interaction. So every particle of one interaction counts at a single vertex, chosen
+  // as the lowest-numbered topmost production vertex of that interaction so the choice
+  // is deterministic.
+  [[nodiscard]] inline std::unordered_map<uint64_t, uint32_t> interactionVertices(truth::Graph const& graph) {
+    std::unordered_map<uint64_t, uint32_t> representative;
+    const uint32_t nParticles = graph.nParticles();
+    for (uint32_t id = 0; id < nParticles; ++id) {
+      if (!truth::Particle(&graph, id).parents().empty()) {
+        continue;
+      }
+      const auto vertexId = topmostProductionVertex(graph, id);
+      if (!vertexId) {
+        continue;
+      }
+      const uint64_t eventId = graph.particles()[id].eventId;
+      auto [it, inserted] = representative.emplace(eventId, *vertexId);
+      if (!inserted) {
+        it->second = std::min(it->second, *vertexId);
+      }
+    }
+    return representative;
+  }
+
+  [[nodiscard]] inline std::optional<uint32_t> countingVertex(
+      truth::Graph const& graph,
+      uint32_t particleId,
+      VertexResolution resolution,
+      std::unordered_map<uint64_t, uint32_t> const& interactionVertex) {
+    if (resolution == VertexResolution::Interaction) {
+      const auto it = interactionVertex.find(graph.particles()[particleId].eventId);
+      if (it == interactionVertex.end()) {
+        return std::nullopt;
+      }
+      return it->second;
+    }
+    const auto production = truth::Particle(&graph, particleId).productionVertices();
+    if (production.empty()) {
+      return std::nullopt;
+    }
+    return production.front().id();
+  }
 
   template <typename RECO>
   concept HitBasedDomain = TruthAssociationTraits<RECO>::strategy == AssociationStrategy::HitBased;
@@ -166,6 +257,7 @@ private:
                                                          TruthAssociationTraits<reco::Track>,
                                                          TruthAssociationTraits<reco::Track>>::MapType;
   std::vector<std::vector<edm::EDGetTokenT<ConstituentMapType>>> constituentMapTokens_;
+  VertexResolution vertexResolution_ = VertexResolution::Immediate;
 };
 
 template <typename RECO>
@@ -218,6 +310,15 @@ AllRecoToTruthBranchAssociatorsProducer<RECO>::AllRecoToTruthBranchAssociatorsPr
     // A composite object is associated to a truth VERTEX, so its efficiency denominator
     // is a set of vertices, not of branch roots.
     produces<std::vector<unsigned int>>("selectedTruthVertices");
+    const auto resolution = cfg.getParameter<std::string>("vertexResolution");
+    if (resolution == "interaction") {
+      vertexResolution_ = VertexResolution::Interaction;
+    } else if (resolution == "immediate") {
+      vertexResolution_ = VertexResolution::Immediate;
+    } else {
+      throw cms::Exception("Configuration")
+          << "vertexResolution must be 'immediate' or 'interaction', got '" << resolution << "'";
+    }
   }
 
   for (auto const& tag : cfg.getParameter<std::vector<edm::InputTag>>("recoCollections")) {
@@ -279,6 +380,11 @@ void AllRecoToTruthBranchAssociatorsProducer<RECO>::produce(edm::StreamID,
   event.put(std::make_unique<std::vector<unsigned int>>(selectedRoots.begin(), selectedRoots.end()),
             "selectedBranchRoots");
 
+  [[maybe_unused]] const auto interactionVertex =
+      ConstituentBasedDomain<RECO> && vertexResolution_ == VertexResolution::Interaction
+          ? interactionVertices(graph)
+          : std::unordered_map<uint64_t, uint32_t>{};
+
   if constexpr (ConstituentBasedDomain<RECO>) {
     // The vertices a composite object could have been reconstructed at: those where at
     // least two selected branch roots were produced. One track cannot make a vertex, so
@@ -287,9 +393,10 @@ void AllRecoToTruthBranchAssociatorsProducer<RECO>::produce(edm::StreamID,
     // guards the particle denominator.
     std::unordered_map<unsigned int, unsigned int> rootsPerVertex;
     for (uint32_t root : selectedRoots) {
-      const auto production = truth::Particle(&graph, root).productionVertices();
-      if (!production.empty()) {
-        ++rootsPerVertex[production.front().id()];
+      // Same resolution the numerator uses: counting the denominator at a different set
+      // of vertices than the numerator is the denominator bug all over again.
+      if (const auto vertexId = countingVertex(graph, root, vertexResolution_, interactionVertex)) {
+        ++rootsPerVertex[*vertexId];
       }
     }
     auto selectedVertices = std::make_unique<std::vector<unsigned int>>();
@@ -338,14 +445,17 @@ void AllRecoToTruthBranchAssociatorsProducer<RECO>::produce(edm::StreamID,
             for (auto const& match : constituentMap[constituentIndex]) {
               const unsigned int particle = match.index();
               if (particle < nBranches) {
-                const auto production = truth::Particle(&graph, particle).productionVertices();
-                if (!production.empty()) {
-                  weightPerVertex[production.front().id()] += weight;
+                if (const auto vertexId = countingVertex(graph, particle, vertexResolution_, interactionVertex)) {
+                  weightPerVertex[*vertexId] += weight;
                 }
               }
               break;
             }
           });
+          // Denominator over ALL constituents, the CMSSW convention: a track with no
+          // truth match legitimately lowers the shared fraction. With pt^2 weighting
+          // that dilution is small, because the tracks that go unmatched are the soft
+          // ones, which is exactly why the standard weighting is pt^2 and not a count.
           for (auto const& [vertexId, weight] : weightPerVertex) {
             const float fraction = weight / total;
             forward->insert(i, vertexId, fraction, 1.f - fraction);
@@ -425,6 +535,12 @@ void AllRecoToTruthBranchAssociatorsProducer<RECO>::fillDescriptions(edm::Config
         ->setComment("Module that produced the constituents' association maps");
     desc.add<std::string>("constituentCollection", "generalTracks")
         ->setComment("Constituent collection key, used to rebuild the instance labels");
+    desc.add<std::string>("vertexResolution", "immediate")
+        ->setComment(
+            "Which truth vertex a constituent counts at: 'immediate' is the production vertex of its matched "
+            "particle, right for a secondary vertex; 'interaction' is the production vertex of that particle's "
+            "topmost ancestor, right for a primary vertex, where a track from a downstream decay still belongs "
+            "to the interaction the chain started from");
   }
   descriptions.add(Traits::cfiName, desc);
 }

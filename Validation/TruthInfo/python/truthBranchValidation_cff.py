@@ -81,6 +81,10 @@ _domains = [
         recoVariables=["nhits", "vertpos", "zpos"],
         truthVariables=["nhits", "vertpos", "zpos"],
         sharedRange=(0.0, 1.0),
+        # nhits counts tracks on the reco side but PARTICLES at the truth vertex, and an
+        # interaction vertex has hundreds of them: the 40-bin default put every truth
+        # entry in the overflow, so the efficiency was empty in the visible range.
+        axisOverrides={"nhits": (50, 0.0, 500.0)},
     ),
     dict(
         name="secondaryVertices",
@@ -105,8 +109,12 @@ _domains = [
 ]
 
 
-def _algoBlock(recoVariables, truthVariables=None, sharedRange=None):
+def _algoBlock(recoVariables, truthVariables=None, sharedRange=None, axisOverrides=None):
     args = dict(_algoBlockArgs)
+    for _var, (_n, _lo, _hi) in (axisOverrides or {}).items():
+        args["nint_" + _var] = cms.int32(_n)
+        args["min_" + _var] = cms.double(_lo)
+        args["max_" + _var] = cms.double(_hi)
     if sharedRange is not None:
         # A composite domain's shared quantity is a FRACTION of the object's
         # constituents, so it lives in [0, 1]; the hit-based default of [0, 50] counts
@@ -167,7 +175,8 @@ for _d in _domains:
         associator=cms.string(_d["associator"]),
         recoCollections=cms.VInputTag(*[cms.InputTag(*l.split(":")) for l in recoLabels(_d["name"])]),
         workingPoints=cms.vstring(*_wps),
-        histoProducerAlgoBlock=_algoBlock(_d["recoVariables"], _d.get("truthVariables"), _d.get("sharedRange")),
+        histoProducerAlgoBlock=_algoBlock(_d["recoVariables"], _d.get("truthVariables"),
+                                          _d.get("sharedRange"), _d.get("axisOverrides")),
     )
     globals()[_d["label"]] = _analyzer
     truthBranchValidationSequence += _analyzer

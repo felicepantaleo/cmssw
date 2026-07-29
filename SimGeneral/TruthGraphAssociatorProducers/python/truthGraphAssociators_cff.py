@@ -61,12 +61,20 @@ allVertexToTruthBranchAssociators = cms.EDProducer(
     branchSelector=truthBranchSelectorBlock.clone(),
     constituentAssociator=cms.string("allTrackToTruthBranchAssociators"),
     constituentCollection=cms.string("generalTracks"),
+    # A primary vertex asks which INTERACTION a track came from, so a track produced in
+    # a decay downstream of the vertex still counts at the vertex its chain started
+    # from. Counting it at its own production vertex would call the whole decay chain of
+    # the event contamination.
+    vertexResolution=cms.string("interaction"),
     **_truthSources,
     **_workingPointArgs,
 )
 
 allSecondaryVertexToTruthBranchAssociators = allVertexToTruthBranchAssociators.clone(
     recoCollections=_tags("secondaryVertices"),
+    # A secondary vertex IS a decay or interaction vertex, so the tracks that belong to
+    # it were produced there and the immediate production vertex is the right target.
+    vertexResolution="immediate",
 )
 
 # Hit-based on the CALORIMETER channel: a trackster owns energy through its layer

@@ -100,14 +100,15 @@ VARIABLE_MEANING = {
 # unless the page says otherwise, so the page says otherwise.
 CATEGORY_NOTE = {
     "Vertexing": (
-        "A vertex owns no hits, so it is associated to a truth VERTEX by aggregating the tracks it was built "
-        "from: each track carries its own best-matched particle, and that particle's PRODUCTION VERTEX gets the "
-        "track's weight. The leading truth vertex's share of the weight is the purity, and tracks whose particles "
-        "were produced at an unrelated vertex are the remainder. Purity here is therefore a mean share, not a "
-        "matched-or-not count. Note the definition it rests on: a track from a decay downstream of the vertex "
-        "counts as contamination, which is why purity falls with track multiplicity. Mapping each track back to "
-        "its interaction-level ancestor instead would count only genuine cross-interaction contamination, and is "
-        "the natural refinement for primary vertices specifically."
+        "A vertex owns no hits, so it is associated to a truth vertex by aggregating the tracks it was built "
+        "from, weighted by pt SQUARED. That is the weighting CMSSW's own vertex association uses: "
+        "calculateVertexSharedTracks returns sharedPt2Fraction as sum(pt^2 of shared tracks) over sum(pt^2 of "
+        "ALL the vertex's tracks). Each track carries its best-matched particle, and that particle is counted at "
+        "its INTERACTION, so a track from a decay downstream of the vertex still belongs to the interaction its "
+        "chain started from. Purity is then the leading interaction's share of the vertex pt^2. Measured on "
+        "ttbar with no pileup it is 0.973 with efficiency 1.000; under PU200 it drops to 0.029, which is far "
+        "below what vertex reconstruction can plausibly be doing and is not yet understood. Treat the pileup "
+        "number as an open question, not as a result."
     ),
     "SecondaryVertexing": (
         "Same aggregation as Vertexing, and it is the case the immediate-production-vertex definition suits best: "
