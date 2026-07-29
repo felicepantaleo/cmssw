@@ -339,15 +339,25 @@ AllRecoToTruthBranchAssociatorsProducer<RECO>::AllRecoToTruthBranchAssociatorsPr
       perWp.reserve(workingPoints_.size());
       for (auto const& wp : workingPoints_) {
         perWp.push_back(
-            consumes<ConstituentMapType>(edm::InputTag(upstream, constituentKey + "ToTruthBranch" + wp.name)));
+            consumes<ConstituentMapType>(edm::InputTag(upstream, constituentKey + "RecoToTruth" + wp.name)));
       }
       constituentMapTokens_.push_back(std::move(perWp));
     }
 
+    // The two directions are NOT transposes of each other and are deliberately not
+    // named as if they were.
+    //
+    // RecoToTruth is reco-driven: given a reco object, the adaptive search picks the
+    // graph level that best matches it, so there is one product per working point. Its
+    // score is 1 - RECO purity, the reco object being the denominator.
+    //
+    // TruthToReco is truth-driven: the truth target is fixed A PRIORI by the domain's
+    // resolution, so the working point does not enter and there is ONE product. Its
+    // score is 1 - TRUTH purity, the truth object being the denominator.
     for (auto const& wp : workingPoints_) {
-      produces<MapType>(key + "ToTruthBranch" + wp.name);
-      produces<MapType>("TruthBranchTo" + key + wp.name);
+      produces<MapType>(key + "RecoToTruth" + wp.name);
     }
+    produces<MapType>(key + "TruthToReco");
   }
 }
 
@@ -416,10 +426,20 @@ void AllRecoToTruthBranchAssociatorsProducer<RECO>::produce(edm::StreamID,
     const bool valid = handle.isValid();
     const unsigned int nReco = valid ? handle->size() : 0u;
 
+    // Truth-driven direction, built ONCE: the truth target is fixed a priori, so the
+    // reco-driven working point plays no part in it. Its score is 1 - truth purity.
+    const unsigned int nTruthRows = ConstituentBasedDomain<RECO> ? graph.nVertices() : nBranches;
+    auto truthToReco = std::make_unique<MapType>(nTruthRows);
+
+    // Composite domains only: (reco index, shared weight) per truth vertex and the
+    // per-truth-vertex total, so the truth-normalised fraction can be formed once every
+    // reco object of the collection has contributed.
+    std::unordered_map<unsigned int, std::vector<std::pair<unsigned int, float>>> sharedWeightPerTruthVertex;
+    std::unordered_map<unsigned int, float> truthWeightTotal;
+
     for (std::size_t wpIndex = 0; wpIndex < workingPoints_.size(); ++wpIndex) {
       auto const& wp = workingPoints_[wpIndex];
-      auto forward = std::make_unique<MapType>(nReco);
-      auto backward = std::make_unique<MapType>(ConstituentBasedDomain<RECO> ? graph.nVertices() : nBranches);
+      auto recoToTruth = std::make_unique<MapType>(nReco);
 
       if constexpr (ConstituentBasedDomain<RECO>) {
         // A composite object is associated to a truth VERTEX, not to a particle branch.
@@ -457,9 +477,16 @@ void AllRecoToTruthBranchAssociatorsProducer<RECO>::produce(edm::StreamID,
           // that dilution is small, because the tracks that go unmatched are the soft
           // ones, which is exactly why the standard weighting is pt^2 and not a count.
           for (auto const& [vertexId, weight] : weightPerVertex) {
-            const float fraction = weight / total;
-            forward->insert(i, vertexId, fraction, 1.f - fraction);
-            backward->insert(vertexId, i, fraction, 1.f - fraction);
+            // RECO purity: the leading truth vertex's share of THIS reco object's pt^2.
+            const float recoPurity = weight / total;
+            recoToTruth->insert(i, vertexId, recoPurity, 1.f - recoPurity);
+            // TRUTH purity: the same shared weight over everything the truth vertex
+            // produced that was reconstructed at all, accumulated below once the whole
+            // collection has been seen.
+            if (wpIndex == 0) {
+              sharedWeightPerTruthVertex[vertexId].emplace_back(i, weight);
+              truthWeightTotal[vertexId] += weight;
+            }
           }
         }
       } else {
@@ -479,29 +506,54 @@ void AllRecoToTruthBranchAssociatorsProducer<RECO>::produce(edm::StreamID,
           }
           const std::span<const truth::RecoHit> span(hits);
 
+          // RECO to TRUTH: the working point drives the search, and the score is
+          // reco-normalised, so 1 - score is the RECO purity.
           if (wp.adaptive) {
             const auto match = associator.bestAdaptiveBranch(span, wp.reverseWeight, wp.maxReverseScore);
             if (match.rootParticleId != truth::BranchMatch::kInvalidRoot) {
-              forward->insert(i, match.rootParticleId, match.sharedEnergy, match.score);
-              backward->insert(match.rootParticleId, i, match.sharedEnergy, match.score);
+              recoToTruth->insert(i, match.rootParticleId, match.sharedEnergy, match.score);
             }
           } else {
             for (auto const& match : associator.bestBranches(span)) {
-              forward->insert(i, match.rootParticleId, match.sharedEnergy, match.score);
-              backward->insert(match.rootParticleId, i, match.sharedEnergy, match.score);
+              recoToTruth->insert(i, match.rootParticleId, match.sharedEnergy, match.score);
+            }
+          }
+
+          // TRUTH to RECO, filled only once. NO adaptive climb: the climb chooses a
+          // graph level to suit the reco object, which is meaningless when the truth
+          // target is the thing being asked about. The score kept here is the
+          // truth-normalised one, so 1 - score is the TRUTH purity.
+          if (wpIndex == 0) {
+            for (auto const& match : associator.bestBranches(span)) {
+              truthToReco->insert(match.rootParticleId, i, match.sharedEnergy, match.reverseScore);
+            }
+          }
+        }
+      }
+
+      if constexpr (ConstituentBasedDomain<RECO>) {
+        if (wpIndex == 0) {
+          for (auto const& [vertexId, entries] : sharedWeightPerTruthVertex) {
+            const float denominator = truthWeightTotal[vertexId];
+            if (denominator <= 0.f) {
+              continue;
+            }
+            for (auto const& [recoIndex, weight] : entries) {
+              const float truthPurity = weight / denominator;
+              truthToReco->insert(vertexId, recoIndex, truthPurity, 1.f - truthPurity);
             }
           }
         }
       }
 
       // Ascending score, so [0] is the best match; consumers rely on this.
-      forward->sort(true);
-      backward->sort(true);
+      recoToTruth->sort(true);
       // Every declared instance label must be put on every path, including the one
       // where the reco collection was absent: a missing put is a framework error.
-      event.put(std::move(forward), key + "ToTruthBranch" + wp.name);
-      event.put(std::move(backward), "TruthBranchTo" + key + wp.name);
+      event.put(std::move(recoToTruth), key + "RecoToTruth" + wp.name);
     }
+    truthToReco->sort(true);
+    event.put(std::move(truthToReco), key + "TruthToReco");
   }
 }
 

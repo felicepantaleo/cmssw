@@ -79,6 +79,7 @@ namespace truth {
     bookRow(h.h_simul, "num_simul", truthVarNames_, truthAxes_);
     bookRow(h.h_assoc_simToReco, "num_assoc(simToReco)", truthVarNames_, truthAxes_);
     bookRow(h.h_duplicate, "num_duplicate", truthVarNames_, truthAxes_);
+    bookRow(h.h_split, "num_split", truthVarNames_, truthAxes_);
     bookRow(h.h_reco, "num_reco", recoVarNames_, recoAxes_);
     bookRow(h.h_assoc_recoToSim, "num_assoc(recoToSim)", recoVarNames_, recoAxes_);
     bookRow(h.h_pileup, "num_pileup", recoVarNames_, recoAxes_);
@@ -99,6 +100,9 @@ namespace truth {
     h.h_score.push_back(booker.book1D("association_score", "Association score", nintScore_, minScore_, maxScore_));
     h.h_sharedQuantity.push_back(
         booker.book1D("shared_quantity", "Shared hits or energy", nintShared_, minShared_, maxShared_));
+    // Purity in each direction, on a [0, 1] axis because both are fractions.
+    h.h_recoPurity.push_back(booker.book1D("reco_purity", "Reco purity", 50, 0., 1.));
+    h.h_truthPurity.push_back(booker.book1D("truth_purity", "Truth purity", 50, 0., 1.));
 
     // 2D inputs for the Gaussian slice fit the harvester runs. Same naming as MTV so
     // the resolution strings and the plot script read the same way.
@@ -126,19 +130,33 @@ namespace truth {
         "phires_vs_eta", "#phi residual vs #eta", etaAxis.nbins, etaAxis.min, etaAxis.max, nintRes_, minRes_, maxRes_));
   }
 
-  void TruthBranchHistoProducerAlgo::fill_simul(
-      TruthBranchHistograms const& h, std::size_t i, Kinematics const& kin, bool associated, bool duplicate) const {
+  void TruthBranchHistoProducerAlgo::fill_simul(TruthBranchHistograms const& h,
+                                                std::size_t i,
+                                                Kinematics const& kin,
+                                                TruthOutcome outcome) const {
     const auto values = kin.asVector();
     for (std::size_t v = 0; v < truthVars_.size(); ++v) {
       const double x = values[truthVars_[v]];
       h.h_simul[i][v]->Fill(x);
-      if (associated) {
+      // Individual and Duplicate both mean the truth object WAS reconstructed as one
+      // object, so both count in the efficiency numerator; they differ in whether it
+      // happened once or more than once. Split did not happen as one object at all.
+      if (outcome == TruthOutcome::Individual || outcome == TruthOutcome::Duplicate) {
         h.h_assoc_simToReco[i][v]->Fill(x);
       }
-      if (duplicate) {
+      if (outcome == TruthOutcome::Duplicate) {
         h.h_duplicate[i][v]->Fill(x);
       }
+      if (outcome == TruthOutcome::Split) {
+        h.h_split[i][v]->Fill(x);
+      }
     }
+  }
+
+  void TruthBranchHistoProducerAlgo::fill_truth_purity(TruthBranchHistograms const& h,
+                                                       std::size_t i,
+                                                       double truthPurity) const {
+    h.h_truthPurity[i]->Fill(truthPurity);
   }
 
   void TruthBranchHistoProducerAlgo::fill_reco(TruthBranchHistograms const& h,
@@ -160,8 +178,12 @@ namespace truth {
     }
   }
 
-  void TruthBranchHistoProducerAlgo::fill_reason(
-      TruthBranchHistograms const& h, std::size_t i, unsigned int reason, bool associated, bool duplicate) const {
+  void TruthBranchHistoProducerAlgo::fill_reason(TruthBranchHistograms const& h,
+                                                 std::size_t i,
+                                                 unsigned int reason,
+                                                 TruthOutcome outcome) const {
+    const bool associated = (outcome == TruthOutcome::Individual || outcome == TruthOutcome::Duplicate);
+    const bool duplicate = (outcome == TruthOutcome::Duplicate);
     const double bin =
         (reason < static_cast<unsigned int>(kNReasonBins)) ? reason : static_cast<double>(truth::VertexReason::Other);
     h.h_simul_reason[i]->Fill(bin);
@@ -173,12 +195,11 @@ namespace truth {
     }
   }
 
-  void TruthBranchHistoProducerAlgo::fill_match(TruthBranchHistograms const& h,
-                                                std::size_t i,
-                                                double score,
-                                                double sharedQuantity) const {
+  void TruthBranchHistoProducerAlgo::fill_match(
+      TruthBranchHistograms const& h, std::size_t i, double score, double sharedQuantity, double recoPurity) const {
     h.h_score[i]->Fill(score);
     h.h_sharedQuantity[i]->Fill(sharedQuantity);
+    h.h_recoPurity[i]->Fill(recoPurity);
   }
 
   void TruthBranchHistoProducerAlgo::fill_resolution(TruthBranchHistograms const& h,

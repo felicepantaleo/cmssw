@@ -32,7 +32,7 @@ _axes = {
     # Graph-only axes: depth of the branch root in the graph, and the fraction of the
     # branch footprint that belongs to the root particle itself.
     "depth": (15, 0.0, 15.0),
-    "rootfrac": (20, 0.0, 1.0),
+    "root_footprint_fraction": (20, 0.0, 1.0),
 }
 _algoBlockArgs = {}
 for _name, (_n, _lo, _hi) in _axes.items():
@@ -58,7 +58,7 @@ _algoBlockArgs.update(
 # vertex has no momentum and no impact parameter, a trackster has no track parameters.
 # Booking a variable a domain cannot fill would put a spike at zero in every reco-side
 # plot and read as a real feature.
-truthPlotVariables = ["pt", "eta", "phi", "nhits", "vertpos", "zpos", "dxy", "dz", "depth", "rootfrac"]
+truthPlotVariables = ["pt", "eta", "phi", "nhits", "vertpos", "zpos", "dxy", "dz", "depth", "root_footprint_fraction"]
 
 _domains = [
     dict(
@@ -77,7 +77,7 @@ _domains = [
         dirName="TruthInfo/Vertexing/",
         # A vertex has a position and a track multiplicity, and nothing else this set
         # can express. The TRUTH object here is a graph vertex, not a particle branch,
-        # so pt, eta, depth and rootfrac do not exist on that side either.
+        # so pt, eta, depth and root_footprint_fraction do not exist on that side either.
         recoVariables=["nhits", "vertpos", "zpos"],
         truthVariables=["nhits", "vertpos", "zpos"],
         sharedRange=(0.0, 1.0),
@@ -132,15 +132,28 @@ def _algoBlock(recoVariables, truthVariables=None, sharedRange=None, axisOverrid
 # ships no harvesting C++. The metric set follows MultiTrackValidator (efficiency, fake,
 # duplicate, pileup) plus purity from the TICL trackster validation, which asks the
 # complementary question: how much of the reco object belongs to the branch it matched.
+# Which direction each metric belongs to is not a style choice; it decides the
+# denominator the number carries.
+#
+#   TRUTH to RECO, denominator the truth object: efficiency, duplicate rate, split rate.
+#     The truth target is fixed a priori by the domain's resolution, so the reco-driven
+#     adaptive working point plays no part in choosing it.
+#   RECO to TRUTH, denominator the reco object: fake rate, pileup rate, reco purity.
+#
+# This is the split HGVHistoProducerAlgo already uses (maxSimToRecoScoreForPurity and
+# maxSimToRecoScoreForDuplicate on one side, maxRecoToSimScoreForNonFake and
+# maxRecoToSimScoreForMerge on the other) and that QuickTrackAssociatorByHits encodes as
+# two separate implementations with different denominators.
 def _efficiencyStrings(recoVariables, truthVariables=None):
     out = []
     for var in (truthVariables or truthPlotVariables):
         out.append(f"efficiency_vs_{var} 'Branch efficiency vs {var}' num_assoc(simToReco)_{var} num_simul_{var}")
         out.append(f"duplicate_vs_{var} 'Duplicate rate vs {var}' num_duplicate_{var} num_simul_{var}")
+        out.append(f"splitrate_vs_{var} 'Split rate vs {var}' num_split_{var} num_simul_{var}")
     for var in recoVariables:
         out.append(f"fakerate_vs_{var} 'Fake rate vs {var}' num_assoc(recoToSim)_{var} num_reco_{var} fake")
         out.append(f"pileuprate_vs_{var} 'Pileup rate vs {var}' num_pileup_{var} num_reco_{var}")
-        out.append(f"purity_vs_{var} 'Purity vs {var}' num_assoc(recoToSim)_{var} num_reco_{var}")
+        out.append(f"recopurity_vs_{var} 'Reco purity vs {var}' num_assoc(recoToSim)_{var} num_reco_{var}")
     # Efficiency and duplicate rate against the Geant4 creation process of the branch.
     # The axis is categorical, one bin per truth::VertexReason, and it exists only
     # because the graph keeps the process that made each particle.

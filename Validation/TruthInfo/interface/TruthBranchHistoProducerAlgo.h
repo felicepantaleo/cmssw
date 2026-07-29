@@ -32,12 +32,12 @@ namespace truth {
 
   // The x variables, following the MTVHistoProducerAlgoForTracker set restricted to
   // what a truth branch can supply, plus two the graph alone can supply: depth is how
-  // far down the event history the branch root sits, and rootfrac is how much of the
+  // far down the event history the branch root sits, and root_footprint_fraction is how much of the
   // branch footprint belongs to the root particle itself rather than to its
   // descendants.
-  enum class Variable { Pt, Eta, Phi, Nhits, Vertpos, Zpos, Dxy, Dz, Depth, Rootfrac };
+  enum class Variable { Pt, Eta, Phi, Nhits, Vertpos, Zpos, Dxy, Dz, Depth, RootFootprintFraction };
   inline static const std::vector<std::string> kVariableNames = {
-      "pt", "eta", "phi", "nhits", "vertpos", "zpos", "dxy", "dz", "depth", "rootfrac"};
+      "pt", "eta", "phi", "nhits", "vertpos", "zpos", "dxy", "dz", "depth", "root_footprint_fraction"};
 
   struct TruthBranchHistograms {
     using METype = dqm::reco::MonitorElement*;
@@ -55,9 +55,12 @@ namespace truth {
     // One minus that ratio is the fake rate.
     std::vector<MERow> h_reco, h_assoc_recoToSim;
 
-    // A branch matched by more than one reco object, and a reco object matched only to
-    // a branch from a pileup interaction.
-    std::vector<MERow> h_duplicate, h_pileup;
+    // The three ways a truth object can fail to be reconstructed as one object, made
+    // mutually exclusive so that individual + duplicate + split + lost = 1.
+    //   duplicate  more than one reco object individually reconstructs the whole thing
+    //   split      no single object does, but several together cover the subgraph
+    // and a reco object matched only to a truth object from a pileup interaction.
+    std::vector<MERow> h_duplicate, h_split, h_pileup;
 
     // Efficiency and duplicate rate against the Geant4 process that CREATED the
     // branch, which only the graph can supply: the production vertex of the branch
@@ -65,8 +68,9 @@ namespace truth {
     // made the particle rather than only to where it landed.
     std::vector<METype> h_simul_reason, h_assoc_simToReco_reason, h_duplicate_reason;
 
-    // Quality of the match itself.
-    std::vector<METype> h_score, h_sharedQuantity;
+    // Quality of the match itself, one per direction. The denominator is what the name
+    // says: reco purity divides by the reco object, truth purity by the truth object.
+    std::vector<METype> h_score, h_sharedQuantity, h_recoPurity, h_truthPurity;
 
     // Resolution inputs: 2D of (reco - truth)/truth against the truth variable, which
     // the harvester turns into _Mean and _Sigma by a Gaussian fit per slice.
@@ -85,15 +89,23 @@ namespace truth {
     // the ones it has; which of them are booked is decided by the variable lists.
     struct Kinematics {
       double pt = 0., eta = 0., phi = 0., nhits = 0., vertpos = 0., zpos = 0., dxy = 0., dz = 0.;
-      double depth = 0., rootfrac = 0.;
-      std::vector<double> asVector() const { return {pt, eta, phi, nhits, vertpos, zpos, dxy, dz, depth, rootfrac}; }
+      double depth = 0., root_footprint_fraction = 0.;
+      std::vector<double> asVector() const {
+        return {pt, eta, phi, nhits, vertpos, zpos, dxy, dz, depth, root_footprint_fraction};
+      }
     };
+
+    // How one truth object was reconstructed. Exactly one of these is true.
+    enum class TruthOutcome { Individual, Duplicate, Split, Lost };
 
     void fill_simul(TruthBranchHistograms const& histograms,
                     std::size_t index,
                     Kinematics const& kin,
-                    bool associated,
-                    bool duplicate) const;
+                    TruthOutcome outcome) const;
+
+    // Truth purity of the leading reco object, filled once per truth object that has
+    // any overlap at all.
+    void fill_truth_purity(TruthBranchHistograms const& histograms, std::size_t index, double truthPurity) const;
 
     // matchQuality weights the associated-numerator fill. It is 1 for a hit-based
     // domain, where "associated" is a yes or no, and the leading truth object's share of
@@ -114,13 +126,13 @@ namespace truth {
     void fill_reason(TruthBranchHistograms const& histograms,
                      std::size_t index,
                      unsigned int reason,
-                     bool associated,
-                     bool duplicate) const;
+                     TruthOutcome outcome) const;
 
     void fill_match(TruthBranchHistograms const& histograms,
                     std::size_t index,
                     double score,
-                    double sharedQuantity) const;
+                    double sharedQuantity,
+                    double recoPurity) const;
 
     // Called once per matched pair, with the truth branch kinematics and the matched
     // reco object's pt/eta/phi, to fill the resolution inputs.

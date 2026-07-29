@@ -36,35 +36,52 @@ WP_ORDER = ["Fixed", "AdaptiveTight", "AdaptiveNominal", "AdaptiveLoose"]
 
 # Which metrics we plot, and how each should be read.
 METRICS = {
+    "composition": (
+        "Branch composition",
+        "What the selected truth objects ARE, as fractions of the efficiency denominator, split by the Geant4 "
+        "process that created them. Read this page first: it says what the other pages are averaging over.",
+        "num_simul_reason / sum(num_simul_reason)",
+    ),
     "efficiency": (
-        "Branch efficiency",
-        "Of the truth branches that passed the selection, the fraction at least one reco object was matched to.",
+        "Branch efficiency (TruthToReco)",
+        "Of the truth objects that passed the selection, the fraction reconstructed AS ONE OBJECT: some single "
+        "reco object covered enough of it and was not mostly something else. The truth target is fixed a priori "
+        "by the domain's resolution, so this number does not depend on the reco-driven working point, which is "
+        "why the lost fraction is identical across working points.",
         "num_assoc(simToReco) / num_simul",
     ),
-    "purity": (
-        "Purity",
-        "Of the reco objects, the fraction whose best match is a truth branch. The complement of the fake rate, "
-        "reported separately because it is the quantity the TICL trackster validation uses.",
+    "duplicate": (
+        "Duplicate rate (TruthToReco)",
+        "Of the selected truth objects, the fraction that MORE THAN ONE reco object individually reconstructed. "
+        "Redundant reconstruction, distinct from splitting.",
+        "num_duplicate / num_simul",
+    ),
+    "splitrate": (
+        "Split rate (TruthToReco)",
+        "Of the selected truth objects, the fraction that no single reco object reconstructed but that several "
+        "together cover. This is the collective case: the truth object's subgraph was reconstructed in pieces. "
+        "Efficiency, duplicate and split are mutually exclusive, so together with lost they sum to one.",
+        "num_split / num_simul",
+    ),
+    "recopurity": (
+        "Reco purity (RecoToTruth)",
+        "Of a reco object, the fraction that belongs to the truth object it matched. The RECO object is the "
+        "denominator, which is what distinguishes it from truth purity. This is where the adaptive working "
+        "points earn their keep: the climb stops at the graph level that matches the object, so purity rises "
+        "sharply while the lost fraction is unchanged.",
         "num_assoc(recoToSim) / num_reco",
     ),
     "fakerate": (
-        "Fake rate",
-        "Of the reco objects, the fraction with no truth branch at all: reconstructed, but corresponding to "
+        "Fake rate (RecoToTruth)",
+        "Of the reco objects, the fraction with no truth object at all: reconstructed, but corresponding to "
         "nothing in the simulated event.",
         "1 - num_assoc(recoToSim) / num_reco",
     ),
-    "duplicate": (
-        "Duplicate rate",
-        "Of the selected truth branches, the fraction matched by more than one reco object, that is one truth "
-        "object reconstructed several times.",
-        "num_duplicate / num_simul",
-    ),
-    "composition": (
-        "Branch composition",
-        "What the selected truth branches ARE, as fractions of the efficiency denominator, split by the Geant4 "
-        "process that created the branch root. Read this page first: it says what the other pages are averaging "
-        "over.",
-        "num_simul_reason / sum(num_simul_reason)",
+    "pileuprate": (
+        "Pileup rate (RecoToTruth)",
+        "Of the reco objects, the fraction whose match belongs to a pileup interaction rather than the signal "
+        "one. The graph answers this directly because every particle and vertex carries its interaction id.",
+        "num_pileup / num_reco",
     ),
     "resolution": (
         "Residual mean and width",
@@ -75,12 +92,6 @@ METRICS = {
         "therefore a diagnostic of the truth definition and not a tracking resolution. Slices with fewer than "
         "20 entries, and fits whose width exceeds the fit range or collapses below one bin, are not drawn.",
         "Gaussian slice fit of ptres_vs_*, etares_vs_*, phires_vs_*",
-    ),
-    "pileuprate": (
-        "Pileup rate",
-        "Of the reco objects, the fraction whose matched branch belongs to a pileup interaction rather than the "
-        "signal one. The graph answers this directly because every branch carries its interaction id.",
-        "num_pileup / num_reco",
     ),
 }
 VARIABLE_MEANING = {
@@ -93,7 +104,7 @@ VARIABLE_MEANING = {
     "dxy": "transverse impact parameter of the branch",
     "dz": "longitudinal impact parameter of the branch",
     "depth": "number of ancestors of the branch root in the graph, that is how far down the event history it sits",
-    "rootfrac": "fraction of the branch tracker footprint that belongs to the root particle itself rather than to "
+    "root_footprint_fraction": "fraction of the branch tracker footprint that belongs to the root particle itself rather than to "
                 "its descendants; near 1 is a clean single particle",
 }
 # Per-domain caveats. A number that is correct but not discriminating reads as a result
@@ -148,8 +159,9 @@ PROPOSED = [
      "PV numbers are mechanically correct but aimed at the wrong truth object."),
 ]
 # Metric order drives the page order, so a reader meets efficiency before its failure modes.
-METRIC_ORDER = ["composition", "efficiency", "purity", "fakerate", "duplicate", "pileuprate", "resolution"]
-VARIABLE_ORDER = ["pt", "eta", "phi", "nhits", "vertpos", "zpos", "dxy", "dz", "depth", "rootfrac"]
+METRIC_ORDER = ["composition", "efficiency", "duplicate", "splitrate", "recopurity", "fakerate",
+                "pileuprate", "resolution"]
+VARIABLE_ORDER = ["pt", "eta", "phi", "nhits", "vertpos", "zpos", "dxy", "dz", "depth", "root_footprint_fraction"]
 # Axes whose bins are named categories rather than numbers, drawn as grouped bars.
 CATEGORICAL = ["reason"]
 # Gaussian slice fits, ordered so bias is read before width for each quantity.
@@ -172,7 +184,8 @@ MIN_DENOM_ENTRIES = 10
 DENOMINATOR = {
     "efficiency": "num_simul",
     "duplicate": "num_simul",
-    "purity": "num_reco",
+    "splitrate": "num_simul",
+    "recopurity": "num_reco",
     "fakerate": "num_reco",
     "pileuprate": "num_reco",
 }
@@ -187,7 +200,7 @@ CATEGORICAL_MEANING = {
         "particle: a frozen TrackingParticle or CaloParticle does not carry it."
     ),
 }
-_ME_RE = re.compile(r"^(?P<metric>efficiency|purity|fakerate|duplicate|pileuprate)_vs_(?P<var>\w+)$")
+_ME_RE = re.compile(r"^(?P<metric>efficiency|recopurity|fakerate|duplicate|splitrate|pileuprate)_vs_(?P<var>\w+)$")
 
 
 def hist_arrays(h):
@@ -423,6 +436,7 @@ def plot_metric(category, collection, metric, var, per_wp, outdir, index, slices
 
     # Ratio panel: only where the reference has a value, so an empty reference bin does
     # not manufacture a spike.
+    ratio_values = []
     if REFERENCE_WP in per_wp:
         ref_edges, ref_values, _ = per_wp[REFERENCE_WP]
         ref_centers = 0.5 * (ref_edges[:-1] + ref_edges[1:])
@@ -437,6 +451,7 @@ def plot_metric(category, collection, metric, var, per_wp, outdir, index, slices
                     if w in denom and len(denom[w]) == len(values):
                         ok = ok & (denom[w] >= MIN_DENOM_ENTRIES)
             if ok.any():
+                ratio_values.extend((values[ok] / ref_values[ok]).tolist())
                 rax.plot(
                     ref_centers[ok],
                     values[ok] / ref_values[ok],
@@ -444,11 +459,17 @@ def plot_metric(category, collection, metric, var, per_wp, outdir, index, slices
                     markersize=4,
                     color=colors[i % len(colors)],
                 )
+    # Scale to the data when a ratio leaves the default window, rather than drawing an
+    # empty panel that reads as "no points" instead of "points off scale".
+    if ratio_values:
+        hi = max(ratio_values)
+        if hi > 2.0:
+            rax.set_ylim(0.0, hi * 1.15)
     rax.axhline(1.0, linestyle="--", color="gray", linewidth=1.2)
     rax.set_ylabel(f"ratio to {REFERENCE_WP}", fontsize=12)
+    rax.set_ylim(0.0, 2.0)
     xvar = var.rsplit("_vs_", 1)[-1].split("_")[0] if "_vs_" in var else var
     rax.set_xlabel(xvar)
-    rax.set_ylim(0.0, 2.0)
     rax.grid(alpha=0.3)
 
     name = f"{index:02d}_{category}_{collection}_{metric}_vs_{var}.png"

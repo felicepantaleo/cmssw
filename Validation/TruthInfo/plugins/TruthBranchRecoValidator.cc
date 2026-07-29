@@ -13,6 +13,7 @@
 // type by RecoValidationTraits, mirroring TruthAssociationTraits on the producer side,
 // so the declared product type and the consumed one cannot drift apart.
 
+#include <algorithm>
 #include <cmath>
 #include <string>
 #include <vector>
@@ -138,14 +139,23 @@ private:
   struct Entry {
     std::string folder;
     edm::EDGetTokenT<std::vector<RECO>> recoToken;
-    edm::EDGetTokenT<MapType> recoToSimToken;
-    edm::EDGetTokenT<MapType> simToRecoToken;
+    // Reco-driven, one per working point: score is 1 - reco purity.
+    edm::EDGetTokenT<MapType> recoToTruthToken;
+    // Truth-driven, the same product for every working point because the truth target
+    // is fixed a priori: score is 1 - truth purity.
+    edm::EDGetTokenT<MapType> truthToRecoToken;
   };
 
   const edm::EDGetTokenT<truth::Graph> graphToken_;
   const edm::EDGetTokenT<truth::LogicalGraphHitIndex> hitIndexToken_;
   edm::EDGetTokenT<std::vector<unsigned int>> selectedRootsToken_;
   const std::string dirName_;
+  // A truth object counts as reconstructed by one reco object when that object covers
+  // enough of it AND is not mostly something else. The second is the loose cut in the
+  // other direction that both QuickTrackAssociatorByHits and HGVHistoProducerAlgo use.
+  const double minTruthPurityForIndividual_;
+  const double minRecoPurityLoose_;
+  const double minCollectiveCoverage_;
   std::vector<Entry> entries_;
   const truth::TruthBranchHistoProducerAlgo algo_;
 };
@@ -155,6 +165,9 @@ TruthBranchRecoValidator<RECO>::TruthBranchRecoValidator(edm::ParameterSet const
     : graphToken_(consumes<truth::Graph>(cfg.getParameter<edm::InputTag>("src"))),
       hitIndexToken_(consumes<truth::LogicalGraphHitIndex>(cfg.getParameter<edm::InputTag>("hitIndex"))),
       dirName_(cfg.getParameter<std::string>("dirName")),
+      minTruthPurityForIndividual_(cfg.getParameter<double>("minTruthPurityForIndividual")),
+      minRecoPurityLoose_(cfg.getParameter<double>("minRecoPurityLoose")),
+      minCollectiveCoverage_(cfg.getParameter<double>("minCollectiveCoverage")),
       algo_(cfg.getParameter<edm::ParameterSet>("histoProducerAlgoBlock")) {
   const auto associator = cfg.getParameter<std::string>("associator");
   // Same candidate set the associator used, so the denominator counts only branches
@@ -173,8 +186,8 @@ TruthBranchRecoValidator<RECO>::TruthBranchRecoValidator(edm::ParameterSet const
       Entry entry;
       entry.folder = key + "_" + wp;
       entry.recoToken = consumes<std::vector<RECO>>(tag);
-      entry.recoToSimToken = consumes<MapType>(edm::InputTag(associator, key + "ToTruthBranch" + wp));
-      entry.simToRecoToken = consumes<MapType>(edm::InputTag(associator, "TruthBranchTo" + key + wp));
+      entry.recoToTruthToken = consumes<MapType>(edm::InputTag(associator, key + "RecoToTruth" + wp));
+      entry.truthToRecoToken = consumes<MapType>(edm::InputTag(associator, key + "TruthToReco"));
       entries_.push_back(std::move(entry));
     }
   }
@@ -203,21 +216,35 @@ void TruthBranchRecoValidator<RECO>::dqmAnalyze(edm::Event const& event,
 
     edm::Handle<std::vector<RECO>> recoHandle;
     event.getByToken(entry.recoToken, recoHandle);
-    edm::Handle<MapType> recoToSimHandle;
-    event.getByToken(entry.recoToSimToken, recoToSimHandle);
-    edm::Handle<MapType> simToRecoHandle;
-    event.getByToken(entry.simToRecoToken, simToRecoHandle);
-    if (!recoHandle.isValid() || !recoToSimHandle.isValid() || !simToRecoHandle.isValid()) {
+    edm::Handle<MapType> recoToTruthHandle;
+    event.getByToken(entry.recoToTruthToken, recoToTruthHandle);
+    edm::Handle<MapType> truthToRecoHandle;
+    event.getByToken(entry.truthToRecoToken, truthToRecoHandle);
+    if (!recoHandle.isValid() || !recoToTruthHandle.isValid() || !truthToRecoHandle.isValid()) {
       continue;
     }
 
-    auto const& recoToSim = recoToSimHandle->getMap();
-    auto const& simToReco = simToRecoHandle->getMap();
+    auto const& recoToTruth = recoToTruthHandle->getMap();
+    auto const& truthToReco = truthToRecoHandle->getMap();
+
+    // Reco purity of a (truth, reco) pair, read from the reco-driven product. This is
+    // the loose cut in the other direction, so it is looked up rather than recomputed.
+    auto recoPurityOf = [&recoToTruth](unsigned int recoIndex, unsigned int truthIndex) {
+      if (recoIndex >= recoToTruth.size()) {
+        return 0.;
+      }
+      for (auto const& match : recoToTruth[recoIndex]) {
+        if (match.index() == truthIndex) {
+          return 1. - static_cast<double>(match.score());
+        }
+      }
+      return 0.;
+    };
 
     // Reco side: every object, whether it found a branch, and whether that branch came
     // from a pileup interaction rather than the signal one.
     for (std::size_t r = 0; r < recoHandle->size(); ++r) {
-      const bool associated = r < recoToSim.size() && !recoToSim[r].empty();
+      const bool associated = r < recoToTruth.size() && !recoToTruth[r].empty();
       const Kinematics kin = Traits::kinematics((*recoHandle)[r]);
 
       bool pileup = false;
@@ -225,7 +252,7 @@ void TruthBranchRecoValidator<RECO>::dqmAnalyze(edm::Event const& event,
         // eventId 0 is the signal interaction; anything else is overlaid pileup. The
         // row index means a truth vertex for a composite domain and a particle for a
         // hit-based one, so the lookup follows the same split.
-        const unsigned int matched = recoToSim[r][0].index();
+        const unsigned int matched = recoToTruth[r][0].index();
         if constexpr (Traits::truthIsVertex) {
           if (matched < graph.nVertices()) {
             pileup = graph.vertices()[matched].eventId != 0;
@@ -240,13 +267,11 @@ void TruthBranchRecoValidator<RECO>::dqmAnalyze(edm::Event const& event,
       // match tells nothing; what it is worth is the leading truth vertex's share of the
       // object's constituents. Constituents whose particles were produced at an
       // unrelated vertex are the remainder.
-      double matchQuality = 1.;
-      if constexpr (Traits::truthIsVertex) {
-        matchQuality = associated ? recoToSim[r][0].value() : 0.;
-      }
-      algo_.fill_reco(histograms, i, kin, associated, pileup, matchQuality);
+      // Reco purity, the reco-normalised quantity this direction exists to measure.
+      const double recoPurity = associated ? 1. - static_cast<double>(recoToTruth[r][0].score()) : 0.;
+      algo_.fill_reco(histograms, i, kin, associated, pileup, recoPurity);
       if (associated) {
-        algo_.fill_match(histograms, i, recoToSim[r][0].score(), recoToSim[r][0].value());
+        algo_.fill_match(histograms, i, recoToTruth[r][0].score(), recoToTruth[r][0].value(), recoPurity);
       }
     }
 
@@ -259,7 +284,7 @@ void TruthBranchRecoValidator<RECO>::dqmAnalyze(edm::Event const& event,
       continue;
     }
     for (unsigned int b : *rootsHandle) {
-      if (b >= simToReco.size()) {
+      if (b >= truthToReco.size()) {
         continue;
       }
       Kinematics kin;
@@ -267,7 +292,7 @@ void TruthBranchRecoValidator<RECO>::dqmAnalyze(edm::Event const& event,
 
       if constexpr (Traits::truthIsVertex) {
         // The truth object IS a vertex: its position, how many selected particles were
-        // produced there, and the Geant4 process that made it. depth and rootfrac are
+        // produced there, and the Geant4 process that made it. depth and root_footprint_fraction are
         // properties of a particle branch and are not booked for this domain.
         if (b >= graph.nVertices()) {
           continue;
@@ -304,7 +329,7 @@ void TruthBranchRecoValidator<RECO>::dqmAnalyze(edm::Event const& event,
         // its descendants'. Near 1 is a clean single particle, near 0 a branch whose
         // hits all come from what it produced.
         const auto direct = hitIndex.directHits(truth::HitChannel::Tracker, b);
-        kin.rootfrac = subgraph.empty() ? 0. : static_cast<double>(direct.size()) / subgraph.size();
+        kin.root_footprint_fraction = subgraph.empty() ? 0. : static_cast<double>(direct.size()) / subgraph.size();
 
         const auto vertices = branchRoot.productionVertices();
         if (!vertices.empty()) {
@@ -324,12 +349,34 @@ void TruthBranchRecoValidator<RECO>::dqmAnalyze(edm::Event const& event,
         }
       }
 
-      const bool associated = !simToReco[b].empty();
-      const bool duplicate = simToReco[b].size() > 1;
-      algo_.fill_simul(histograms, i, kin, associated, duplicate);
-      algo_.fill_reason(histograms, i, reason, associated, duplicate);
-      if (associated) {
-        const unsigned int r = simToReco[b][0].index();
+      // Classify how this truth object was reconstructed, from the TRUTH-driven
+      // product. Individual means one reco object covered it; duplicate means more than
+      // one did; split means none did alone but together they cover it.
+      using Outcome = truth::TruthBranchHistoProducerAlgo::TruthOutcome;
+      unsigned int nIndividual = 0;
+      double collectiveCoverage = 0.;
+      double leadingTruthPurity = 0.;
+      for (auto const& match : truthToReco[b]) {
+        const double truthPurity = 1. - static_cast<double>(match.score());
+        collectiveCoverage += truthPurity;
+        leadingTruthPurity = std::max(leadingTruthPurity, truthPurity);
+        if (truthPurity >= minTruthPurityForIndividual_ && recoPurityOf(match.index(), b) >= minRecoPurityLoose_) {
+          ++nIndividual;
+        }
+      }
+      const Outcome outcome = (nIndividual == 1)  ? Outcome::Individual
+                              : (nIndividual > 1) ? Outcome::Duplicate
+                              : (collectiveCoverage >= minCollectiveCoverage_ && !truthToReco[b].empty())
+                                  ? Outcome::Split
+                                  : Outcome::Lost;
+
+      algo_.fill_simul(histograms, i, kin, outcome);
+      algo_.fill_reason(histograms, i, reason, outcome);
+      if (!truthToReco[b].empty()) {
+        algo_.fill_truth_purity(histograms, i, leadingTruthPurity);
+      }
+      if (outcome == Outcome::Individual || outcome == Outcome::Duplicate) {
+        const unsigned int r = truthToReco[b][0].index();
         if (r < recoHandle->size()) {
           auto const& matched = (*recoHandle)[r];
           // A vertex has no direction, so a pt or angular residual against it would be
@@ -353,6 +400,12 @@ void TruthBranchRecoValidator<RECO>::fillDescriptions(edm::ConfigurationDescript
   desc.add<std::string>("associator", Traits::defaultAssociator);
   desc.add<std::vector<edm::InputTag>>("recoCollections", {});
   desc.add<std::vector<std::string>>("workingPoints", {"Fixed"});
+  desc.add<double>("minTruthPurityForIndividual", 0.5)
+      ->setComment("A single reco object must cover at least this much of the truth object to have reconstructed it");
+  desc.add<double>("minRecoPurityLoose", 0.25)
+      ->setComment("Loose cut in the other direction: that object must not be mostly something else");
+  desc.add<double>("minCollectiveCoverage", 0.5)
+      ->setComment("Several objects together must cover at least this much of the truth object to count as split");
 
   edm::ParameterSetDescription algo;
   // Every axis is declared here; which of them a domain books is chosen by the two
@@ -366,7 +419,7 @@ void TruthBranchRecoValidator<RECO>::fillDescriptions(edm::ConfigurationDescript
                                                                           {"dxy", 40, -5., 5.},
                                                                           {"dz", 40, -20., 20.},
                                                                           {"depth", 15, 0., 15.},
-                                                                          {"rootfrac", 20, 0., 1.}};
+                                                                          {"root_footprint_fraction", 20, 0., 1.}};
   for (auto const& [name, nbins, lo, hi] : axes) {
     algo.add<int>("nint_" + name, nbins);
     algo.add<double>("min_" + name, lo);
