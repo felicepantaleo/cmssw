@@ -142,57 +142,42 @@ namespace {
   //   Immediate    the production vertex of the matched particle itself. Right for a
   //                secondary vertex, which IS a decay or interaction vertex: the tracks
   //                that belong to it were produced there.
-  //   Interaction  the production vertex of that particle's topmost ancestor, so a track
-  //                from a decay downstream of the vertex is counted at the vertex the
-  //                chain started from. Right for a primary vertex, where the question is
-  //                which interaction a track came from, not which decay.
+  //   Interaction  the one vertex representing the interaction the particle belongs to,
+  //                so a track from a decay downstream of the vertex is counted at the
+  //                vertex the chain started from. Right for a primary vertex, where the
+  //                question is which interaction a track came from, not which decay.
   enum class VertexResolution { Immediate, Interaction };
-
-  // Walk to the top of the chain. The graph is a DAG and a particle has at most a few
-  // ancestors, but the counter keeps a malformed graph from spinning here.
-  [[nodiscard]] inline std::optional<uint32_t> topmostProductionVertex(truth::Graph const& graph, uint32_t particleId) {
-    truth::Particle current(&graph, particleId);
-    for (unsigned int step = 0; step < 1000u; ++step) {
-      const auto parents = current.parents();
-      if (parents.empty()) {
-        break;
-      }
-      current = parents.front();
-    }
-    const auto production = current.productionVertices();
-    if (production.empty()) {
-      return std::nullopt;
-    }
-    return production.front().id();
-  }
 
   // One representative vertex per interaction, for Interaction resolution.
   //
-  // Walking to the topmost ancestor is NOT enough on its own. Measured on a ttbar event:
-  // 405 of 481 particles reach one vertex but ten more GEN source vertices remain (beam
-  // remnants, initial-state activity), and no VertexRole::Interaction node is
-  // materialised in this graph, all 219 vertices being Normal. Counting those ten as
-  // separate targets would call one interaction's own tracks contamination.
+  // No VertexRole::Interaction node is materialised unless a selection preset builds one:
+  // measured on ttbar, all 534 vertices of an event are Normal. eventId IS the
+  // interaction instead, 0 being the signal and anything else an overlaid pileup
+  // interaction, so every particle of one interaction must count at a single vertex.
   //
-  // eventId IS the interaction: 0 is the signal, anything else an overlaid pileup
-  // interaction. So every particle of one interaction counts at a single vertex, chosen
-  // as the lowest-numbered topmost production vertex of that interaction so the choice
-  // is deterministic.
+  // That vertex is the lowest-numbered production vertex of the interaction. Ids are
+  // handed out in build order, so the lowest is where the interaction started: measured
+  // on ttbar it is the beamspot vertex, at |x|, |y| < 20 um with the z spread of the
+  // luminous region.
+  //
+  // Seeding this from the particles that have no parent does NOT work. The GEN half puts
+  // the beam particles at the top of the chain and the HepMC record gives them no
+  // production vertex, so they are the only parentless particles and they contribute
+  // nothing: every interaction would go unresolved and every composite object would
+  // silently match nothing.
   [[nodiscard]] inline std::unordered_map<uint64_t, uint32_t> interactionVertices(truth::Graph const& graph) {
     std::unordered_map<uint64_t, uint32_t> representative;
     const uint32_t nParticles = graph.nParticles();
     for (uint32_t id = 0; id < nParticles; ++id) {
-      if (!truth::Particle(&graph, id).parents().empty()) {
+      const auto production = truth::Particle(&graph, id).productionVertices();
+      if (production.empty()) {
         continue;
       }
-      const auto vertexId = topmostProductionVertex(graph, id);
-      if (!vertexId) {
-        continue;
-      }
+      const uint32_t vertexId = production.front().id();
       const uint64_t eventId = graph.particles()[id].eventId;
-      auto [it, inserted] = representative.emplace(eventId, *vertexId);
+      auto [it, inserted] = representative.emplace(eventId, vertexId);
       if (!inserted) {
-        it->second = std::min(it->second, *vertexId);
+        it->second = std::min(it->second, vertexId);
       }
     }
     return representative;
