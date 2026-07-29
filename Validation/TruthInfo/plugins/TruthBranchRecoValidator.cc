@@ -60,6 +60,9 @@ namespace {
       return kin;
     }
     static bool hasDirection(reco::Track const&) { return true; }
+    // The truth side of a hit-based domain iterates branch roots, which are particles.
+    static constexpr bool truthIsVertex = false;
+    static constexpr const char* denominatorInstance = "selectedBranchRoots";
   };
 
   // A vertex has no momentum, so only its position and its track multiplicity are
@@ -81,6 +84,10 @@ namespace {
       return kin;
     }
     static bool hasDirection(reco::Vertex const&) { return false; }
+    // A composite object is associated to a truth VERTEX, so the truth side iterates
+    // vertices and the denominator is the set of reconstructable ones.
+    static constexpr bool truthIsVertex = true;
+    static constexpr const char* denominatorInstance = "selectedTruthVertices";
   };
 
   // A trackster carries calorimeter energy through its layer clusters. Its momentum
@@ -108,6 +115,8 @@ namespace {
       return kin;
     }
     static bool hasDirection(ticl::Trackster const&) { return true; }
+    static constexpr bool truthIsVertex = false;
+    static constexpr const char* denominatorInstance = "selectedBranchRoots";
   };
 }  // namespace
 
@@ -150,7 +159,7 @@ TruthBranchRecoValidator<RECO>::TruthBranchRecoValidator(edm::ParameterSet const
   const auto associator = cfg.getParameter<std::string>("associator");
   // Same candidate set the associator used, so the denominator counts only branches
   // that were ever eligible to be found.
-  selectedRootsToken_ = consumes<std::vector<unsigned int>>(edm::InputTag(associator, "selectedBranchRoots"));
+  selectedRootsToken_ = consumes<std::vector<unsigned int>>(edm::InputTag(associator, Traits::denominatorInstance));
   const auto workingPoints = cfg.getParameter<std::vector<std::string>>("workingPoints");
 
   for (auto const& tag : cfg.getParameter<std::vector<edm::InputTag>>("recoCollections")) {
@@ -213,13 +222,29 @@ void TruthBranchRecoValidator<RECO>::dqmAnalyze(edm::Event const& event,
 
       bool pileup = false;
       if (associated) {
-        const unsigned int branch = recoToSim[r][0].index();
-        if (branch < graph.nParticles()) {
-          // eventId 0 is the signal interaction; anything else is overlaid pileup.
-          pileup = graph.particles()[branch].eventId != 0;
+        // eventId 0 is the signal interaction; anything else is overlaid pileup. The
+        // row index means a truth vertex for a composite domain and a particle for a
+        // hit-based one, so the lookup follows the same split.
+        const unsigned int matched = recoToSim[r][0].index();
+        if constexpr (Traits::truthIsVertex) {
+          if (matched < graph.nVertices()) {
+            pileup = graph.vertices()[matched].eventId != 0;
+          }
+        } else {
+          if (matched < graph.nParticles()) {
+            pileup = graph.particles()[matched].eventId != 0;
+          }
         }
       }
-      algo_.fill_reco(histograms, i, kin, associated, pileup);
+      // For a composite object the association always finds something, so counting the
+      // match tells nothing; what it is worth is the leading truth vertex's share of the
+      // object's constituents. Constituents whose particles were produced at an
+      // unrelated vertex are the remainder.
+      double matchQuality = 1.;
+      if constexpr (Traits::truthIsVertex) {
+        matchQuality = associated ? recoToSim[r][0].value() : 0.;
+      }
+      algo_.fill_reco(histograms, i, kin, associated, pileup, matchQuality);
       if (associated) {
         algo_.fill_match(histograms, i, recoToSim[r][0].score(), recoToSim[r][0].value());
       }
@@ -234,52 +259,71 @@ void TruthBranchRecoValidator<RECO>::dqmAnalyze(edm::Event const& event,
       continue;
     }
     for (unsigned int b : *rootsHandle) {
-      if (b >= graph.nParticles() || b >= simToReco.size()) {
-        continue;
-      }
-      auto const& particle = graph.particles()[b];
-      const auto& p4 = particle.momentum;
-      if (p4.pt() <= 0.) {
+      if (b >= simToReco.size()) {
         continue;
       }
       Kinematics kin;
-      kin.pt = p4.pt();
-      kin.eta = p4.eta();
-      kin.phi = p4.phi();
-      // The branch's own detector footprint, which is the truth analogue of a track's
-      // hit count. Tracker for track-like domains, calorimeter for the rest, chosen by
-      // the channel the associator matched in.
-      const auto subgraph = hitIndex.subgraphHits(truth::HitChannel::Tracker, b);
-      kin.nhits = subgraph.size();
-      const truth::Particle branchRoot(&graph, b);
-      // How deep in the graph the branch root sits. A frozen truth object has one fixed
-      // level and no such axis.
-      kin.depth = branchRoot.ancestors().size();
-      // How much of the branch footprint is the root particle's own hits rather than its
-      // descendants'. Near 1 is a clean single particle, near 0 a branch whose hits all
-      // come from what it produced.
-      const auto direct = hitIndex.directHits(truth::HitChannel::Tracker, b);
-      kin.rootfrac = subgraph.empty() ? 0. : static_cast<double>(direct.size()) / subgraph.size();
-
-      // Position from the production vertex of the root particle, and why this particle
-      // exists, taken from the Geant4 creator process of that vertex.
-      const auto vertices = branchRoot.productionVertices();
       auto reason = static_cast<unsigned int>(truth::VertexReason::Unknown);
-      if (!vertices.empty()) {
-        // A GEN-only production vertex has no Geant4 creator process, so its reason is
-        // Unknown by construction rather than by failure to classify. It gets its own
-        // bin, one past the enum, so the two do not get read as the same thing.
-        auto const& vdata = vertices.front().data();
-        reason = vdata.hasSim() ? static_cast<unsigned int>(vdata.reason)
-                                : static_cast<unsigned int>(truth::VertexReason::Other) + 1;
-        const auto& pos = vertices.front().position();
+
+      if constexpr (Traits::truthIsVertex) {
+        // The truth object IS a vertex: its position, how many selected particles were
+        // produced there, and the Geant4 process that made it. depth and rootfrac are
+        // properties of a particle branch and are not booked for this domain.
+        if (b >= graph.nVertices()) {
+          continue;
+        }
+        const truth::Vertex vertex(&graph, b);
+        auto const& vdata = vertex.data();
+        auto const& pos = vertex.position();
         kin.vertpos = std::sqrt(pos.x() * pos.x() + pos.y() * pos.y());
         kin.zpos = pos.z();
-        // Transverse and longitudinal impact parameter of the branch direction with
-        // respect to the origin, the truth counterpart of the track dxy and dz.
-        kin.dxy = (-pos.x() * p4.py() + pos.y() * p4.px()) / p4.pt();
-        kin.dz = pos.z() - (pos.x() * p4.px() + pos.y() * p4.py()) / p4.pt() * (p4.pz() / p4.pt());
+        kin.nhits = vertex.outgoingParticles().size();
+        reason = vdata.hasSim() ? static_cast<unsigned int>(vdata.reason)
+                                : static_cast<unsigned int>(truth::VertexReason::Other) + 1;
+      } else {
+        if (b >= graph.nParticles()) {
+          continue;
+        }
+        auto const& particle = graph.particles()[b];
+        const auto& p4 = particle.momentum;
+        if (p4.pt() <= 0.) {
+          continue;
+        }
+        kin.pt = p4.pt();
+        kin.eta = p4.eta();
+        kin.phi = p4.phi();
+        // The branch's own detector footprint, which is the truth analogue of a track's
+        // hit count.
+        const auto subgraph = hitIndex.subgraphHits(truth::HitChannel::Tracker, b);
+        kin.nhits = subgraph.size();
+        const truth::Particle branchRoot(&graph, b);
+        // How deep in the graph the branch root sits. A frozen truth object has one
+        // fixed level and no such axis.
+        kin.depth = branchRoot.ancestors().size();
+        // How much of the branch footprint is the root particle's own hits rather than
+        // its descendants'. Near 1 is a clean single particle, near 0 a branch whose
+        // hits all come from what it produced.
+        const auto direct = hitIndex.directHits(truth::HitChannel::Tracker, b);
+        kin.rootfrac = subgraph.empty() ? 0. : static_cast<double>(direct.size()) / subgraph.size();
+
+        const auto vertices = branchRoot.productionVertices();
+        if (!vertices.empty()) {
+          // A GEN-only production vertex has no Geant4 creator process, so its reason is
+          // Unknown by construction rather than by failure to classify. It gets its own
+          // bin, one past the enum, so the two do not get read as the same thing.
+          auto const& vdata = vertices.front().data();
+          reason = vdata.hasSim() ? static_cast<unsigned int>(vdata.reason)
+                                  : static_cast<unsigned int>(truth::VertexReason::Other) + 1;
+          const auto& pos = vertices.front().position();
+          kin.vertpos = std::sqrt(pos.x() * pos.x() + pos.y() * pos.y());
+          kin.zpos = pos.z();
+          // Transverse and longitudinal impact parameter of the branch direction with
+          // respect to the origin, the truth counterpart of the track dxy and dz.
+          kin.dxy = (-pos.x() * p4.py() + pos.y() * p4.px()) / p4.pt();
+          kin.dz = pos.z() - (pos.x() * p4.px() + pos.y() * p4.py()) / p4.pt() * (p4.pz() / p4.pt());
+        }
       }
+
       const bool associated = !simToReco[b].empty();
       const bool duplicate = simToReco[b].size() > 1;
       algo_.fill_simul(histograms, i, kin, associated, duplicate);

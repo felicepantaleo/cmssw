@@ -100,16 +100,18 @@ VARIABLE_MEANING = {
 # unless the page says otherwise, so the page says otherwise.
 CATEGORY_NOTE = {
     "Vertexing": (
-        "A vertex owns no hits: its truth is AGGREGATED from the tracks it was built from, which the track "
-        "associator already matched. That association therefore always finds some branch, so purity sits at 1 "
-        "by construction and is not a measurement of vertexing quality. Read the efficiency and the truth-side "
-        "plots here, not the reco-side ones. The primary vertex should really be associated to the graph's "
-        "Interaction vertex rather than to particle branches; that is open work."
+        "A vertex owns no hits, so it is associated to a truth VERTEX by aggregating the tracks it was built "
+        "from: each track carries its own best-matched particle, and that particle's PRODUCTION VERTEX gets the "
+        "track's weight. The leading truth vertex's share of the weight is the purity, and tracks whose particles "
+        "were produced at an unrelated vertex are the remainder. Purity here is therefore a mean share, not a "
+        "matched-or-not count. Note the definition it rests on: a track from a decay downstream of the vertex "
+        "counts as contamination, which is why purity falls with track multiplicity. Mapping each track back to "
+        "its interaction-level ancestor instead would count only genuine cross-interaction contamination, and is "
+        "the natural refinement for primary vertices specifically."
     ),
     "SecondaryVertexing": (
-        "Same aggregation as Vertexing, and the same caveat: purity is 1 by construction. A secondary vertex is "
-        "the case where the graph should eventually do better than aggregation, because the branch that produced "
-        "the vertex is a node in the graph and can be matched directly."
+        "Same aggregation as Vertexing, and it is the case the immediate-production-vertex definition suits best: "
+        "a secondary vertex IS a decay or interaction vertex, so the tracks that belong to it were produced there."
     ),
     "Calorimetry": (
         "Tracksters are matched on SHARED ENERGY in the calorimeter channel, the same quantity the TICL trackster "

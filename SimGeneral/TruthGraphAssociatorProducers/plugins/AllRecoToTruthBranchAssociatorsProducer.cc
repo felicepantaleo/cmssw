@@ -15,6 +15,7 @@
 // associator itself, so the inverted DetId index is built ONCE per event and reused
 // across every working point.
 
+#include <algorithm>
 #include <concepts>
 #include <memory>
 #include <span>
@@ -213,6 +214,11 @@ AllRecoToTruthBranchAssociatorsProducer<RECO>::AllRecoToTruthBranchAssociatorsPr
   // the graph, including those the selector rejected, and every efficiency comes out
   // low by the rejection factor.
   produces<std::vector<unsigned int>>("selectedBranchRoots");
+  if constexpr (ConstituentBasedDomain<RECO>) {
+    // A composite object is associated to a truth VERTEX, so its efficiency denominator
+    // is a set of vertices, not of branch roots.
+    produces<std::vector<unsigned int>>("selectedTruthVertices");
+  }
 
   for (auto const& tag : cfg.getParameter<std::vector<edm::InputTag>>("recoCollections")) {
     // Key rule for this package: label and instance joined by an underscore, the same
@@ -273,6 +279,29 @@ void AllRecoToTruthBranchAssociatorsProducer<RECO>::produce(edm::StreamID,
   event.put(std::make_unique<std::vector<unsigned int>>(selectedRoots.begin(), selectedRoots.end()),
             "selectedBranchRoots");
 
+  if constexpr (ConstituentBasedDomain<RECO>) {
+    // The vertices a composite object could have been reconstructed at: those where at
+    // least two selected branch roots were produced. One track cannot make a vertex, so
+    // a one-particle vertex in the denominator is a guaranteed miss that scales every
+    // efficiency down without measuring anything, the same reason the branch selector
+    // guards the particle denominator.
+    std::unordered_map<unsigned int, unsigned int> rootsPerVertex;
+    for (uint32_t root : selectedRoots) {
+      const auto production = truth::Particle(&graph, root).productionVertices();
+      if (!production.empty()) {
+        ++rootsPerVertex[production.front().id()];
+      }
+    }
+    auto selectedVertices = std::make_unique<std::vector<unsigned int>>();
+    for (auto const& [vertexId, count] : rootsPerVertex) {
+      if (count >= 2u) {
+        selectedVertices->push_back(vertexId);
+      }
+    }
+    std::sort(selectedVertices->begin(), selectedVertices->end());
+    event.put(std::move(selectedVertices), "selectedTruthVertices");
+  }
+
   for (std::size_t collectionIndex = 0; collectionIndex < recoTokens_.size(); ++collectionIndex) {
     auto const& [key, token] = recoTokens_[collectionIndex];
     edm::Handle<std::vector<RECO>> handle;
@@ -283,12 +312,16 @@ void AllRecoToTruthBranchAssociatorsProducer<RECO>::produce(edm::StreamID,
     for (std::size_t wpIndex = 0; wpIndex < workingPoints_.size(); ++wpIndex) {
       auto const& wp = workingPoints_[wpIndex];
       auto forward = std::make_unique<MapType>(nReco);
-      auto backward = std::make_unique<MapType>(nBranches);
+      auto backward = std::make_unique<MapType>(ConstituentBasedDomain<RECO> ? graph.nVertices() : nBranches);
 
       if constexpr (ConstituentBasedDomain<RECO>) {
-        // Aggregate the constituents' existing association instead of revisiting hits:
-        // a branch's share of a composite object is the weight of the constituents that
-        // already point at it, over the object's total weight.
+        // A composite object is associated to a truth VERTEX, not to a particle branch.
+        // Keying the aggregation by the branch a constituent points at cannot disagree
+        // with itself, so every object matched something and the purity was 1 by
+        // construction. Keying it by the PRODUCTION VERTEX of that branch is what makes
+        // the number mean anything: constituents whose particles were produced at an
+        // unrelated vertex are contamination, and the leading vertex's share is the
+        // purity.
         auto const& constituentMap = event.get(constituentMapTokens_[collectionIndex][wpIndex]);
         for (unsigned int i = 0; i < nReco; ++i) {
           auto const& object = (*handle)[i];
@@ -296,21 +329,27 @@ void AllRecoToTruthBranchAssociatorsProducer<RECO>::produce(edm::StreamID,
           if (total <= 0.f) {
             continue;
           }
-          std::unordered_map<unsigned int, float> weightPerBranch;
+          std::unordered_map<unsigned int, float> weightPerVertex;
           Traits::forEachConstituent(object, [&](unsigned int constituentIndex, float weight) {
             if (constituentIndex >= constituentMap.size()) {
               return;
             }
-            // The constituent's best branch carries the object's weight for that branch.
+            // maps are score-sorted, so [0] is the constituent's best match
             for (auto const& match : constituentMap[constituentIndex]) {
-              weightPerBranch[match.index()] += weight;
-              break;  // maps are score-sorted, so [0] is the constituent's best match
+              const unsigned int particle = match.index();
+              if (particle < nBranches) {
+                const auto production = truth::Particle(&graph, particle).productionVertices();
+                if (!production.empty()) {
+                  weightPerVertex[production.front().id()] += weight;
+                }
+              }
+              break;
             }
           });
-          for (auto const& [branch, weight] : weightPerBranch) {
+          for (auto const& [vertexId, weight] : weightPerVertex) {
             const float fraction = weight / total;
-            forward->insert(i, branch, fraction, 1.f - fraction);
-            backward->insert(branch, i, fraction, 1.f - fraction);
+            forward->insert(i, vertexId, fraction, 1.f - fraction);
+            backward->insert(vertexId, i, fraction, 1.f - fraction);
           }
         }
       } else {

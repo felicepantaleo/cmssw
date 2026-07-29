@@ -76,8 +76,11 @@ _domains = [
         associator="allVertexToTruthBranchAssociators",
         dirName="TruthInfo/Vertexing/",
         # A vertex has a position and a track multiplicity, and nothing else this set
-        # can express.
+        # can express. The TRUTH object here is a graph vertex, not a particle branch,
+        # so pt, eta, depth and rootfrac do not exist on that side either.
         recoVariables=["nhits", "vertpos", "zpos"],
+        truthVariables=["nhits", "vertpos", "zpos"],
+        sharedRange=(0.0, 1.0),
     ),
     dict(
         name="secondaryVertices",
@@ -86,6 +89,8 @@ _domains = [
         associator="allSecondaryVertexToTruthBranchAssociators",
         dirName="TruthInfo/SecondaryVertexing/",
         recoVariables=["nhits", "vertpos", "zpos"],
+        truthVariables=["nhits", "vertpos", "zpos"],
+        sharedRange=(0.0, 1.0),
     ),
     dict(
         name="tracksters",
@@ -100,11 +105,18 @@ _domains = [
 ]
 
 
-def _algoBlock(recoVariables):
+def _algoBlock(recoVariables, truthVariables=None, sharedRange=None):
+    args = dict(_algoBlockArgs)
+    if sharedRange is not None:
+        # A composite domain's shared quantity is a FRACTION of the object's
+        # constituents, so it lives in [0, 1]; the hit-based default of [0, 50] counts
+        # hits or GeV and would put every fraction in the first bin.
+        args["minShared"] = cms.double(sharedRange[0])
+        args["maxShared"] = cms.double(sharedRange[1])
     return cms.PSet(
-        truthVariables=cms.vstring(*truthPlotVariables),
+        truthVariables=cms.vstring(*(truthVariables or truthPlotVariables)),
         recoVariables=cms.vstring(*recoVariables),
-        **_algoBlockArgs,
+        **args,
     )
 
 
@@ -112,9 +124,9 @@ def _algoBlock(recoVariables):
 # ships no harvesting C++. The metric set follows MultiTrackValidator (efficiency, fake,
 # duplicate, pileup) plus purity from the TICL trackster validation, which asks the
 # complementary question: how much of the reco object belongs to the branch it matched.
-def _efficiencyStrings(recoVariables):
+def _efficiencyStrings(recoVariables, truthVariables=None):
     out = []
-    for var in truthPlotVariables:
+    for var in (truthVariables or truthPlotVariables):
         out.append(f"efficiency_vs_{var} 'Branch efficiency vs {var}' num_assoc(simToReco)_{var} num_simul_{var}")
         out.append(f"duplicate_vs_{var} 'Duplicate rate vs {var}' num_duplicate_{var} num_simul_{var}")
     for var in recoVariables:
@@ -155,7 +167,7 @@ for _d in _domains:
         associator=cms.string(_d["associator"]),
         recoCollections=cms.VInputTag(*[cms.InputTag(*l.split(":")) for l in recoLabels(_d["name"])]),
         workingPoints=cms.vstring(*_wps),
-        histoProducerAlgoBlock=_algoBlock(_d["recoVariables"]),
+        histoProducerAlgoBlock=_algoBlock(_d["recoVariables"], _d.get("truthVariables"), _d.get("sharedRange")),
     )
     globals()[_d["label"]] = _analyzer
     truthBranchValidationSequence += _analyzer
@@ -165,7 +177,7 @@ for _d in _domains:
     _harvester = DQMEDHarvester(
         "DQMGenericClient",
         subDirs=cms.untracked.vstring(*_folders),
-        efficiency=cms.vstring(*_efficiencyStrings(_d["recoVariables"])),
+        efficiency=cms.vstring(*_efficiencyStrings(_d["recoVariables"], _d.get("truthVariables"))),
         resolution=cms.vstring(*_resolutions),
         # Fit the core, not the tail: the slice fit is restricted to a window around the
         # peak, which is what makes Sigma a resolution rather than the width of the axis.

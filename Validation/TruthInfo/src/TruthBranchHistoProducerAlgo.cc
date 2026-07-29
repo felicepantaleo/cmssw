@@ -141,14 +141,18 @@ namespace truth {
     }
   }
 
-  void TruthBranchHistoProducerAlgo::fill_reco(
-      TruthBranchHistograms const& h, std::size_t i, Kinematics const& kin, bool associated, bool pileup) const {
+  void TruthBranchHistoProducerAlgo::fill_reco(TruthBranchHistograms const& h,
+                                               std::size_t i,
+                                               Kinematics const& kin,
+                                               bool associated,
+                                               bool pileup,
+                                               double matchQuality) const {
     const auto values = kin.asVector();
     for (std::size_t v = 0; v < recoVars_.size(); ++v) {
       const double x = values[recoVars_[v]];
       h.h_reco[i][v]->Fill(x);
       if (associated) {
-        h.h_assoc_recoToSim[i][v]->Fill(x);
+        h.h_assoc_recoToSim[i][v]->Fill(x, matchQuality);
       }
       if (pileup) {
         h.h_pileup[i][v]->Fill(x);

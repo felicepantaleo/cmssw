@@ -95,11 +95,18 @@ namespace truth {
                     bool associated,
                     bool duplicate) const;
 
+    // matchQuality weights the associated-numerator fill. It is 1 for a hit-based
+    // domain, where "associated" is a yes or no, and the leading truth object's share of
+    // the composite for a constituent-based one, where every object matches something
+    // and the only meaningful question is how much of it belongs to that match. The
+    // ratio num_assoc(recoToSim)/num_reco is then a matched fraction in the first case
+    // and a mean purity in the second.
     void fill_reco(TruthBranchHistograms const& histograms,
                    std::size_t index,
                    Kinematics const& kin,
                    bool associated,
-                   bool pileup) const;
+                   bool pileup,
+                   double matchQuality = 1.) const;
 
     // Categorical fill against the VertexReason of the branch root's production
     // vertex, passed as its underlying integer so this header stays free of the
