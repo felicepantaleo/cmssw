@@ -22,9 +22,11 @@ truthGraphRecoLabelsPSet = cms.PSet(
     secondaryVertices=cms.vstring("inclusiveSecondaryVertices"),
     pfCandidates=cms.vstring("particleFlow", "pfTICL"),
     jets=cms.vstring("ak4PFJetsPuppi"),
-    # The trackster domain reuses the TICL list verbatim so a new iteration shows up
-    # here the moment it is added to iterativeTICL_cff.
-    tracksters=cms.vstring(*ticlIterLabelsPSet.labels),
+    # Every ticlIterLabels entry that actually produces a vector<ticl::Trackster>.
+    # ticlCandidate is in that list too but produces TICLCandidates, which mix a track
+    # with tracksters and therefore need a two-channel match (tracker hits AND calo
+    # energy) rather than this one; it gets its own domain when that exists.
+    tracksters=cms.vstring(*[l for l in ticlIterLabelsPSet.labels if l != "ticlCandidate"]),
 )
 
 # Working points of the branch association. Fixed is the plain per-root match; the

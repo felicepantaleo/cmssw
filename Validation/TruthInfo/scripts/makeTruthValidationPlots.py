@@ -96,6 +96,27 @@ VARIABLE_MEANING = {
     "rootfrac": "fraction of the branch tracker footprint that belongs to the root particle itself rather than to "
                 "its descendants; near 1 is a clean single particle",
 }
+# Per-domain caveats. A number that is correct but not discriminating reads as a result
+# unless the page says otherwise, so the page says otherwise.
+CATEGORY_NOTE = {
+    "Vertexing": (
+        "A vertex owns no hits: its truth is AGGREGATED from the tracks it was built from, which the track "
+        "associator already matched. That association therefore always finds some branch, so purity sits at 1 "
+        "by construction and is not a measurement of vertexing quality. Read the efficiency and the truth-side "
+        "plots here, not the reco-side ones. The primary vertex should really be associated to the graph's "
+        "Interaction vertex rather than to particle branches; that is open work."
+    ),
+    "SecondaryVertexing": (
+        "Same aggregation as Vertexing, and the same caveat: purity is 1 by construction. A secondary vertex is "
+        "the case where the graph should eventually do better than aggregation, because the branch that produced "
+        "the vertex is a node in the graph and can be matched directly."
+    ),
+    "Calorimetry": (
+        "Tracksters are matched on SHARED ENERGY in the calorimeter channel, the same quantity the TICL trackster "
+        "validation scores against. The truth denominator spans the whole selector acceptance, so the efficiency "
+        "correctly falls to zero outside the HGCAL coverage rather than being renormalised to it."
+    ),
+}
 STYLE = (
     "body{font-family:sans-serif;margin:2em;max-width:1500px;color:#222}"
     "h1{margin-bottom:.2em}h2{border-bottom:1px solid #ccc;padding-bottom:.2em;margin-top:1.6em}"
@@ -155,6 +176,9 @@ DENOMINATOR = {
 CATEGORICAL_MEANING = {
     "reason": (
         "the Geant4 process that CREATED the branch root, read from the VertexReason of its production vertex. "
+        "GenOnly is its own bin, not Unknown: a GEN-only production vertex has no SimVertex and therefore no "
+        "Geant4 process at all. In a pileup sample it dominates, because collapsePileupGen replaces each pileup "
+        "interaction with one GEN-only vertex carrying all of its stable particles. "
         "Primary means the particle came straight from the hard scatter; every other value is a secondary made "
         "in the detector material. This axis exists only because the graph keeps the process that made each "
         "particle: a frozen TrackingParticle or CaloParticle does not carry it."
@@ -612,7 +636,7 @@ def main():
                 result = plot_composition(category, collection, all_counts["reason"], args.outputDir, index)
                 if result:
                     name, caption = result
-                    written.append({"collection": collection, "metric": "composition",
+                    written.append({"category": category, "collection": collection, "metric": "composition",
                                     "var": "reason", "png": name, "caption": caption})
                     index += 1
             for metric in METRIC_ORDER:
@@ -626,7 +650,7 @@ def main():
                     )
                     if result:
                         name, caption = result
-                        written.append({"collection": collection, "metric": metric,
+                        written.append({"category": category, "collection": collection, "metric": metric,
                                         "var": var, "png": name, "caption": caption})
                         index += 1
                 if metric == "resolution":
@@ -638,7 +662,7 @@ def main():
                         )
                         if result:
                             name, caption = result
-                            written.append({"collection": collection, "metric": metric,
+                            written.append({"category": category, "collection": collection, "metric": metric,
                                             "var": source, "png": name, "caption": caption})
                             index += 1
                     for var in RESOLUTION_ORDER:
@@ -651,7 +675,7 @@ def main():
                         )
                         if result:
                             name, caption = result
-                            written.append({"collection": collection, "metric": metric,
+                            written.append({"category": category, "collection": collection, "metric": metric,
                                             "var": var, "png": name, "caption": caption})
                             index += 1
                     continue
@@ -664,7 +688,7 @@ def main():
                     )
                     if result:
                         name, caption = result
-                        written.append({"collection": collection, "metric": metric,
+                        written.append({"category": category, "collection": collection, "metric": metric,
                                         "var": var, "png": name, "caption": caption})
                         index += 1
 
@@ -693,6 +717,9 @@ def main():
                     meaning = VARIABLE_MEANING.get(v) or CATEGORICAL_MEANING.get(v, v)
                     page.write(f"<li><span class='f'>{v}</span> {meaning}</li>")
                 page.write("</ul></div>")
+            for category in sorted({e["category"] for e in entries}):
+                if category in CATEGORY_NOTE:
+                    page.write(f"<div class='def'><b>{category}.</b> {CATEGORY_NOTE[category]}</div>")
             for collection in sorted({e["collection"] for e in entries}):
                 page.write(f"<h2>{collection}</h2><div class='grid'>")
                 for e in [x for x in entries if x["collection"] == collection]:
@@ -720,6 +747,11 @@ def main():
                        f"- A Gaussian slice fit is drawn only if its slice has at least {MIN_SLICE_ENTRIES} entries\n"
                        "  and the fitted width is inside the fit range and wider than one bin.\n"
                        "- A named category is drawn only if the sample populated it.\n")
+            _cats = sorted({e["category"] for e in entries if e["category"] in CATEGORY_NOTE})
+            if _cats:
+                defs.write("\n## Caveats by domain\n\n")
+                for _c in _cats:
+                    defs.write(f"- **{_c}.** {CATEGORY_NOTE[_c]}\n")
             defs.write("\n## Plots in this folder\n\n")
             for e in entries:
                 defs.write(f"- `{e['png']}`: {e['caption']}\n")

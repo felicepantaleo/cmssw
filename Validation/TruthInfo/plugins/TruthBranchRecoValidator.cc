@@ -1,15 +1,20 @@
 // Original author: Felice Pantaleo (CERN) <felice.pantaleo@cern.ch>
 //
-// Truth-branch validation for the track-like domains: one folder per (collection,
-// working point), booking only num/denom so all harvesting is DQMGenericClient config.
+// Truth-branch validation, one plugin template covering every reco domain: one folder
+// per (collection, working point), booking only num/denom so all harvesting stays
+// DQMGenericClient string config.
 //
 // DQMGlobalEDAnalyzer, not DQMEDAnalyzer: booking and filling are both const and the
 // MonitorElements live in a per-run cache, which is the modern convention shared by
 // MultiTrackValidator and HGCalValidator.
+//
+// What differs between domains is only (a) which association map type the associator
+// wrote and (b) how to read kinematics off a reco object. Both are bound to the reco
+// type by RecoValidationTraits, mirroring TruthAssociationTraits on the producer side,
+// so the declared product type and the consumed one cannot drift apart.
 
 #include <cmath>
 #include <string>
-#include <tuple>
 #include <vector>
 
 #include "DQMServices/Core/interface/DQMGlobalEDAnalyzer.h"
@@ -18,26 +23,102 @@
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/ParameterSet/interface/ParameterSetDescription.h"
 
+#include "DataFormats/HGCalReco/interface/Trackster.h"
 #include "DataFormats/TrackReco/interface/Track.h"
+#include "DataFormats/VertexReco/interface/Vertex.h"
 #include "SimDataFormats/Associations/interface/TICLAssociationMap.h"
 #include "SimDataFormats/TruthInfo/interface/Graph.h"
-#include "SimDataFormats/TruthInfo/interface/Particle.h"
 #include "SimDataFormats/TruthInfo/interface/LogicalGraphHitIndex.h"
+#include "SimDataFormats/TruthInfo/interface/Particle.h"
 #include "SimDataFormats/TruthInfo/interface/VertexData.h"
 
 #include "Validation/TruthInfo/interface/TruthBranchHistoProducerAlgo.h"
 
 namespace {
-  using SharedHitsMap = ticl::AssociationMap<ticl::mapWithSharedHitsAndScore>;
+  using Kinematics = truth::TruthBranchHistoProducerAlgo::Kinematics;
 
-  struct Histograms {
-    truth::TruthBranchHistograms histos;
+  template <typename RECO>
+  struct RecoValidationTraits;
+
+  template <>
+  struct RecoValidationTraits<reco::Track> {
+    using MapType = ticl::AssociationMap<ticl::mapWithSharedHitsAndScore>;
+    static constexpr const char* cfiName = "truthBranchTrackValidator";
+    static constexpr const char* defaultAssociator = "allTrackToTruthBranchAssociators";
+    static constexpr const char* defaultDir = "TruthInfo/Tracking/";
+
+    static Kinematics kinematics(reco::Track const& track) {
+      Kinematics kin;
+      kin.pt = track.pt();
+      kin.eta = track.eta();
+      kin.phi = track.phi();
+      kin.nhits = track.numberOfValidHits();
+      kin.vertpos = std::sqrt(track.vx() * track.vx() + track.vy() * track.vy());
+      kin.zpos = track.vz();
+      kin.dxy = track.dxy();
+      kin.dz = track.dz();
+      return kin;
+    }
+    static bool hasDirection(reco::Track const&) { return true; }
+  };
+
+  // A vertex has no momentum, so only its position and its track multiplicity are
+  // meaningful; the configuration books exactly those and nothing else.
+  template <>
+  struct RecoValidationTraits<reco::Vertex> {
+    using MapType = ticl::AssociationMap<ticl::mapWithFractionAndScore>;
+    static constexpr const char* cfiName = "truthBranchVertexValidator";
+    static constexpr const char* defaultAssociator = "allVertexToTruthBranchAssociators";
+    static constexpr const char* defaultDir = "TruthInfo/Vertexing/";
+
+    static Kinematics kinematics(reco::Vertex const& vertex) {
+      Kinematics kin;
+      // The number of tracks the vertex was built from, which is the vertex analogue of
+      // a track's hit count: the constituents its truth was aggregated from.
+      kin.nhits = vertex.tracksSize();
+      kin.vertpos = std::sqrt(vertex.x() * vertex.x() + vertex.y() * vertex.y());
+      kin.zpos = vertex.z();
+      return kin;
+    }
+    static bool hasDirection(reco::Vertex const&) { return false; }
+  };
+
+  // A trackster carries calorimeter energy through its layer clusters. Its momentum
+  // direction is the barycentre, and its hit count is the number of layer clusters.
+  template <>
+  struct RecoValidationTraits<ticl::Trackster> {
+    using MapType = ticl::AssociationMap<ticl::mapWithSharedEnergyAndScore>;
+    static constexpr const char* cfiName = "truthBranchTracksterValidator";
+    static constexpr const char* defaultAssociator = "truthBranchTracksterAssociators";
+    static constexpr const char* defaultDir = "TruthInfo/Calorimetry/";
+
+    static Kinematics kinematics(ticl::Trackster const& trackster) {
+      Kinematics kin;
+      auto const& bary = trackster.barycenter();
+      const double rho = std::sqrt(bary.x() * bary.x() + bary.y() * bary.y());
+      const double mag = std::sqrt(rho * rho + bary.z() * bary.z());
+      // Energy shared out along the barycentre direction: a trackster has no track, so
+      // its transverse momentum is the raw energy projected transversally.
+      kin.pt = (mag > 0.) ? trackster.raw_energy() * rho / mag : 0.;
+      kin.eta = bary.eta();
+      kin.phi = bary.phi();
+      kin.nhits = trackster.vertices().size();
+      kin.vertpos = rho;
+      kin.zpos = bary.z();
+      return kin;
+    }
+    static bool hasDirection(ticl::Trackster const&) { return true; }
   };
 }  // namespace
 
-class TruthBranchTrackValidator : public DQMGlobalEDAnalyzer<Histograms> {
+template <typename RECO>
+class TruthBranchRecoValidator : public DQMGlobalEDAnalyzer<truth::TruthBranchHistograms> {
 public:
-  explicit TruthBranchTrackValidator(edm::ParameterSet const&);
+  using Histograms = truth::TruthBranchHistograms;
+  using Traits = RecoValidationTraits<RECO>;
+  using MapType = typename Traits::MapType;
+
+  explicit TruthBranchRecoValidator(edm::ParameterSet const&);
   static void fillDescriptions(edm::ConfigurationDescriptions&);
 
 private:
@@ -47,9 +128,9 @@ private:
   // One entry per (collection, working point), in booking order.
   struct Entry {
     std::string folder;
-    edm::EDGetTokenT<std::vector<reco::Track>> recoToken;
-    edm::EDGetTokenT<SharedHitsMap> recoToSimToken;
-    edm::EDGetTokenT<SharedHitsMap> simToRecoToken;
+    edm::EDGetTokenT<std::vector<RECO>> recoToken;
+    edm::EDGetTokenT<MapType> recoToSimToken;
+    edm::EDGetTokenT<MapType> simToRecoToken;
   };
 
   const edm::EDGetTokenT<truth::Graph> graphToken_;
@@ -60,7 +141,8 @@ private:
   const truth::TruthBranchHistoProducerAlgo algo_;
 };
 
-TruthBranchTrackValidator::TruthBranchTrackValidator(edm::ParameterSet const& cfg)
+template <typename RECO>
+TruthBranchRecoValidator<RECO>::TruthBranchRecoValidator(edm::ParameterSet const& cfg)
     : graphToken_(consumes<truth::Graph>(cfg.getParameter<edm::InputTag>("src"))),
       hitIndexToken_(consumes<truth::LogicalGraphHitIndex>(cfg.getParameter<edm::InputTag>("hitIndex"))),
       dirName_(cfg.getParameter<std::string>("dirName")),
@@ -81,37 +163,40 @@ TruthBranchTrackValidator::TruthBranchTrackValidator(edm::ParameterSet const& cf
     for (auto const& wp : workingPoints) {
       Entry entry;
       entry.folder = key + "_" + wp;
-      entry.recoToken = consumes<std::vector<reco::Track>>(tag);
-      entry.recoToSimToken = consumes<SharedHitsMap>(edm::InputTag(associator, key + "ToTruthBranch" + wp));
-      entry.simToRecoToken = consumes<SharedHitsMap>(edm::InputTag(associator, "TruthBranchTo" + key + wp));
+      entry.recoToken = consumes<std::vector<RECO>>(tag);
+      entry.recoToSimToken = consumes<MapType>(edm::InputTag(associator, key + "ToTruthBranch" + wp));
+      entry.simToRecoToken = consumes<MapType>(edm::InputTag(associator, "TruthBranchTo" + key + wp));
       entries_.push_back(std::move(entry));
     }
   }
 }
 
-void TruthBranchTrackValidator::bookHistograms(DQMStore::IBooker& booker,
-                                               edm::Run const&,
-                                               edm::EventSetup const&,
-                                               Histograms& histograms) const {
+template <typename RECO>
+void TruthBranchRecoValidator<RECO>::bookHistograms(DQMStore::IBooker& booker,
+                                                    edm::Run const&,
+                                                    edm::EventSetup const&,
+                                                    Histograms& histograms) const {
   for (auto const& entry : entries_) {
     booker.setCurrentFolder(dirName_ + entry.folder);
-    algo_.bookHistos(booker, histograms.histos);
+    algo_.bookHistos(booker, histograms);
   }
 }
 
-void TruthBranchTrackValidator::dqmAnalyze(edm::Event const& event,
-                                           edm::EventSetup const&,
-                                           Histograms const& histograms) const {
+template <typename RECO>
+void TruthBranchRecoValidator<RECO>::dqmAnalyze(edm::Event const& event,
+                                                edm::EventSetup const&,
+                                                Histograms const& histograms) const {
   auto const& graph = event.get(graphToken_);
+  auto const& hitIndex = event.get(hitIndexToken_);
 
   for (std::size_t i = 0; i < entries_.size(); ++i) {
     auto const& entry = entries_[i];
 
-    edm::Handle<std::vector<reco::Track>> recoHandle;
+    edm::Handle<std::vector<RECO>> recoHandle;
     event.getByToken(entry.recoToken, recoHandle);
-    edm::Handle<SharedHitsMap> recoToSimHandle;
+    edm::Handle<MapType> recoToSimHandle;
     event.getByToken(entry.recoToSimToken, recoToSimHandle);
-    edm::Handle<SharedHitsMap> simToRecoHandle;
+    edm::Handle<MapType> simToRecoHandle;
     event.getByToken(entry.simToRecoToken, simToRecoHandle);
     if (!recoHandle.isValid() || !recoToSimHandle.isValid() || !simToRecoHandle.isValid()) {
       continue;
@@ -120,22 +205,11 @@ void TruthBranchTrackValidator::dqmAnalyze(edm::Event const& event,
     auto const& recoToSim = recoToSimHandle->getMap();
     auto const& simToReco = simToRecoHandle->getMap();
 
-    auto const& hitIndex = event.get(hitIndexToken_);
-
     // Reco side: every object, whether it found a branch, and whether that branch came
     // from a pileup interaction rather than the signal one.
     for (std::size_t r = 0; r < recoHandle->size(); ++r) {
-      auto const& track = (*recoHandle)[r];
       const bool associated = r < recoToSim.size() && !recoToSim[r].empty();
-      truth::TruthBranchHistoProducerAlgo::Kinematics kin;
-      kin.pt = track.pt();
-      kin.eta = track.eta();
-      kin.phi = track.phi();
-      kin.nhits = track.numberOfValidHits();
-      kin.vertpos = std::sqrt(track.vx() * track.vx() + track.vy() * track.vy());
-      kin.zpos = track.vz();
-      kin.dxy = track.dxy();
-      kin.dz = track.dz();
+      const Kinematics kin = Traits::kinematics((*recoHandle)[r]);
 
       bool pileup = false;
       if (associated) {
@@ -145,9 +219,9 @@ void TruthBranchTrackValidator::dqmAnalyze(edm::Event const& event,
           pileup = graph.particles()[branch].eventId != 0;
         }
       }
-      algo_.fill_reco(histograms.histos, i, kin, associated, pileup);
+      algo_.fill_reco(histograms, i, kin, associated, pileup);
       if (associated) {
-        algo_.fill_match(histograms.histos, i, recoToSim[r][0].score(), recoToSim[r][0].sharedHits());
+        algo_.fill_match(histograms, i, recoToSim[r][0].score(), recoToSim[r][0].value());
       }
     }
 
@@ -168,64 +242,77 @@ void TruthBranchTrackValidator::dqmAnalyze(edm::Event const& event,
       if (p4.pt() <= 0.) {
         continue;
       }
-      truth::TruthBranchHistoProducerAlgo::Kinematics kin;
+      Kinematics kin;
       kin.pt = p4.pt();
       kin.eta = p4.eta();
       kin.phi = p4.phi();
       // The branch's own detector footprint, which is the truth analogue of a track's
-      // hit count.
+      // hit count. Tracker for track-like domains, calorimeter for the rest, chosen by
+      // the channel the associator matched in.
       const auto subgraph = hitIndex.subgraphHits(truth::HitChannel::Tracker, b);
       kin.nhits = subgraph.size();
+      const truth::Particle branchRoot(&graph, b);
       // How deep in the graph the branch root sits. A frozen truth object has one fixed
       // level and no such axis.
-      const truth::Particle branchRoot(&graph, b);
       kin.depth = branchRoot.ancestors().size();
       // How much of the branch footprint is the root particle's own hits rather than its
       // descendants'. Near 1 is a clean single particle, near 0 a branch whose hits all
       // come from what it produced.
       const auto direct = hitIndex.directHits(truth::HitChannel::Tracker, b);
       kin.rootfrac = subgraph.empty() ? 0. : static_cast<double>(direct.size()) / subgraph.size();
-      // Position from the production vertex of the root particle.
+
+      // Position from the production vertex of the root particle, and why this particle
+      // exists, taken from the Geant4 creator process of that vertex.
       const auto vertices = branchRoot.productionVertices();
-      // Why this particle exists, taken from the Geant4 creator process of its
-      // production vertex. A branch with no production vertex is a beam-level object.
       auto reason = static_cast<unsigned int>(truth::VertexReason::Unknown);
       if (!vertices.empty()) {
-        reason = vertices.front().data().reason;
+        // A GEN-only production vertex has no Geant4 creator process, so its reason is
+        // Unknown by construction rather than by failure to classify. It gets its own
+        // bin, one past the enum, so the two do not get read as the same thing.
+        auto const& vdata = vertices.front().data();
+        reason = vdata.hasSim() ? static_cast<unsigned int>(vdata.reason)
+                                : static_cast<unsigned int>(truth::VertexReason::Other) + 1;
         const auto& pos = vertices.front().position();
         kin.vertpos = std::sqrt(pos.x() * pos.x() + pos.y() * pos.y());
         kin.zpos = pos.z();
         // Transverse and longitudinal impact parameter of the branch direction with
         // respect to the origin, the truth counterpart of the track dxy and dz.
-        kin.dxy = (p4.pt() > 0.) ? (-pos.x() * p4.py() + pos.y() * p4.px()) / p4.pt() : 0.;
-        kin.dz =
-            (p4.pt() > 0.) ? pos.z() - (pos.x() * p4.px() + pos.y() * p4.py()) / p4.pt() * (p4.pz() / p4.pt()) : 0.;
+        kin.dxy = (-pos.x() * p4.py() + pos.y() * p4.px()) / p4.pt();
+        kin.dz = pos.z() - (pos.x() * p4.px() + pos.y() * p4.py()) / p4.pt() * (p4.pz() / p4.pt());
       }
       const bool associated = !simToReco[b].empty();
       const bool duplicate = simToReco[b].size() > 1;
-      algo_.fill_simul(histograms.histos, i, kin, associated, duplicate);
-      algo_.fill_reason(histograms.histos, i, reason, associated, duplicate);
+      algo_.fill_simul(histograms, i, kin, associated, duplicate);
+      algo_.fill_reason(histograms, i, reason, associated, duplicate);
       if (associated) {
         const unsigned int r = simToReco[b][0].index();
         if (r < recoHandle->size()) {
           auto const& matched = (*recoHandle)[r];
-          algo_.fill_resolution(histograms.histos, i, kin, matched.pt(), matched.eta(), matched.phi());
+          // A vertex has no direction, so a pt or angular residual against it would be
+          // a residual against zero; only domains with a direction fill these.
+          if (Traits::hasDirection(matched)) {
+            const Kinematics recoKin = Traits::kinematics(matched);
+            algo_.fill_resolution(histograms, i, kin, recoKin.pt, recoKin.eta, recoKin.phi);
+          }
         }
       }
     }
   }
 }
 
-void TruthBranchTrackValidator::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
+template <typename RECO>
+void TruthBranchRecoValidator<RECO>::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
   edm::ParameterSetDescription desc;
   desc.add<edm::InputTag>("src", edm::InputTag("truthLogicalGraphProducer"));
   desc.add<edm::InputTag>("hitIndex", edm::InputTag("truthLogicalGraphHitIndexProducer"));
-  desc.add<std::string>("dirName", "TruthInfo/Tracking/");
-  desc.add<std::string>("associator", "allTrackToTruthBranchAssociators");
-  desc.add<std::vector<edm::InputTag>>("recoCollections", {edm::InputTag("generalTracks")});
+  desc.add<std::string>("dirName", Traits::defaultDir);
+  desc.add<std::string>("associator", Traits::defaultAssociator);
+  desc.add<std::vector<edm::InputTag>>("recoCollections", {});
   desc.add<std::vector<std::string>>("workingPoints", {"Fixed"});
 
   edm::ParameterSetDescription algo;
+  // Every axis is declared here; which of them a domain books is chosen by the two
+  // variable lists, so adding a domain needs no new axis parameter.
   const std::vector<std::tuple<std::string, int, double, double>> axes = {{"pt", 50, 0., 100.},
                                                                           {"eta", 50, -4., 4.},
                                                                           {"phi", 36, -3.2, 3.2},
@@ -241,25 +328,32 @@ void TruthBranchTrackValidator::fillDescriptions(edm::ConfigurationDescriptions&
     algo.add<double>("min_" + name, lo);
     algo.add<double>("max_" + name, hi);
   }
+  algo.add<std::vector<std::string>>("truthVariables", {"pt", "eta", "phi"});
+  algo.add<std::vector<std::string>>("recoVariables", {"pt", "eta", "phi"});
   algo.add<int>("nintScore", 50);
   algo.add<double>("minScore", 0.);
   algo.add<double>("maxScore", 1.);
   algo.add<int>("nintShared", 50);
   algo.add<double>("minShared", 0.);
   algo.add<double>("maxShared", 50.);
+  algo.add<int>("nintRes", 120);
+  algo.add<double>("minRes", -1.5);
+  algo.add<double>("maxRes", 1.5);
   algo.add<int>("nint_res_eta", 20);
   algo.add<double>("min_res_eta", -4.);
   algo.add<double>("max_res_eta", 4.);
   algo.add<int>("nint_res_pt", 15);
   algo.add<double>("min_res_pt", 0.);
   algo.add<double>("max_res_pt", 100.);
-  algo.add<int>("nintRes", 120);
-  algo.add<double>("minRes", -1.5);
-  algo.add<double>("maxRes", 1.5);
   desc.add<edm::ParameterSetDescription>("histoProducerAlgoBlock", algo);
 
-  descriptions.add("truthBranchTrackValidator", desc);
+  descriptions.add(Traits::cfiName, desc);
 }
 
 #include "FWCore/Framework/interface/MakerMacros.h"
+using TruthBranchTrackValidator = TruthBranchRecoValidator<reco::Track>;
 DEFINE_FWK_MODULE(TruthBranchTrackValidator);
+using TruthBranchVertexValidator = TruthBranchRecoValidator<reco::Vertex>;
+DEFINE_FWK_MODULE(TruthBranchVertexValidator);
+using TruthBranchTracksterValidator = TruthBranchRecoValidator<ticl::Trackster>;
+DEFINE_FWK_MODULE(TruthBranchTracksterValidator);

@@ -69,8 +69,21 @@ allSecondaryVertexToTruthBranchAssociators = allVertexToTruthBranchAssociators.c
     recoCollections=_tags("secondaryVertices"),
 )
 
+# Hit-based on the CALORIMETER channel: a trackster owns energy through its layer
+# clusters, so it is matched on shared energy, the same quantity the TICL trackster
+# validation scores against.
+truthBranchTracksterAssociators = cms.EDProducer(
+    "TruthBranchTracksterAssociatorsProducer",
+    recoCollections=_tags("tracksters"),
+    branchSelector=truthBranchSelectorBlock.clone(),
+    layerClusters=cms.InputTag("hgcalMergeLayerClusters"),
+    **_truthSources,
+    **_workingPointArgs,
+)
+
 truthGraphAssociatorsTask = cms.Task(
     allTrackToTruthBranchAssociators,
     allVertexToTruthBranchAssociators,
     allSecondaryVertexToTruthBranchAssociators,
+    truthBranchTracksterAssociators,
 )

@@ -1,11 +1,23 @@
 // Original author: Felice Pantaleo (CERN) <felice.pantaleo@cern.ch>
 
+#include <algorithm>
+#include <iterator>
+
+#include "FWCore/Utilities/interface/Exception.h"
 #include "SimDataFormats/TruthInfo/interface/VertexData.h"
 #include "Validation/TruthInfo/interface/TruthBranchHistoProducerAlgo.h"
 
 namespace {
-  // One bin per VertexReason, the enum being contiguous from Unknown to Other.
+  // One bin per VertexReason, the enum being contiguous from Unknown to Other, plus one
+  // synthetic bin. VertexReason is derived from the Geant4 creator-process subtype of a
+  // SimVertex, so a GEN-only vertex has no process and reads as Unknown. That is a
+  // different statement from "the process is not one we map", and in a pileup sample it
+  // is the dominant category: collapsePileupGen replaces each pileup interaction with
+  // one GEN-only vertex carrying all its stable particles. Giving it its own bin keeps
+  // Unknown meaning what it says.
   constexpr int kNReasons = static_cast<int>(truth::VertexReason::Other) + 1;
+  constexpr int kGenOnlyBin = kNReasons;
+  constexpr int kNReasonBins = kNReasons + 1;
 }  // namespace
 
 namespace truth {
@@ -26,40 +38,58 @@ namespace truth {
         resPtAxis_{pset.getParameter<int>("nint_res_pt"),
                    pset.getParameter<double>("min_res_pt"),
                    pset.getParameter<double>("max_res_pt")} {
-    // One axis per Variable, read in the enum order so the vectors line up.
-    for (auto const& name : kVariableNames) {
-      axes_.push_back({pset.getParameter<int>("nint_" + name),
-                       pset.getParameter<double>("min_" + name),
-                       pset.getParameter<double>("max_" + name)});
-    }
+    // Resolve a variable name to its position in Kinematics::asVector, so a typo in the
+    // configuration is a configuration error and not a silently missing plot.
+    auto resolve = [&](std::vector<std::string> const& names,
+                       std::vector<std::size_t>& indices,
+                       std::vector<std::string>& kept,
+                       std::vector<Axis>& axes) {
+      for (auto const& name : names) {
+        const auto it = std::find(kVariableNames.begin(), kVariableNames.end(), name);
+        if (it == kVariableNames.end()) {
+          throw cms::Exception("Configuration") << "unknown truth-branch plot variable '" << name << "'";
+        }
+        indices.push_back(static_cast<std::size_t>(std::distance(kVariableNames.begin(), it)));
+        kept.push_back(name);
+        axes.push_back({pset.getParameter<int>("nint_" + name),
+                        pset.getParameter<double>("min_" + name),
+                        pset.getParameter<double>("max_" + name)});
+      }
+    };
+    resolve(pset.getParameter<std::vector<std::string>>("truthVariables"), truthVars_, truthVarNames_, truthAxes_);
+    resolve(pset.getParameter<std::vector<std::string>>("recoVariables"), recoVars_, recoVarNames_, recoAxes_);
   }
 
   void TruthBranchHistoProducerAlgo::bookHistos(dqm::implementation::IBooker& booker, TruthBranchHistograms& h) const {
     // The ME names are the harvesting API: DQMGenericClient forms every ratio from
     // these by string, so a rename silently drops a plot rather than failing.
-    auto bookRow = [&](std::vector<TruthBranchHistograms::MERow>& rows, std::string const& prefix) {
+    auto bookRow = [&](std::vector<TruthBranchHistograms::MERow>& rows,
+                       std::string const& prefix,
+                       std::vector<std::string> const& names,
+                       std::vector<Axis> const& axes) {
       TruthBranchHistograms::MERow row;
-      for (std::size_t v = 0; v < kVariableNames.size(); ++v) {
-        auto const& name = kVariableNames[v];
-        auto const& axis = axes_[v];
+      for (std::size_t v = 0; v < names.size(); ++v) {
+        auto const& name = names[v];
+        auto const& axis = axes[v];
         row.push_back(booker.book1D(prefix + "_" + name, prefix + " vs " + name, axis.nbins, axis.min, axis.max));
       }
       rows.push_back(std::move(row));
     };
 
-    bookRow(h.h_simul, "num_simul");
-    bookRow(h.h_assoc_simToReco, "num_assoc(simToReco)");
-    bookRow(h.h_reco, "num_reco");
-    bookRow(h.h_assoc_recoToSim, "num_assoc(recoToSim)");
-    bookRow(h.h_duplicate, "num_duplicate");
-    bookRow(h.h_pileup, "num_pileup");
+    bookRow(h.h_simul, "num_simul", truthVarNames_, truthAxes_);
+    bookRow(h.h_assoc_simToReco, "num_assoc(simToReco)", truthVarNames_, truthAxes_);
+    bookRow(h.h_duplicate, "num_duplicate", truthVarNames_, truthAxes_);
+    bookRow(h.h_reco, "num_reco", recoVarNames_, recoAxes_);
+    bookRow(h.h_assoc_recoToSim, "num_assoc(recoToSim)", recoVarNames_, recoAxes_);
+    bookRow(h.h_pileup, "num_pileup", recoVarNames_, recoAxes_);
 
     // Categorical axis: one labelled bin per Geant4 creation process.
     auto bookReason = [&](std::vector<TruthBranchHistograms::METype>& v, std::string const& name) {
-      auto* me = booker.book1D(name, name, kNReasons, -0.5, kNReasons - 0.5);
+      auto* me = booker.book1D(name, name, kNReasonBins, -0.5, kNReasonBins - 0.5);
       for (int r = 0; r < kNReasons; ++r) {
         me->setBinLabel(r + 1, truth::vertexReasonName(static_cast<truth::VertexReason>(r)));
       }
+      me->setBinLabel(kGenOnlyBin + 1, "GenOnly");
       v.push_back(me);
     };
     bookReason(h.h_simul_reason, "num_simul_reason");
@@ -99,13 +129,14 @@ namespace truth {
   void TruthBranchHistoProducerAlgo::fill_simul(
       TruthBranchHistograms const& h, std::size_t i, Kinematics const& kin, bool associated, bool duplicate) const {
     const auto values = kin.asVector();
-    for (std::size_t v = 0; v < values.size(); ++v) {
-      h.h_simul[i][v]->Fill(values[v]);
+    for (std::size_t v = 0; v < truthVars_.size(); ++v) {
+      const double x = values[truthVars_[v]];
+      h.h_simul[i][v]->Fill(x);
       if (associated) {
-        h.h_assoc_simToReco[i][v]->Fill(values[v]);
+        h.h_assoc_simToReco[i][v]->Fill(x);
       }
       if (duplicate) {
-        h.h_duplicate[i][v]->Fill(values[v]);
+        h.h_duplicate[i][v]->Fill(x);
       }
     }
   }
@@ -113,13 +144,14 @@ namespace truth {
   void TruthBranchHistoProducerAlgo::fill_reco(
       TruthBranchHistograms const& h, std::size_t i, Kinematics const& kin, bool associated, bool pileup) const {
     const auto values = kin.asVector();
-    for (std::size_t v = 0; v < values.size(); ++v) {
-      h.h_reco[i][v]->Fill(values[v]);
+    for (std::size_t v = 0; v < recoVars_.size(); ++v) {
+      const double x = values[recoVars_[v]];
+      h.h_reco[i][v]->Fill(x);
       if (associated) {
-        h.h_assoc_recoToSim[i][v]->Fill(values[v]);
+        h.h_assoc_recoToSim[i][v]->Fill(x);
       }
       if (pileup) {
-        h.h_pileup[i][v]->Fill(values[v]);
+        h.h_pileup[i][v]->Fill(x);
       }
     }
   }
@@ -127,7 +159,7 @@ namespace truth {
   void TruthBranchHistoProducerAlgo::fill_reason(
       TruthBranchHistograms const& h, std::size_t i, unsigned int reason, bool associated, bool duplicate) const {
     const double bin =
-        (reason < static_cast<unsigned int>(kNReasons)) ? reason : static_cast<double>(truth::VertexReason::Other);
+        (reason < static_cast<unsigned int>(kNReasonBins)) ? reason : static_cast<double>(truth::VertexReason::Other);
     h.h_simul_reason[i]->Fill(bin);
     if (associated) {
       h.h_assoc_simToReco_reason[i]->Fill(bin);

@@ -29,6 +29,7 @@
 #include "FWCore/ParameterSet/interface/ParameterSetDescription.h"
 
 #include "DataFormats/CaloRecHit/interface/CaloCluster.h"
+#include "DataFormats/HGCalReco/interface/Trackster.h"
 #include "DataFormats/TrackReco/interface/Track.h"
 #include "DataFormats/VertexReco/interface/Vertex.h"
 #include "SimDataFormats/Associations/interface/TICLAssociationMap.h"
@@ -108,6 +109,19 @@ namespace {
       forEachConstituent(vertex, [&total](unsigned int, float w) { total += w; });
       return total;
     }
+  };
+
+  // A trackster owns calorimeter energy through its layer clusters, so it is matched
+  // directly like a track, but on SHARED ENERGY in the calorimeter channel rather than
+  // on a hit count in the tracker. This is the same metric the TICL trackster
+  // validation scores against, so the two are comparable.
+  template <>
+  struct TruthAssociationTraits<ticl::Trackster> {
+    static constexpr auto strategy = AssociationStrategy::HitBased;
+    using MapType = ticl::AssociationMap<ticl::mapWithSharedEnergyAndScore>;
+    static constexpr truth::HitChannel channel = truth::HitChannel::Calo;
+    static constexpr auto metric = truth::BranchHitAssociator::Metric::SharedEnergy;
+    static constexpr const char* cfiName = "truthBranchTracksterAssociators";
   };
 
   template <typename RECO>
@@ -381,3 +395,13 @@ using AllTrackToTruthBranchAssociatorsProducer = AllRecoToTruthBranchAssociators
 DEFINE_FWK_MODULE(AllTrackToTruthBranchAssociatorsProducer);
 using AllVertexToTruthBranchAssociatorsProducer = AllRecoToTruthBranchAssociatorsProducer<reco::Vertex>;
 DEFINE_FWK_MODULE(AllVertexToTruthBranchAssociatorsProducer);
+// NOT named AllTracksterToTruthBranchAssociatorsProducer: that class already exists in
+// PhysicsTools/TruthInfo. The two are not interchangeable. The older one keys its
+// product instances by label+instance with no separator, offers one adaptive point next
+// to the fixed match, and takes its candidate roots from an external product; this one
+// keys by label_instance, carries the whole working-point list, and publishes
+// selectedBranchRoots so a validator can use the same denominator the associator used.
+// Consolidating the two is follow-up work; until then a duplicate class name would make
+// the framework pick one of them at random.
+using TruthBranchTracksterAssociatorsProducer = AllRecoToTruthBranchAssociatorsProducer<ticl::Trackster>;
+DEFINE_FWK_MODULE(TruthBranchTracksterAssociatorsProducer);

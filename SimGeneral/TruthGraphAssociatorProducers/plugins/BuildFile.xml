@@ -4,6 +4,7 @@
 <use name="DataFormats/TrackReco"/>
 <use name="DataFormats/VertexReco"/>
 <use name="DataFormats/CaloRecHit"/>
+<use name="DataFormats/HGCalReco"/>
 <use name="SimDataFormats/Associations"/>
 <use name="SimDataFormats/TruthInfo"/>
 <use name="PhysicsTools/TruthInfo"/>
