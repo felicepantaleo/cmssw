@@ -219,8 +219,18 @@ def bin_labels(h):
     return labels if any(labels) else None
 
 
+# The two reconstructions of the same event. They are never pooled: each gets its own
+# pages, so a comparison is between pages and not inside a plot.
+FLAVOURS = ["Offline", "HLT"]
+
+
 def discover(tfile):
-    """Yield (category, folder, TDirectory) for every directory holding histograms."""
+    """Yield (flavour, category, folder, TDirectory) for every directory with histograms.
+
+    The DQM path is TruthInfo/<flavour>/<category>/<collection>_<workingPoint>. A file
+    written before the flavour level existed has no such component and is reported as
+    Offline, so old files still plot.
+    """
 
     def walk(directory, path):
         holds = False
@@ -231,7 +241,8 @@ def discover(tfile):
             elif obj.InheritsFrom("TH1"):
                 holds = True
         if holds and len(path) >= 2:
-            yield path[-2], path[-1], directory
+            flavour = path[-3] if len(path) >= 3 and path[-3] in FLAVOURS else "Offline"
+            yield flavour, path[-2], path[-1], directory
 
     yield from walk(tfile, [])
 
@@ -244,12 +255,13 @@ def collect(files):
         if not tfile or tfile.IsZombie():
             print(f"cannot open {fname}", file=sys.stderr)
             continue
-        for category, folder, folderDir in discover(tfile):
+        for flavour, category, folder, folderDir in discover(tfile):
             # Folder is "<collection>_<workingPoint>"; split on the LAST underscore so a
             # collection label containing underscores survives.
             if "_" not in folder:
                 continue
             collection, wp = folder.rsplit("_", 1)
+            category = f"{flavour}/{category}"
             for key in folderDir.GetListOfKeys():
                 # The per-process population is the denominator of the categorical
                 # ratios; it is carried along so a bar can be dropped when the process
@@ -472,8 +484,8 @@ def plot_metric(category, collection, metric, var, per_wp, outdir, index, slices
     rax.set_xlabel(xvar)
     rax.grid(alpha=0.3)
 
-    name = f"{index:02d}_{category}_{collection}_{metric}_vs_{var}.png"
-    fig.savefig(os.path.join(outdir, metric, name), dpi=150)
+    name = f"{index:02d}_{category.split('/')[-1]}_{collection}_{metric}_vs_{var}.png"
+    fig.savefig(os.path.join(outdir, category.split("/", 1)[0], metric, name), dpi=150)
     plt.close(fig)
     return name, caption
 
@@ -549,8 +561,8 @@ def plot_categorical(category, collection, metric, var, per_wp, counts, outdir, 
                f"(N={int(population[top])}) at {per_wp[wps[0]][1][top]:.2f} for {wps[0]}."
                if population is not None else title)
 
-    name = f"{index:02d}_{category}_{collection}_{metric}_vs_{var}.png"
-    fig.savefig(os.path.join(outdir, metric, name), dpi=150)
+    name = f"{index:02d}_{category.split('/')[-1]}_{collection}_{metric}_vs_{var}.png"
+    fig.savefig(os.path.join(outdir, category.split("/", 1)[0], metric, name), dpi=150)
     plt.close(fig)
     return name, caption
 
@@ -593,8 +605,8 @@ def plot_residual(category, collection, source, per_wp, outdir, index):
     ref = cores.get(REFERENCE_WP)
     caption = (f"{source} residual distribution, area normalised. Fraction within 10%: "
                + ", ".join(f"{w} {cores[w]:.2f}" for w in wps if w in cores) + ".") if cores else source
-    name = f"{index:02d}_{category}_{collection}_{source}_distribution.png"
-    fig.savefig(os.path.join(outdir, "resolution", name), dpi=150)
+    name = f"{index:02d}_{category.split('/')[-1]}_{collection}_{source}_distribution.png"
+    fig.savefig(os.path.join(outdir, category.split("/", 1)[0], "resolution", name), dpi=150)
     plt.close(fig)
     return name, caption
 
@@ -624,8 +636,8 @@ def plot_composition(category, collection, counts, outdir, index):
 
     caption = ("Composition of the truth-branch denominator by the Geant4 process that created each branch root. "
                f"Leading process {labels[order[0]]} at {frac[0]*100:.0f}% of {int(values.sum())} branches.")
-    name = f"{index:02d}_{category}_{collection}_composition_by_reason.png"
-    fig.savefig(os.path.join(outdir, "composition", name), dpi=150)
+    name = f"{index:02d}_{category.split('/')[-1]}_{collection}_composition_by_reason.png"
+    fig.savefig(os.path.join(outdir, category.split("/", 1)[0], "composition", name), dpi=150)
     plt.close(fig)
     return name, caption
 
@@ -641,8 +653,9 @@ def main():
     os.makedirs(args.outputDir, exist_ok=True)
     # One real directory per metric, so the gallery browses as folders and not as one
     # flat list of sixty files.
-    for metric in METRIC_ORDER:
-        os.makedirs(os.path.join(args.outputDir, metric), exist_ok=True)
+    for flavour in FLAVOURS:
+        for metric in METRIC_ORDER:
+            os.makedirs(os.path.join(args.outputDir, flavour, metric), exist_ok=True)
     data = collect(args.files)
     if not data:
         print("no populated monitor elements found", file=sys.stderr)
@@ -716,16 +729,17 @@ def main():
                                         "var": var, "png": name, "caption": caption})
                         index += 1
 
-    by_metric = {}
+    by_page = {}
     for entry in written:
-        by_metric.setdefault(entry["metric"], []).append(entry)
+        flavour = entry["category"].split("/", 1)[0]
+        by_page.setdefault((flavour, entry["metric"]), []).append(entry)
 
     # One page per metric, each opening with the definition of the quantity it shows.
-    for metric, entries in by_metric.items():
+    for (flavour, metric), entries in by_page.items():
         label, meaning, formula = METRICS[metric]
-        with open(os.path.join(args.outputDir, f"{metric}.html"), "w") as page:
+        with open(os.path.join(args.outputDir, f"{flavour}_{metric}.html"), "w") as page:
             page.write(f"<!doctype html><meta charset='utf-8'><title>{label}</title><style>{STYLE}</style>")
-            page.write(f"<h1>{label}</h1><p><a href='index.html'>back to index</a></p>")
+            page.write(f"<h1>{flavour}: {label}</h1><p><a href='index.html'>back to index</a></p>")
             page.write(f"<div class='def'><b>Definition.</b> {meaning}<br><br>"
                        f"<span class='f'>{formula}</span><br><br>"
                        "Each plot overlays the four branch-association working points. <b>Fixed</b> keeps every "
@@ -741,21 +755,21 @@ def main():
                     meaning = VARIABLE_MEANING.get(v) or CATEGORICAL_MEANING.get(v, v)
                     page.write(f"<li><span class='f'>{v}</span> {meaning}</li>")
                 page.write("</ul></div>")
-            for category in sorted({e["category"] for e in entries}):
+            for category in sorted({e["category"].split("/")[-1] for e in entries}):
                 if category in CATEGORY_NOTE:
                     page.write(f"<div class='def'><b>{category}.</b> {CATEGORY_NOTE[category]}</div>")
             for collection in sorted({e["collection"] for e in entries}):
                 page.write(f"<h2>{collection}</h2><div class='grid'>")
                 for e in [x for x in entries if x["collection"] == collection]:
-                    href = f"{metric}/{e['png']}"
+                    href = f"{flavour}/{metric}/{e['png']}"
                     page.write(f"<a href='{href}'><img src='{href}' width='400'></a>")
                 page.write("</div>")
 
     # Each folder carries its own definitions, so a reader who lands in the folder
     # without going through the index still knows what the plots in it mean.
-    for metric, entries in by_metric.items():
+    for (flavour, metric), entries in by_page.items():
         label, meaning, formula = METRICS[metric]
-        with open(os.path.join(args.outputDir, metric, "DEFINITIONS.md"), "w") as defs:
+        with open(os.path.join(args.outputDir, flavour, metric, "DEFINITIONS.md"), "w") as defs:
             defs.write(f"# {label}\n\nSample: {args.sample}.\n\n## Definition\n\n{meaning}\n\n")
             defs.write(f"    {formula}\n\n## Working points\n\n")
             defs.write("Each plot overlays the four branch-association working points. Fixed keeps every matching\n"
@@ -771,7 +785,7 @@ def main():
                        f"- A Gaussian slice fit is drawn only if its slice has at least {MIN_SLICE_ENTRIES} entries\n"
                        "  and the fitted width is inside the fit range and wider than one bin.\n"
                        "- A named category is drawn only if the sample populated it.\n")
-            _cats = sorted({e["category"] for e in entries if e["category"] in CATEGORY_NOTE})
+            _cats = sorted({c for c in (e["category"].split("/")[-1] for e in entries) if c in CATEGORY_NOTE})
             if _cats:
                 defs.write("\n## Caveats by domain\n\n")
                 for _c in _cats:
@@ -790,13 +804,24 @@ def main():
                   "TrackingParticles or CaloParticles. A branch is recomputed on demand from the graph, so the "
                   "same validation can be re-run against a different definition of what counts as one truth "
                   "object. Only branches passing the branch selector enter the denominators.</div>")
-        idx.write("<h2>Metrics</h2><ul class='idx'>")
-        for metric in METRIC_ORDER:
-            if metric not in by_metric:
+        for flavour in FLAVOURS:
+            pages = [m for m in METRIC_ORDER if (flavour, m) in by_page]
+            if not pages:
                 continue
-            label, meaning, formula = METRICS[metric]
-            idx.write(f"<li><a href='{metric}.html'><b>{label}</b></a> <span class='f'>{formula}</span>"
-                      f"<br>{meaning}</li>")
+            idx.write(f"<h2>{flavour} reconstruction</h2>")
+            collections = sorted({e["collection"] for (f, _), es in by_page.items() if f == flavour for e in es})
+            idx.write(f"<p>Collections: {', '.join('<span class=\'f\'>' + c + '</span>' for c in collections)}</p>")
+            idx.write("<ul class='idx'>")
+            for metric in pages:
+                label, meaning, formula = METRICS[metric]
+                idx.write(f"<li><a href='{flavour}_{metric}.html'><b>{label}</b></a> "
+                          f"<span class='f'>{formula}</span><br>{meaning}</li>")
+            idx.write("</ul>")
+        idx.write("<h2>Reading the two together</h2><p>Offline and HLT are two different reconstructions of "
+                  "the SAME event, validated against the same truth objects with the same working points, so a "
+                  "difference between the two pages is a difference between the reconstructions and not between "
+                  "the truth definitions. They are never pooled into one plot.</p>")
+        idx.write("<ul class='idx'>")
         idx.write("</ul><h2>Variables</h2><ul class='idx'>")
         for var in VARIABLE_ORDER:
             idx.write(f"<li><span class='f'>{var}</span> {VARIABLE_MEANING[var]}</li>")
@@ -818,15 +843,20 @@ def main():
 
     with open(os.path.join(args.outputDir, "README.md"), "w") as readme:
         readme.write(f"# {args.title}\n\nSample: {args.sample}.\n")
-        for metric in METRIC_ORDER:
-            entries = by_metric.get(metric, [])
-            if not entries:
+        for flavour in FLAVOURS:
+            if not any(f == flavour for f, _ in by_page):
                 continue
-            label, meaning, formula = METRICS[metric]
-            readme.write(f"\n## {label}\n\n{meaning}\n\n    {formula}\n\n")
-            readme.write(f"Folder `{metric}/`, definitions in `{metric}/DEFINITIONS.md`.\n\n")
-            for e in entries:
-                readme.write(f"- `{metric}/{e['png']}`: {e['caption']}\n")
+            readme.write(f"\n# {flavour} reconstruction\n")
+            for metric in METRIC_ORDER:
+                entries = by_page.get((flavour, metric), [])
+                if not entries:
+                    continue
+                label, meaning, formula = METRICS[metric]
+                readme.write(f"\n## {label}\n\n{meaning}\n\n    {formula}\n\n")
+                readme.write(f"Folder `{flavour}/{metric}/`, definitions in "
+                             f"`{flavour}/{metric}/DEFINITIONS.md`.\n\n")
+                for e in entries:
+                    readme.write(f"- `{flavour}/{metric}/{e['png']}`: {e['caption']}\n")
         readme.write("\n## Proposed plots, not yet implemented\n\n")
         for title, why in PROPOSED:
             readme.write(f"- **{title}.** {why}\n")
@@ -836,7 +866,7 @@ def main():
                    "description": f"Truth-branch association metrics ({args.sample})",
                    "icon": "chart", "access": "public"}, orbit, indent=2)
 
-    print(f"wrote {len(written)} plots in {len(by_metric)} metric pages to {args.outputDir}")
+    print(f"wrote {len(written)} plots in {len(by_page)} pages to {args.outputDir}")
     return 0
 
 

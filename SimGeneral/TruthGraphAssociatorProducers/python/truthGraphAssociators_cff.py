@@ -40,8 +40,8 @@ _truthSources = dict(
 )
 
 
-def _tags(domain):
-    return cms.VInputTag(*[cms.InputTag(*label.split(":")) for label in recoLabels(domain)])
+def _tags(domain, flavour="offline"):
+    return cms.VInputTag(*[cms.InputTag(*label.split(":")) for label in recoLabels(domain, flavour)])
 
 
 # Hit-based: the object owns detector hits.
@@ -89,9 +89,27 @@ truthBranchTracksterAssociators = cms.EDProducer(
     **_workingPointArgs,
 )
 
+# The HLT menu's own reconstruction of the same event. Same producers, same working
+# points, different input collections, so the two can be compared page by page.
+hltTrackToTruthBranchAssociators = allTrackToTruthBranchAssociators.clone(
+    recoCollections=_tags("tracks", "hlt"),
+)
+hltVertexToTruthBranchAssociators = allVertexToTruthBranchAssociators.clone(
+    recoCollections=_tags("vertices", "hlt"),
+    constituentAssociator="hltTrackToTruthBranchAssociators",
+    constituentCollection="hltGeneralTracks",
+)
+hltTruthBranchTracksterAssociators = truthBranchTracksterAssociators.clone(
+    recoCollections=_tags("tracksters", "hlt"),
+    layerClusters="hltMergeLayerClusters",
+)
+
 truthGraphAssociatorsTask = cms.Task(
     allTrackToTruthBranchAssociators,
     allVertexToTruthBranchAssociators,
     allSecondaryVertexToTruthBranchAssociators,
     truthBranchTracksterAssociators,
+    hltTrackToTruthBranchAssociators,
+    hltVertexToTruthBranchAssociators,
+    hltTruthBranchTracksterAssociators,
 )

@@ -66,7 +66,7 @@ _domains = [
         module="TruthBranchTrackValidator",
         label="truthBranchTrackValidator",
         associator="allTrackToTruthBranchAssociators",
-        dirName="TruthInfo/Tracking/",
+        dirName="TruthInfo/Offline/Tracking/",
         recoVariables=["pt", "eta", "phi", "nhits", "vertpos", "zpos", "dxy", "dz"],
     ),
     dict(
@@ -74,7 +74,7 @@ _domains = [
         module="TruthBranchVertexValidator",
         label="truthBranchVertexValidator",
         associator="allVertexToTruthBranchAssociators",
-        dirName="TruthInfo/Vertexing/",
+        dirName="TruthInfo/Offline/Vertexing/",
         # A vertex has a position and a track multiplicity, and nothing else this set
         # can express. The TRUTH object here is a graph vertex, not a particle branch,
         # so pt, eta, depth and root_footprint_fraction do not exist on that side either.
@@ -91,7 +91,7 @@ _domains = [
         module="TruthBranchVertexValidator",
         label="truthBranchSecondaryVertexValidator",
         associator="allSecondaryVertexToTruthBranchAssociators",
-        dirName="TruthInfo/SecondaryVertexing/",
+        dirName="TruthInfo/Offline/SecondaryVertexing/",
         recoVariables=["nhits", "vertpos", "zpos"],
         truthVariables=["nhits", "vertpos", "zpos"],
         sharedRange=(0.0, 1.0),
@@ -101,12 +101,30 @@ _domains = [
         module="TruthBranchTracksterValidator",
         label="truthBranchTracksterValidator",
         associator="truthBranchTracksterAssociators",
-        dirName="TruthInfo/Calorimetry/",
+        dirName="TruthInfo/Offline/Calorimetry/",
         # A trackster has a barycentre and a layer-cluster count; its pt is the raw
         # energy projected transversally along that barycentre.
         recoVariables=["pt", "eta", "phi", "nhits", "vertpos", "zpos"],
     ),
 ]
+
+# The HLT menu's reconstruction of the same event, same domains and same variables. A
+# domain the menu does not reconstruct has no labels and is skipped below, so nothing
+# has to be commented out when the menu changes.
+_hltDomains = [
+    dict(_d,
+         flavour="hlt",
+         label="hlt" + _d["label"][0].upper() + _d["label"][1:],
+         associator={"allTrackToTruthBranchAssociators": "hltTrackToTruthBranchAssociators",
+                     "allVertexToTruthBranchAssociators": "hltVertexToTruthBranchAssociators",
+                     "allSecondaryVertexToTruthBranchAssociators": "hltVertexToTruthBranchAssociators",
+                     "truthBranchTracksterAssociators": "hltTruthBranchTracksterAssociators"}[_d["associator"]],
+         dirName=_d["dirName"].replace("TruthInfo/Offline/", "TruthInfo/HLT/"))
+    for _d in _domains
+]
+for _d in _domains:
+    _d["flavour"] = "offline"
+_domains = _domains + [_d for _d in _hltDomains if recoLabels(_d["name"], "hlt")]
 
 
 def _algoBlock(recoVariables, truthVariables=None, sharedRange=None, axisOverrides=None):
@@ -186,7 +204,8 @@ for _d in _domains:
         hitIndex=cms.InputTag("truthLogicalGraphHitIndexProducer"),
         dirName=cms.string(_d["dirName"]),
         associator=cms.string(_d["associator"]),
-        recoCollections=cms.VInputTag(*[cms.InputTag(*l.split(":")) for l in recoLabels(_d["name"])]),
+        recoCollections=cms.VInputTag(
+            *[cms.InputTag(*l.split(":")) for l in recoLabels(_d["name"], _d["flavour"])]),
         workingPoints=cms.vstring(*_wps),
         histoProducerAlgoBlock=_algoBlock(_d["recoVariables"], _d.get("truthVariables"),
                                           _d.get("sharedRange"), _d.get("axisOverrides")),
@@ -195,7 +214,7 @@ for _d in _domains:
     truthBranchValidationSequence += _analyzer
 
     _folders = [_d["dirName"] + instanceKey(_label) + "_" + _wp
-                for _label in recoLabels(_d["name"]) for _wp in _wps]
+                for _label in recoLabels(_d["name"], _d["flavour"]) for _wp in _wps]
     _harvester = DQMEDHarvester(
         "DQMGenericClient",
         subDirs=cms.untracked.vstring(*_folders),

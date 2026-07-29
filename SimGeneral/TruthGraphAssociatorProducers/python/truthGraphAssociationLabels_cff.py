@@ -29,6 +29,20 @@ truthGraphRecoLabelsPSet = cms.PSet(
     tracksters=cms.vstring(*[l for l in ticlIterLabelsPSet.labels if l != "ticlCandidate"]),
 )
 
+# The same domains reconstructed by the HLT menu. Kept as a separate PSet rather than
+# extra entries in the offline one because the two are different reconstructions of the
+# same event and must be compared, not pooled: they get their own producers, their own
+# DQM folders and their own pages. A domain the menu does not reconstruct is left empty
+# and simply produces nothing.
+truthGraphHltRecoLabelsPSet = cms.PSet(
+    tracks=cms.vstring("hltGeneralTracks"),
+    vertices=cms.vstring("hltOfflinePrimaryVertices"),
+    secondaryVertices=cms.vstring(),
+    pfCandidates=cms.vstring(),
+    jets=cms.vstring(),
+    tracksters=cms.vstring("hltTiclTrackstersCLUE3DHigh", "hltTiclTracksterLinks"),
+)
+
 # Working points of the branch association. Fixed is the plain per-root match; the
 # adaptive points differ only in how much branch spread they tolerate before
 # rejecting a level, so they bracket the climb rather than sample it densely.
@@ -50,9 +64,14 @@ def workingPoints():
     )
 
 
-def recoLabels(domain):
-    """The reco collection labels configured for one domain."""
-    return list(getattr(truthGraphRecoLabelsPSet, domain))
+def recoLabels(domain, flavour="offline"):
+    """The reco collection labels configured for one domain and one reconstruction.
+
+    flavour is "offline" or "hlt"; they are separate reconstructions of the same event,
+    so they are never pooled.
+    """
+    pset = truthGraphRecoLabelsPSet if flavour == "offline" else truthGraphHltRecoLabelsPSet
+    return list(getattr(pset, domain))
 
 
 def instanceKey(label):
