@@ -63,7 +63,7 @@ namespace {
     static bool hasDirection(reco::Track const&) { return true; }
     // The truth side of a hit-based domain iterates branch roots, which are particles.
     static constexpr bool truthIsVertex = false;
-    static constexpr const char* denominatorInstance = "selectedBranchRoots";
+    static constexpr const char* denominatorInstance = "truthToRecoTargets";
   };
 
   // A vertex has no momentum, so only its position and its track multiplicity are
@@ -88,7 +88,7 @@ namespace {
     // A composite object is associated to a truth VERTEX, so the truth side iterates
     // vertices and the denominator is the set of reconstructable ones.
     static constexpr bool truthIsVertex = true;
-    static constexpr const char* denominatorInstance = "selectedTruthVertices";
+    static constexpr const char* denominatorInstance = "truthToRecoTargets";
   };
 
   // A trackster carries calorimeter energy through its layer clusters. Its momentum
@@ -117,7 +117,7 @@ namespace {
     }
     static bool hasDirection(ticl::Trackster const&) { return true; }
     static constexpr bool truthIsVertex = false;
-    static constexpr const char* denominatorInstance = "selectedBranchRoots";
+    static constexpr const char* denominatorInstance = "truthToRecoTargets";
   };
 }  // namespace
 
