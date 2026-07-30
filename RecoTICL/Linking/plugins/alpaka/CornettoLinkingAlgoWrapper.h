@@ -20,7 +20,18 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     float timeCompatibilityNSigma;
     float maxLongitudinalSlope;
     float longitudinalZRef;
+    // Seeded growth (see the CPU plugin): cores above seedEnergy grow by attaching
+    // satellites that stay inside the window, downstream of the core and within
+    // axisToleranceCos of its axis. seededGrowth false keeps connected components.
+    bool seededGrowth;
+    float seedEnergy;
+    float axisToleranceCos;
+    bool forwardOnly;
   };
+
+  // Growth rounds; one kernel launch each. Must match kMaxGrowthRounds in the CPU
+  // plugin or the two backends can stop at different points.
+  inline constexpr int kMaxGrowthRounds = 8;
 
   class CornettoLinkingAlgoWrapper {
   public:
