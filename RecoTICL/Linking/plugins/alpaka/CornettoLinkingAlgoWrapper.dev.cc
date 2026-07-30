@@ -127,6 +127,222 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
 
     // Kernels
 
+
+    // --- Seeded growth ---------------------------------------------------------
+    // Same algorithm as the CPU plugin: cores grow by attaching satellites, satellites
+    // never attach to each other, so no chain can form. Each round is a pure map over
+    // the satellites judged against the core state as it was at the start of the round,
+    // which is why the result does not depend on execution order and the two backends
+    // stay bitwise identical.
+
+    // Does core s accept satellite c, given the core centroid and axis of this round?
+    ALPAKA_FN_ACC ALPAKA_FN_INLINE bool cornettoAttach(const TracksterDeviceCollection::ConstView& ts,
+                                                       const CornettoParameters& p,
+                                                       const float* coreE,
+                                                       const float* coreX,
+                                                       const float* coreY,
+                                                       const float* coreZ,
+                                                       int32_t s,
+                                                       int32_t c) {
+      const float invE = 1.f / coreE[s];
+      const float cx = coreX[s] * invE;
+      const float cy = coreY[s] * invE;
+      const float cz = coreZ[s] * invE;
+      if (cz * ts[c].baryZ() < 0.f)
+        return false;  // same endcap only
+      const float cr = std::sqrt(cx * cx + cy * cy + cz * cz);
+      if (cr <= 0.f)
+        return false;
+      // Axis from the interaction point to the core centroid: defined for every
+      // trackster, unlike the PCA eigenvector of a single layer cluster.
+      const float ax = cx / cr, ay = cy / cr, az = cz / cr;
+      const float cEta = std::asinh(cz / std::sqrt(cx * cx + cy * cy));
+      const float cPhi = std::atan2(cy, cx);
+      if (std::abs(ts[c].eta() - cEta) > p.etaWindow)
+        return false;
+      if (std::abs(deltaPhi(ts[c].phi(), cPhi)) > p.etaWindow)
+        return false;
+
+      const float dx = ts[c].baryX() - cx;
+      const float dy = ts[c].baryY() - cy;
+      const float dz = ts[c].baryZ() - cz;
+      const float sProj = dx * ax + dy * ay + dz * az;
+      if (p.forwardOnly and sProj < 0.f)
+        return false;  // a shower develops in depth
+      const float zrel = std::abs(cz) - p.longitudinalZRef;
+      const float maxLong = p.maxLongitudinalDistance + p.maxLongitudinalSlope * (zrel > 0.f ? zrel : 0.f);
+      if (std::abs(sProj) > maxLong)
+        return false;
+      const float dT2raw = dx * dx + dy * dy + dz * dz - sProj * sProj;
+      const float dT2 = (dT2raw > 0.f) ? dT2raw : 0.f;
+      const float rT = p.transverseRadius0 + p.transverseSlope * std::abs(sProj);
+      if (dT2 > rT * rT)
+        return false;
+
+      const float teS = ts[s].timeError();
+      const float teC = ts[c].timeError();
+      if (teS > 0.f and teC > 0.f) {
+        const float sigma2 = teS * teS + teC * teC;
+        const float dt = ts[s].time() - ts[c].time();
+        if (dt * dt > p.timeCompatibilityNSigma * p.timeCompatibilityNSigma * sigma2)
+          return false;
+      }
+
+      // Axis stability: a satellite that would swing the core direction belongs to a
+      // neighbouring shower.
+      const float eC = ts[c].rawEnergy();
+      const float nE = coreE[s] + eC;
+      const float nx = coreX[s] + ts[c].baryX() * eC;
+      const float ny = coreY[s] + ts[c].baryY() * eC;
+      const float nz = coreZ[s] + ts[c].baryZ() * eC;
+      const float nr = std::sqrt(nx * nx + ny * ny + nz * nz);
+      if (nr <= 0.f)
+        return false;
+      const float invN = 1.f / nr;
+      if ((nx * invN) * ax + (ny * invN) * ay + (nz * invN) * az < p.axisToleranceCos)
+        return false;
+      (void)nE;
+      return true;
+    }
+
+    class InitCoresKernel {
+    public:
+      ALPAKA_FN_ACC void operator()(Acc1D const& acc,
+                                    const TracksterDeviceCollection::ConstView ts,
+                                    CornettoParameters p,
+                                    int32_t* owner,
+                                    float* coreE,
+                                    float* coreX,
+                                    float* coreY,
+                                    float* coreZ) const {
+        for (int32_t i : uniform_elements(acc, ts.metadata().size())) {
+          const float e = ts[i].rawEnergy();
+          const bool isCore = e >= p.seedEnergy;
+          owner[i] = isCore ? i : -1;
+          coreE[i] = isCore ? e : 0.f;
+          coreX[i] = isCore ? ts[i].baryX() * e : 0.f;
+          coreY[i] = isCore ? ts[i].baryY() * e : 0.f;
+          coreZ[i] = isCore ? ts[i].baryZ() * e : 0.f;
+        }
+      }
+    };
+
+    // One growth round: every unowned satellite picks the best core that accepts it.
+    // Highest-energy core wins, ties by smaller index, so the choice is a function of
+    // the pair alone and no thread ordering can change it.
+    class GrowRoundKernel {
+    public:
+      ALPAKA_FN_ACC void operator()(Acc1D const& acc,
+                                    const TracksterDeviceCollection::ConstView ts,
+                                    CornettoParameters p,
+                                    TileGeometry g,
+                                    const int32_t* tileOffset,
+                                    const int32_t* tileContent,
+                                    const int32_t* owner,
+                                    const float* coreE,
+                                    const float* coreX,
+                                    const float* coreY,
+                                    const float* coreZ,
+                                    int32_t* claim) const {
+        for (int32_t c : uniform_elements(acc, ts.metadata().size())) {
+          claim[c] = -1;
+          if (owner[c] != -1)
+            continue;
+          int32_t best = -1;
+          float bestE = -1.f;
+          const int32_t endcap = ts[c].baryZ() > 0.f ? 1 : 0;
+          const int32_t ie = etaBinOf(g, ts[c].eta());
+          const int32_t ip = phiBinOf(g, ts[c].phi());
+          for (int32_t de = -1; de <= 1; ++de) {
+            const int32_t e2 = ie + de;
+            if (e2 < 0 or e2 >= g.nEtaBins)
+              continue;
+            for (int32_t dp = -1; dp <= 1; ++dp) {
+              const int32_t p2 = (ip + dp + g.nPhiBins) % g.nPhiBins;
+              const int32_t b = binOf(g, endcap, e2, p2);
+              for (int32_t k = tileOffset[b]; k < tileOffset[b + 1]; ++k) {
+                const int32_t s = tileContent[k];
+                if (owner[s] != s)
+                  continue;  // not a core root
+                if (coreE[s] < bestE or (coreE[s] == bestE and best != -1 and s > best))
+                  continue;
+                if (not cornettoAttach(ts, p, coreE, coreX, coreY, coreZ, s, c))
+                  continue;
+                best = s;
+                bestE = coreE[s];
+              }
+            }
+          }
+          claim[c] = best;
+        }
+      }
+    };
+
+    // Commit the round. The accumulation is atomic because several satellites of the
+    // same core are committed concurrently.
+    class CommitRoundKernel {
+    public:
+      ALPAKA_FN_ACC void operator()(Acc1D const& acc,
+                                    const TracksterDeviceCollection::ConstView ts,
+                                    const int32_t* claim,
+                                    int32_t* owner,
+                                    float* coreE,
+                                    float* coreX,
+                                    float* coreY,
+                                    float* coreZ,
+                                    int32_t* changed) const {
+        for (int32_t c : uniform_elements(acc, ts.metadata().size())) {
+          const int32_t s = claim[c];
+          if (s < 0)
+            continue;
+          owner[c] = s;
+          const float e = ts[c].rawEnergy();
+          alpaka::atomicAdd(acc, &coreE[s], e, alpaka::hierarchy::Blocks{});
+          alpaka::atomicAdd(acc, &coreX[s], ts[c].baryX() * e, alpaka::hierarchy::Blocks{});
+          alpaka::atomicAdd(acc, &coreY[s], ts[c].baryY() * e, alpaka::hierarchy::Blocks{});
+          alpaka::atomicAdd(acc, &coreZ[s], ts[c].baryZ() * e, alpaka::hierarchy::Blocks{});
+          alpaka::atomicAdd(acc, changed, 1, alpaka::hierarchy::Blocks{});
+        }
+      }
+    };
+
+    // owner -> component label, using the same convention as the union-find path: the
+    // label is the smallest input index in the group. A core labels itself and its
+    // satellites with min(core, satellites); an unclaimed trackster labels itself.
+    class InitGroupMinKernel {
+    public:
+      ALPAKA_FN_ACC void operator()(Acc1D const& acc, int32_t* groupMin, int32_t n) const {
+        for (int32_t i : uniform_elements(acc, n))
+          groupMin[i] = i;
+      }
+    };
+
+    class OwnerToLabelKernel {
+    public:
+      ALPAKA_FN_ACC void operator()(Acc1D const& acc,
+                                    const int32_t* owner,
+                                    int32_t* groupMin,
+                                    int32_t n) const {
+        for (int32_t i : uniform_elements(acc, n)) {
+          const int32_t o = owner[i] >= 0 ? owner[i] : i;
+          alpaka::atomicMin(acc, &groupMin[o], i, alpaka::hierarchy::Blocks{});
+        }
+      }
+    };
+
+    class WriteLabelKernel {
+    public:
+      ALPAKA_FN_ACC void operator()(Acc1D const& acc,
+                                    const int32_t* owner,
+                                    const int32_t* groupMin,
+                                    TracksterComponentsDeviceCollection::View components) const {
+        for (int32_t i : uniform_elements(acc, components.metadata().size())) {
+          const int32_t o = owner[i] >= 0 ? owner[i] : i;
+          components[i].label() = groupMin[o];
+        }
+      }
+    };
+
     class CountPerTileKernel {
     public:
       ALPAKA_FN_ACC void operator()(Acc1D const& acc,
@@ -321,6 +537,72 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     alpaka::exec<Acc1D>(queue, workDivOne, ExclusiveScanKernel{}, tileCount.data(), tileOffset.data(), g.nBins);
     alpaka::exec<Acc1D>(
         queue, workDivN, FillTilesKernel{}, tracksters, g, tileOffset.data(), cursor.data(), tileContent.data());
+
+    // Seeded growth reuses the tiles above and then replaces the connected-components
+    // stage entirely: no edge list is built, because satellites never link to each
+    // other and there is nothing to take a transitive closure over.
+    if (params.seededGrowth) {
+      auto owner = make_device_buffer<int32_t[]>(queue, n);
+      auto claim = make_device_buffer<int32_t[]>(queue, n);
+      auto coreE = make_device_buffer<float[]>(queue, n);
+      auto coreX = make_device_buffer<float[]>(queue, n);
+      auto coreY = make_device_buffer<float[]>(queue, n);
+      auto coreZ = make_device_buffer<float[]>(queue, n);
+      auto changed = make_device_buffer<int32_t>(queue);
+      auto changedHost = make_host_buffer<int32_t>(queue);
+
+      alpaka::exec<Acc1D>(queue,
+                          workDivN,
+                          InitCoresKernel{},
+                          tracksters,
+                          params,
+                          owner.data(),
+                          coreE.data(),
+                          coreX.data(),
+                          coreY.data(),
+                          coreZ.data());
+
+      for (int round = 0; round < kMaxGrowthRounds; ++round) {
+        alpaka::memset(queue, changed, 0);
+        alpaka::exec<Acc1D>(queue,
+                            workDivN,
+                            GrowRoundKernel{},
+                            tracksters,
+                            params,
+                            g,
+                            tileOffset.data(),
+                            tileContent.data(),
+                            owner.data(),
+                            coreE.data(),
+                            coreX.data(),
+                            coreY.data(),
+                            coreZ.data(),
+                            claim.data());
+        alpaka::exec<Acc1D>(queue,
+                            workDivN,
+                            CommitRoundKernel{},
+                            tracksters,
+                            claim.data(),
+                            owner.data(),
+                            coreE.data(),
+                            coreX.data(),
+                            coreY.data(),
+                            coreZ.data(),
+                            changed.data());
+        // The round count is data dependent, so the loop has to see the counter. This
+        // is the only host synchronisation in the growth path.
+        alpaka::memcpy(queue, changedHost, changed);
+        alpaka::wait(queue);
+        if (*changedHost.data() == 0)
+          break;
+      }
+
+      auto groupMin = make_device_buffer<int32_t[]>(queue, n);
+      alpaka::exec<Acc1D>(queue, workDivN, InitGroupMinKernel{}, groupMin.data(), n);
+      alpaka::exec<Acc1D>(queue, workDivN, OwnerToLabelKernel{}, owner.data(), groupMin.data(), n);
+      alpaka::exec<Acc1D>(queue, workDivN, WriteLabelKernel{}, owner.data(), groupMin.data(), components);
+      return;
+    }
 
     // Count the edges before writing them: the buffer is then exactly the right
     // size, so there is no capacity parameter to tune and no truncation to detect.

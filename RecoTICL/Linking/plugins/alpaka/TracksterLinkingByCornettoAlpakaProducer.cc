@@ -9,6 +9,7 @@
 // count, and the first needs a two-pass-free edge allocation. Both are worth doing
 // only once the profiling in the design doc says this stage matters.
 
+#include <cmath>
 #include "DataFormats/HGCalReco/interface/alpaka/TracksterComponentsDeviceCollection.h"
 #include "DataFormats/HGCalReco/interface/TracksterHostCollection.h"
 #include "DataFormats/HGCalReco/interface/alpaka/TracksterDeviceCollection.h"
@@ -38,6 +39,10 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       params_.timeCompatibilityNSigma = config.getParameter<double>("timeCompatibilityNSigma");
       params_.maxLongitudinalSlope = config.getParameter<double>("maxLongitudinalSlope");
       params_.longitudinalZRef = config.getParameter<double>("longitudinalZRef");
+      params_.seededGrowth = config.getParameter<bool>("seededGrowth");
+      params_.seedEnergy = config.getParameter<double>("seedEnergy");
+      params_.axisToleranceCos = std::cos(config.getParameter<double>("axisToleranceDeg") * M_PI / 180.);
+      params_.forwardOnly = config.getParameter<bool>("forwardOnly");
     }
 
     void produce(device::Event& event, device::EventSetup const&) override {
@@ -65,6 +70,11 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
           ->setComment("Barycenter |deta| candidate window; pairs farther apart are never tested.");
       desc.add<double>("maxLongitudinalDistance", 60.0)
           ->setComment("Longitudinal window at the reference depth: max |separation along the anchor axis| [cm].");
+      desc.add<bool>("seededGrowth", false)
+          ->setComment("Grow cores instead of taking connected components; must match the CPU plugin.");
+      desc.add<double>("seedEnergy", 5.0)->setComment("Min raw energy [GeV] to seed a core.");
+      desc.add<double>("axisToleranceDeg", 5.0)->setComment("Max core-axis swing [deg] per attachment.");
+      desc.add<bool>("forwardOnly", true)->setComment("Attach only downstream of the core centroid.");
       desc.add<double>("maxLongitudinalSlope", 0.0)
           ->setComment("Longitudinal window growth per cm of anchor |z| beyond longitudinalZRef; 0 = flat.");
       desc.add<double>("longitudinalZRef", 320.0)
