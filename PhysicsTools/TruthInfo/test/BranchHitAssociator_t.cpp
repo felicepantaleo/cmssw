@@ -49,10 +49,10 @@ namespace {
     b.setSimTrackForParticle(2, 0, 102);
     b.addParticleChild(0, 1);
     b.addParticleChild(0, 2);
-    b.addHit(truth::HitChannel::HGCalCalo, 0, 101, 11, 2.0f, 0);
-    b.addHit(truth::HitChannel::HGCalCalo, 0, 101, 12, 2.0f, 0);
-    b.addHit(truth::HitChannel::HGCalCalo, 0, 102, 20, 5.0f, 0);
-    b.addHit(truth::HitChannel::HGCalCalo, 0, 102, 21, 5.0f, 0);
+    b.addHit(truth::HitChannel::Calo, 0, 101, 11, 2.0f, 0);
+    b.addHit(truth::HitChannel::Calo, 0, 101, 12, 2.0f, 0);
+    b.addHit(truth::HitChannel::Calo, 0, 102, 20, 5.0f, 0);
+    b.addHit(truth::HitChannel::Calo, 0, 102, 21, 5.0f, 0);
     return b.finish();
   }
 

@@ -197,7 +197,7 @@ void AllTracksterToTruthBranchByHitsAssociatorsProducer::produce(edm::StreamID,
         continue;
       double branchDep = 0.0;
       touched.clear();
-      for (auto const& h : hitIndex.subgraphHits(truth::HitChannel::HGCalCalo, r)) {
+      for (auto const& h : hitIndex.subgraphHits(truth::HitChannel::Calo, r)) {
         if (!h.hasRecHit() || h.recHitIndex >= rechitEnergy.size())
           continue;
         const double e = rechitEnergy[h.recHitIndex];
