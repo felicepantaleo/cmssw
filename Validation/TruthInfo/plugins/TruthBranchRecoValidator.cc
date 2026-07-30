@@ -69,6 +69,9 @@ namespace {
     // The denominator instance is a PREFIX: the capitalized level name is appended, one
     // product per configured level.
     static constexpr bool truthIsVertex = false;
+    // A domain matched on shared ENERGY in the calorimeter channel, which is judged by
+    // the HGCal validation criteria; everything else is judged on shared components.
+    static constexpr bool calorimetric = false;
     static constexpr const char* denominatorInstance = "truthToRecoTargets";
   };
 
@@ -94,6 +97,7 @@ namespace {
     // A composite object is associated to a truth VERTEX, so the truth side iterates
     // vertices and the denominator is the set of reconstructable ones.
     static constexpr bool truthIsVertex = true;
+    static constexpr bool calorimetric = false;
     static constexpr const char* denominatorInstance = "truthToRecoTargets";
   };
 
@@ -123,6 +127,7 @@ namespace {
     }
     static bool hasDirection(ticl::Trackster const&) { return true; }
     static constexpr bool truthIsVertex = false;
+    static constexpr bool calorimetric = true;
     static constexpr const char* denominatorInstance = "truthToRecoTargets";
   };
 }  // namespace
@@ -170,8 +175,16 @@ private:
   // A truth object counts as reconstructed by one reco object when that object covers
   // enough of it AND is not mostly something else. The second is the loose cut in the
   // other direction that both QuickTrackAssociatorByHits and HGVHistoProducerAlgo use.
+  // Shared-component domains (tracks, vertices) are judged on these two.
   const double minTruthPurityForIndividual_;
   const double minRecoPurityLoose_;
+  // Calorimetric domains are judged on the three HGCalValidator quantities instead,
+  // which are NOT the same axis: efficiency is a shared-energy-fraction cut, purity and
+  // duplicate are simToReco score cuts, fake and merge recoToSim score cuts
+  // (Validation/HGCalValidation/src/HGVHistoProducerAlgo.cc:2819-2820 and 2897-2899).
+  const double minSharedEnergyFractionForIndividual_;
+  const double maxSimToRecoScoreForDuplicate_;
+  const double maxRecoToSimScore_;
   const double minCollectiveCoverage_;
   std::vector<WpEntry> wpEntries_;
   std::vector<TruthEntry> truthEntries_;
@@ -183,8 +196,15 @@ TruthBranchRecoValidator<RECO>::TruthBranchRecoValidator(edm::ParameterSet const
     : graphToken_(consumes<truth::Graph>(cfg.getParameter<edm::InputTag>("src"))),
       hitIndexToken_(consumes<truth::LogicalGraphHitIndex>(cfg.getParameter<edm::InputTag>("hitIndex"))),
       dirName_(cfg.getParameter<std::string>("dirName")),
-      minTruthPurityForIndividual_(cfg.getParameter<double>("minTruthPurityForIndividual")),
-      minRecoPurityLoose_(cfg.getParameter<double>("minRecoPurityLoose")),
+      // Each domain declares only the thresholds it is judged by, so a parameter that
+      // does not apply cannot be set to a value that silently does nothing.
+      minTruthPurityForIndividual_(Traits::calorimetric ? 0. : cfg.getParameter<double>("minTruthPurityForIndividual")),
+      minRecoPurityLoose_(Traits::calorimetric ? 0. : cfg.getParameter<double>("minRecoPurityLoose")),
+      minSharedEnergyFractionForIndividual_(
+          Traits::calorimetric ? cfg.getParameter<double>("minSharedEnergyFractionForIndividual") : 0.),
+      maxSimToRecoScoreForDuplicate_(Traits::calorimetric ? cfg.getParameter<double>("maxSimToRecoScoreForDuplicate")
+                                                          : 0.),
+      maxRecoToSimScore_(Traits::calorimetric ? cfg.getParameter<double>("maxRecoToSimScore") : 0.),
       minCollectiveCoverage_(cfg.getParameter<double>("minCollectiveCoverage")),
       algo_(cfg.getParameter<edm::ParameterSet>("histoProducerAlgoBlock")) {
   const auto associator = cfg.getParameter<std::string>("associator");
@@ -251,7 +271,9 @@ void TruthBranchRecoValidator<RECO>::bookHistograms(DQMStore::IBooker& booker,
   }
   for (auto const& entry : truthEntries_) {
     booker.setCurrentFolder(dirName_ + entry.folder);
-    algo_.bookTruthHistos(booker, histograms);
+    // The shared energy fraction is the axis the calorimetric efficiency cut acts on,
+    // so it is booked exactly where that cut is applied and nowhere else.
+    algo_.bookTruthHistos(booker, histograms, Traits::calorimetric);
   }
 }
 
@@ -280,7 +302,13 @@ void TruthBranchRecoValidator<RECO>::dqmAnalyze(edm::Event const& event,
     // Reco side: every object, whether it found a branch, and whether that branch came
     // from a pileup interaction rather than the signal one.
     for (std::size_t r = 0; r < recoHandle->size(); ++r) {
-      const bool associated = r < recoToTruth.size() && !recoToTruth[r].empty();
+      // The maps are score-sorted, so [0] is the best match. A calorimetric object
+      // additionally has to pass the recoToSim score cut to count as anything but a
+      // fake, which is HGCalValidator's non-fake criterion.
+      bool associated = r < recoToTruth.size() && !recoToTruth[r].empty();
+      if constexpr (Traits::calorimetric) {
+        associated = associated && recoToTruth[r][0].score() < maxRecoToSimScore_;
+      }
       const Kinematics kin = Traits::kinematics((*recoHandle)[r]);
 
       bool pileup = false;
@@ -347,19 +375,20 @@ void TruthBranchRecoValidator<RECO>::dqmAnalyze(edm::Event const& event,
     auto const& truthToReco = truthToRecoHandle->getMap();
     auto const& recoToTruth = firstWpHandle->getMap();
 
-    // Reco purity of a (truth, reco) pair, read from the FIRST working point's
+    // Reco-normalised score of a (truth, reco) pair, read from the FIRST working point's
     // reco-driven product, the WP-free hit-sharing measure. This is the loose cut in
-    // the other direction, so it is looked up rather than recomputed.
-    auto recoPurityOf = [&recoToTruth](unsigned int recoIndex, unsigned int truthIndex) {
+    // the other direction, so it is looked up rather than recomputed. A pair that is
+    // absent scores the worst possible value.
+    auto recoScoreOf = [&recoToTruth](unsigned int recoIndex, unsigned int truthIndex) {
       if (recoIndex >= recoToTruth.size()) {
-        return 0.;
+        return 1.;
       }
       for (auto const& match : recoToTruth[recoIndex]) {
         if (match.index() == truthIndex) {
-          return 1. - static_cast<double>(match.score());
+          return static_cast<double>(match.score());
         }
       }
-      return 0.;
+      return 1.;
     };
 
     for (unsigned int b : *targetsHandle) {
@@ -433,30 +462,61 @@ void TruthBranchRecoValidator<RECO>::dqmAnalyze(edm::Event const& event,
       // one did; split means none did alone but together they cover it.
       using Outcome = truth::TruthBranchHistoProducerAlgo::TruthOutcome;
       unsigned int nIndividual = 0;
+      unsigned int nPure = 0;
       double collectiveCoverage = 0.;
       double leadingTruthPurity = 0.;
+      double leadingSharedEnergyFraction = 0.;
       for (auto const& match : truthToReco[b]) {
         const double truthPurity = 1. - static_cast<double>(match.score());
-        collectiveCoverage += truthPurity;
         leadingTruthPurity = std::max(leadingTruthPurity, truthPurity);
-        if (truthPurity >= minTruthPurityForIndividual_ && recoPurityOf(match.index(), b) >= minRecoPurityLoose_) {
-          ++nIndividual;
+        if constexpr (Traits::calorimetric) {
+          // The truth-to-reco payload of a calorimetric domain is sim-normalised: the
+          // value is the shared energy over the branch energy, the score the simToReco
+          // one. Efficiency gates on the fraction, duplicate on the score.
+          const double sharedEnergyFraction = match.value();
+          leadingSharedEnergyFraction = std::max(leadingSharedEnergyFraction, sharedEnergyFraction);
+          collectiveCoverage += sharedEnergyFraction;
+          if (sharedEnergyFraction > minSharedEnergyFractionForIndividual_ &&
+              recoScoreOf(match.index(), b) < maxRecoToSimScore_) {
+            ++nIndividual;
+          }
+          if (match.score() < maxSimToRecoScoreForDuplicate_) {
+            ++nPure;
+          }
+        } else {
+          collectiveCoverage += truthPurity;
+          if (truthPurity >= minTruthPurityForIndividual_ &&
+              1. - recoScoreOf(match.index(), b) >= minRecoPurityLoose_) {
+            ++nIndividual;
+          }
         }
       }
-      const Outcome outcome = (nIndividual == 1)  ? Outcome::Individual
-                              : (nIndividual > 1) ? Outcome::Duplicate
-                              : (collectiveCoverage >= minCollectiveCoverage_ && !truthToReco[b].empty())
-                                  ? Outcome::Split
-                                  : Outcome::Lost;
+      const bool collective = collectiveCoverage >= minCollectiveCoverage_ && !truthToReco[b].empty();
+      Outcome outcome = Outcome::Lost;
+      if constexpr (Traits::calorimetric) {
+        // Duplicate refines Individual rather than competing with it, so the four
+        // outcomes stay mutually exclusive and efficiency stays exactly the shared
+        // energy fraction cut.
+        outcome = (nIndividual >= 1) ? (nPure > 1 ? Outcome::Duplicate : Outcome::Individual)
+                  : collective       ? Outcome::Split
+                                     : Outcome::Lost;
+      } else {
+        outcome = (nIndividual == 1)  ? Outcome::Individual
+                  : (nIndividual > 1) ? Outcome::Duplicate
+                  : collective        ? Outcome::Split
+                                      : Outcome::Lost;
+      }
       // Cumulative: the collection as a whole covers the truth object, by one reco
       // object or by several together, so it is a superset of individual.
-      const bool cumulative =
-          nIndividual >= 1 || (collectiveCoverage >= minCollectiveCoverage_ && !truthToReco[b].empty());
+      const bool cumulative = nIndividual >= 1 || collective;
 
       algo_.fill_simul(histograms, i, kin, outcome, cumulative);
       algo_.fill_reason(histograms, i, reason, outcome);
       if (!truthToReco[b].empty()) {
         algo_.fill_truth_purity(histograms, i, leadingTruthPurity);
+        if constexpr (Traits::calorimetric) {
+          algo_.fill_shared_energy_fraction(histograms, i, leadingSharedEnergyFraction);
+        }
       }
     }
   }
@@ -482,13 +542,31 @@ void TruthBranchRecoValidator<RECO>::fillDescriptions(edm::ConfigurationDescript
             "Graph levels the truth-driven metrics are measured at, one folder per level. Must match the "
             "associator's truthLevels: each level consumes its own denominator product");
   }
-  desc.add<double>("minTruthPurityForIndividual", 0.5)
-      ->setComment(
-          "A single reco object must cover at least this much of the truth object to have reconstructed it. "
-          "truthBranchValidation_cff sets both purity cuts per domain to the corresponding standard "
-          "validation's thresholds");
-  desc.add<double>("minRecoPurityLoose", 0.25)
-      ->setComment("Loose cut in the other direction: that object must not be mostly something else");
+  if constexpr (Traits::calorimetric) {
+    desc.add<double>("minSharedEnergyFractionForIndividual", 0.5)
+        ->setComment(
+            "Efficiency gate: the shared energy over the truth branch energy. HGCalValidator's "
+            "minTSTSharedEneFracEfficiency (Validation/HGCalValidation/python/HGVHistoProducerAlgoBlock_cfi.py:82, "
+            "applied src/HGVHistoProducerAlgo.cc:2897). This is an ENERGY FRACTION, not a score");
+    desc.add<double>("maxSimToRecoScoreForDuplicate", 0.2)
+        ->setComment(
+            "More than one reco object below this simToReco score makes the truth object a duplicate. "
+            "HGCalValidator's maxSimToRecoScoreForPurity/Duplicate (HGVHistoProducerAlgoBlock_cfi.py:72-73, "
+            "applied HGVHistoProducerAlgo.cc:2898-2899)");
+    desc.add<double>("maxRecoToSimScore", 0.6)
+        ->setComment(
+            "A reco object below this recoToSim score is not a fake. HGCalValidator's "
+            "maxRecoToSimScoreForNonFake/Merge (HGVHistoProducerAlgoBlock_cfi.py:70-71, applied "
+            "HGVHistoProducerAlgo.cc:2819-2820)");
+  } else {
+    desc.add<double>("minTruthPurityForIndividual", 0.5)
+        ->setComment(
+            "A single reco object must cover at least this much of the truth object to have reconstructed it. "
+            "truthBranchValidation_cff sets both purity cuts per domain to the corresponding standard "
+            "validation's thresholds");
+    desc.add<double>("minRecoPurityLoose", 0.25)
+        ->setComment("Loose cut in the other direction: that object must not be mostly something else");
+  }
   desc.add<double>("minCollectiveCoverage", 0.5)
       ->setComment("Several objects together must cover at least this much of the truth object to count as split");
 

@@ -51,16 +51,20 @@ namespace truth {
     // hits. Built as a flat (detId, root) list, sorted, then packed CSR-style so
     // lookups are a binary search plus a contiguous root span (no hashing).
     rootSelfEnergySq_.assign(hitIndex_->nParticles(), 0.0);
+    rootEnergy_.assign(hitIndex_->nParticles(), 0.0);
     std::vector<std::pair<uint32_t, uint32_t>> pairs;  // (detId, root)
     for (const uint32_t root : roots_) {
       if (root >= hitIndex_->nParticles())
         continue;
       double selfEnergySq = 0.0;
+      double selfEnergy = 0.0;
       for (auto const& hit : rootHits(root)) {
         pairs.emplace_back(hit.detId, root);
         selfEnergySq += static_cast<double>(hit.energy) * hit.energy;
+        selfEnergy += hit.energy;
       }
       rootSelfEnergySq_[root] = selfEnergySq;
+      rootEnergy_[root] = selfEnergy;
     }
     std::sort(pairs.begin(), pairs.end());  // by detId, then root
 
@@ -178,11 +182,27 @@ namespace truth {
     std::vector<RecoHit> reco(recoHitsIn.begin(), recoHitsIn.end());
     std::sort(reco.begin(), reco.end(), [](RecoHit const& a, RecoHit const& b) { return a.detId < b.detId; });
 
+    // Per-cell energy weight of the shared-energy score. The TICL trackster
+    // association weights every cell by its rechit energy (squared, in the score); a
+    // calorimetric reco adapter exposes (detId, fraction) and no per-cell reco energy,
+    // so the weight is the cell's total truth energy, which the hit index carries. The
+    // reco object's energy on a cell is then fraction * cellEnergy and the branch's own
+    // is the subgraph hit energy, which is already simFraction * cellEnergy.
+    const bool energyWeighted = metric_ == Metric::SharedEnergy;
+    std::vector<float> cellEnergy;
+    if (energyWeighted)
+      cellEnergy.reserve(reco.size());
+
     // Self-normalization (denominator) and the set of candidate roots.
     double denominator = 0.0;
     std::vector<uint32_t> candidates;
     for (auto const& h : reco) {
-      denominator += static_cast<double>(h.fraction * h.energy) * (h.fraction * h.energy);
+      if (energyWeighted) {
+        const float energy = cellTotalEnergy(h.detId);
+        cellEnergy.push_back(energy);
+        const double recoEnergy = static_cast<double>(h.fraction) * energy;
+        denominator += recoEnergy * recoEnergy;
+      }
       auto roots = rootsForCell(h.detId);
       candidates.insert(candidates.end(), roots.begin(), roots.end());
     }
@@ -212,35 +232,35 @@ namespace truth {
         while (j < branchHits.size() && branchHits[j].detId < rh.detId)
           ++j;
 
-        float branchFraction = 0.f;
-        float branchEnergy = 0.f;
-        float cellTotal = 0.f;
         const bool shared = (j < branchHits.size() && branchHits[j].detId == rh.detId);
-        if (shared) {
-          cellTotal = cellTotalEnergy(rh.detId);
-          branchEnergy = branchHits[j].energy;
-          branchFraction = cellTotal > 0.f ? branchEnergy / cellTotal : 0.f;
+        if (shared)
           ++sharedCells;
-        }
 
-        if (metric_ == Metric::SharedEnergy) {
-          sharedEnergy += std::min(branchFraction * rh.energy, rh.fraction * rh.energy);
-          const float excess = std::max(0.f, rh.fraction - branchFraction);
-          scoreNum += static_cast<double>(excess * rh.energy) * (excess * rh.energy);
+        if (energyWeighted) {
+          // Both directions on this cell, as the TICL association computes them:
+          // the penalty is the energy the OTHER side fails to cover, squared, and an
+          // excess on the other side counts as a good association rather than a
+          // penalty (max(0, ...) in each direction).
+          const float recoEnergy = rh.fraction * cellEnergy[i];
+          const float branchEnergy = shared ? branchHits[j].energy : 0.f;
+          sharedEnergy += std::min(recoEnergy, branchEnergy);
+          const float recoMinusBranch = std::max(0.f, recoEnergy - branchEnergy);
+          scoreNum += static_cast<double>(recoMinusBranch) * recoMinusBranch;
           if (shared) {
             sharedBranchEnergySq += static_cast<double>(branchEnergy) * branchEnergy;
-            const float branchExcessEnergy = std::max(0.f, branchFraction - rh.fraction) * cellTotal;
-            branchExcessNum += static_cast<double>(branchExcessEnergy) * branchExcessEnergy;
+            const float branchMinusReco = std::max(0.f, branchEnergy - recoEnergy);
+            branchExcessNum += static_cast<double>(branchMinusReco) * branchMinusReco;
           }
         }
         ++i;
       }
 
+      if (sharedCells == 0)
+        continue;
+
       BranchMatch m;
       m.rootParticleId = root;
-      if (metric_ == Metric::SharedEnergy) {
-        if (sharedCells == 0)
-          continue;
+      if (energyWeighted) {
         m.sharedEnergy = static_cast<float>(sharedEnergy);
         m.score = static_cast<float>(scoreNum / denominator);
         // Reverse score: the fraction of the branch self-energy the reco object
@@ -250,15 +270,17 @@ namespace truth {
         const double branchDenom = rootSelfEnergySq_[root];
         const double branchScoreNum = std::max(0.0, (branchDenom - sharedBranchEnergySq) + branchExcessNum);
         m.reverseScore = branchDenom > 0.0 ? static_cast<float>(branchScoreNum / branchDenom) : 0.f;
+        const double branchEnergyTotal = rootEnergy_[root];
+        m.sharedEnergyFraction = branchEnergyTotal > 0.0 ? static_cast<float>(sharedEnergy / branchEnergyTotal) : 0.f;
       } else {
-        if (sharedCells == 0)
-          continue;
         m.sharedEnergy = static_cast<float>(sharedCells);
         m.score = 1.f - static_cast<float>(sharedCells) / static_cast<float>(reco.size());
         // Reverse score: fraction of the branch's cells the reco object misses.
         const std::size_t branchCellCount = branchHits.size();
         m.reverseScore =
             branchCellCount > 0 ? 1.f - static_cast<float>(sharedCells) / static_cast<float>(branchCellCount) : 1.f;
+        m.sharedEnergyFraction =
+            branchCellCount > 0 ? static_cast<float>(sharedCells) / static_cast<float>(branchCellCount) : 0.f;
       }
       result.push_back(m);
     }

@@ -154,15 +154,19 @@ MATCH_CRITERIA = {
     "Vertexing": _VERTEX_CRITERION,
     "SecondaryVertexing": _VERTEX_CRITERION,
     "Calorimetry": (
-        "Individual: shared energy fraction >= 0.8 of truth, >= 0.4 of trackster (HGCal standard)",
-        "Individual: the shared energy fraction is at least 0.8 of the truth object and at least 0.4 of "
-        "the trackster. The numeric cuts are HGCalValidator's: a SimTrackster counts reconstructed when "
-        "the simToReco score is below 0.2 and a Trackster non-fake when the recoToSim score is below 0.6 "
-        "(maxSimToRecoScoreForPurity/Duplicate and maxRecoToSimScoreForNonFake/Merge in "
-        "Validation/HGCalValidation/python/HGVHistoProducerAlgoBlock_cfi.py:70-73, applied in "
-        "src/HGVHistoProducerAlgo.cc:2819-2820 and 2898-2899). The score there is an energy-weighted "
-        "squared unshared fraction; here it is 1 minus the shared-energy fraction, so the same numeric "
-        "cuts are applied on the score axis.",
+        "Individual: shared energy fraction > 0.5 of the truth branch (HGCal standard)",
+        "Individual: a single trackster shares more than 0.5 of the truth branch's energy, and its own "
+        "recoToSim score is below 0.6. These are three DIFFERENT axes in HGCalValidator, not one: "
+        "efficiency is a SHARED ENERGY FRACTION cut, minTSTSharedEneFracEfficiency = 0.5 "
+        "(Validation/HGCalValidation/python/HGVHistoProducerAlgoBlock_cfi.py:82, applied in "
+        "src/HGVHistoProducerAlgo.cc:2897); purity and duplicate cut the simToReco SCORE below 0.2 "
+        "(maxSimToRecoScoreForPurity/Duplicate, cfi:72-73, applied at :2898-2899); fake and merge cut "
+        "the recoToSim score below 0.6 (maxRecoToSimScoreForNonFake/Merge, cfi:70-71, applied at "
+        ":2819-2820). Both scores are the TICL ones, computed here exactly as "
+        "SimCalorimetry/HGCalAssociatorProducers/plugins/"
+        "AllTracksterToSimTracksterAssociatorsByHitsProducer.cc:341-364 and :428-453 do: the squared "
+        "energy the other side fails to cover, over the squared self energy, with an excess on the "
+        "other side counting as a good association.",
     ),
 }
 # Per-domain caveats. A number that is correct but not discriminating reads as a result
@@ -185,8 +189,11 @@ CATEGORY_NOTE = {
     ),
     "Calorimetry": (
         "Tracksters are matched on SHARED ENERGY in the calorimeter channel, the same quantity the TICL trackster "
-        "validation scores against. The truth denominator spans the whole selector acceptance, so the efficiency "
-        "correctly falls to zero outside the HGCAL coverage rather than being renormalised to it."
+        "validation scores against. One thing differs from TICL and is worth knowing: TICL weights each cell by its "
+        "RECHIT energy, while a trackster reaches the truth graph as (DetId, fraction) with no per-cell reco energy, "
+        "so the weight here is the cell's total energy in the truth hit index. The truth denominator spans the whole "
+        "selector acceptance, so the efficiency correctly falls to zero outside the HGCAL coverage rather than being "
+        "renormalised to it."
     ),
 }
 STYLE = (

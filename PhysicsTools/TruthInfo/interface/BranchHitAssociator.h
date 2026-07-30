@@ -19,7 +19,10 @@ namespace truth {
   // exposing its hits as a range of RecoHit.
   struct RecoHit {
     uint32_t detId = 0;
-    float energy = 0.f;    // the cell (rec)hit energy
+    // The cell (rec)hit energy, for callers that need a per-object weight. The
+    // SharedEnergy metric does not read it: it takes the cell energy from the truth
+    // hit index, because a calorimetric adapter has no per-cell reco energy to give.
+    float energy = 0.f;
     float fraction = 1.f;  // fraction of the cell assigned to this reco object
   };
 
@@ -43,6 +46,11 @@ namespace truth {
     // cover (denominator = branch subgraph self-energy / branch hit count). Use
     // for the branch->reco direction. Lower is better.
     float reverseScore = 0.f;
+    // Sim-normalized shared quantity: sharedEnergy over the branch's own total
+    // (its subgraph energy, or its cell count for SharedHits). This is the axis
+    // HGCalValidator gates efficiency on, and it is NOT one minus reverseScore:
+    // the score is a squared, energy-weighted quantity, this one is linear.
+    float sharedEnergyFraction = 0.f;
   };
 
   // Associates reco objects to truth branches (subtrees) by shared detector hits.
@@ -53,6 +61,12 @@ namespace truth {
   // (sorted) hits with each candidate's sorted subgraph-hit span.
   class BranchHitAssociator {
   public:
+    // SharedEnergy reproduces the TICL trackster-to-simTrackster arithmetic
+    // (SimCalorimetry/HGCalAssociatorProducers/plugins/
+    // AllTracksterToSimTracksterAssociatorsByHitsProducer.cc:341-364 for reco->sim and
+    // :428-453 for sim->reco): per cell the score is the squared uncovered energy over
+    // the squared self energy, and the shared energy is the minimum of the two sides.
+    // SharedHits counts cells and ignores energy, which is what the tracker needs.
     enum class Metric { SharedEnergy, SharedHits };
 
     // candidateRoots restricts the branch roots considered. By default an empty
@@ -128,6 +142,9 @@ namespace truth {
     // score. Computed once with the inverted index so bestBranches() needs no
     // full branch-hit scan.
     std::vector<double> rootSelfEnergySq_;
+    // Per-root branch total energy (LINEAR sum of the same hits), the denominator
+    // of sharedEnergyFraction.
+    std::vector<double> rootEnergy_;
 
     // Shared layout only: the candidate roots' subgraph hits, coalesced here once at
     // construction because the persisted store keeps them in tree order with a detId

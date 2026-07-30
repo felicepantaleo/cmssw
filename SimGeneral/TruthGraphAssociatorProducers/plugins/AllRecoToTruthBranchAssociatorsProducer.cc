@@ -647,11 +647,16 @@ void AllRecoToTruthBranchAssociatorsProducer<RECO>::produce(edm::StreamID,
 
           // TRUTH to RECO, filled only once. NO adaptive climb: the climb chooses a
           // graph level to suit the reco object, which is meaningless when the truth
-          // target is the thing being asked about. The score kept here is the
-          // truth-normalised one, so 1 - score is the TRUTH purity.
+          // target is the thing being asked about. Both payloads of this direction are
+          // TRUTH-normalised: the sim-normalised shared energy fraction, which is the
+          // axis HGCalValidator gates efficiency on, and the truth-normalised score,
+          // which gates purity and duplicate. A shared-hits domain has no energy, so it
+          // keeps reporting the shared hit count.
           if (wpIndex == 0) {
+            constexpr bool sharedEnergyMetric = Traits::metric == truth::BranchHitAssociator::Metric::SharedEnergy;
             for (auto const& match : associator.bestBranches(span)) {
-              truthToReco->insert(match.rootParticleId, i, match.sharedEnergy, match.reverseScore);
+              const float truthValue = sharedEnergyMetric ? match.sharedEnergyFraction : match.sharedEnergy;
+              truthToReco->insert(match.rootParticleId, i, truthValue, match.reverseScore);
             }
           }
         }

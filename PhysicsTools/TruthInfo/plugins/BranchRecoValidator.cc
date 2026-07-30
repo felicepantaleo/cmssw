@@ -236,19 +236,16 @@ void BranchRecoValidatorT<Traits>::analyze(edm::Event const& event, edm::EventSe
     recoDenomEta_->Fill(obj.eta);
     recoDenomX_->Fill(obj.x);
 
-    double objWeight = 0.;
-    for (auto const& h : obj.hits)
-      objWeight += static_cast<double>(h.fraction) * h.energy;
-    if (objWeight <= 0.)
-      objWeight = 1.;
-
     auto matches = assoc.bestBranches(std::span<const truth::RecoHit>(obj.hits));
-    const double bestPurity = matches.empty() ? 0. : matches.front().sharedEnergy / objWeight;
+    // Reco purity is one minus the RECO-normalised score, whatever the metric: the
+    // shared quantity itself is a cell count for the tracker and an energy for the
+    // calorimeter, so it carries no common denominator this validator could apply.
+    const double bestPurity = matches.empty() ? 0. : 1. - static_cast<double>(matches.front().score);
     purity_->Fill(bestPurity);
 
     int sharedBranches = 0;
     for (auto const& m : matches)
-      if (m.sharedEnergy / objWeight >= mergeThreshold_)
+      if (1. - static_cast<double>(m.score) >= mergeThreshold_)
         ++sharedBranches;
     if (sharedBranches >= 2) {
       mergeNumEta_->Fill(obj.eta);

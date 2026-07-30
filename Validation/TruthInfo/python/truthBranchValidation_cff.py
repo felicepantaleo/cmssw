@@ -86,16 +86,20 @@ truthPlotVariables = ["pt", "eta", "phi", "nhits", "vertpos", "zpos", "dxy", "dz
 # shared-components axis this framework uses, the reference criterion is any positive
 # shared fraction.
 #
-# Calorimetry: HGCalValidator counts a SimTrackster reconstructed when the simToReco
-# score is below 0.2 and a Trackster non-fake when the recoToSim score is below 0.6
-# (maxSimToRecoScoreForPurity/Duplicate and maxRecoToSimScoreForNonFake/Merge in
-# Validation/HGCalValidation/python/HGVHistoProducerAlgoBlock_cfi.py:70-73, applied in
-# src/HGVHistoProducerAlgo.cc:2819-2820 and 2898-2899). The score here is 1 minus the
-# shared-energy fraction, so the same numeric cuts read minTruthPurity 0.8 and
-# minRecoPurity 0.4.
+# Calorimetry: HGCalValidator counts the three on DIFFERENT axes, and the association
+# scores are the TICL ones (Validation/HGCalValidation/src/HGVHistoProducerAlgo.cc:
+# 2897-2899). EFFICIENCY is a SHARED ENERGY FRACTION cut, shared energy over the truth
+# object's own energy, above minTSTSharedEneFracEfficiency = 0.5
+# (Validation/HGCalValidation/python/HGVHistoProducerAlgoBlock_cfi.py:82). PURITY and
+# DUPLICATE cut the simToReco score below maxSimToRecoScoreForPurity/Duplicate = 0.2
+# (cfi:72-73). FAKE and MERGE cut the recoToSim score below
+# maxRecoToSimScoreForNonFake/Merge = 0.6 (cfi:70-71, applied
+# HGVHistoProducerAlgo.cc:2819-2820).
 _trackThresholds = dict(minTruthPurityForIndividual=0.0, minRecoPurityLoose=0.75)
 _vertexThresholds = dict(minTruthPurityForIndividual=0.0, minRecoPurityLoose=0.0)
-_caloThresholds = dict(minTruthPurityForIndividual=0.8, minRecoPurityLoose=0.4)
+_caloThresholds = dict(minSharedEnergyFractionForIndividual=0.5,
+                       maxSimToRecoScoreForDuplicate=0.2,
+                       maxRecoToSimScore=0.6)
 
 _domains = [
     dict(
@@ -270,8 +274,10 @@ for _d in _domains:
         recoCollections=cms.VInputTag(
             *[cms.InputTag(*l.split(":")) for l in recoLabels(_d["name"], _d["flavour"])]),
         workingPoints=cms.vstring(*_wps),
-        minTruthPurityForIndividual=cms.double(_d["thresholds"]["minTruthPurityForIndividual"]),
-        minRecoPurityLoose=cms.double(_d["thresholds"]["minRecoPurityLoose"]),
+        # Only the thresholds the domain is judged by, because each analyzer declares
+        # only those: the calorimetric criteria are three cuts on two different axes,
+        # the shared-component ones two cuts on one.
+        **{_k: cms.double(_v) for _k, _v in _d["thresholds"].items()},
         histoProducerAlgoBlock=_algoBlock(_d["recoVariables"], _d.get("truthVariables"),
                                           _d.get("sharedRange"), _d.get("axisOverrides")),
         **_truthArgs,

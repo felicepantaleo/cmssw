@@ -5,6 +5,7 @@
 #include "Utilities/Testing/interface/CppUnit_testdriver.icpp"
 #include "cppunit/extensions/HelperMacros.h"
 
+#include <cmath>
 #include <cstdint>
 #include <vector>
 
@@ -51,6 +52,21 @@ namespace {
     return b.finish();
   }
 
+  // Two independent roots sharing one cell, with UNEQUAL energies so the arithmetic
+  // below has no accidental symmetry:
+  //   p0 direct: cell 10 (e3)
+  //   p1 direct: cell 10 (e1), cell 11 (e4)
+  // => cellTotal = {10:4, 11:4}, so on cell 10 the sim fractions are 0.75 and 0.25.
+  truth::LogicalGraphHitIndex buildScoreIndex() {
+    truth::LogicalGraphHitIndexBuilder b(2);
+    b.setSimTrackForParticle(0, 0, 100);
+    b.setSimTrackForParticle(1, 0, 101);
+    b.addHit(truth::HitChannel::Calo, 0, 100, 10, 3.0f, 0);
+    b.addHit(truth::HitChannel::Calo, 0, 101, 10, 1.0f, 0);
+    b.addHit(truth::HitChannel::Calo, 0, 101, 11, 4.0f, 0);
+    return b.finish();
+  }
+
 }  // namespace
 
 class TestBranchHitAssociator : public CppUnit::TestFixture {
@@ -61,6 +77,7 @@ class TestBranchHitAssociator : public CppUnit::TestFixture {
   CPPUNIT_TEST(testTrackerChannel);
   CPPUNIT_TEST(testEmptyRootsMatchNothingWhenRestricted);
   CPPUNIT_TEST(testReverseScoreIsBranchNormalized);
+  CPPUNIT_TEST(testTiclScoreArithmetic);
   CPPUNIT_TEST_SUITE_END();
 
 public:
@@ -70,6 +87,7 @@ public:
   void testTrackerChannel();
   void testEmptyRootsMatchNothingWhenRestricted();
   void testReverseScoreIsBranchNormalized();
+  void testTiclScoreArithmetic();
 };
 
 CPPUNIT_TEST_SUITE_REGISTRATION(TestBranchHitAssociator);
@@ -194,4 +212,51 @@ void TestBranchHitAssociator::testReverseScoreIsBranchNormalized() {
     }
   }
   CPPUNIT_ASSERT(sawRoot1);
+}
+
+void TestBranchHitAssociator::testTiclScoreArithmetic() {
+  auto index = buildScoreIndex();
+  truth::BranchHitAssociator assoc(index);  // SharedEnergy, all roots
+
+  // Reco object: half of cell 10 and all of cell 11. RecoHit::energy is deliberately
+  // absurd, because the shared-energy metric must take the cell energy from the index.
+  std::vector<truth::RecoHit> reco{{10, 99.f, 0.5f}, {11, 99.f, 1.0f}};
+  auto matches = assoc.bestBranches(reco);
+  CPPUNIT_ASSERT_EQUAL(std::size_t(2), matches.size());
+
+  // Hand-computed, following AllTracksterToSimTracksterAssociatorsByHitsProducer.cc
+  // :341-364 (recoToSim) and :428-453 (simToReco), with the cell energy as the rechit
+  // energy. Reco energies: 0.5*4 = 2 on cell 10, 1.0*4 = 4 on cell 11.
+  // recoToSim denominator = 2^2 + 4^2 = 20.
+  const truth::BranchMatch* root0 = nullptr;
+  const truth::BranchMatch* root1 = nullptr;
+  for (auto const& m : matches) {
+    (m.rootParticleId == 0 ? root0 : root1) = &m;
+  }
+  CPPUNIT_ASSERT(root0 != nullptr && root1 != nullptr);
+
+  // Root 1 owns 1 on cell 10 and 4 on cell 11.
+  //   recoToSim: max(0, 2-1)^2 + max(0, 4-4)^2 = 1, over 20.
+  //   shared energy: min(2,1) + min(4,4) = 5, and the branch owns 5, so the fraction
+  //   is 1 while the reco object is only half of cell 10: sim-normalised, as intended.
+  //   simToReco: the reco object covers every unit of the branch, so 0. That the reco
+  //   object has MORE energy than the branch on cell 10 is a good association.
+  CPPUNIT_ASSERT_DOUBLES_EQUAL(1.0 / 20.0, root1->score, 1e-6);
+  CPPUNIT_ASSERT_DOUBLES_EQUAL(5.0, root1->sharedEnergy, 1e-6);
+  CPPUNIT_ASSERT_DOUBLES_EQUAL(1.0, root1->sharedEnergyFraction, 1e-6);
+  CPPUNIT_ASSERT_DOUBLES_EQUAL(0.0, root1->reverseScore, 1e-6);
+
+  // Root 0 owns 3 on cell 10 and nothing on cell 11.
+  //   recoToSim: max(0, 2-3)^2 + max(0, 4-0)^2 = 16, over 20.
+  //   shared energy: min(2,3) + min(4,0) = 2, over the branch's own 3.
+  //   simToReco: max(0, 3-2)^2 = 1, over the branch self energy 3^2 = 9.
+  CPPUNIT_ASSERT_DOUBLES_EQUAL(16.0 / 20.0, root0->score, 1e-6);
+  CPPUNIT_ASSERT_DOUBLES_EQUAL(2.0, root0->sharedEnergy, 1e-6);
+  CPPUNIT_ASSERT_DOUBLES_EQUAL(2.0 / 3.0, root0->sharedEnergyFraction, 1e-6);
+  CPPUNIT_ASSERT_DOUBLES_EQUAL(1.0 / 9.0, root0->reverseScore, 1e-6);
+
+  // The shared energy fraction is NOT one minus the score in either direction: the
+  // scores are squared and energy weighted, the fraction is linear. That is exactly why
+  // HGCalValidator gates efficiency on the fraction and purity on the score.
+  CPPUNIT_ASSERT(std::abs((1.f - root0->reverseScore) - root0->sharedEnergyFraction) > 0.2f);
 }

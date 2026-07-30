@@ -77,6 +77,11 @@ namespace truth {
     // truth object (truth side).
     std::vector<METype> h_score, h_sharedQuantity, h_recoPurity, h_truthPurity;
 
+    // The axis the calorimetric efficiency cut acts on: shared energy over the truth
+    // branch's own energy. Booked only by the domains judged on it, so it is empty for
+    // every other one. Truth side.
+    std::vector<METype> h_sharedEnergyFraction;
+
     // Resolution inputs: 2D of (reco - truth)/truth against the truth variable, which
     // the harvester turns into _Mean and _Sigma by a Gaussian fit per slice. Reco side:
     // the pair comes from the reco-driven match, so it depends on the working point.
@@ -92,7 +97,12 @@ namespace truth {
     // bookTruthHistos once per (collection, level), each in the order the fill side
     // will index that list.
     void bookRecoHistos(dqm::implementation::IBooker& booker, TruthBranchHistograms& histograms) const;
-    void bookTruthHistos(dqm::implementation::IBooker& booker, TruthBranchHistograms& histograms) const;
+    // sharedEnergyFraction books the extra monitor element of the domains whose
+    // efficiency is gated on that quantity; it must be the same for every truth entry
+    // of one module, so the row index stays shared with the other truth vectors.
+    void bookTruthHistos(dqm::implementation::IBooker& booker,
+                         TruthBranchHistograms& histograms,
+                         bool sharedEnergyFraction) const;
 
     // Values of every x variable for one object, in the enum order. A domain fills only
     // the ones it has; which of them are booked is decided by the variable lists.
@@ -118,6 +128,12 @@ namespace truth {
     // Truth purity of the leading reco object, filled once per truth object that has
     // any overlap at all.
     void fill_truth_purity(TruthBranchHistograms const& histograms, std::size_t index, double truthPurity) const;
+
+    // Shared energy fraction of the leading reco object, filled once per truth object
+    // that has any overlap at all, by the domains that booked it.
+    void fill_shared_energy_fraction(TruthBranchHistograms const& histograms,
+                                     std::size_t index,
+                                     double sharedEnergyFraction) const;
 
     // matchQuality weights the associated-numerator fill. It is 1 for a hit-based
     // domain, where "associated" is a yes or no, and the leading truth object's share of

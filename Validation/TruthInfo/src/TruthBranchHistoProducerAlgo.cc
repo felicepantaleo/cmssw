@@ -80,7 +80,8 @@ namespace truth {
   }  // namespace
 
   void TruthBranchHistoProducerAlgo::bookTruthHistos(dqm::implementation::IBooker& booker,
-                                                     TruthBranchHistograms& h) const {
+                                                     TruthBranchHistograms& h,
+                                                     bool sharedEnergyFraction) const {
     bookRow(booker, h.h_simul, "num_simul", truthVarNames_, truthAxes_);
     bookRow(booker, h.h_assoc_simToReco, "num_assoc(simToReco)", truthVarNames_, truthAxes_);
     bookRow(booker, h.h_assoc_simToReco_cumulative, "num_assoc_cumulative", truthVarNames_, truthAxes_);
@@ -102,6 +103,12 @@ namespace truth {
 
     // Truth purity: the truth object is the denominator, so it lives on this side.
     h.h_truthPurity.push_back(booker.book1D("truth_purity", "Truth purity", 50, 0., 1.));
+
+    // A fraction of the truth object's own energy, so a [0, 1] axis like truth purity
+    // and unlike the reco-side shared quantity, which counts hits or GeV.
+    if (sharedEnergyFraction) {
+      h.h_sharedEnergyFraction.push_back(booker.book1D("shared_energy_fraction", "Shared energy fraction", 50, 0., 1.));
+    }
   }
 
   void TruthBranchHistoProducerAlgo::bookRecoHistos(dqm::implementation::IBooker& booker,
@@ -173,6 +180,12 @@ namespace truth {
                                                        std::size_t i,
                                                        double truthPurity) const {
     h.h_truthPurity[i]->Fill(truthPurity);
+  }
+
+  void TruthBranchHistoProducerAlgo::fill_shared_energy_fraction(TruthBranchHistograms const& h,
+                                                                 std::size_t i,
+                                                                 double sharedEnergyFraction) const {
+    h.h_sharedEnergyFraction[i]->Fill(sharedEnergyFraction);
   }
 
   void TruthBranchHistoProducerAlgo::fill_reco(TruthBranchHistograms const& h,
