@@ -126,7 +126,59 @@ VARIABLE_MEANING = {
     "depth": "number of ancestors of the branch root in the graph, that is how far down the event history it sits",
     "root_footprint_fraction": "fraction of the branch tracker footprint that belongs to the root particle itself rather than to "
                 "its descendants; near 1 is a clean single particle",
+    "shared_energy_fraction": "fraction of the truth branch energy that the matched reco object shares with it",
 }
+# Axis title per variable, in the CMS convention: the unit in square brackets, and no
+# bracket at all for a pure count, a fraction or a dimensionless shape variable.
+AXIS_TITLE = {
+    "pt": r"p$_{T}$ [GeV]",
+    "eta": r"$\eta$",
+    "phi": r"$\phi$ [rad]",
+    "nhits": "number of hits",
+    "vertpos": "vertex radius [cm]",
+    "zpos": "vertex z [cm]",
+    "dxy": r"d$_{xy}$ [cm]",
+    "dz": r"d$_{z}$ [cm]",
+    "depth": "depth (number of ancestors)",
+    "root_footprint_fraction": "root footprint fraction",
+    "shared_energy_fraction": "shared energy fraction",
+    "reason": "creation process",
+}
+# Axes drawn over their full booked range whatever the sample populates. A gun sample
+# fills a slice of eta and autoscaling would hide that the rest of the acceptance is
+# empty, which is itself the result.
+AXIS_RANGE = {"eta": (-4.0, 4.0)}
+# Residual axis titles per fitted quantity: the momentum residual is relative and so
+# dimensionless, the angular ones are differences and phi carries radians.
+RESIDUAL_TITLE = {
+    "pt": "(reco - truth) / truth",
+    "eta": "reco - truth",
+    "phi": "reco - truth [rad]",
+}
+RESIDUAL_UNIT = {"pt": "", "eta": "", "phi": " [rad]"}
+# One marker shape and one line style per series, so the curves stay separable in
+# greyscale and under colour-vision deficiency, not by colour alone. A cumulative
+# partner keeps its series' colour and shape and is drawn open and dashed.
+SERIES_MARKERS = ["o", "s", "^", "v", "*", "D"]
+SERIES_STYLES = ["-", "--", "-.", ":", (0, (3, 1, 1, 1)), (0, (5, 1))]
+# Typography. The CMS style is built for a single full-page pad, where a 26 pt axis
+# title is right; on a two-pad figure carrying a twelve-entry legend it dwarfs
+# everything around it and a long y title outgrows its own pad. The title is therefore
+# modestly larger than the tick labels, and the ratio pad's title smaller still so it
+# does not compete with the main pad's.
+AXIS_TITLE_SIZE = 17
+TICK_LABEL_SIZE = 15
+RATIO_TITLE_SIZE = 12
+
+
+def axis_title(var):
+    """The axis title of a variable, with its unit where it has one."""
+    return AXIS_TITLE.get(var, var)
+
+
+def marker_size(marker):
+    """A star needs more area than a circle to read as the same size."""
+    return 8 if marker == "*" else 5
 # The Individual-match criterion per category: (legend line, full statement). The
 # threshold values come from the corresponding standard validation, not from here; the
 # full statement says where each lives. The legend line goes on every truth-driven
@@ -459,8 +511,8 @@ def plot_metric(category, collection, metric, var, per_wp, outdir, index, slices
     colors = plt.rcParams["axes.prop_cycle"].by_key()["color"]
     # Working points can lie on top of one another (the adaptive points differ by ~0.002
     # here), so vary marker AND linestyle: colour alone hides a curve completely.
-    markers = ["o", "s", "^", "D", "v"]
-    styles = ["-", "--", "-.", ":", (0, (3, 1, 1, 1))]
+    markers = SERIES_MARKERS
+    styles = SERIES_STYLES
     fig, (ax, rax) = plt.subplots(
         2, 1, figsize=(10, 9), sharex=True, gridspec_kw=dict(height_ratios=[3, 1], hspace=0.07)
     )
@@ -481,7 +533,7 @@ def plot_metric(category, collection, metric, var, per_wp, outdir, index, slices
             yerr=errors[filled],
             fmt=markers[i % len(markers)],
             linestyle=styles[i % len(styles)] if paired is None else "-",
-            markersize=5,
+            markersize=marker_size(markers[i % len(markers)]),
             markerfacecolor="none" if (i and paired is None) else None,
             linewidth=1.4,
             alpha=0.85,
@@ -489,8 +541,8 @@ def plot_metric(category, collection, metric, var, per_wp, outdir, index, slices
             label=wp,
         )
         if paired is not None and wp in paired:
-            # The cumulative partner of this series: same colour so the pair reads as
-            # one level, open markers and dashed line so the two are distinguishable.
+            # The cumulative partner of this series: same colour and shape so the pair
+            # reads as one level, open marker and dashed line so the two are distinct.
             p_edges, p_values, p_errors = paired[wp]
             p_centers = 0.5 * (p_edges[:-1] + p_edges[1:])
             p_filled = p_values > 0
@@ -502,7 +554,7 @@ def plot_metric(category, collection, metric, var, per_wp, outdir, index, slices
                 yerr=p_errors[p_filled],
                 fmt=markers[i % len(markers)],
                 linestyle="--",
-                markersize=5,
+                markersize=marker_size(markers[i % len(markers)]),
                 markerfacecolor="none",
                 linewidth=1.2,
                 alpha=0.7,
@@ -521,7 +573,9 @@ def plot_metric(category, collection, metric, var, per_wp, outdir, index, slices
         allv = np.concatenate([_shown(w) for w in wps if _shown(w).size] or [np.zeros(1)])
         span = float(np.abs(allv).max()) if allv.size else 1.0
         ax.set_ylim(min(0.0, float(allv.min()) * 1.3 if allv.size else 0.0), span * 1.35 if span else 1.0)
-        label = "Mean" if var.endswith("_Mean") else "Sigma"
+        # The momentum residual is relative and dimensionless, the angular ones are
+        # differences, so only the azimuth carries a unit.
+        label = ("Mean" if var.endswith("_Mean") else "Sigma") + RESIDUAL_UNIT.get(var.split("res_vs_", 1)[0], "")
     # The plot title stays generic. A bin-averaged summary in the title reads as a
     # conclusion the plot has not earned, so the measured numbers go in the README
     # caption instead, where they can be qualified.
@@ -537,7 +591,10 @@ def plot_metric(category, collection, metric, var, per_wp, outdir, index, slices
         caption = title
 
     fig.suptitle(title, fontsize=16, y=0.965)
-    ax.set_ylabel(label)
+    # Centred on the MAIN pad: the CMS top location hangs the title from the top of the
+    # axes, so a long one runs down past the pad and into the ratio panel.
+    ax.set_ylabel(label, fontsize=AXIS_TITLE_SIZE, loc="center")
+    ax.tick_params(labelsize=TICK_LABEL_SIZE)
     if metric != "resolution":
         ax.set_ylim(0.0, 1.15)
     ax.grid(alpha=0.3)
@@ -546,9 +603,12 @@ def plot_metric(category, collection, metric, var, per_wp, outdir, index, slices
     # into the x label at the figure's right edge.
     # Three columns once the level pairs push past eight entries: a fourth column runs
     # into the x label at the figure's right edge.
+    ncol = min(len(labels), 4 if len(labels) <= 8 else 3)
     fig.legend(handles, labels, fontsize=13 if len(labels) <= 4 else 11, loc="lower center",
-               ncol=min(len(labels), 4 if len(labels) <= 8 else 3), frameon=False,
-               bbox_to_anchor=(0.5, 0.02))
+               ncol=ncol, frameon=False, bbox_to_anchor=(0.5, 0.02))
+    # The legend grows a row at a time and the x title, which carries the unit, is written
+    # in the same band; the pads move up so the two do not overlap.
+    fig.subplots_adjust(bottom=0.16 + 0.025 * max(0, -(-len(labels) // ncol) - 1))
     if note:
         # The match criterion the numerator was counted with, so the plot carries its
         # own definition; the sources of the thresholds are in DEFINITIONS.md.
@@ -574,11 +634,17 @@ def plot_metric(category, collection, metric, var, per_wp, outdir, index, slices
                         ok = ok & (denom[w] >= MIN_DENOM_ENTRIES)
             if ok.any():
                 ratio_values.extend((values[ok] / ref_values[ok]).tolist())
+                # Same marker, colour and line style as the main pad, so a series is
+                # recognised in the ratio without going back to the legend.
                 rax.plot(
                     ref_centers[ok],
                     values[ok] / ref_values[ok],
-                    "o",
-                    markersize=4,
+                    marker=markers[i % len(markers)],
+                    linestyle=styles[i % len(styles)] if paired is None else "-",
+                    markersize=marker_size(markers[i % len(markers)]),
+                    markerfacecolor="none" if (i and paired is None) else None,
+                    linewidth=1.4,
+                    alpha=0.85,
                     color=colors[i % len(colors)],
                 )
     # Scale to the data when a ratio leaves the default window, rather than drawing an
@@ -588,10 +654,14 @@ def plot_metric(category, collection, metric, var, per_wp, outdir, index, slices
         if hi > 2.0:
             rax.set_ylim(0.0, hi * 1.15)
     rax.axhline(1.0, linestyle="--", color="gray", linewidth=1.2)
-    rax.set_ylabel(f"ratio to {reference}", fontsize=12)
+    rax.set_ylabel(f"ratio to {reference}", fontsize=RATIO_TITLE_SIZE)
     rax.set_ylim(0.0, 2.0)
+    rax.tick_params(labelsize=TICK_LABEL_SIZE)
     xvar = var.rsplit("_vs_", 1)[-1].split("_")[0] if "_vs_" in var else var
-    rax.set_xlabel(xvar)
+    # The two pads share the x axis, so the title is written once, under the ratio.
+    rax.set_xlabel(axis_title(xvar), fontsize=AXIS_TITLE_SIZE)
+    if xvar in AXIS_RANGE:
+        rax.set_xlim(*AXIS_RANGE[xvar])
     rax.grid(alpha=0.3)
 
     name = f"{index:02d}_{category.split('/')[-1]}_{collection}_{metric}_vs_{var}.png"
@@ -659,7 +729,8 @@ def plot_categorical(category, collection, metric, var, per_wp, counts, outdir, 
     ax.set_yticklabels(ticks, fontsize=13)
     ax.invert_yaxis()
     ax.set_xlim(0.0, 1.05)
-    ax.set_xlabel(label)
+    ax.set_xlabel(label, fontsize=AXIS_TITLE_SIZE)
+    ax.tick_params(axis="x", labelsize=TICK_LABEL_SIZE)
     ax.grid(axis="x", alpha=0.3)
     fig.suptitle(title, fontsize=16, y=0.965)
     # Below everything: a legend inside the axes covers the least populated rows, which
@@ -690,7 +761,7 @@ def plot_residual(category, collection, source, per_wp, outdir, index):
     if not wps:
         return None
     colors = plt.rcParams["axes.prop_cycle"].by_key()["color"]
-    styles = ["-", "--", "-.", ":"]
+    styles = SERIES_STYLES
     fig, ax = plt.subplots(figsize=(10, 8))
     fig.subplots_adjust(top=0.88, bottom=0.16)
 
@@ -708,8 +779,9 @@ def plot_residual(category, collection, source, per_wp, outdir, index):
                      color=colors[i % len(colors)], linestyle=styles[i % len(styles)], linewidth=1.6)
 
     ax.set_yscale("log")
-    ax.set_xlabel("(reco - truth) / truth" if source.startswith("ptres") else "reco - truth")
-    ax.set_ylabel("fraction of matched pairs per bin")
+    ax.set_xlabel(RESIDUAL_TITLE.get(source.split("res_vs_", 1)[0], "reco - truth"), fontsize=AXIS_TITLE_SIZE)
+    ax.set_ylabel("fraction of matched pairs per bin", fontsize=AXIS_TITLE_SIZE, loc="center")
+    ax.tick_params(labelsize=TICK_LABEL_SIZE)
     ax.grid(alpha=0.3)
     ax.legend(fontsize=13, frameon=False)
     fig.suptitle(f"{source} residual distribution", fontsize=16, y=0.965)
@@ -742,7 +814,8 @@ def plot_composition(category, collection, counts, outdir, index, reference=None
     ax.set_yticks(np.arange(len(order)))
     ax.set_yticklabels([f"{labels[k]}  (N={int(values[k])})" for k in order], fontsize=13)
     ax.invert_yaxis()
-    ax.set_xlabel("fraction of selected truth branches")
+    ax.set_xlabel("fraction of selected truth branches", fontsize=AXIS_TITLE_SIZE)
+    ax.tick_params(axis="x", labelsize=TICK_LABEL_SIZE)
     ax.grid(axis="x", alpha=0.3)
     fig.suptitle("Selected truth branches by creation process", fontsize=16, y=0.965)
     hep.cms.label(ax=ax, llabel="Private Work", rlabel="Phase-2 Simulation", fontsize=15)
