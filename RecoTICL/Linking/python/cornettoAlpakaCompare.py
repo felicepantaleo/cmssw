@@ -22,6 +22,11 @@ def compareCornettoBackends(process):
         timeCompatibilityNSigma=cms.double(3.0),
         maxLongitudinalSlope=cms.double(0.3),
         longitudinalZRef=cms.double(320.0),
+        seededGrowth=cms.bool(True),
+        seedEnergy=cms.double(5.0),
+        axisToleranceDeg=cms.double(5.0),
+        forwardOnly=cms.bool(True),
+        minEmittedEnergy=cms.double(0.0),
     )
 
     from RecoTICL.Linking.legacyTracksterToSoAProducer_cfi import legacyTracksterToSoAProducer
@@ -41,6 +46,10 @@ def compareCornettoBackends(process):
         timeCompatibilityNSigma=cms.double(3.0),
         maxLongitudinalSlope=cms.double(0.3),
         longitudinalZRef=cms.double(320.0),
+        seededGrowth=cms.bool(True),
+        seedEnergy=cms.double(5.0),
+        axisToleranceDeg=cms.double(5.0),
+        forwardOnly=cms.bool(True),
     )
     process.ticlCornettoLinksHost = tracksterLinksFromComponentsProducer.clone(
         tracksters_collections=collections,
