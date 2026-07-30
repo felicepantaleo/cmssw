@@ -648,6 +648,8 @@ def main():
     ap.add_argument("--outputDir", default="plots")
     ap.add_argument("--sample", default="ttbar, no pileup, D122")
     ap.add_argument("--title", default="MC-truth graph validation")
+    ap.add_argument("--gallery", default="truth-validation",
+                    help="orbit gallery name; also the .orbit target, so two samples can be published side by side")
     args = ap.parse_args()
 
     os.makedirs(args.outputDir, exist_ok=True)
@@ -861,8 +863,8 @@ def main():
         for title, why in PROPOSED:
             readme.write(f"- **{title}.** {why}\n")
 
-    with open(os.path.join(args.outputDir, "truth-validation.orbit"), "w") as orbit:
-        json.dump({"target": "truth-validation", "title": args.title,
+    with open(os.path.join(args.outputDir, args.gallery + ".orbit"), "w") as orbit:
+        json.dump({"target": args.gallery, "title": args.title,
                    "description": f"Truth-branch association metrics ({args.sample})",
                    "icon": "chart", "access": "public"}, orbit, indent=2)
 
