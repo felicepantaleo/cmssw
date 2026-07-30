@@ -22,8 +22,8 @@ public:
     unsigned long sigHitCount = 0, puHitCount = 0;
     for (unsigned pid = 0; pid < g.nParticles(); ++pid) {
       bool sig = (g.particle(pid).eventId() == 0ull);
-      auto direct = hi.directHits(truth::HitChannel::HGCalCalo, pid);
-      auto sub = hi.subgraphHits(truth::HitChannel::HGCalCalo, pid);
+      auto direct = hi.directHits(truth::HitChannel::Calo, pid);
+      auto sub = hi.subgraphHits(truth::HitChannel::Calo, pid);
       unsigned nh = direct.size() + sub.size();
       if (sig) {
         ++nSig;
