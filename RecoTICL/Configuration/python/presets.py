@@ -233,6 +233,16 @@ def cornetto_links_defaults():
         transverseRadius0=cms.double(5.0),
         transverseSlope=cms.double(0.05),
         timeCompatibilityNSigma=cms.double(3.0),
+        # Grouping: seeds and followers, not connected components. Union-find is
+        # transitive and percolates at PU200 (one >1 TeV trackster per event holding
+        # ~44% of the endcap layer clusters, only 31 objects above 5 GeV per event
+        # against 788 for v5); it also over-merges with no pileup at all. The emit-side
+        # cut returns the collection to Skeletons size without gating any link.
+        seededGrowth=cms.bool(True),
+        seedEnergy=cms.double(5.0),
+        axisToleranceDeg=cms.double(5.0),
+        forwardOnly=cms.bool(True),
+        minEmittedEnergy=cms.double(0.5),
     )
     return d
 
