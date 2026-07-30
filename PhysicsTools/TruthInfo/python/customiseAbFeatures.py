@@ -35,7 +35,34 @@ def customise(process):
         minSharedEnergy=cms.double(0.5),
         minSharedByHits=cms.double(0.02),
     )
-    process.abFeatureTask = cms.Task(process.abTracksterFeatures)
+
+    # Sim side: branch-level completeness. shared_frac is the fraction of the truth
+    # branch energy captured by its dominant reco trackster (the validator efficiency
+    # quantity), and n_contrib counts how many reco tracksters the branch is split
+    # across, which is what separates "less fragmentation" from "over-merging" when two
+    # linkers disagree on the object count.
+    process.branchSimTracksters = cms.EDProducer(
+        "BranchSimTracksterProducer",
+        src=cms.InputTag("truthLogicalGraphProducer"),
+        hitIndex=cms.InputTag("truthLogicalGraphHitIndexProducer"),
+        layerClusters=cms.InputTag("hgcalMergeLayerClusters"),
+    )
+    process.abSimTable = cms.EDProducer(
+        "BranchSimTracksterFlatTableProducer",
+        name=cms.string("SB"),
+        branches=cms.InputTag("branchSimTracksters"),
+        level=cms.InputTag("branchSimTracksters", "level"),
+        rootId=cms.InputTag("branchSimTracksters", "rootId"),
+        pdgId=cms.InputTag("branchSimTracksters", "pdgId"),
+        recoCollection=cms.InputTag(label),
+        layerClusters=cms.InputTag("hgcalMergeLayerClusters"),
+        hitIndex=cms.InputTag("truthLogicalGraphHitIndexProducer"),
+        graph=cms.InputTag("truthLogicalGraphProducer"),
+        minSharedFraction=cms.double(0.5),
+        minContribFraction=cms.double(0.1),
+    )
+    process.abFeatureTask = cms.Task(process.abTracksterFeatures, process.branchSimTracksters, process.abSimTable)
+
     if hasattr(process, "reconstruction_step"):
         process.reconstruction_step.associate(process.abFeatureTask)
     else:
