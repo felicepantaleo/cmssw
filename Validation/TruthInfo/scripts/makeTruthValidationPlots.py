@@ -39,9 +39,12 @@ WP_ORDER = ["Fixed", "AdaptiveTight", "AdaptiveNominal", "AdaptiveLoose"]
 # Truth-driven folders are keyed by graph LEVEL (hit-based domains) or by the vertex
 # resolution (composite domains). Every truth-driven ratio is taken against
 # caloBoundary, falling back to the first suffix present. The signal suffix is the
-# overall signal entry: its denominator is the associator's selected branch roots, so
-# with a selection preset it is the efficiency of the signal object itself.
-LEVEL_ORDER = ["stableLegsFromUpstream", "caloBoundary", "stableDecayProducts", "hardProcess", "signal"]
+# overall signal entry: its denominator is the preset SEED objects among the selected
+# roots, so with a selection preset it is the efficiency of the signal object itself
+# (the tau, not its decay legs). allSelectedRoots is the widest entry: every selected
+# root, whatever its level or species.
+LEVEL_ORDER = ["stableLegsFromUpstream", "caloBoundary", "stableDecayProducts", "hardProcess",
+               "signal", "allSelectedRoots"]
 VERTEX_SUFFIXES = ["interaction", "immediate"]
 TRUTH_SUFFIXES = LEVEL_ORDER + VERTEX_SUFFIXES
 REFERENCE_LEVEL = "caloBoundary"
@@ -123,6 +126,44 @@ VARIABLE_MEANING = {
     "depth": "number of ancestors of the branch root in the graph, that is how far down the event history it sits",
     "root_footprint_fraction": "fraction of the branch tracker footprint that belongs to the root particle itself rather than to "
                 "its descendants; near 1 is a clean single particle",
+}
+# The Individual-match criterion per category: (legend line, full statement). The
+# threshold values come from the corresponding standard validation, not from here; the
+# full statement says where each lives. The legend line goes on every truth-driven
+# plot, the full statement into the DEFINITIONS text, so the number on the page
+# carries its own definition.
+_VERTEX_CRITERION = (
+    "Individual: any positive shared p$_{T}^{2}$ track fraction (vertex validation standard)",
+    "Individual: any positive shared pt^2 track fraction. The reference vertex association gates on "
+    "POSITION and ships its shared-track-fraction cut disabled, sharedTrackFraction = -1.0 "
+    "(SimTracker/VertexAssociation/plugins/VertexAssociatorByPositionAndTracksProducer.cc:72, the "
+    "fraction branch at src/VertexAssociatorByPositionAndTracks.cc:129), so on the shared-components "
+    "axis used here the reference criterion is any positive shared fraction.",
+)
+MATCH_CRITERIA = {
+    "Tracking": (
+        "Individual: track shares > 75% of its own hits with the branch (MTV standard)",
+        "Individual: a track shares more than 75% of its own hits with the branch, with no "
+        "truth-normalised cut. That is the QuickTrackAssociatorByHits criterion MultiTrackValidator "
+        "counts efficiency with: Cut_RecoToSim = 0.75, Purity_SimToReco = 0.75, Quality_SimToReco = 0.5 "
+        "with SimToRecoDenominator = 'reco', so every cut acts on the reco-normalised fraction "
+        "(SimTracker/TrackAssociatorProducers/python/quickTrackAssociatorByHits_cfi.py:4-8, applied in "
+        "plugins/QuickTrackAssociatorByHitsImpl.cc:234-244 and 312-326; MultiTrackValidator adds no "
+        "further cut, plugins/MultiTrackValidator.cc:939-943).",
+    ),
+    "Vertexing": _VERTEX_CRITERION,
+    "SecondaryVertexing": _VERTEX_CRITERION,
+    "Calorimetry": (
+        "Individual: shared energy fraction >= 0.8 of truth, >= 0.4 of trackster (HGCal standard)",
+        "Individual: the shared energy fraction is at least 0.8 of the truth object and at least 0.4 of "
+        "the trackster. The numeric cuts are HGCalValidator's: a SimTrackster counts reconstructed when "
+        "the simToReco score is below 0.2 and a Trackster non-fake when the recoToSim score is below 0.6 "
+        "(maxSimToRecoScoreForPurity/Duplicate and maxRecoToSimScoreForNonFake/Merge in "
+        "Validation/HGCalValidation/python/HGVHistoProducerAlgoBlock_cfi.py:70-73, applied in "
+        "src/HGVHistoProducerAlgo.cc:2819-2820 and 2898-2899). The score there is an energy-weighted "
+        "squared unshared fraction; here it is 1 minus the shared-energy fraction, so the same numeric "
+        "cuts are applied on the score axis.",
+    ),
 }
 # Per-domain caveats. A number that is correct but not discriminating reads as a result
 # unless the page says otherwise, so the page says otherwise.
@@ -390,14 +431,14 @@ def _fit_ok(wp, values, slices, is_sigma=False, errors=None):
 
 
 def plot_metric(category, collection, metric, var, per_wp, outdir, index, slices=None, denom=None,
-                order=None, reference=None, paired=None):
+                order=None, reference=None, paired=None, note=None):
     """One overlay plot with a ratio panel against the reference series.
 
     The series are working points for the reco-driven metrics and graph levels for the
     truth-driven ones; order and reference name which comparison this plot makes.
     paired holds a second curve per series (the cumulative efficiency), drawn in the
     series colour with open markers and a dashed line; the ratio panel stays on the
-    primary curves.
+    primary curves. note is the one-line match criterion drawn under the legend.
     """
     order = order or WP_ORDER
     wps = [w for w in order if w in per_wp] + [w for w in sorted(per_wp) if w not in order]
@@ -496,8 +537,15 @@ def plot_metric(category, collection, metric, var, per_wp, outdir, index, slices
     handles, labels = ax.get_legend_handles_labels()
     # Paired pages carry twice the entries, so the legend wraps instead of overflowing
     # into the x label at the figure's right edge.
+    # Three columns once the level pairs push past eight entries: a fourth column runs
+    # into the x label at the figure's right edge.
     fig.legend(handles, labels, fontsize=13 if len(labels) <= 4 else 11, loc="lower center",
-               ncol=min(len(labels), 4), frameon=False, bbox_to_anchor=(0.5, 0.02))
+               ncol=min(len(labels), 4 if len(labels) <= 8 else 3), frameon=False,
+               bbox_to_anchor=(0.5, 0.02))
+    if note:
+        # The match criterion the numerator was counted with, so the plot carries its
+        # own definition; the sources of the thresholds are in DEFINITIONS.md.
+        fig.text(0.5, 0.002, note, ha="center", va="bottom", fontsize=9, color="0.35")
     ax.tick_params(labelbottom=False)
     hep.cms.label(ax=ax, llabel="Private Work", rlabel="Phase-2 Simulation", fontsize=15)
 
@@ -751,11 +799,14 @@ def main():
                 for var in VARIABLE_ORDER:
                     if var not in per_metric:
                         continue
+                    _criterion = (MATCH_CRITERIA.get(category.split("/")[-1])
+                                  if metric in TRUTH_METRICS else None)
                     result = plot_metric(
                         category, collection, metric, var, per_metric[var], args.outputDir, index,
                         denom=all_denom.get(f"{DENOMINATOR.get(metric, '')}_{var}"),
                         order=series_order, reference=series_ref,
                         paired=cumulative.get(var),
+                        note=_criterion[0] if _criterion else None,
                     )
                     if result:
                         name, caption = result
@@ -813,8 +864,10 @@ def main():
         if metric in TRUTH_METRICS:
             return ("Each plot overlays the branch LEVELS of the truth graph, the a priori definitions of what "
                     "one truth object is (stableLegsFromUpstream, caloBoundary, stableDecayProducts, "
-                    "hardProcess), plus the signal series, whose denominator is the selected branch roots "
-                    "themselves: with a selection preset that is the signal object's own efficiency. A "
+                    "hardProcess), plus two more series: signal, whose denominator is the preset SEED objects "
+                    "among the selected roots, so with a selection preset it is the signal object's own "
+                    "efficiency (the tau, not its decay legs), and allSelectedRoots, whose denominator is "
+                    "every selected root whatever its level or species. A "
                     "composite domain has a single folder named by its vertex resolution. On the efficiency "
                     "page each series is a pair: individual (filled, solid) means a single reco object covers "
                     "the truth object, cumulative (open, dashed, same colour) means all reco objects of the "
@@ -846,6 +899,9 @@ def main():
             for category in sorted({e["category"].split("/")[-1] for e in entries}):
                 if category in CATEGORY_NOTE:
                     page.write(f"<div class='def'><b>{category}.</b> {CATEGORY_NOTE[category]}</div>")
+                if metric in TRUTH_METRICS and category in MATCH_CRITERIA:
+                    page.write(f"<div class='def'><b>{category} match criterion.</b> "
+                               f"{MATCH_CRITERIA[category][1]}</div>")
             for collection in sorted({e["collection"] for e in entries}):
                 page.write(f"<h2>{collection}</h2><div class='grid'>")
                 for e in [x for x in entries if x["collection"] == collection]:
@@ -865,6 +921,14 @@ def main():
                     if any(e["var"] == v or e["var"].endswith("_vs_" + v) for e in entries)]
             for v in used:
                 defs.write(f"- `{v}`: {VARIABLE_MEANING.get(v) or CATEGORICAL_MEANING.get(v, v)}\n")
+            if metric in TRUTH_METRICS:
+                _crit = sorted({c for c in (e["category"].split("/")[-1] for e in entries)
+                                if c in MATCH_CRITERIA})
+                if _crit:
+                    defs.write("## Individual-match criterion, from the standard validations\n\n")
+                    for _c in _crit:
+                        defs.write(f"- **{_c}.** {MATCH_CRITERIA[_c][1]}\n")
+                    defs.write("\n")
             defs.write("\n## Quality cuts\n\n"
                        f"- A ratio bin is drawn only if its denominator has at least {MIN_DENOM_ENTRIES} entries.\n"
                        f"- A Gaussian slice fit is drawn only if its slice has at least {MIN_SLICE_ENTRIES} entries\n"

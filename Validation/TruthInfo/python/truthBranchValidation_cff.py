@@ -66,6 +66,37 @@ _algoBlockArgs.update(
 # plot and read as a real feature.
 truthPlotVariables = ["pt", "eta", "phi", "nhits", "vertpos", "zpos", "dxy", "dz", "depth", "root_footprint_fraction"]
 
+# Individual-match thresholds per domain, taken from the corresponding standard
+# validation rather than invented. Tracks and vertices are judged on the fraction of
+# shared COMPONENTS (hits; constituent tracks), calorimetry on the fraction of shared
+# ENERGY. Each value cites where it lives in the reference package.
+#
+# Tracks: QuickTrackAssociatorByHits with SimToRecoDenominator='reco' counts a truth
+# object reconstructed when a track shares MORE THAN 75% of its own hits with it, with
+# no truth-normalised cut at all (Cut_RecoToSim=0.75, Purity_SimToReco=0.75,
+# Quality_SimToReco=0.5 in SimTracker/TrackAssociatorProducers/python/
+# quickTrackAssociatorByHits_cfi.py:4-8, applied in plugins/
+# QuickTrackAssociatorByHitsImpl.cc:234-244 and 312-326; MultiTrackValidator adds no
+# further cut, plugins/MultiTrackValidator.cc:939-943).
+#
+# Vertices: VertexAssociatorByPositionAndTracks gates on POSITION and ships its
+# shared-track-fraction cut DISABLED (sharedTrackFraction=-1.0 in SimTracker/
+# VertexAssociation/plugins/VertexAssociatorByPositionAndTracksProducer.cc:72, the
+# fraction branch at src/VertexAssociatorByPositionAndTracks.cc:129), so on the
+# shared-components axis this framework uses, the reference criterion is any positive
+# shared fraction.
+#
+# Calorimetry: HGCalValidator counts a SimTrackster reconstructed when the simToReco
+# score is below 0.2 and a Trackster non-fake when the recoToSim score is below 0.6
+# (maxSimToRecoScoreForPurity/Duplicate and maxRecoToSimScoreForNonFake/Merge in
+# Validation/HGCalValidation/python/HGVHistoProducerAlgoBlock_cfi.py:70-73, applied in
+# src/HGVHistoProducerAlgo.cc:2819-2820 and 2898-2899). The score here is 1 minus the
+# shared-energy fraction, so the same numeric cuts read minTruthPurity 0.8 and
+# minRecoPurity 0.4.
+_trackThresholds = dict(minTruthPurityForIndividual=0.0, minRecoPurityLoose=0.75)
+_vertexThresholds = dict(minTruthPurityForIndividual=0.0, minRecoPurityLoose=0.0)
+_caloThresholds = dict(minTruthPurityForIndividual=0.8, minRecoPurityLoose=0.4)
+
 _domains = [
     dict(
         name="tracks",
@@ -74,6 +105,7 @@ _domains = [
         associator="allTrackToTruthBranchAssociators",
         dirName="TruthInfo/Offline/Tracking/",
         recoVariables=["pt", "eta", "phi", "nhits", "vertpos", "zpos", "dxy", "dz"],
+        thresholds=_trackThresholds,
     ),
     dict(
         name="vertices",
@@ -93,6 +125,7 @@ _domains = [
         # interaction vertex has hundreds of them: the 40-bin default put every truth
         # entry in the overflow, so the efficiency was empty in the visible range.
         axisOverrides={"nhits": (50, 0.0, 500.0)},
+        thresholds=_vertexThresholds,
     ),
     dict(
         name="secondaryVertices",
@@ -105,6 +138,7 @@ _domains = [
         recoVariables=["nhits", "vertpos", "zpos"],
         truthVariables=["nhits", "vertpos", "zpos"],
         sharedRange=(0.0, 1.0),
+        thresholds=_vertexThresholds,
     ),
     dict(
         name="tracksters",
@@ -115,6 +149,7 @@ _domains = [
         # A trackster has a barycentre and a layer-cluster count; its pt is the raw
         # energy projected transversally along that barycentre.
         recoVariables=["pt", "eta", "phi", "nhits", "vertpos", "zpos"],
+        thresholds=_caloThresholds,
     ),
 ]
 
@@ -218,10 +253,12 @@ truthBranchValidationSequence = cms.Sequence()
 truthBranchHarvestingSequence = cms.Sequence()
 
 for _d in _domains:
-    # The truth-driven folder suffixes: the graph levels plus the overall signal entry
-    # (denominator selectedBranchRoots) for a hit-based domain, the vertex resolution
-    # for a composite one.
-    _truthSuffixes = [_d["vertexResolution"]] if "vertexResolution" in _d else _truthLevels + ["signal"]
+    # The truth-driven folder suffixes: the graph levels, the overall signal entry
+    # (denominator the preset seed objects, signalSeeds) and the widest entry over every
+    # selected root (denominator selectedBranchRoots) for a hit-based domain, the vertex
+    # resolution for a composite one.
+    _truthSuffixes = ([_d["vertexResolution"]] if "vertexResolution" in _d
+                      else _truthLevels + ["signal", "allSelectedRoots"])
     _truthArgs = (dict(vertexResolution=cms.string(_d["vertexResolution"]))
                   if "vertexResolution" in _d else dict(truthLevels=cms.vstring(*_truthLevels)))
     _analyzer = cms.EDProducer(
@@ -233,6 +270,8 @@ for _d in _domains:
         recoCollections=cms.VInputTag(
             *[cms.InputTag(*l.split(":")) for l in recoLabels(_d["name"], _d["flavour"])]),
         workingPoints=cms.vstring(*_wps),
+        minTruthPurityForIndividual=cms.double(_d["thresholds"]["minTruthPurityForIndividual"]),
+        minRecoPurityLoose=cms.double(_d["thresholds"]["minRecoPurityLoose"]),
         histoProducerAlgoBlock=_algoBlock(_d["recoVariables"], _d.get("truthVariables"),
                                           _d.get("sharedRange"), _d.get("axisOverrides")),
         **_truthArgs,

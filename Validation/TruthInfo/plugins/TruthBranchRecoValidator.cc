@@ -202,10 +202,12 @@ TruthBranchRecoValidator<RECO>::TruthBranchRecoValidator(edm::ParameterSet const
       capitalized[0] = std::toupper(static_cast<unsigned char>(capitalized[0]));
       truthTargets.emplace_back(level, std::string(Traits::denominatorInstance) + capitalized);
     }
-    // The overall signal entry: its denominator is the associator's selected branch
-    // roots themselves, so with a selection preset the target IS the signal object
-    // (a tau, not its decay legs) and the folder measures its own efficiency.
-    truthTargets.emplace_back("signal", "selectedBranchRoots");
+    // The overall signal entry: its denominator is the preset SEED objects among the
+    // selected roots (the tau, not its decay legs), so the folder measures the signal
+    // object's own efficiency. Without a preset every selected root is a seed.
+    truthTargets.emplace_back("signal", "signalSeeds");
+    // Every selected root, whatever its level or species: the widest truth denominator.
+    truthTargets.emplace_back("allSelectedRoots", "selectedBranchRoots");
   }
 
   for (auto const& tag : cfg.getParameter<std::vector<edm::InputTag>>("recoCollections")) {
@@ -481,7 +483,10 @@ void TruthBranchRecoValidator<RECO>::fillDescriptions(edm::ConfigurationDescript
             "associator's truthLevels: each level consumes its own denominator product");
   }
   desc.add<double>("minTruthPurityForIndividual", 0.5)
-      ->setComment("A single reco object must cover at least this much of the truth object to have reconstructed it");
+      ->setComment(
+          "A single reco object must cover at least this much of the truth object to have reconstructed it. "
+          "truthBranchValidation_cff sets both purity cuts per domain to the corresponding standard "
+          "validation's thresholds");
   desc.add<double>("minRecoPurityLoose", 0.25)
       ->setComment("Loose cut in the other direction: that object must not be mostly something else");
   desc.add<double>("minCollectiveCoverage", 0.5)

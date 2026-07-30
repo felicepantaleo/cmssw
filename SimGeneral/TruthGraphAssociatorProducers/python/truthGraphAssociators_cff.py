@@ -51,10 +51,18 @@ _truthLevels = cms.vstring(
     "stableLegsFromUpstream", "caloBoundary", "stableDecayProducts", "hardProcess"
 )
 
+# The selection preset's seed species, so the signalSeeds product (the _signal
+# efficiency denominator) is the preset's signal object itself. A production that
+# applies a preset must set this to the SAME pdgIds the preset seeds with, via
+# PhysicsTools.TruthInfo.truthGraphSelections.seedPdgIdsForPreset. Empty means no
+# preset: every selected root is published as a signal seed.
+_signalSeedPdgIds = cms.vint32()
+
 # Hit-based: the object owns detector hits.
 allTrackToTruthBranchAssociators = cms.EDProducer(
     "AllTrackToTruthBranchAssociatorsProducer",
     recoCollections=_tags("tracks"),
+    signalSeedPdgIds=_signalSeedPdgIds,
     branchSelector=truthBranchSelectorBlock.clone(),
     truthLevels=_truthLevels,
     **_truthSources,
@@ -66,6 +74,7 @@ allTrackToTruthBranchAssociators = cms.EDProducer(
 allVertexToTruthBranchAssociators = cms.EDProducer(
     "AllVertexToTruthBranchAssociatorsProducer",
     recoCollections=_tags("vertices"),
+    signalSeedPdgIds=_signalSeedPdgIds,
     branchSelector=truthBranchSelectorBlock.clone(),
     constituentAssociator=cms.string("allTrackToTruthBranchAssociators"),
     constituentCollection=cms.string("generalTracks"),
@@ -91,6 +100,7 @@ allSecondaryVertexToTruthBranchAssociators = allVertexToTruthBranchAssociators.c
 truthBranchTracksterAssociators = cms.EDProducer(
     "TruthBranchTracksterAssociatorsProducer",
     recoCollections=_tags("tracksters"),
+    signalSeedPdgIds=_signalSeedPdgIds,
     branchSelector=truthBranchSelectorBlock.clone(),
     layerClusters=cms.InputTag("hgcalMergeLayerClusters"),
     truthLevels=_truthLevels,

@@ -269,6 +269,11 @@ private:
   std::vector<WorkingPoint> workingPoints_;
   truth::BranchSelector branchSelector_;
   const bool truthToRecoSignalOnly_;
+  // The selection preset's seed species. signalSeeds is the subset of the selected
+  // roots with one of these pdgIds, so the _signal efficiency denominator is the
+  // preset's signal object itself and not every selected root. Empty means no preset
+  // ran and signalSeeds falls back to all selected roots.
+  std::vector<int> signalSeedPdgIds_;
   // Which levels of the graph the truth-driven direction asks about, each with its
   // product instance label. NOT working points: the working points are the reco-driven
   // adaptive search, and the truth targets must be fixed before any reco object is
@@ -335,6 +340,9 @@ AllRecoToTruthBranchAssociatorsProducer<RECO>::AllRecoToTruthBranchAssociatorsPr
   // the graph, including those the selector rejected, and every efficiency comes out
   // low by the rejection factor.
   produces<std::vector<unsigned int>>("selectedBranchRoots");
+  // The preset seed objects among them, the denominator of the signal efficiency.
+  signalSeedPdgIds_ = cfg.getParameter<std::vector<int>>("signalSeedPdgIds");
+  produces<std::vector<unsigned int>>("signalSeeds");
   // The TruthToReco denominators, which are NOT the same set as the associator's
   // candidates. Efficiency, duplicate rate and split rate ask what fraction of the
   // truth was reconstructed, and in a pileup sample that question is only meaningful
@@ -442,6 +450,24 @@ void AllRecoToTruthBranchAssociatorsProducer<RECO>::produce(edm::StreamID,
   event.put(std::make_unique<std::vector<unsigned int>>(selectedRoots.begin(), selectedRoots.end()),
             "selectedBranchRoots");
 
+  // The preset seed objects: with a tau preset the tau roots alone, so the signal
+  // efficiency is the tau's own, not its decay legs'. No preset means every selected
+  // root is the signal.
+  {
+    auto signalSeeds = std::make_unique<std::vector<unsigned int>>();
+    if (signalSeedPdgIds_.empty()) {
+      signalSeeds->assign(selectedRoots.begin(), selectedRoots.end());
+    } else {
+      for (uint32_t id : selectedRoots) {
+        if (std::find(signalSeedPdgIds_.begin(), signalSeedPdgIds_.end(), graph.particles()[id].pdgId) !=
+            signalSeedPdgIds_.end()) {
+          signalSeeds->push_back(id);
+        }
+      }
+    }
+    event.put(std::move(signalSeeds), "signalSeeds");
+  }
+
   // eventId 0 is the signal interaction; anything else is overlaid pileup.
   auto isSignalParticle = [&graph](uint32_t particleId) { return graph.particles()[particleId].eventId == 0; };
   if constexpr (!ConstituentBasedDomain<RECO>) {
@@ -478,6 +504,12 @@ void AllRecoToTruthBranchAssociatorsProducer<RECO>::produce(edm::StreamID,
     std::unordered_map<unsigned int, unsigned int> rootsPerVertex;
     std::unordered_map<unsigned int, unsigned int> signalRootsPerVertex;
     for (uint32_t root : selectedRoots) {
+      // In-time only, as the reference vertex validation counts only bunch-crossing-0
+      // simulated vertices in its denominator
+      // (Validation/RecoVertex/src/PrimaryVertexAnalyzer4PUSlimmed.cc:877-883).
+      if (!truth::Branch(&graph, root).isInTime()) {
+        continue;
+      }
       // Same resolution the numerator uses: counting the denominator at a different set
       // of vertices than the numerator is the denominator bug all over again.
       if (const auto vertexId = countingVertex(graph, root, vertexResolution_, interactionVertex)) {
@@ -491,6 +523,12 @@ void AllRecoToTruthBranchAssociatorsProducer<RECO>::produce(edm::StreamID,
     auto targets = std::make_unique<std::vector<unsigned int>>();
     for (auto const& [vertexId, count] : rootsPerVertex) {
       if (count < 2u) {
+        continue;
+      }
+      // Junk-vertex guard of the reference vertex validation: a simulated vertex
+      // beyond |z| of 1000 cm is not counted
+      // (Validation/RecoVertex/src/PrimaryVertexAnalyzer4PUSlimmed.cc:885-886).
+      if (std::abs(graph.vertices()[vertexId].position.z()) > 1000.) {
         continue;
       }
       selectedVertices->push_back(vertexId);
@@ -673,6 +711,11 @@ void AllRecoToTruthBranchAssociatorsProducer<RECO>::fillDescriptions(edm::Config
             "tau, its decay products and their calorimeter-crossing descendants would all enter the denominator "
             "at the same time");
   }
+  desc.add<std::vector<int>>("signalSeedPdgIds", {})
+      ->setComment(
+          "The selection preset's seed pdgIds (truthGraphSelections seedPdgIdsForPreset). signalSeeds is the "
+          "subset of selectedBranchRoots with one of these pdgIds; empty means no preset ran and every selected "
+          "root is published as a signal seed");
   desc.add<bool>("truthToRecoSignalOnly", true)
       ->setComment(
           "Restrict the TruthToReco denominator to the signal interaction. Efficiency, duplicate and split are "

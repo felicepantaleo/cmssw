@@ -186,6 +186,17 @@ def selectionForFragment(name=None, template=None, **overrides):
     return selection
 
 
+def seedPdgIdsForPreset(name=None, template=None, **overrides):
+    """The preset's seed pdgIds as a plain list, for the associators' signalSeedPdgIds.
+
+    Feeding the associators the SAME values the preset seeds with makes the signalSeeds
+    product (the _signal efficiency denominator) exactly the preset's signal objects.
+    [0] is the full-graph escape hatch, not a species: it maps to an empty list, which
+    the associators read as "every selected root is signal"."""
+    s = selectionForFragment(name=name, template=template, **overrides)
+    return [p for p in s["seedPdgIds"] if p != 0]
+
+
 def postProcessingPSet(name=None, template=None, **overrides):
     """``selectionForFragment`` wrapped as a complete ``cms.PSet`` (build-side
     defaults included), ready to drop into a producer's ``postProcessing``."""
