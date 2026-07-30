@@ -26,6 +26,7 @@
 // No track exists at pattern-recognition time, so charge/species are deliberately not
 // labeled here. Class ids match ttpid/config.py.
 #include <cmath>
+#include <unordered_map>
 #include <memory>
 #include <vector>
 
@@ -136,7 +137,10 @@ public:
         geomToken_(esConsumes<CaloGeometry, CaloGeometryRecord, edm::Transition::BeginRun>()),
         minSharedEnergy_(p.getParameter<double>("minSharedEnergy")),
         minSharedByHits_(p.getParameter<double>("minSharedByHits")),
-        hasByHits_(!p.getParameter<edm::InputTag>("associationByHitsAdaptive").label().empty()) {
+        hasByHits_(!p.getParameter<edm::InputTag>("associationByHitsAdaptive").label().empty()),
+        hasLC_(!p.getParameter<edm::InputTag>("associationLC").label().empty()) {
+    if (hasLC_)
+      lcToBranchToken_ = consumes<BranchAssociationMap>(p.getParameter<edm::InputTag>("associationLC"));
     if (hasByHits_)
       assocByHitsToken_ = consumes<BranchAssociationMap>(p.getParameter<edm::InputTag>("associationByHitsAdaptive"));
     produces<nanoaod::FlatTable>();          // per-trackster
@@ -154,6 +158,7 @@ public:
     auto const& graph = ev.get(graphToken_);
     const unsigned nP = graph.nParticles();
     BranchAssociationMap const* assocBH = hasByHits_ ? &ev.get(assocByHitsToken_) : nullptr;
+    BranchAssociationMap const* lcToBranchPtr = hasLC_ ? &ev.get(lcToBranchToken_) : nullptr;
 
     // Adaptive label from an adaptive association map: the max-shared branch, mapped to a
     // single-shower class, or to merged_em/merged_hadron by descendant scan for an
@@ -207,7 +212,8 @@ public:
     std::vector<int> label, label_adaptive, is_primary, n_lc, lc_offset;
     std::vector<int> adaptive_node;
     std::vector<float> phi_bary, pid_em, pid_mip, pid_had;
-    std::vector<float> R_bary, z_bary, eta_bary, log_e, best_shared, adaptive_shared, adaptive_score;
+    std::vector<float> R_bary, z_bary, eta_bary, log_e, best_shared, best_score, best_score_lc, adaptive_shared,
+        adaptive_score;
     std::vector<int> best_pdg, adaptive_pdg;
     std::vector<float> signal_energy_fraction;
     std::vector<float> local_density_e, event_lc_e;
@@ -279,7 +285,7 @@ public:
       // contains signal if any of its energy comes from a hard-scatter/gun (isPrimary)
       // particle. signal_energy_fraction lets training drop pure-PU tracksters (== 0) and
       // keep signal or signal-contaminated ones.
-      float be = -1.f, sigE = 0.f, totE = 0.f;
+      float be = -1.f, sigE = 0.f, totE = 0.f, bscore = 2.f;
       int bidx = -1;
       if (t < assoc.size()) {
         for (auto const& el : assoc[t]) {
@@ -287,6 +293,10 @@ public:
           totE += e;
           if (el.index() < nP && isPrimary(graph.particle(static_cast<uint32_t>(el.index()))))
             sigE += e;
+          // best (minimum) reco->leaf-particle score, the validator's matching quantity
+          // (HGCalValidator: a reco is fake if no sim has score < 0.6).
+          if (el.score() < bscore)
+            bscore = el.score();
           if (e > be) {
             be = e;
             bidx = static_cast<int>(el.index());
@@ -323,11 +333,28 @@ public:
       lc_offset.push_back(static_cast<int>(lc_trkIdx.size()));
       int seedLayer = -1, seedScint = 0;
       float seedE = -1.f, seedThick = 0.f, seedEta = 0.f;
+      // by-LCs reco->branch score, mirroring AllTracksterToSimTracksterAssociatorsByLCs:
+      // recoFraction = 1/vertex_multiplicity, E = lc.energy(), reco self-energy denominator.
+      double denomLC = 0.0;
+      std::unordered_map<uint32_t, double> deltaLC;
       for (unsigned iv = 0; iv < trk.vertices().size(); ++iv) {
         const unsigned li = trk.vertices()[iv];
         if (li >= lcs.size())
           continue;
         auto const& lc = lcs[li];
+        {
+          const float mult = trk.vertex_multiplicity(iv);
+          const float elc = lc.energy();
+          const float rf = mult > 0.f ? 1.f / mult : 0.f;
+          const double rfe2 = static_cast<double>(rf * elc) * (rf * elc);
+          denomLC += rfe2;
+          if (lcToBranchPtr && li < lcToBranchPtr->size())
+            for (auto const& el : (*lcToBranchPtr)[li]) {
+              const float sf = elc > 0.f ? el.sharedEnergy() / elc : 0.f;
+              const float rms = std::max(0.f, rf - sf);
+              deltaLC[el.index()] += static_cast<double>(rms * elc) * (rms * elc) - rfe2;
+            }
+        }
         const float R = std::hypot(lc.x(), lc.y());
         const float phi = std::atan2(lc.y(), lc.x());
         // energy-weighted transverse RMS of the LC's rechits = its "size" (cm)
@@ -368,6 +395,14 @@ public:
           seedEta = rhtools_.getPosition(seedDet).eta();
         }
       }
+      // finalize the by-LCs best score: min over branches of (denom + delta_b)/denom.
+      float bestScoreLC = 2.f;
+      for (auto const& kv : deltaLC) {
+        const double sc = denomLC > 0.0 ? (denomLC + kv.second) / denomLC : 1.0;
+        if (sc < bestScoreLC)
+          bestScoreLC = static_cast<float>(sc);
+      }
+      best_score_lc.push_back(deltaLC.empty() ? -1.f : bestScoreLC);
       t_seed_layer.push_back(seedLayer);
       t_seed_energy.push_back(seedE > 0.f ? seedE : 0.f);
       t_seed_thick.push_back(seedThick);
@@ -381,6 +416,7 @@ public:
       best_pdg.push_back(pdg);
       adaptive_pdg.push_back(pdgA);
       best_shared.push_back(be > 0 ? be : 0.f);
+      best_score.push_back(bscore < 2.f ? bscore : -1.f);
       adaptive_shared.push_back(ae > 0 ? ae : 0.f);
       adaptive_score.push_back(ascore >= 0 ? ascore : -1.f);
       n_lc.push_back(static_cast<int>(lc_trkIdx.size()) - lc_offset.back());
@@ -439,6 +475,10 @@ public:
     trkTab->addColumn<int>("best_pdg", best_pdg, "pdgId of the best-matching leaf branch");
     trkTab->addColumn<int>("adaptive_pdg", adaptive_pdg, "pdgId of the adaptive-level branch");
     trkTab->addColumn<float>("best_sharedE", best_shared, "shared energy with the best leaf branch");
+    trkTab->addColumn<float>("best_score", best_score,
+                             "best (minimum) reco-to-leaf-particle association score; HGCalValidator fake = >= 0.6 (-1 = no match)");
+    trkTab->addColumn<float>("best_score_lc", best_score_lc,
+                             "best reco-to-leaf-particle score computed at LAYER-CLUSTER level (byLCs, recoFraction=1/vertex_multiplicity); fake = >= 0.6 (-1 = no match)");
     trkTab->addColumn<float>("adaptive_sharedE", adaptive_shared, "shared energy with the adaptive branch");
     trkTab->addColumn<float>("adaptive_score", adaptive_score,
                              "reco-normalized contamination score of the adaptive match (lower is better)");
@@ -518,6 +558,8 @@ public:
                                           "ticlTrackstersCLUE3DHighToTruthBranchAdaptive"));
     desc.add<edm::InputTag>("associationByHitsAdaptive", edm::InputTag(""))
         ->setComment("Optional parallel by-hits (composition) adaptive association; empty disables the byhits columns.");
+    desc.add<edm::InputTag>("associationLC", edm::InputTag(""))
+        ->setComment("Layer-cluster to leaf-branch association, for the by-LCs score (best_score_lc).");
     desc.add<edm::InputTag>("graph", edm::InputTag("truthLogicalGraphProducer"));
     desc.add<double>("minSharedEnergy", 0.5);
     desc.add<double>("minSharedByHits", 0.5)
@@ -533,11 +575,13 @@ private:
   const edm::EDGetTokenT<std::vector<reco::CaloCluster>> lcToken_;
   const edm::EDGetTokenT<BranchAssociationMap> assocToken_;
   const edm::EDGetTokenT<BranchAssociationMap> assocAdaptiveToken_;
+  edm::EDGetTokenT<BranchAssociationMap> lcToBranchToken_;
   const edm::EDGetTokenT<truth::Graph> graphToken_;
   const edm::ESGetToken<CaloGeometry, CaloGeometryRecord> geomToken_;
   const double minSharedEnergy_;
   const double minSharedByHits_;
   const bool hasByHits_;
+  const bool hasLC_;
   edm::EDGetTokenT<BranchAssociationMap> assocByHitsToken_;
   hgcal::RecHitTools rhtools_;
 };

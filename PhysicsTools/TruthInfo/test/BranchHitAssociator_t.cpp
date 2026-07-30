@@ -297,6 +297,8 @@ void TestBranchHitAssociator::testTiclScoreArithmetic() {
   // scores are squared and energy weighted, the fraction is linear. That is exactly why
   // HGCalValidator gates efficiency on the fraction and purity on the score.
   CPPUNIT_ASSERT(std::abs((1.f - root0->reverseScore) - root0->sharedEnergyFraction) > 0.2f);
+}
+
 void TestBranchHitAssociator::testAdaptiveBranchPicksLevel() {
   auto index = buildForkedIndex();  // parent 0 -> child 1 {11,12}, child 2 {20,21}
   truth::BranchHitAssociator assoc(index);
