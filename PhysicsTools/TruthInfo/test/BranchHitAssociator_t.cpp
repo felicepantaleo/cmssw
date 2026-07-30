@@ -67,6 +67,20 @@ namespace {
     return b.finish();
   }
 
+  // One branch depositing in TWO detectors of the calorimetric channel, as a real one
+  // does: cell 10 of detector 8 (an endcap detector) with energy 2, cell 1 of detector
+  // 3 (a barrel one) with energy 8. Its channel energy is 10, its detector-8 energy 2.
+  constexpr uint32_t kEndcapCell = (8u << 28) | 10u;
+  constexpr uint32_t kBarrelCell = (3u << 28) | 1u;
+
+  truth::LogicalGraphHitIndex buildTwoDetectorIndex() {
+    truth::LogicalGraphHitIndexBuilder b(1);
+    b.setSimTrackForParticle(0, 0, 100);
+    b.addHit(truth::HitChannel::Calo, 0, 100, kEndcapCell, 2.0f, 0);
+    b.addHit(truth::HitChannel::Calo, 0, 100, kBarrelCell, 8.0f, 0);
+    return b.finish();
+  }
+
 }  // namespace
 
 class TestBranchHitAssociator : public CppUnit::TestFixture {
@@ -78,6 +92,7 @@ class TestBranchHitAssociator : public CppUnit::TestFixture {
   CPPUNIT_TEST(testEmptyRootsMatchNothingWhenRestricted);
   CPPUNIT_TEST(testReverseScoreIsBranchNormalized);
   CPPUNIT_TEST(testTiclScoreArithmetic);
+  CPPUNIT_TEST(testSharedEnergyFractionCountsOnlyTheRequestedDetectors);
   CPPUNIT_TEST_SUITE_END();
 
 public:
@@ -88,6 +103,7 @@ public:
   void testEmptyRootsMatchNothingWhenRestricted();
   void testReverseScoreIsBranchNormalized();
   void testTiclScoreArithmetic();
+  void testSharedEnergyFractionCountsOnlyTheRequestedDetectors();
 };
 
 CPPUNIT_TEST_SUITE_REGISTRATION(TestBranchHitAssociator);
@@ -259,4 +275,41 @@ void TestBranchHitAssociator::testTiclScoreArithmetic() {
   // scores are squared and energy weighted, the fraction is linear. That is exactly why
   // HGCalValidator gates efficiency on the fraction and purity on the score.
   CPPUNIT_ASSERT(std::abs((1.f - root0->reverseScore) - root0->sharedEnergyFraction) > 0.2f);
+}
+
+void TestBranchHitAssociator::testSharedEnergyFractionCountsOnlyTheRequestedDetectors() {
+  auto index = buildTwoDetectorIndex();
+
+  // A reco object that takes the whole endcap cell and nothing else, which is what an
+  // endcap reco collection can do at best for this branch.
+  std::vector<truth::RecoHit> reco{{kEndcapCell, 99.f, 1.0f}};
+
+  // Whole channel in the denominator: shared 2 over the branch's 2 + 8, which is below
+  // the 0.5 efficiency gate although the reco object took everything it could reach.
+  truth::BranchHitAssociator wholeChannel(index);
+  auto wholeMatches = wholeChannel.bestBranches(reco);
+  CPPUNIT_ASSERT_EQUAL(std::size_t(1), wholeMatches.size());
+  CPPUNIT_ASSERT_DOUBLES_EQUAL(2.0, wholeMatches.front().sharedEnergy, 1e-6);
+  CPPUNIT_ASSERT_DOUBLES_EQUAL(2.0 / 10.0, wholeMatches.front().sharedEnergyFraction, 1e-6);
+
+  // Detector 8 only: shared 2 over the branch's 2 there, so the fraction is 1.
+  truth::BranchHitAssociator endcapOnly(index,
+                                        {},
+                                        truth::BranchHitAssociator::Metric::SharedEnergy,
+                                        truth::HitChannel::Calo,
+                                        /*emptyRootsMeansAll=*/true,
+                                        truth::BranchHitAssociator::detectorBit(kEndcapCell));
+  auto endcapMatches = endcapOnly.bestBranches(reco);
+  CPPUNIT_ASSERT_EQUAL(std::size_t(1), endcapMatches.size());
+  CPPUNIT_ASSERT_DOUBLES_EQUAL(2.0, endcapMatches.front().sharedEnergy, 1e-6);
+  CPPUNIT_ASSERT_DOUBLES_EQUAL(1.0, endcapMatches.front().sharedEnergyFraction, 1e-6);
+
+  // The restriction touches the fraction and nothing else: both TICL scores keep their
+  // own denominators over the whole channel. recoToSim is 0 (the reco object covers its
+  // own energy exactly, 1.0 * 2 against the branch's 2); simToReco is the barrel energy
+  // the reco object misses, (2^2 + 8^2 - 2^2) / (2^2 + 8^2) = 64 / 68.
+  CPPUNIT_ASSERT_DOUBLES_EQUAL(0.0, endcapMatches.front().score, 1e-6);
+  CPPUNIT_ASSERT_DOUBLES_EQUAL(wholeMatches.front().score, endcapMatches.front().score, 1e-6);
+  CPPUNIT_ASSERT_DOUBLES_EQUAL(64.0 / 68.0, endcapMatches.front().reverseScore, 1e-6);
+  CPPUNIT_ASSERT_DOUBLES_EQUAL(wholeMatches.front().reverseScore, endcapMatches.front().reverseScore, 1e-6);
 }

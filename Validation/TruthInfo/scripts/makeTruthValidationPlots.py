@@ -41,10 +41,12 @@ WP_ORDER = ["Fixed", "AdaptiveTight", "AdaptiveNominal", "AdaptiveLoose"]
 # caloBoundary, falling back to the first suffix present. The signal suffix is the
 # overall signal entry: its denominator is the preset SEED objects among the selected
 # roots, so with a selection preset it is the efficiency of the signal object itself
-# (the tau, not its decay legs). allSelectedRoots is the widest entry: every selected
-# root, whatever its level or species.
+# (the tau, not its decay legs). signalNoSelection is the same seed objects with no
+# selector cut at all, so the efficiency is quoted against every seed in the event.
+# allSelectedRoots is the widest entry: every selected root, whatever its level or
+# species.
 LEVEL_ORDER = ["stableLegsFromUpstream", "caloBoundary", "stableDecayProducts", "hardProcess",
-               "signal", "allSelectedRoots"]
+               "signal", "signalNoSelection", "allSelectedRoots"]
 VERTEX_SUFFIXES = ["interaction", "immediate"]
 TRUTH_SUFFIXES = LEVEL_ORDER + VERTEX_SUFFIXES
 REFERENCE_LEVEL = "caloBoundary"
@@ -159,8 +161,8 @@ RESIDUAL_UNIT = {"pt": "", "eta": "", "phi": " [rad]"}
 # One marker shape and one line style per series, so the curves stay separable in
 # greyscale and under colour-vision deficiency, not by colour alone. A cumulative
 # partner keeps its series' colour and shape and is drawn open and dashed.
-SERIES_MARKERS = ["o", "s", "^", "v", "*", "D"]
-SERIES_STYLES = ["-", "--", "-.", ":", (0, (3, 1, 1, 1)), (0, (5, 1))]
+SERIES_MARKERS = ["o", "s", "^", "v", "*", "P", "D"]
+SERIES_STYLES = ["-", "--", "-.", ":", (0, (3, 1, 1, 1)), (0, (1, 1)), (0, (5, 1))]
 # Typography. The CMS style is built for a single full-page pad, where a 26 pt axis
 # title is right; on a two-pad figure carrying a twelve-entry legend it dwarfs
 # everything around it and a long y title outgrows its own pad. The title is therefore
@@ -206,9 +208,16 @@ MATCH_CRITERIA = {
     "Vertexing": _VERTEX_CRITERION,
     "SecondaryVertexing": _VERTEX_CRITERION,
     "Calorimetry": (
-        "Individual: shared energy fraction > 0.5 of the truth branch (HGCal standard)",
-        "Individual: a single trackster shares more than 0.5 of the truth branch's energy, and its own "
-        "recoToSim score is below 0.6. These are three DIFFERENT axes in HGCalValidator, not one: "
+        "Individual: shared energy fraction > 0.5 of the branch energy in this collection's detectors "
+        "(HGCal standard)",
+        "Individual: a single trackster shares more than 0.5 of the truth branch's energy IN THE DETECTORS "
+        "THIS COLLECTION RECONSTRUCTS, and its own "
+        "recoToSim score is below 0.6. The denominator is not the branch's whole calorimetric energy: the "
+        "truth graph keeps every calorimeter deposit of the branch, barrel included, and their sampling "
+        "energies differ by orders of magnitude, so on 200 no-PU ttbar events only 0.5% to 10% of a top "
+        "branch's calorimetric energy is in HGCAL and no trackster could reach half of the whole. The "
+        "reference quantity has no such problem because a sim trackster exists only in HGCAL. "
+        "These are three DIFFERENT axes in HGCalValidator, not one: "
         "efficiency is a SHARED ENERGY FRACTION cut, minTSTSharedEneFracEfficiency = 0.5 "
         "(Validation/HGCalValidation/python/HGVHistoProducerAlgoBlock_cfi.py:82, applied in "
         "src/HGVHistoProducerAlgo.cc:2897); purity and duplicate cut the simToReco SCORE below 0.2 "
@@ -958,10 +967,12 @@ def main():
         if metric in TRUTH_METRICS:
             return ("Each plot overlays the branch LEVELS of the truth graph, the a priori definitions of what "
                     "one truth object is (stableLegsFromUpstream, caloBoundary, stableDecayProducts, "
-                    "hardProcess), plus two more series: signal, whose denominator is the preset SEED objects "
+                    "hardProcess), plus three more series: signal, whose denominator is the preset SEED objects "
                     "among the selected roots, so with a selection preset it is the signal object's own "
-                    "efficiency (the tau, not its decay legs), and allSelectedRoots, whose denominator is "
-                    "every selected root whatever its level or species. A "
+                    "efficiency (the tau, not its decay legs), signalNoSelection, the same seed objects with "
+                    "no branch-selector cut at all, so the efficiency is quoted against every seed in the "
+                    "event and the gap to signal is what the selection removed, and allSelectedRoots, whose "
+                    "denominator is every selected root whatever its level or species. A "
                     "composite domain has a single folder named by its vertex resolution. On the efficiency "
                     "page each series is a pair: individual (filled, solid) means a single reco object covers "
                     "the truth object, cumulative (open, dashed, same colour) means all reco objects of the "

@@ -89,7 +89,10 @@ truthPlotVariables = ["pt", "eta", "phi", "nhits", "vertpos", "zpos", "dxy", "dz
 # Calorimetry: HGCalValidator counts the three on DIFFERENT axes, and the association
 # scores are the TICL ones (Validation/HGCalValidation/src/HGVHistoProducerAlgo.cc:
 # 2897-2899). EFFICIENCY is a SHARED ENERGY FRACTION cut, shared energy over the truth
-# object's own energy, above minTSTSharedEneFracEfficiency = 0.5
+# branch's energy IN THE DETECTORS THE COLLECTION RECONSTRUCTS (the reference sim
+# trackster exists only in HGCAL; the truth branch here also holds the barrel deposits
+# of the same particles, which no endcap reco object can cover), above
+# minTSTSharedEneFracEfficiency = 0.5
 # (Validation/HGCalValidation/python/HGVHistoProducerAlgoBlock_cfi.py:82). PURITY and
 # DUPLICATE cut the simToReco score below maxSimToRecoScoreForPurity/Duplicate = 0.2
 # (cfi:72-73). FAKE and MERGE cut the recoToSim score below
@@ -258,11 +261,12 @@ truthBranchHarvestingSequence = cms.Sequence()
 
 for _d in _domains:
     # The truth-driven folder suffixes: the graph levels, the overall signal entry
-    # (denominator the preset seed objects, signalSeeds) and the widest entry over every
+    # (denominator the preset seed objects, signalSeeds), the same seed objects with no
+    # selector cut at all (signalSeedsNoSelection) and the widest entry over every
     # selected root (denominator selectedBranchRoots) for a hit-based domain, the vertex
     # resolution for a composite one.
     _truthSuffixes = ([_d["vertexResolution"]] if "vertexResolution" in _d
-                      else _truthLevels + ["signal", "allSelectedRoots"])
+                      else _truthLevels + ["signal", "signalNoSelection", "allSelectedRoots"])
     _truthArgs = (dict(vertexResolution=cms.string(_d["vertexResolution"]))
                   if "vertexResolution" in _d else dict(truthLevels=cms.vstring(*_truthLevels)))
     _analyzer = cms.EDProducer(

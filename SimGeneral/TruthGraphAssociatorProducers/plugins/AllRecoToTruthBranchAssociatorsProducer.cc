@@ -271,8 +271,9 @@ private:
   const bool truthToRecoSignalOnly_;
   // The selection preset's seed species. signalSeeds is the subset of the selected
   // roots with one of these pdgIds, so the _signal efficiency denominator is the
-  // preset's signal object itself and not every selected root. Empty means no preset
-  // ran and signalSeeds falls back to all selected roots.
+  // preset's signal object itself and not every selected root; signalSeedsNoSelection
+  // is the same species with no selector cut at all. Empty means no preset ran and both
+  // fall back to all selected roots.
   std::vector<int> signalSeedPdgIds_;
   // Which levels of the graph the truth-driven direction asks about, each with its
   // product instance label. NOT working points: the working points are the reco-driven
@@ -343,6 +344,11 @@ AllRecoToTruthBranchAssociatorsProducer<RECO>::AllRecoToTruthBranchAssociatorsPr
   // The preset seed objects among them, the denominator of the signal efficiency.
   signalSeedPdgIds_ = cfg.getParameter<std::vector<int>>("signalSeedPdgIds");
   produces<std::vector<unsigned int>>("signalSeeds");
+  // The same seed species without any selector cut, so an efficiency can be quoted
+  // against EVERY seed in the event and not only against those the kinematic selection
+  // kept. The two denominators together separate "not reconstructed" from "never
+  // offered": on 200 no-PU ttbar events the selector keeps 390 of the 400 tops.
+  produces<std::vector<unsigned int>>("signalSeedsNoSelection");
   // The TruthToReco denominators, which are NOT the same set as the associator's
   // candidates. Efficiency, duplicate rate and split rate ask what fraction of the
   // truth was reconstructed, and in a pileup sample that question is only meaningful
@@ -454,18 +460,33 @@ void AllRecoToTruthBranchAssociatorsProducer<RECO>::produce(edm::StreamID,
   // efficiency is the tau's own, not its decay legs'. No preset means every selected
   // root is the signal.
   {
+    auto const isSeedSpecies = [this, &graph](uint32_t id) {
+      return std::find(signalSeedPdgIds_.begin(), signalSeedPdgIds_.end(), graph.particles()[id].pdgId) !=
+             signalSeedPdgIds_.end();
+    };
     auto signalSeeds = std::make_unique<std::vector<unsigned int>>();
+    // Same species, every one of them: the selector's kinematic cuts are what this
+    // denominator exists to leave out. Without a preset there is no seed species to
+    // look for, so there is nothing to un-select and it repeats signalSeeds rather
+    // than promoting every particle in the graph to an efficiency denominator.
+    auto signalSeedsNoSelection = std::make_unique<std::vector<unsigned int>>();
     if (signalSeedPdgIds_.empty()) {
       signalSeeds->assign(selectedRoots.begin(), selectedRoots.end());
+      signalSeedsNoSelection->assign(selectedRoots.begin(), selectedRoots.end());
     } else {
       for (uint32_t id : selectedRoots) {
-        if (std::find(signalSeedPdgIds_.begin(), signalSeedPdgIds_.end(), graph.particles()[id].pdgId) !=
-            signalSeedPdgIds_.end()) {
+        if (isSeedSpecies(id)) {
           signalSeeds->push_back(id);
+        }
+      }
+      for (uint32_t id = 0; id < nBranches; ++id) {
+        if (isSeedSpecies(id)) {
+          signalSeedsNoSelection->push_back(id);
         }
       }
     }
     event.put(std::move(signalSeeds), "signalSeeds");
+    event.put(std::move(signalSeedsNoSelection), "signalSeedsNoSelection");
   }
 
   // eventId 0 is the signal interaction; anything else is overlaid pileup.
@@ -557,6 +578,36 @@ void AllRecoToTruthBranchAssociatorsProducer<RECO>::produce(edm::StreamID,
     const unsigned int nTruthRows = ConstituentBasedDomain<RECO> ? graph.nVertices() : nBranches;
     auto truthToReco = std::make_unique<MapType>(nTruthRows);
 
+    // The detectors this collection reconstructs, which is what the sim-normalised
+    // shared-energy fraction is normalised to. One hit channel spans several
+    // detectors: HitChannel::Calo carries the barrel ECAL and HCAL deposits next to
+    // the HGCAL ones, and PCaloHit energies are sampling energies, so a branch that
+    // showered in the barrel has a channel-wide energy no endcap trackster can cover
+    // half of. Measured on 200 no-PU ttbar events: 0.5% to 10% of a top branch's
+    // channel energy is in HGCAL, so the fraction was zero for every top.
+    uint32_t denominatorDetectors = truth::BranchHitAssociator::kAllDetectors;
+    if constexpr (!ConstituentBasedDomain<RECO>) {
+      if constexpr (Traits::metric == truth::BranchHitAssociator::Metric::SharedEnergy) {
+        uint32_t seen = 0;
+        for (unsigned int i = 0; i < nReco; ++i) {
+          std::vector<truth::RecoHit> hits;
+          if constexpr (LayerClusterBackedRecoHits<RECO>) {
+            hits = truth::recoHits((*handle)[i], *layerClusters);
+          } else {
+            hits = truth::recoHits((*handle)[i]);
+          }
+          for (auto const& hit : hits) {
+            seen |= truth::BranchHitAssociator::detectorBit(hit.detId);
+          }
+        }
+        // An empty collection produces no match at all, so which detectors its
+        // denominator would have covered never enters a number.
+        if (seen != 0u) {
+          denominatorDetectors = seen;
+        }
+      }
+    }
+
     // Composite domains only: (reco index, shared weight) per truth vertex and the
     // per-truth-vertex total, so the truth-normalised fraction can be formed once every
     // reco object of the collection has contributed.
@@ -618,8 +669,12 @@ void AllRecoToTruthBranchAssociatorsProducer<RECO>::produce(edm::StreamID,
       } else {
         // Built once per collection: the inverted DetId index and the per-cell
         // denominators do not depend on the working point.
-        const truth::BranchHitAssociator associator(
-            hitIndex, selectedRoots, Traits::metric, Traits::channel, /*emptyRootsMeansAll=*/false);
+        const truth::BranchHitAssociator associator(hitIndex,
+                                                    selectedRoots,
+                                                    Traits::metric,
+                                                    Traits::channel,
+                                                    /*emptyRootsMeansAll=*/false,
+                                                    denominatorDetectors);
         for (unsigned int i = 0; i < nReco; ++i) {
           std::vector<truth::RecoHit> hits;
           if constexpr (LayerClusterBackedRecoHits<RECO>) {
@@ -719,8 +774,9 @@ void AllRecoToTruthBranchAssociatorsProducer<RECO>::fillDescriptions(edm::Config
   desc.add<std::vector<int>>("signalSeedPdgIds", {})
       ->setComment(
           "The selection preset's seed pdgIds (truthGraphSelections seedPdgIdsForPreset). signalSeeds is the "
-          "subset of selectedBranchRoots with one of these pdgIds; empty means no preset ran and every selected "
-          "root is published as a signal seed");
+          "subset of selectedBranchRoots with one of these pdgIds, signalSeedsNoSelection every particle with "
+          "one of them whatever the branch selector says; empty means no preset ran and both fall back to "
+          "every selected root");
   desc.add<bool>("truthToRecoSignalOnly", true)
       ->setComment(
           "Restrict the TruthToReco denominator to the signal interaction. Efficiency, duplicate and split are "

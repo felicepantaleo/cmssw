@@ -10,14 +10,23 @@
 #include <numeric>
 #include <utility>
 
+#include "DataFormats/DetId/interface/DetId.h"
+
 namespace truth {
+
+  uint32_t BranchHitAssociator::detectorBit(uint32_t detId) { return 1u << DetId(detId).det(); }
 
   BranchHitAssociator::BranchHitAssociator(LogicalGraphHitIndex const& hitIndex,
                                            std::vector<uint32_t> candidateRoots,
                                            Metric metric,
                                            HitChannel channel,
-                                           bool emptyRootsMeansAll)
-      : hitIndex_(&hitIndex), metric_(metric), channel_(channel), roots_(std::move(candidateRoots)) {
+                                           bool emptyRootsMeansAll,
+                                           uint32_t denominatorDetectors)
+      : hitIndex_(&hitIndex),
+        metric_(metric),
+        channel_(channel),
+        denominatorDetectors_(denominatorDetectors),
+        roots_(std::move(candidateRoots)) {
     if (roots_.empty() && emptyRootsMeansAll) {
       roots_.resize(hitIndex_->nParticles());
       std::iota(roots_.begin(), roots_.end(), 0u);
@@ -61,7 +70,11 @@ namespace truth {
       for (auto const& hit : rootHits(root)) {
         pairs.emplace_back(hit.detId, root);
         selfEnergySq += static_cast<double>(hit.energy) * hit.energy;
-        selfEnergy += hit.energy;
+        // The linear total is the sharedEnergyFraction denominator, so it counts only
+        // the detectors the caller reconstructs; the squared one is the TICL score
+        // denominator and stays over the whole channel, as the reference computes it.
+        if ((denominatorDetectors_ & detectorBit(hit.detId)) != 0u)
+          selfEnergy += hit.energy;
       }
       rootSelfEnergySq_[root] = selfEnergySq;
       rootEnergy_[root] = selfEnergy;
@@ -270,6 +283,10 @@ namespace truth {
         const double branchDenom = rootSelfEnergySq_[root];
         const double branchScoreNum = std::max(0.0, (branchDenom - sharedBranchEnergySq) + branchExcessNum);
         m.reverseScore = branchDenom > 0.0 ? static_cast<float>(branchScoreNum / branchDenom) : 0.f;
+        // Normalized to the branch energy in the detectors of denominatorDetectors_,
+        // not to its whole channel energy: the numerator can only ever grow on cells
+        // the reco object occupies, so a denominator spanning detectors that
+        // collection does not reconstruct is a fraction nothing can pass.
         const double branchEnergyTotal = rootEnergy_[root];
         m.sharedEnergyFraction = branchEnergyTotal > 0.0 ? static_cast<float>(sharedEnergy / branchEnergyTotal) : 0.f;
       } else {
