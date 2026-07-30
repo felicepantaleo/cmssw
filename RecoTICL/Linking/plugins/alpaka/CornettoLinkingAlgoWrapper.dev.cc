@@ -250,7 +250,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
             continue;
           int32_t best = -1;
           float bestE = -1.f;
-          const int32_t endcap = ts[c].baryZ() > 0.f ? 1 : 0;
+          // Same endcap convention as the tile fill: keyed on eta, not on baryZ.
+          const int32_t endcap = (ts[c].eta() >= 0.f) ? 1 : 0;
           const int32_t ie = etaBinOf(g, ts[c].eta());
           const int32_t ip = phiBinOf(g, ts[c].phi());
           for (int32_t de = -1; de <= 1; ++de) {
