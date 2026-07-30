@@ -114,6 +114,9 @@ namespace ticl {
     const float axisToleranceCos_;
     const bool forwardOnly_;
     const float minEmittedEnergy_;
+    // Growth rounds. Each round is one parallel map on device; the growth converges
+    // long before this on real events, the bound only guarantees termination.
+    static constexpr int kMaxGrowthRounds = 8;
   };
 
 }  // namespace ticl

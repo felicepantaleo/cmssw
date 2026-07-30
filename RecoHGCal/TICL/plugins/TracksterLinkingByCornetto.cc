@@ -87,89 +87,113 @@ void TracksterLinkingByCornetto::linkBySeededGrowth(const Inputs& input,
     energy[i] = tracksters[i].raw_energy();
   }
 
-  // Seeds in decreasing energy; the index tie-break keeps the order (and therefore the
-  // output) independent of the sort implementation, as in the pair anchor choice.
-  std::vector<unsigned int> seeds;
-  seeds.reserve(n);
-  for (unsigned int i = 0; i < n; ++i)
-    if (energy[i] >= seedEnergy_)
-      seeds.push_back(i);
-  std::sort(seeds.begin(), seeds.end(), [&energy](unsigned int a, unsigned int b) {
-    return energy[a] != energy[b] ? energy[a] > energy[b] : a < b;
-  });
-
+  // Cores are seeded in place: a trackster above seedEnergy owns itself. No ordering is
+  // imposed, because the growth below is SATELLITE centric and order independent.
   constexpr int kUnowned = -1;
   std::vector<int> owner(n, kUnowned);
-  std::vector<std::vector<unsigned int>> members(n);
+  std::vector<double> coreE(n, 0.);
+  std::vector<math::XYZVectorF> coreSum(n);
+  for (unsigned int i = 0; i < n; ++i)
+    if (energy[i] >= seedEnergy_) {
+      owner[i] = static_cast<int>(i);
+      coreE[i] = energy[i];
+      coreSum[i] = bary[i] * energy[i];
+    }
 
-  for (unsigned int s : seeds) {
-    if (owner[s] != kUnowned)
-      continue;
-    owner[s] = static_cast<int>(s);
-    members[s].push_back(s);
-    // Core state: energy-weighted centroid, and the axis from the interaction point to
-    // it. The barycenter direction is well defined for every trackster, unlike the PCA
-    // eigenvector of a single layer cluster, which is why it is preferred here.
-    double sumE = energy[s];
-    math::XYZVectorF centroid = bary[s] * energy[s];
-    auto unit = [](const math::XYZVectorF& v) {
-      const float m = std::sqrt(v.Mag2());
-      return m > 0.f ? v / m : v;
-    };
-    math::XYZVectorF axis = unit(bary[s]);
+  auto unit = [](const math::XYZVectorF& v) {
+    const float m = std::sqrt(v.Mag2());
+    return m > 0.f ? v / m : v;
+  };
+
+  // Batch growth. Every round each unowned satellite independently picks the best core
+  // that accepts it, judged against the core state as it was at the START of the round.
+  // Because no satellite reads another satellite's decision, the outcome does not depend
+  // on the order the satellites are visited: the round is a pure map, which is what lets
+  // the same algorithm run as one kernel per round on device, and what keeps the host and
+  // the Alpaka backend bit identical. A satellite that has joined a core never moves
+  // again and never links to another satellite, so no chain can form (see the class
+  // comment on percolation).
+  std::vector<int> claim(n, kUnowned);
+  for (int round = 0; round < kMaxGrowthRounds; ++round) {
+    std::fill(claim.begin(), claim.end(), kUnowned);
+    bool anyClaim = false;
 
     for (unsigned int c = 0; c < n; ++c) {
       if (owner[c] != kUnowned)
         continue;
-      if (bary[c].z() * bary[s].z() < 0.f)
-        continue;  // same endcap only
-      const math::XYZVectorF core = centroid / sumE;
-      if (std::abs(bary[c].eta() - core.eta()) > etaWindow_)
-        continue;
-      if (std::abs(reco::deltaPhi(bary[c].phi(), core.phi())) > etaWindow_)
-        continue;
-
-      const auto D = bary[c] - core;
-      const float sProj = D.Dot(axis);
-      // A shower develops in depth: only attach downstream of the core centroid.
-      if (forwardOnly_ && sProj < 0.f)
-        continue;
-      const float zrel = std::abs(core.z()) - longitudinalZRef_;
-      const float maxLong = maxLongitudinalDistance_ + maxLongitudinalSlope_ * (zrel > 0.f ? zrel : 0.f);
-      if (std::abs(sProj) > maxLong)
-        continue;
-      const float dT2 = std::max(0.f, static_cast<float>(D.Mag2()) - sProj * sProj);
-      const float rT = transverseRadius0_ + transverseSlope_ * std::abs(sProj);
-      if (dT2 > rT * rT)
-        continue;
-      if (tracksters[s].timeError() > 0.f && tracksters[c].timeError() > 0.f) {
-        const float sigma2 = tracksters[s].timeError() * tracksters[s].timeError() +
-                             tracksters[c].timeError() * tracksters[c].timeError();
-        const float dt = tracksters[s].time() - tracksters[c].time();
-        if (dt * dt > timeCompatibilityNSigma_ * timeCompatibilityNSigma_ * sigma2)
+      int best = kUnowned;
+      float bestE = -1.f;
+      for (unsigned int s = 0; s < n; ++s) {
+        if (owner[s] != static_cast<int>(s))
+          continue;  // s is not a core root
+        if (bary[c].z() * bary[s].z() < 0.f)
+          continue;  // same endcap only
+        // Highest-energy core wins, ties broken by the smaller index, so the choice is a
+        // function of the pair alone (the same rule the union-find anchor uses).
+        if (coreE[s] < bestE or (coreE[s] == bestE and best != kUnowned and s > static_cast<unsigned int>(best)))
           continue;
+
+        const math::XYZVectorF core = coreSum[s] / coreE[s];
+        const math::XYZVectorF axis = unit(core);
+        if (std::abs(bary[c].eta() - core.eta()) > etaWindow_)
+          continue;
+        if (std::abs(reco::deltaPhi(bary[c].phi(), core.phi())) > etaWindow_)
+          continue;
+        const auto D = bary[c] - core;
+        const float sProj = D.Dot(axis);
+        if (forwardOnly_ && sProj < 0.f)
+          continue;  // a shower develops in depth
+        const float zrel = std::abs(core.z()) - longitudinalZRef_;
+        const float maxLong = maxLongitudinalDistance_ + maxLongitudinalSlope_ * (zrel > 0.f ? zrel : 0.f);
+        if (std::abs(sProj) > maxLong)
+          continue;
+        const float dT2 = std::max(0.f, static_cast<float>(D.Mag2()) - sProj * sProj);
+        const float rT = transverseRadius0_ + transverseSlope_ * std::abs(sProj);
+        if (dT2 > rT * rT)
+          continue;
+        if (tracksters[s].timeError() > 0.f && tracksters[c].timeError() > 0.f) {
+          const float sigma2 = tracksters[s].timeError() * tracksters[s].timeError() +
+                               tracksters[c].timeError() * tracksters[c].timeError();
+          const float dt = tracksters[s].time() - tracksters[c].time();
+          if (dt * dt > timeCompatibilityNSigma_ * timeCompatibilityNSigma_ * sigma2)
+            continue;
+        }
+        // Axis stability: a satellite that would swing the core direction belongs to a
+        // neighbouring shower, not this one.
+        const double newE = coreE[s] + energy[c];
+        const math::XYZVectorF newAxis = unit((coreSum[s] + bary[c] * energy[c]) / newE);
+        if (newAxis.Dot(axis) < axisToleranceCos_)
+          continue;
+
+        best = static_cast<int>(s);
+        bestE = coreE[s];
       }
-
-      // Axis stability: a satellite that would swing the core direction is not part of
-      // this shower, it is a neighbouring one.
-      const double newSumE = sumE + energy[c];
-      const math::XYZVectorF newCentroid = centroid + bary[c] * energy[c];
-      const math::XYZVectorF newAxis = unit(newCentroid / newSumE);
-      if (newAxis.Dot(axis) < axisToleranceCos_)
-        continue;
-
-      owner[c] = static_cast<int>(s);
-      members[s].push_back(c);
-      sumE = newSumE;
-      centroid = newCentroid;
-      axis = newAxis;
+      if (best != kUnowned) {
+        claim[c] = best;
+        anyClaim = true;
+      }
     }
+    if (!anyClaim)
+      break;
+
+    // Commit the round, then refresh the core states for the next one.
+    for (unsigned int c = 0; c < n; ++c)
+      if (claim[c] != kUnowned) {
+        owner[c] = claim[c];
+        coreE[claim[c]] += energy[c];
+        coreSum[claim[c]] += bary[c] * energy[c];
+      }
   }
 
+  std::vector<std::vector<unsigned int>> members(n);
+  for (unsigned int i = 0; i < n; ++i)
+    if (owner[i] != kUnowned)
+      members[owner[i]].push_back(i);
   for (unsigned int i = 0; i < n; ++i)
     if (!members[i].empty())
       groups.push_back(members[i]);
-  // Everything no core claimed stays a trackster of its own (no energy is dropped).
+  // Whatever no core claimed stays a trackster of its own: no energy is dropped here,
+  // the emit-side threshold in linkTracksters is the only place anything is discarded.
   for (unsigned int i = 0; i < n; ++i)
     if (owner[i] == kUnowned)
       groups.push_back({i});
