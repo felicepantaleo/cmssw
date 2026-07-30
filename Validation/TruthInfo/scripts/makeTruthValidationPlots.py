@@ -489,6 +489,18 @@ def _fit_ok(wp, values, slices, is_sigma=False, errors=None):
     return ok
 
 
+def broken(values, keep):
+    """The series with the dropped bins as NaN, keeping the x grid contiguous.
+
+    A dropped bin must BREAK the line, not be skipped over: the segment matplotlib would
+    otherwise draw across it reads as a measurement in a region that has none, such as the
+    barrel gap where HGCAL has no acceptance. NaN lifts the pen and draws no marker.
+    """
+    out = np.asarray(values, dtype=float).copy()
+    out[~np.asarray(keep, dtype=bool)] = np.nan
+    return out
+
+
 def plot_metric(category, collection, metric, var, per_wp, outdir, index, slices=None, denom=None,
                 order=None, reference=None, paired=None, note=None):
     """One overlay plot with a ratio panel against the reference series.
@@ -528,9 +540,9 @@ def plot_metric(category, collection, metric, var, per_wp, outdir, index, slices
             filled = filled & (denom[wp] >= MIN_DENOM_ENTRIES)
         means[wp] = float(values[filled].mean()) if filled.any() else 0.0
         ax.errorbar(
-            centers[filled],
-            values[filled],
-            yerr=errors[filled],
+            centers,
+            broken(values, filled),
+            yerr=broken(errors, filled),
             fmt=markers[i % len(markers)],
             linestyle=styles[i % len(styles)] if paired is None else "-",
             markersize=marker_size(markers[i % len(markers)]),
@@ -549,9 +561,9 @@ def plot_metric(category, collection, metric, var, per_wp, outdir, index, slices
             if denom is not None and wp in denom and len(denom[wp]) == len(p_values):
                 p_filled = p_filled & (denom[wp] >= MIN_DENOM_ENTRIES)
             ax.errorbar(
-                p_centers[p_filled],
-                p_values[p_filled],
-                yerr=p_errors[p_filled],
+                p_centers,
+                broken(p_values, p_filled),
+                yerr=broken(p_errors, p_filled),
                 fmt=markers[i % len(markers)],
                 linestyle="--",
                 markersize=marker_size(markers[i % len(markers)]),
@@ -633,12 +645,14 @@ def plot_metric(category, collection, metric, var, per_wp, outdir, index, slices
                     if w in denom and len(denom[w]) == len(values):
                         ok = ok & (denom[w] >= MIN_DENOM_ENTRIES)
             if ok.any():
-                ratio_values.extend((values[ok] / ref_values[ok]).tolist())
+                ratio = np.full(len(values), np.nan)
+                ratio[ok] = values[ok] / ref_values[ok]
+                ratio_values.extend(ratio[ok].tolist())
                 # Same marker, colour and line style as the main pad, so a series is
                 # recognised in the ratio without going back to the legend.
                 rax.plot(
-                    ref_centers[ok],
-                    values[ok] / ref_values[ok],
+                    ref_centers,
+                    ratio,
                     marker=markers[i % len(markers)],
                     linestyle=styles[i % len(styles)] if paired is None else "-",
                     markersize=marker_size(markers[i % len(markers)]),
@@ -775,7 +789,7 @@ def plot_residual(category, collection, source, per_wp, outdir, index):
         # Fraction inside +-10%, a scale-free statement about how peaked it is that does
         # not depend on a fit converging.
         cores[wp] = float(values[np.abs(centers) <= 0.1].sum() / total)
-        hep.histplot(values / total, edges, ax=ax, label=wp, yerr=False,
+        hep.histplot(broken(values / total, values > 0), edges, ax=ax, label=wp, yerr=False,
                      color=colors[i % len(colors)], linestyle=styles[i % len(styles)], linewidth=1.6)
 
     ax.set_yscale("log")
@@ -1011,6 +1025,7 @@ def main():
                     defs.write("\n")
             defs.write("\n## Quality cuts\n\n"
                        f"- A ratio bin is drawn only if its denominator has at least {MIN_DENOM_ENTRIES} entries.\n"
+                       "- A bin that is empty or suppressed breaks the line; no segment is drawn across it.\n"
                        f"- A Gaussian slice fit is drawn only if its slice has at least {MIN_SLICE_ENTRIES} entries\n"
                        "  and the fitted width is inside the fit range and wider than one bin.\n"
                        "- A named category is drawn only if the sample populated it.\n")
@@ -1059,6 +1074,8 @@ def main():
         idx.write("</ul><h2>Quality cuts applied to every plot</h2><ul class='idx'>"
                   f"<li>A ratio bin is drawn only if its denominator has at least {MIN_DENOM_ENTRIES} entries. "
                   "A ratio built from a handful of entries is noise with a large error bar, not a measurement.</li>"
+                  "<li>An empty or suppressed bin breaks the line rather than being skipped over, so a series "
+                  "never draws a segment across a region it did not measure.</li>"
                   f"<li>A Gaussian slice fit is drawn only if its slice has at least {MIN_SLICE_ENTRIES} entries, "
                   "and only if the fitted width is inside the fit range and wider than one bin. The other two cases "
                   "are a fit that ran away and a fit that collapsed onto a single bin.</li>"
