@@ -202,6 +202,10 @@ TruthBranchRecoValidator<RECO>::TruthBranchRecoValidator(edm::ParameterSet const
       capitalized[0] = std::toupper(static_cast<unsigned char>(capitalized[0]));
       truthTargets.emplace_back(level, std::string(Traits::denominatorInstance) + capitalized);
     }
+    // The overall signal entry: its denominator is the associator's selected branch
+    // roots themselves, so with a selection preset the target IS the signal object
+    // (a tau, not its decay legs) and the folder measures its own efficiency.
+    truthTargets.emplace_back("signal", "selectedBranchRoots");
   }
 
   for (auto const& tag : cfg.getParameter<std::vector<edm::InputTag>>("recoCollections")) {
@@ -442,8 +446,12 @@ void TruthBranchRecoValidator<RECO>::dqmAnalyze(edm::Event const& event,
                               : (collectiveCoverage >= minCollectiveCoverage_ && !truthToReco[b].empty())
                                   ? Outcome::Split
                                   : Outcome::Lost;
+      // Cumulative: the collection as a whole covers the truth object, by one reco
+      // object or by several together, so it is a superset of individual.
+      const bool cumulative =
+          nIndividual >= 1 || (collectiveCoverage >= minCollectiveCoverage_ && !truthToReco[b].empty());
 
-      algo_.fill_simul(histograms, i, kin, outcome);
+      algo_.fill_simul(histograms, i, kin, outcome, cumulative);
       algo_.fill_reason(histograms, i, reason, outcome);
       if (!truthToReco[b].empty()) {
         algo_.fill_truth_purity(histograms, i, leadingTruthPurity);

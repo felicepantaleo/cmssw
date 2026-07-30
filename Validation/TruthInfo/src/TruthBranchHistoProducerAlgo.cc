@@ -83,6 +83,7 @@ namespace truth {
                                                      TruthBranchHistograms& h) const {
     bookRow(booker, h.h_simul, "num_simul", truthVarNames_, truthAxes_);
     bookRow(booker, h.h_assoc_simToReco, "num_assoc(simToReco)", truthVarNames_, truthAxes_);
+    bookRow(booker, h.h_assoc_simToReco_cumulative, "num_assoc_cumulative", truthVarNames_, truthAxes_);
     bookRow(booker, h.h_duplicate, "num_duplicate", truthVarNames_, truthAxes_);
     bookRow(booker, h.h_split, "num_split", truthVarNames_, truthAxes_);
 
@@ -144,7 +145,8 @@ namespace truth {
   void TruthBranchHistoProducerAlgo::fill_simul(TruthBranchHistograms const& h,
                                                 std::size_t i,
                                                 Kinematics const& kin,
-                                                TruthOutcome outcome) const {
+                                                TruthOutcome outcome,
+                                                bool cumulative) const {
     const auto values = kin.asVector();
     for (std::size_t v = 0; v < truthVars_.size(); ++v) {
       const double x = values[truthVars_[v]];
@@ -154,6 +156,9 @@ namespace truth {
       // happened once or more than once. Split did not happen as one object at all.
       if (outcome == TruthOutcome::Individual || outcome == TruthOutcome::Duplicate) {
         h.h_assoc_simToReco[i][v]->Fill(x);
+      }
+      if (cumulative) {
+        h.h_assoc_simToReco_cumulative[i][v]->Fill(x);
       }
       if (outcome == TruthOutcome::Duplicate) {
         h.h_duplicate[i][v]->Fill(x);

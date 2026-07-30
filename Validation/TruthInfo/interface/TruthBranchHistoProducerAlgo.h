@@ -50,8 +50,10 @@ namespace truth {
     using MERow = std::vector<METype>;
 
     // Truth side, one row per (collection, level): denominator every target at that
-    // level, numerator those a reco object was associated to.
-    std::vector<MERow> h_simul, h_assoc_simToReco;
+    // level, numerator those a reco object was associated to. The cumulative numerator
+    // also accepts targets covered only by several reco objects together, so it is a
+    // superset of the individual one by construction.
+    std::vector<MERow> h_simul, h_assoc_simToReco, h_assoc_simToReco_cumulative;
 
     // The two ways a truth object can be reconstructed as one object more than once or
     // in pieces, mutually exclusive so that individual + duplicate + split + lost = 1.
@@ -105,10 +107,13 @@ namespace truth {
     // How one truth object was reconstructed. Exactly one of these is true.
     enum class TruthOutcome { Individual, Duplicate, Split, Lost };
 
+    // cumulative is true when the collection as a whole covers the truth object,
+    // whether by one reco object or by several together.
     void fill_simul(TruthBranchHistograms const& histograms,
                     std::size_t index,
                     Kinematics const& kin,
-                    TruthOutcome outcome) const;
+                    TruthOutcome outcome,
+                    bool cumulative) const;
 
     // Truth purity of the leading reco object, filled once per truth object that has
     // any overlap at all.

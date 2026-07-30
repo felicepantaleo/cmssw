@@ -177,6 +177,10 @@ def _truthDrivenStrings(truthVariables=None):
     out = []
     for var in (truthVariables or truthPlotVariables):
         out.append(f"efficiency_vs_{var} 'Branch efficiency vs {var}' num_assoc(simToReco)_{var} num_simul_{var}")
+        # Cumulative: the truth object counts as found when all reco objects of the
+        # collection together cover it, not only when a single one does.
+        out.append(f"efficiency_cumulative_vs_{var} 'Cumulative branch efficiency vs {var}' "
+                   f"num_assoc_cumulative_{var} num_simul_{var}")
         out.append(f"duplicate_vs_{var} 'Duplicate rate vs {var}' num_duplicate_{var} num_simul_{var}")
         out.append(f"splitrate_vs_{var} 'Split rate vs {var}' num_split_{var} num_simul_{var}")
     # Efficiency and duplicate rate against the Geant4 creation process of the branch.
@@ -214,9 +218,10 @@ truthBranchValidationSequence = cms.Sequence()
 truthBranchHarvestingSequence = cms.Sequence()
 
 for _d in _domains:
-    # The truth-driven folder suffixes: the graph levels for a hit-based domain, the
-    # vertex resolution for a composite one.
-    _truthSuffixes = [_d["vertexResolution"]] if "vertexResolution" in _d else _truthLevels
+    # The truth-driven folder suffixes: the graph levels plus the overall signal entry
+    # (denominator selectedBranchRoots) for a hit-based domain, the vertex resolution
+    # for a composite one.
+    _truthSuffixes = [_d["vertexResolution"]] if "vertexResolution" in _d else _truthLevels + ["signal"]
     _truthArgs = (dict(vertexResolution=cms.string(_d["vertexResolution"]))
                   if "vertexResolution" in _d else dict(truthLevels=cms.vstring(*_truthLevels)))
     _analyzer = cms.EDProducer(

@@ -38,8 +38,10 @@ REFERENCE_WP = "Fixed"
 WP_ORDER = ["Fixed", "AdaptiveTight", "AdaptiveNominal", "AdaptiveLoose"]
 # Truth-driven folders are keyed by graph LEVEL (hit-based domains) or by the vertex
 # resolution (composite domains). Every truth-driven ratio is taken against
-# caloBoundary, falling back to the first suffix present.
-LEVEL_ORDER = ["stableLegsFromUpstream", "caloBoundary", "stableDecayProducts", "hardProcess"]
+# caloBoundary, falling back to the first suffix present. The signal suffix is the
+# overall signal entry: its denominator is the associator's selected branch roots, so
+# with a selection preset it is the efficiency of the signal object itself.
+LEVEL_ORDER = ["stableLegsFromUpstream", "caloBoundary", "stableDecayProducts", "hardProcess", "signal"]
 VERTEX_SUFFIXES = ["interaction", "immediate"]
 TRUTH_SUFFIXES = LEVEL_ORDER + VERTEX_SUFFIXES
 REFERENCE_LEVEL = "caloBoundary"
@@ -58,8 +60,12 @@ METRICS = {
         "Branch efficiency (TruthToReco)",
         "Of the truth objects at one graph level, the fraction reconstructed AS ONE OBJECT: some single reco "
         "object covered enough of it and was not mostly something else. The truth target is fixed a priori by "
-        "the level, so the reco-driven working point never enters; the curves compare the levels themselves.",
-        "num_assoc(simToReco) / num_simul",
+        "the level, so the reco-driven working point never enters; the curves compare the levels themselves. "
+        "Each level is drawn as a PAIR: individual (filled, solid) counts a truth object as found when a "
+        "single reco object covers it, cumulative (open, dashed, same colour) when all reco objects of the "
+        "collection together cover it. A multi-prong decay separates the two: three pions each with their own "
+        "trackster leave the tau individually lost but cumulatively found.",
+        "num_assoc(simToReco) / num_simul, cumulative: num_assoc_cumulative / num_simul",
     ),
     "duplicate": (
         "Duplicate rate (TruthToReco)",
@@ -211,7 +217,10 @@ CATEGORICAL_MEANING = {
         "particle: a frozen TrackingParticle or CaloParticle does not carry it."
     ),
 }
-_ME_RE = re.compile(r"^(?P<metric>efficiency|recopurity|fakerate|duplicate|splitrate|pileuprate)_vs_(?P<var>\w+)$")
+_ME_RE = re.compile(
+    r"^(?P<metric>efficiency_cumulative|efficiency|recopurity|fakerate|duplicate|splitrate|pileuprate)"
+    r"_vs_(?P<var>\w+)$"
+)
 
 
 def hist_arrays(h):
@@ -381,11 +390,14 @@ def _fit_ok(wp, values, slices, is_sigma=False, errors=None):
 
 
 def plot_metric(category, collection, metric, var, per_wp, outdir, index, slices=None, denom=None,
-                order=None, reference=None):
+                order=None, reference=None, paired=None):
     """One overlay plot with a ratio panel against the reference series.
 
     The series are working points for the reco-driven metrics and graph levels for the
     truth-driven ones; order and reference name which comparison this plot makes.
+    paired holds a second curve per series (the cumulative efficiency), drawn in the
+    series colour with open markers and a dashed line; the ratio panel stays on the
+    primary curves.
     """
     order = order or WP_ORDER
     wps = [w for w in order if w in per_wp] + [w for w in sorted(per_wp) if w not in order]
@@ -420,14 +432,35 @@ def plot_metric(category, collection, metric, var, per_wp, outdir, index, slices
             values[filled],
             yerr=errors[filled],
             fmt=markers[i % len(markers)],
-            linestyle=styles[i % len(styles)],
+            linestyle=styles[i % len(styles)] if paired is None else "-",
             markersize=5,
-            markerfacecolor="none" if i else None,
+            markerfacecolor="none" if (i and paired is None) else None,
             linewidth=1.4,
             alpha=0.85,
             color=colors[i % len(colors)],
             label=wp,
         )
+        if paired is not None and wp in paired:
+            # The cumulative partner of this series: same colour so the pair reads as
+            # one level, open markers and dashed line so the two are distinguishable.
+            p_edges, p_values, p_errors = paired[wp]
+            p_centers = 0.5 * (p_edges[:-1] + p_edges[1:])
+            p_filled = p_values > 0
+            if denom is not None and wp in denom and len(denom[wp]) == len(p_values):
+                p_filled = p_filled & (denom[wp] >= MIN_DENOM_ENTRIES)
+            ax.errorbar(
+                p_centers[p_filled],
+                p_values[p_filled],
+                yerr=p_errors[p_filled],
+                fmt=markers[i % len(markers)],
+                linestyle="--",
+                markersize=5,
+                markerfacecolor="none",
+                linewidth=1.2,
+                alpha=0.7,
+                color=colors[i % len(colors)],
+                label=f"{wp} cumulative",
+            )
 
     label, meaning, formula = METRICS[metric]
     if metric == "resolution":
@@ -461,8 +494,10 @@ def plot_metric(category, collection, metric, var, per_wp, outdir, index, slices
         ax.set_ylim(0.0, 1.15)
     ax.grid(alpha=0.3)
     handles, labels = ax.get_legend_handles_labels()
-    fig.legend(handles, labels, fontsize=13, loc="lower center", ncol=len(labels), frameon=False,
-               bbox_to_anchor=(0.5, 0.02))
+    # Paired pages carry twice the entries, so the legend wraps instead of overflowing
+    # into the x label at the figure's right edge.
+    fig.legend(handles, labels, fontsize=13 if len(labels) <= 4 else 11, loc="lower center",
+               ncol=min(len(labels), 4), frameon=False, bbox_to_anchor=(0.5, 0.02))
     ax.tick_params(labelbottom=False)
     hep.cms.label(ax=ax, llabel="Private Work", rlabel="Phase-2 Simulation", fontsize=15)
 
@@ -709,6 +744,10 @@ def main():
                     series_order, series_ref = TRUTH_SUFFIXES, REFERENCE_LEVEL
                 else:
                     series_order, series_ref = WP_ORDER, REFERENCE_WP
+                # The cumulative numerator pairs with the individual one on the
+                # efficiency page rather than getting a page of its own.
+                cumulative = (data[category][collection].get("efficiency_cumulative", {})
+                              if metric == "efficiency" else {})
                 for var in VARIABLE_ORDER:
                     if var not in per_metric:
                         continue
@@ -716,6 +755,7 @@ def main():
                         category, collection, metric, var, per_metric[var], args.outputDir, index,
                         denom=all_denom.get(f"{DENOMINATOR.get(metric, '')}_{var}"),
                         order=series_order, reference=series_ref,
+                        paired=cumulative.get(var),
                     )
                     if result:
                         name, caption = result
@@ -773,7 +813,12 @@ def main():
         if metric in TRUTH_METRICS:
             return ("Each plot overlays the branch LEVELS of the truth graph, the a priori definitions of what "
                     "one truth object is (stableLegsFromUpstream, caloBoundary, stableDecayProducts, "
-                    "hardProcess); a composite domain has a single folder named by its vertex resolution. The "
+                    "hardProcess), plus the signal series, whose denominator is the selected branch roots "
+                    "themselves: with a selection preset that is the signal object's own efficiency. A "
+                    "composite domain has a single folder named by its vertex resolution. On the efficiency "
+                    "page each series is a pair: individual (filled, solid) means a single reco object covers "
+                    "the truth object, cumulative (open, dashed, same colour) means all reco objects of the "
+                    "collection together do; a multi-prong decay separates the two. The "
                     f"lower panel is the ratio to {REFERENCE_LEVEL}.")
         return ("Each plot overlays the four branch-association working points. Fixed keeps every matching "
                 "branch; the Adaptive points keep the single graph level that best matches the reco object, "
