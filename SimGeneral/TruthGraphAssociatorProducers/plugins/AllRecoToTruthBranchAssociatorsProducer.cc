@@ -29,6 +29,7 @@
 #include "FWCore/ParameterSet/interface/ConfigurationDescriptions.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/ParameterSet/interface/ParameterSetDescription.h"
+#include "FWCore/MessageLogger/interface/MessageLogger.h"
 #include "FWCore/Utilities/interface/Exception.h"
 
 #include "DataFormats/CaloRecHit/interface/CaloCluster.h"
@@ -155,18 +156,30 @@ namespace {
   // interaction instead, 0 being the signal and anything else an overlaid pileup
   // interaction, so every particle of one interaction must count at a single vertex.
   //
-  // That vertex is the lowest-numbered production vertex of the interaction. Ids are
-  // handed out in build order, so the lowest is where the interaction started: measured
-  // on ttbar it is the beamspot vertex, at |x|, |y| < 20 um with the z spread of the
-  // luminous region.
+  // That vertex is the lowest-numbered production vertex of the interaction that is
+  // usable, ids being handed out in build order so the lowest is where the interaction
+  // started. Usable excludes a vertex that neither merged with a SimVertex nor carries a
+  // position: a pileup sub-event built with collapsePileupGen has a single synthetic GEN
+  // vertex, and when its GenToSim links are all dropped it never merges and keeps a
+  // default position, so electing it would count that whole interaction at the origin,
+  // where any reco vertex near the beamspot absorbs it.
   //
-  // Seeding this from the particles that have no parent does NOT work. The GEN half puts
-  // the beam particles at the top of the chain and the HepMC record gives them no
-  // production vertex, so they are the only parentless particles and they contribute
-  // nothing: every interaction would go unresolved and every composite object would
-  // silently match nothing.
+  // Position alone does not identify the right vertex: after VtxSmeared every shower and
+  // hadronisation vertex of a Pythia record sits at the same smeared point, so "it came
+  // out at the beamspot" would be true of almost any choice. The build order is what
+  // picks it; the usability test only rejects the placeholder.
+  //
+  [[nodiscard]] inline bool usableAsInteractionVertex(truth::VertexData const& vertex) {
+    if (vertex.hasSim()) {
+      return true;
+    }
+    auto const& position = vertex.position;
+    return position.x() != 0. || position.y() != 0. || position.z() != 0.;
+  }
+
   [[nodiscard]] inline std::unordered_map<uint64_t, uint32_t> interactionVertices(truth::Graph const& graph) {
     std::unordered_map<uint64_t, uint32_t> representative;
+    std::unordered_map<uint64_t, uint32_t> placeholderOnly;
     const uint32_t nParticles = graph.nParticles();
     for (uint32_t id = 0; id < nParticles; ++id) {
       const auto production = truth::Particle(&graph, id).productionVertices();
@@ -175,9 +188,24 @@ namespace {
       }
       const uint32_t vertexId = production.front().id();
       const uint64_t eventId = graph.particles()[id].eventId;
-      auto [it, inserted] = representative.emplace(eventId, vertexId);
+      auto& target = usableAsInteractionVertex(graph.vertices()[vertexId]) ? representative : placeholderOnly;
+      auto [it, inserted] = target.emplace(eventId, vertexId);
       if (!inserted) {
         it->second = std::min(it->second, vertexId);
+      }
+    }
+
+    // An interaction with nothing but placeholders still has to resolve, or every
+    // composite object built from its constituents silently matches nothing. Take the
+    // placeholder and say that its position is not to be trusted.
+    for (auto const& [eventId, vertexId] : placeholderOnly) {
+      if (representative.emplace(eventId, vertexId).second) {
+        edm::LogWarning("AllRecoToTruthBranchAssociators")
+            << "interaction " << eventId << " resolves only to logical vertex " << vertexId
+            << ", which neither merged with a SimVertex nor carries a position. Its "
+               "constituents are counted there, so any vertex efficiency or purity for "
+               "that interaction is positional nonsense. This is what a pileup sub-event "
+               "looks like when all of its GenToSim links were dropped.";
       }
     }
     return representative;
