@@ -8,10 +8,22 @@ import FWCore.ParameterSet.Config as cms
 
 
 def customiseTruthGraphAssociators(process):
+    from SimGeneral.TruthGraphAssociatorProducers.truthGraphAssociationLabels_cff import (
+        setTracksterLabelsFromProcess,
+    )
+
+    # Discover the trackster collections by producer type before importing the
+    # associator cff, which builds its modules from the label lists at import time.
+    setTracksterLabelsFromProcess(process)
+
     from SimGeneral.TruthGraphAssociatorProducers.truthGraphAssociators_cff import (
         allTrackToTruthBranchAssociators,
         allVertexToTruthBranchAssociators,
         allSecondaryVertexToTruthBranchAssociators,
+        truthBranchTracksterAssociators,
+        hltTrackToTruthBranchAssociators,
+        hltVertexToTruthBranchAssociators,
+        hltTruthBranchTracksterAssociators,
     )
 
     # Attach each producer to the process FIRST: a cms.Task imported by name carries
@@ -20,11 +32,19 @@ def customiseTruthGraphAssociators(process):
     process.allTrackToTruthBranchAssociators = allTrackToTruthBranchAssociators
     process.allVertexToTruthBranchAssociators = allVertexToTruthBranchAssociators
     process.allSecondaryVertexToTruthBranchAssociators = allSecondaryVertexToTruthBranchAssociators
+    process.truthBranchTracksterAssociators = truthBranchTracksterAssociators
+    process.hltTrackToTruthBranchAssociators = hltTrackToTruthBranchAssociators
+    process.hltVertexToTruthBranchAssociators = hltVertexToTruthBranchAssociators
+    process.hltTruthBranchTracksterAssociators = hltTruthBranchTracksterAssociators
 
     process.truthGraphAssociatorsTask = cms.Task(
         process.allTrackToTruthBranchAssociators,
         process.allVertexToTruthBranchAssociators,
         process.allSecondaryVertexToTruthBranchAssociators,
+        process.truthBranchTracksterAssociators,
+        process.hltTrackToTruthBranchAssociators,
+        process.hltVertexToTruthBranchAssociators,
+        process.hltTruthBranchTracksterAssociators,
     )
     process.truthGraphAssociatorsPath = cms.Path(process.truthGraphAssociatorsTask)
     if process.schedule is not None:
@@ -36,6 +56,10 @@ def customiseTruthGraphAssociators(process):
                 "keep *_allTrackToTruthBranchAssociators_*_*",
                 "keep *_allVertexToTruthBranchAssociators_*_*",
                 "keep *_allSecondaryVertexToTruthBranchAssociators_*_*",
+                "keep *_truthBranchTracksterAssociators_*_*",
+                "keep *_hltTrackToTruthBranchAssociators_*_*",
+                "keep *_hltVertexToTruthBranchAssociators_*_*",
+                "keep *_hltTruthBranchTracksterAssociators_*_*",
             ]
         )
     return process

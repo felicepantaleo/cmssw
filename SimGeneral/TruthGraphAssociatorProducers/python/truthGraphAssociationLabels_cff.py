@@ -10,9 +10,26 @@
 # domain with toModify, and the instance-label lists are plain Python built by
 # looping over that PSet.
 
+import sys
+
 import FWCore.ParameterSet.Config as cms
 
 from RecoHGCal.TICL.iterativeTICL_cff import ticlIterLabelsPSet
+from Validation.HGCalValidation.HLT_TICLIterLabels_cff import hltTiclIterLabelsPSet
+
+# EDProducer types whose produces<> declares a vector<ticl::Trackster>, so a trackster
+# collection is recognised BY TYPE and a new TICL iteration or HLT trackster module
+# joins the validation without an edit here. Verified in RecoHGCal/TICL/plugins:
+# TrackstersProducer.cc:146, TracksterLinksProducer.cc:108, MergedTrackstersProducer.cc:34,
+# TICLCandidateProducer.cc:208 (the post-linking trackster collection, emitted next to
+# its vector<TICLCandidate>; EDM resolves the two by type from the bare module label).
+# SimTrackstersProducer is deliberately absent: its tracksters are truth, not reco.
+tracksterProducerTypes = (
+    "TrackstersProducer",
+    "TracksterLinksProducer",
+    "MergedTrackstersProducer",
+    "TICLCandidateProducer",
+)
 
 # Reco collections per domain. Each entry is a module label; a collection that also
 # needs an instance label is written "label:instance" and split by the producers.
@@ -22,11 +39,10 @@ truthGraphRecoLabelsPSet = cms.PSet(
     secondaryVertices=cms.vstring("inclusiveSecondaryVertices"),
     pfCandidates=cms.vstring("particleFlow", "pfTICL"),
     jets=cms.vstring("ak4PFJetsPuppi"),
-    # Every ticlIterLabels entry that actually produces a vector<ticl::Trackster>.
-    # ticlCandidate is in that list too but produces TICLCandidates, which mix a track
-    # with tracksters and therefore need a two-channel match (tracker hits AND calo
-    # energy) rather than this one; it gets its own domain when that exists.
-    tracksters=cms.vstring(*[l for l in ticlIterLabelsPSet.labels if l != "ticlCandidate"]),
+    # Fallback for a job that never sees the producers: the TICL label registry. A job
+    # that does run them replaces this with what its process actually schedules, via
+    # setTracksterLabelsFromProcess below.
+    tracksters=cms.vstring(*sorted(ticlIterLabelsPSet.labels)),
 )
 
 # The same domains reconstructed by the HLT menu. Kept as a separate PSet rather than
@@ -40,7 +56,10 @@ truthGraphHltRecoLabelsPSet = cms.PSet(
     secondaryVertices=cms.vstring(),
     pfCandidates=cms.vstring(),
     jets=cms.vstring(),
-    tracksters=cms.vstring("hltTiclTrackstersCLUE3DHigh", "hltTiclTracksterLinks"),
+    # Same fallback role as the offline entry, from the menu's own registry in
+    # Validation/HGCalValidation. A RECO or DQM job reads the HLT tracksters from its
+    # input file and so has no HLT producer to discover.
+    tracksters=cms.vstring(*sorted(hltTiclIterLabelsPSet.labels)),
 )
 
 # Working points of the branch association. Fixed is the plain per-root match; the
@@ -72,6 +91,101 @@ def recoLabels(domain, flavour="offline"):
     """
     pset = truthGraphRecoLabelsPSet if flavour == "offline" else truthGraphHltRecoLabelsPSet
     return list(getattr(pset, domain))
+
+
+def _scheduledModuleNames(process):
+    """The modules `process` will actually run. Only these count as discovered: loading
+    a cff attaches every module it defines, so process.producers_() also holds the TICL
+    iterations and the alternative superclustering that the current default leaves
+    unscheduled."""
+    if process.schedule is not None:
+        return process.schedule.moduleNames()
+    names = set()
+    for container in list(process.paths.values()) + list(process.endpaths.values()):
+        names |= container.moduleNames()
+    return names
+
+
+def tracksterLabelsFromProcess(process, flavour="offline"):
+    """Every scheduled module of `process` that emits a vector<ticl::Trackster>, for one
+    reconstruction, sorted so the DQM folder numbering is stable between runs.
+
+    The two reconstructions are told apart by the hlt prefix, the naming convention the
+    whole HLT menu follows. An EDProducer must declare produces<> in its constructor, so
+    the type is read from the module's C++ class name at configuration time; there is no
+    runtime discovery to be had.
+    """
+    isHlt = flavour == "hlt"
+    producers = process.producers_()
+    return sorted(
+        label
+        for label in _scheduledModuleNames(process)
+        if label in producers
+        and producers[label].type_() in tracksterProducerTypes
+        and label.startswith("hlt") == isHlt
+    )
+
+
+def tracksterLabelsFromInputFile(process, flavour="offline"):
+    """Trackster collections the process READS, discovered by branch type in its first
+    input file. A RECO or DQM step takes the HLT tracksters from its input and so has no
+    HLT producer to look at. Best effort: a remote input, or one the previous step has
+    not written yet, yields nothing and the other sources stand.
+
+    The branch name of an EDM product is
+    <friendlyClassName>_<label>_<instance>_<process>, and the friendly name of
+    std::vector<ticl::Trackster> is ticlTracksters, so this too is a match on type.
+    """
+    source = getattr(process, "source", None)
+    fileNames = getattr(source, "fileNames", None) if source is not None else None
+    if not fileNames:
+        return []
+    path = str(fileNames[0])
+    if "://" in path:
+        return []
+    import ROOT
+
+    try:
+        inputFile = ROOT.TFile.Open(path)
+    except OSError:
+        return []
+    if not inputFile or inputFile.IsZombie():
+        return []
+    events = inputFile.Get("Events")
+    prefix = "ticlTracksters_"
+    labels = set()
+    if events:
+        for branch in events.GetListOfBranches():
+            name = branch.GetName()
+            if name.startswith(prefix):
+                labels.add(name[len(prefix):].split("_")[0])
+    inputFile.Close()
+    isHlt = flavour == "hlt"
+    return sorted(label for label in labels if label.startswith("hlt") == isHlt)
+
+
+def setTracksterLabelsFromProcess(process):
+    """Retarget both trackster lists at what `process` produces or reads, keeping the
+    registry fallback for a reconstruction neither source can see.
+
+    MUST be called before truthGraphAssociators_cff or truthBranchValidation_cff are
+    imported: both build their modules, folder names and harvester subDirs from these
+    lists at import time.
+    """
+    for consumer in (
+        "SimGeneral.TruthGraphAssociatorProducers.truthGraphAssociators_cff",
+        "Validation.TruthInfo.truthBranchValidation_cff",
+    ):
+        if consumer in sys.modules:
+            raise RuntimeError(
+                "setTracksterLabelsFromProcess must run before " + consumer + " is imported"
+            )
+    for pset, flavour in ((truthGraphRecoLabelsPSet, "offline"), (truthGraphHltRecoLabelsPSet, "hlt")):
+        discovered = set(tracksterLabelsFromProcess(process, flavour))
+        discovered |= set(tracksterLabelsFromInputFile(process, flavour))
+        if discovered:
+            pset.tracksters = cms.vstring(*sorted(discovered))
+    return recoLabels("tracksters"), recoLabels("tracksters", "hlt")
 
 
 def instanceKey(label):
