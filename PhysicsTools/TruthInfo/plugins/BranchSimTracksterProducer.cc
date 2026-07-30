@@ -82,7 +82,7 @@ void BranchSimTracksterProducer::produce(edm::StreamID, edm::Event& event, edm::
     }
     if (!crossed)
       continue;
-    if (hitIndex.subgraphHits(truth::HitChannel::HGCalCalo, i).empty())
+    if (hitIndex.subgraphHits(truth::HitChannel::Calo, i).empty())
       continue;
     leaves.push_back(i);
   }
@@ -169,7 +169,7 @@ void BranchSimTracksterProducer::produce(edm::StreamID, edm::Event& event, edm::
   nodes.insert(nodes.end(), mergeNodes.begin(), mergeNodes.end());
   for (uint32_t node : nodes) {
     std::unordered_map<unsigned int, float> lcShared;
-    for (auto const& hit : hitIndex.subgraphHits(truth::HitChannel::HGCalCalo, node)) {
+    for (auto const& hit : hitIndex.subgraphHits(truth::HitChannel::Calo, node)) {
       auto it = detIdToLc.find(hit.detId);
       if (it == detIdToLc.end())
         continue;
