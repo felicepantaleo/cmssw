@@ -1,8 +1,10 @@
 // Original author: Felice Pantaleo (CERN) <felice.pantaleo@cern.ch>
 //
-// Truth-branch validation, one plugin template covering every reco domain: one folder
-// per (collection, working point), booking only num/denom so all harvesting stays
-// DQMGenericClient string config.
+// Truth-branch validation, one plugin template covering every reco domain, booking
+// only num/denom so all harvesting stays DQMGenericClient string config. Two folder
+// families: the reco-driven metrics get one folder per (collection, working point),
+// the truth-driven ones one folder per (collection, graph level), because the truth
+// target is fixed a priori by the level and the working point never enters it.
 //
 // DQMGlobalEDAnalyzer, not DQMEDAnalyzer: booking and filling are both const and the
 // MonitorElements live in a per-run cache, which is the modern convention shared by
@@ -14,6 +16,7 @@
 // so the declared product type and the consumed one cannot drift apart.
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <string>
 #include <vector>
@@ -63,6 +66,8 @@ namespace {
     }
     static bool hasDirection(reco::Track const&) { return true; }
     // The truth side of a hit-based domain iterates branch roots, which are particles.
+    // The denominator instance is a PREFIX: the capitalized level name is appended, one
+    // product per configured level.
     static constexpr bool truthIsVertex = false;
     static constexpr const char* denominatorInstance = "truthToRecoTargets";
   };
@@ -136,20 +141,31 @@ private:
   void bookHistograms(DQMStore::IBooker&, edm::Run const&, edm::EventSetup const&, Histograms&) const override;
   void dqmAnalyze(edm::Event const&, edm::EventSetup const&, Histograms const&) const override;
 
-  // One entry per (collection, working point), in booking order.
-  struct Entry {
+  // One entry per (collection, working point), in booking order: the reco-driven
+  // monitor elements.
+  struct WpEntry {
     std::string folder;
     edm::EDGetTokenT<std::vector<RECO>> recoToken;
     // Reco-driven, one per working point: score is 1 - reco purity.
     edm::EDGetTokenT<MapType> recoToTruthToken;
-    // Truth-driven, the same product for every working point because the truth target
-    // is fixed a priori: score is 1 - truth purity.
+  };
+
+  // One entry per (collection, graph level) for a hit-based domain, per collection for
+  // a composite one, in booking order: the truth-driven monitor elements.
+  struct TruthEntry {
+    std::string folder;
+    // The level's denominator: the target set the efficiency is measured over.
+    edm::EDGetTokenT<std::vector<unsigned int>> targetsToken;
+    // Truth-driven, one product per collection because the truth target is fixed a
+    // priori: score is 1 - truth purity.
     edm::EDGetTokenT<MapType> truthToRecoToken;
+    // The FIRST working point's reco-driven map (Fixed), which is the WP-free
+    // hit-sharing measure, read only for the loose reco-purity gate on Individual.
+    edm::EDGetTokenT<MapType> firstWpRecoToTruthToken;
   };
 
   const edm::EDGetTokenT<truth::Graph> graphToken_;
   const edm::EDGetTokenT<truth::LogicalGraphHitIndex> hitIndexToken_;
-  edm::EDGetTokenT<std::vector<unsigned int>> selectedRootsToken_;
   const std::string dirName_;
   // A truth object counts as reconstructed by one reco object when that object covers
   // enough of it AND is not mostly something else. The second is the loose cut in the
@@ -157,7 +173,8 @@ private:
   const double minTruthPurityForIndividual_;
   const double minRecoPurityLoose_;
   const double minCollectiveCoverage_;
-  std::vector<Entry> entries_;
+  std::vector<WpEntry> wpEntries_;
+  std::vector<TruthEntry> truthEntries_;
   const truth::TruthBranchHistoProducerAlgo algo_;
 };
 
@@ -171,10 +188,21 @@ TruthBranchRecoValidator<RECO>::TruthBranchRecoValidator(edm::ParameterSet const
       minCollectiveCoverage_(cfg.getParameter<double>("minCollectiveCoverage")),
       algo_(cfg.getParameter<edm::ParameterSet>("histoProducerAlgoBlock")) {
   const auto associator = cfg.getParameter<std::string>("associator");
-  // Same candidate set the associator used, so the denominator counts only branches
-  // that were ever eligible to be found.
-  selectedRootsToken_ = consumes<std::vector<unsigned int>>(edm::InputTag(associator, Traits::denominatorInstance));
   const auto workingPoints = cfg.getParameter<std::vector<std::string>>("workingPoints");
+
+  // The truth-driven folder suffixes and the denominator instance each consumes. A
+  // hit-based domain has one target set per graph level; a composite one has a single
+  // target set, named by the domain's vertex resolution.
+  std::vector<std::pair<std::string, std::string>> truthTargets;
+  if constexpr (Traits::truthIsVertex) {
+    truthTargets.emplace_back(cfg.getParameter<std::string>("vertexResolution"), Traits::denominatorInstance);
+  } else {
+    for (auto const& level : cfg.getParameter<std::vector<std::string>>("truthLevels")) {
+      std::string capitalized = level;
+      capitalized[0] = std::toupper(static_cast<unsigned char>(capitalized[0]));
+      truthTargets.emplace_back(level, std::string(Traits::denominatorInstance) + capitalized);
+    }
+  }
 
   for (auto const& tag : cfg.getParameter<std::vector<edm::InputTag>>("recoCollections")) {
     // The one key rule of this package: label and instance joined by an underscore,
@@ -184,12 +212,22 @@ TruthBranchRecoValidator<RECO>::TruthBranchRecoValidator(edm::ParameterSet const
       key += "_" + tag.instance();
     }
     for (auto const& wp : workingPoints) {
-      Entry entry;
+      WpEntry entry;
       entry.folder = key + "_" + wp;
       entry.recoToken = consumes<std::vector<RECO>>(tag);
       entry.recoToTruthToken = consumes<MapType>(edm::InputTag(associator, key + "RecoToTruth" + wp));
+      wpEntries_.push_back(std::move(entry));
+    }
+    for (auto const& [suffix, instance] : truthTargets) {
+      TruthEntry entry;
+      entry.folder = key + "_" + suffix;
+      entry.targetsToken = consumes<std::vector<unsigned int>>(edm::InputTag(associator, instance));
       entry.truthToRecoToken = consumes<MapType>(edm::InputTag(associator, key + "TruthToReco"));
-      entries_.push_back(std::move(entry));
+      // The first working point (Fixed) is the WP-free hit-sharing measure, so its map
+      // supplies the loose reco-purity gate for every level.
+      entry.firstWpRecoToTruthToken =
+          consumes<MapType>(edm::InputTag(associator, key + "RecoToTruth" + workingPoints.front()));
+      truthEntries_.push_back(std::move(entry));
     }
   }
 }
@@ -199,9 +237,15 @@ void TruthBranchRecoValidator<RECO>::bookHistograms(DQMStore::IBooker& booker,
                                                     edm::Run const&,
                                                     edm::EventSetup const&,
                                                     Histograms& histograms) const {
-  for (auto const& entry : entries_) {
+  // Each list is booked in its own entry order; the fill side indexes each list by the
+  // same order, so the two must stay in lockstep per list.
+  for (auto const& entry : wpEntries_) {
     booker.setCurrentFolder(dirName_ + entry.folder);
-    algo_.bookHistos(booker, histograms);
+    algo_.bookRecoHistos(booker, histograms);
+  }
+  for (auto const& entry : truthEntries_) {
+    booker.setCurrentFolder(dirName_ + entry.folder);
+    algo_.bookTruthHistos(booker, histograms);
   }
 }
 
@@ -213,35 +257,19 @@ void TruthBranchRecoValidator<RECO>::dqmAnalyze(edm::Event const& event,
   auto const& hitIndexProduct = event.get(hitIndexToken_);
   truth::SubgraphHitView hitIndex(hitIndexProduct);
 
-  for (std::size_t i = 0; i < entries_.size(); ++i) {
-    auto const& entry = entries_[i];
+  // Reco-driven side, one pass per (collection, working point).
+  for (std::size_t i = 0; i < wpEntries_.size(); ++i) {
+    auto const& entry = wpEntries_[i];
 
     edm::Handle<std::vector<RECO>> recoHandle;
     event.getByToken(entry.recoToken, recoHandle);
     edm::Handle<MapType> recoToTruthHandle;
     event.getByToken(entry.recoToTruthToken, recoToTruthHandle);
-    edm::Handle<MapType> truthToRecoHandle;
-    event.getByToken(entry.truthToRecoToken, truthToRecoHandle);
-    if (!recoHandle.isValid() || !recoToTruthHandle.isValid() || !truthToRecoHandle.isValid()) {
+    if (!recoHandle.isValid() || !recoToTruthHandle.isValid()) {
       continue;
     }
 
     auto const& recoToTruth = recoToTruthHandle->getMap();
-    auto const& truthToReco = truthToRecoHandle->getMap();
-
-    // Reco purity of a (truth, reco) pair, read from the reco-driven product. This is
-    // the loose cut in the other direction, so it is looked up rather than recomputed.
-    auto recoPurityOf = [&recoToTruth](unsigned int recoIndex, unsigned int truthIndex) {
-      if (recoIndex >= recoToTruth.size()) {
-        return 0.;
-      }
-      for (auto const& match : recoToTruth[recoIndex]) {
-        if (match.index() == truthIndex) {
-          return 1. - static_cast<double>(match.score());
-        }
-      }
-      return 0.;
-    };
 
     // Reco side: every object, whether it found a branch, and whether that branch came
     // from a pileup interaction rather than the signal one.
@@ -274,18 +302,61 @@ void TruthBranchRecoValidator<RECO>::dqmAnalyze(edm::Event const& event,
       algo_.fill_reco(histograms, i, kin, associated, pileup, recoPurity);
       if (associated) {
         algo_.fill_match(histograms, i, recoToTruth[r][0].score(), recoToTruth[r][0].value(), recoPurity);
+        // Resolution against the truth object THIS working point matched, so the
+        // residuals follow the working point like every other reco-driven metric. A
+        // composite truth object is a vertex with no direction, so no residual there.
+        if constexpr (!Traits::truthIsVertex) {
+          const unsigned int matched = recoToTruth[r][0].index();
+          if (matched < graph.nParticles() && Traits::hasDirection((*recoHandle)[r])) {
+            auto const& p4 = graph.particles()[matched].momentum;
+            if (p4.pt() > 0.) {
+              Kinematics truthKin;
+              truthKin.pt = p4.pt();
+              truthKin.eta = p4.eta();
+              truthKin.phi = p4.phi();
+              algo_.fill_resolution(histograms, i, truthKin, kin.pt, kin.eta, kin.phi);
+            }
+          }
+        }
       }
     }
+  }
 
-    // Truth side: ONLY the branches the associator selected as candidates. Iterating
-    // every particle instead would put the rejected ones in the denominator as
-    // guaranteed misses and scale every efficiency down by the rejection factor.
-    edm::Handle<std::vector<unsigned int>> rootsHandle;
-    event.getByToken(selectedRootsToken_, rootsHandle);
-    if (!rootsHandle.isValid()) {
+  // Truth-driven side, one pass per (collection, level). The denominator is the
+  // level's target set: iterating every particle instead would put objects outside the
+  // level in the denominator as guaranteed misses.
+  for (std::size_t i = 0; i < truthEntries_.size(); ++i) {
+    auto const& entry = truthEntries_[i];
+
+    edm::Handle<std::vector<unsigned int>> targetsHandle;
+    event.getByToken(entry.targetsToken, targetsHandle);
+    edm::Handle<MapType> truthToRecoHandle;
+    event.getByToken(entry.truthToRecoToken, truthToRecoHandle);
+    edm::Handle<MapType> firstWpHandle;
+    event.getByToken(entry.firstWpRecoToTruthToken, firstWpHandle);
+    if (!targetsHandle.isValid() || !truthToRecoHandle.isValid() || !firstWpHandle.isValid()) {
       continue;
     }
-    for (unsigned int b : *rootsHandle) {
+
+    auto const& truthToReco = truthToRecoHandle->getMap();
+    auto const& recoToTruth = firstWpHandle->getMap();
+
+    // Reco purity of a (truth, reco) pair, read from the FIRST working point's
+    // reco-driven product, the WP-free hit-sharing measure. This is the loose cut in
+    // the other direction, so it is looked up rather than recomputed.
+    auto recoPurityOf = [&recoToTruth](unsigned int recoIndex, unsigned int truthIndex) {
+      if (recoIndex >= recoToTruth.size()) {
+        return 0.;
+      }
+      for (auto const& match : recoToTruth[recoIndex]) {
+        if (match.index() == truthIndex) {
+          return 1. - static_cast<double>(match.score());
+        }
+      }
+      return 0.;
+    };
+
+    for (unsigned int b : *targetsHandle) {
       if (b >= truthToReco.size()) {
         continue;
       }
@@ -377,18 +448,6 @@ void TruthBranchRecoValidator<RECO>::dqmAnalyze(edm::Event const& event,
       if (!truthToReco[b].empty()) {
         algo_.fill_truth_purity(histograms, i, leadingTruthPurity);
       }
-      if (outcome == Outcome::Individual || outcome == Outcome::Duplicate) {
-        const unsigned int r = truthToReco[b][0].index();
-        if (r < recoHandle->size()) {
-          auto const& matched = (*recoHandle)[r];
-          // A vertex has no direction, so a pt or angular residual against it would be
-          // a residual against zero; only domains with a direction fill these.
-          if (Traits::hasDirection(matched)) {
-            const Kinematics recoKin = Traits::kinematics(matched);
-            algo_.fill_resolution(histograms, i, kin, recoKin.pt, recoKin.eta, recoKin.phi);
-          }
-        }
-      }
     }
   }
 }
@@ -402,6 +461,17 @@ void TruthBranchRecoValidator<RECO>::fillDescriptions(edm::ConfigurationDescript
   desc.add<std::string>("associator", Traits::defaultAssociator);
   desc.add<std::vector<edm::InputTag>>("recoCollections", {});
   desc.add<std::vector<std::string>>("workingPoints", {"Fixed"});
+  if constexpr (Traits::truthIsVertex) {
+    desc.add<std::string>("vertexResolution", "interaction")
+        ->setComment(
+            "Names the one truth-driven folder of a composite domain, matching the associator's resolution: "
+            "'interaction' for primary vertices, 'immediate' for secondary vertices");
+  } else {
+    desc.add<std::vector<std::string>>("truthLevels", {"caloBoundary"})
+        ->setComment(
+            "Graph levels the truth-driven metrics are measured at, one folder per level. Must match the "
+            "associator's truthLevels: each level consumes its own denominator product");
+  }
   desc.add<double>("minTruthPurityForIndividual", 0.5)
       ->setComment("A single reco object must cover at least this much of the truth object to have reconstructed it");
   desc.add<double>("minRecoPurityLoose", 0.25)

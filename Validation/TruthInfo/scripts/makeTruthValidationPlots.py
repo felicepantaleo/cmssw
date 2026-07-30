@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """Render the truth-branch DQM output as a CMS-styled, browsable gallery.
 
-The four branch-association working points are the comparison this validation exists
-to make, so each variable becomes ONE overlay plot with a ratio panel against the
-Fixed reference, rather than four isolated histograms the reader has to compare by eye.
+Each variable becomes ONE overlay plot with a ratio panel, rather than isolated
+histograms the reader has to compare by eye. The reco-driven metrics (fake, pileup,
+purity, resolution) overlay the branch-association working points; the truth-driven
+metrics (efficiency, duplicate, split, composition) overlay the graph LEVELS, because
+their folders are keyed by level and the working point never enters them.
 
-Collections, working points and categories are DISCOVERED from the DQM folder names,
-so a new collection or working point needs no edit here.
+Collections, working points, levels and categories are DISCOVERED from the DQM folder
+names, so a new collection, working point or level needs no edit here.
 
   makeTruthValidationPlots.py DQM_V0001_*.root --outputDir plots
 """
@@ -29,10 +31,20 @@ ROOT.gErrorIgnoreLevel = ROOT.kWarning
 
 plt.style.use(hep.style.CMS)
 
-# The reference working point: every ratio is taken against it, and it keeps the first
-# colour of the Petroff cycle everywhere in the gallery so colour follows the entity.
+# The reference working point: every reco-driven ratio is taken against it, and it
+# keeps the first colour of the Petroff cycle everywhere in the gallery so colour
+# follows the entity.
 REFERENCE_WP = "Fixed"
 WP_ORDER = ["Fixed", "AdaptiveTight", "AdaptiveNominal", "AdaptiveLoose"]
+# Truth-driven folders are keyed by graph LEVEL (hit-based domains) or by the vertex
+# resolution (composite domains). Every truth-driven ratio is taken against
+# caloBoundary, falling back to the first suffix present.
+LEVEL_ORDER = ["stableLegsFromUpstream", "caloBoundary", "stableDecayProducts", "hardProcess"]
+VERTEX_SUFFIXES = ["interaction", "immediate"]
+TRUTH_SUFFIXES = LEVEL_ORDER + VERTEX_SUFFIXES
+REFERENCE_LEVEL = "caloBoundary"
+# The metrics that live in the level-keyed folders; everything else is per working point.
+TRUTH_METRICS = {"composition", "efficiency", "duplicate", "splitrate"}
 
 # Which metrics we plot, and how each should be read.
 METRICS = {
@@ -44,10 +56,9 @@ METRICS = {
     ),
     "efficiency": (
         "Branch efficiency (TruthToReco)",
-        "Of the truth objects that passed the selection, the fraction reconstructed AS ONE OBJECT: some single "
-        "reco object covered enough of it and was not mostly something else. The truth target is fixed a priori "
-        "by the domain's resolution, so this number does not depend on the reco-driven working point, which is "
-        "why the lost fraction is identical across working points.",
+        "Of the truth objects at one graph level, the fraction reconstructed AS ONE OBJECT: some single reco "
+        "object covered enough of it and was not mostly something else. The truth target is fixed a priori by "
+        "the level, so the reco-driven working point never enters; the curves compare the levels themselves.",
         "num_assoc(simToReco) / num_simul",
     ),
     "duplicate": (
@@ -369,11 +380,20 @@ def _fit_ok(wp, values, slices, is_sigma=False, errors=None):
     return ok
 
 
-def plot_metric(category, collection, metric, var, per_wp, outdir, index, slices=None, denom=None):
-    """One overlay plot with a ratio panel against the reference working point."""
-    wps = [w for w in WP_ORDER if w in per_wp] + [w for w in sorted(per_wp) if w not in WP_ORDER]
+def plot_metric(category, collection, metric, var, per_wp, outdir, index, slices=None, denom=None,
+                order=None, reference=None):
+    """One overlay plot with a ratio panel against the reference series.
+
+    The series are working points for the reco-driven metrics and graph levels for the
+    truth-driven ones; order and reference name which comparison this plot makes.
+    """
+    order = order or WP_ORDER
+    wps = [w for w in order if w in per_wp] + [w for w in sorted(per_wp) if w not in order]
     if not wps:
         return None
+    reference = reference or REFERENCE_WP
+    if reference not in per_wp:
+        reference = wps[0]
 
     is_sigma = var.endswith("_Sigma")
     colors = plt.rcParams["axes.prop_cycle"].by_key()["color"]
@@ -425,13 +445,13 @@ def plot_metric(category, collection, metric, var, per_wp, outdir, index, slices
     # conclusion the plot has not earned, so the measured numbers go in the README
     # caption instead, where they can be qualified.
     title = f"{label} vs {var}" if metric != "resolution" else var.replace("_", " ")
-    ref = means.get(REFERENCE_WP)
-    others = [means[w] for w in wps if w != REFERENCE_WP]
+    ref = means.get(reference)
+    others = [means[w] for w in wps if w != reference]
     if ref and others:
-        adaptive = sum(others) / len(others)
-        delta = (adaptive - ref) / ref * 100.0 if ref else 0.0
-        caption = (f"{title}. Bin-averaged over filled bins: adaptive {adaptive:.2f}, "
-                   f"fixed {ref:.2f} ({delta:+.0f}%).")
+        rest = sum(others) / len(others)
+        delta = (rest - ref) / ref * 100.0 if ref else 0.0
+        caption = (f"{title}. Bin-averaged over filled bins: others {rest:.2f}, "
+                   f"{reference} {ref:.2f} ({delta:+.0f}%).")
     else:
         caption = title
 
@@ -449,17 +469,17 @@ def plot_metric(category, collection, metric, var, per_wp, outdir, index, slices
     # Ratio panel: only where the reference has a value, so an empty reference bin does
     # not manufacture a spike.
     ratio_values = []
-    if REFERENCE_WP in per_wp:
-        ref_edges, ref_values, _ = per_wp[REFERENCE_WP]
+    if reference in per_wp:
+        ref_edges, ref_values, _ = per_wp[reference]
         ref_centers = 0.5 * (ref_edges[:-1] + ref_edges[1:])
         for i, wp in enumerate(wps):
-            if wp == REFERENCE_WP:
+            if wp == reference:
                 continue
             _, values, _ = per_wp[wp]
             ok = (ref_values > 0) & (values > 0)
-            ok = ok & _fit_ok(REFERENCE_WP, ref_values, slices, is_sigma) & _fit_ok(wp, values, slices, is_sigma)
+            ok = ok & _fit_ok(reference, ref_values, slices, is_sigma) & _fit_ok(wp, values, slices, is_sigma)
             if denom is not None:
-                for w in (REFERENCE_WP, wp):
+                for w in (reference, wp):
                     if w in denom and len(denom[w]) == len(values):
                         ok = ok & (denom[w] >= MIN_DENOM_ENTRIES)
             if ok.any():
@@ -478,7 +498,7 @@ def plot_metric(category, collection, metric, var, per_wp, outdir, index, slices
         if hi > 2.0:
             rax.set_ylim(0.0, hi * 1.15)
     rax.axhline(1.0, linestyle="--", color="gray", linewidth=1.2)
-    rax.set_ylabel(f"ratio to {REFERENCE_WP}", fontsize=12)
+    rax.set_ylabel(f"ratio to {reference}", fontsize=12)
     rax.set_ylim(0.0, 2.0)
     xvar = var.rsplit("_vs_", 1)[-1].split("_")[0] if "_vs_" in var else var
     rax.set_xlabel(xvar)
@@ -490,22 +510,25 @@ def plot_metric(category, collection, metric, var, per_wp, outdir, index, slices
     return name, caption
 
 
-def plot_categorical(category, collection, metric, var, per_wp, counts, outdir, index):
-    """Grouped horizontal bars, one group per named category, one bar per working point.
+def plot_categorical(category, collection, metric, var, per_wp, counts, outdir, index,
+                     order=None, reference=None):
+    """Grouped horizontal bars, one group per named category, one bar per series.
 
     Categories the sample does not populate are dropped rather than drawn at zero: a
     process that never happened is not an inefficiency.
     """
-    wps = [w for w in WP_ORDER if w in per_wp] + [w for w in sorted(per_wp) if w not in WP_ORDER]
+    order = order or WP_ORDER
+    wps = [w for w in order if w in per_wp] + [w for w in sorted(per_wp) if w not in order]
     if not wps:
         return None
+    reference = reference or REFERENCE_WP
     labels = next((per_wp[w][3] for w in wps if per_wp[w][3]), None)
     if labels is None:
         return None
 
     population = None
     if counts:
-        population = counts.get(REFERENCE_WP, next(iter(counts.values())))[0]
+        population = counts.get(reference, next(iter(counts.values())))[0]
     keep = [i for i in range(len(labels))
             if (population is None and any(per_wp[w][1][i] > 0 for w in wps)) or
                (population is not None and population[i] > 0)]
@@ -611,9 +634,9 @@ def plot_residual(category, collection, source, per_wp, outdir, index):
     return name, caption
 
 
-def plot_composition(category, collection, counts, outdir, index):
+def plot_composition(category, collection, counts, outdir, index, reference=None):
     """What the selected truth branches ARE, by the process that created them."""
-    entry = counts.get(REFERENCE_WP) or next(iter(counts.values()))
+    entry = counts.get(reference or REFERENCE_LEVEL) or next(iter(counts.values()))
     values, labels = entry
     if labels is None or values.sum() <= 0:
         return None
@@ -680,12 +703,19 @@ def main():
                     index += 1
             for metric in METRIC_ORDER:
                 per_metric = data[category][collection].get(metric, {})
+                # Truth-driven metrics compare graph levels; everything else compares
+                # working points.
+                if metric in TRUTH_METRICS:
+                    series_order, series_ref = TRUTH_SUFFIXES, REFERENCE_LEVEL
+                else:
+                    series_order, series_ref = WP_ORDER, REFERENCE_WP
                 for var in VARIABLE_ORDER:
                     if var not in per_metric:
                         continue
                     result = plot_metric(
                         category, collection, metric, var, per_metric[var], args.outputDir, index,
                         denom=all_denom.get(f"{DENOMINATOR.get(metric, '')}_{var}"),
+                        order=series_order, reference=series_ref,
                     )
                     if result:
                         name, caption = result
@@ -723,7 +753,8 @@ def main():
                         continue
                     result = plot_categorical(
                         category, collection, metric, var, per_metric[var],
-                        all_counts.get(var), args.outputDir, index
+                        all_counts.get(var), args.outputDir, index,
+                        order=series_order, reference=series_ref,
                     )
                     if result:
                         name, caption = result
@@ -736,6 +767,19 @@ def main():
         flavour = entry["category"].split("/", 1)[0]
         by_page.setdefault((flavour, entry["metric"]), []).append(entry)
 
+    # What the curves of one plot are, per metric family. The truth-driven metrics
+    # overlay graph levels, the reco-driven ones working points.
+    def overlay_note(metric):
+        if metric in TRUTH_METRICS:
+            return ("Each plot overlays the branch LEVELS of the truth graph, the a priori definitions of what "
+                    "one truth object is (stableLegsFromUpstream, caloBoundary, stableDecayProducts, "
+                    "hardProcess); a composite domain has a single folder named by its vertex resolution. The "
+                    f"lower panel is the ratio to {REFERENCE_LEVEL}.")
+        return ("Each plot overlays the four branch-association working points. Fixed keeps every matching "
+                "branch; the Adaptive points keep the single graph level that best matches the reco object, "
+                "differing only in how much branch spread they tolerate. The lower panel is the ratio to "
+                f"{REFERENCE_WP}.")
+
     # One page per metric, each opening with the definition of the quantity it shows.
     for (flavour, metric), entries in by_page.items():
         label, meaning, formula = METRICS[metric]
@@ -744,10 +788,7 @@ def main():
             page.write(f"<h1>{flavour}: {label}</h1><p><a href='index.html'>back to index</a></p>")
             page.write(f"<div class='def'><b>Definition.</b> {meaning}<br><br>"
                        f"<span class='f'>{formula}</span><br><br>"
-                       "Each plot overlays the four branch-association working points. <b>Fixed</b> keeps every "
-                       "matching branch; the <b>Adaptive</b> points keep the single graph level that best matches "
-                       "the reco object, differing only in how much branch spread they tolerate. The lower panel "
-                       "is the ratio to Fixed.</div>")
+                       f"{overlay_note(metric)}</div>")
             page.write(f"<p>Sample: {args.sample}.</p>")
             used = [v for v in VARIABLE_ORDER + CATEGORICAL
                     if any(e["var"] == v or e["var"].endswith("_vs_" + v) for e in entries)]
@@ -773,11 +814,8 @@ def main():
         label, meaning, formula = METRICS[metric]
         with open(os.path.join(args.outputDir, flavour, metric, "DEFINITIONS.md"), "w") as defs:
             defs.write(f"# {label}\n\nSample: {args.sample}.\n\n## Definition\n\n{meaning}\n\n")
-            defs.write(f"    {formula}\n\n## Working points\n\n")
-            defs.write("Each plot overlays the four branch-association working points. Fixed keeps every matching\n"
-                       "branch; the Adaptive points keep the single graph level that best matches the reco object,\n"
-                       "differing only in how much branch spread they tolerate. The lower panel is the ratio to\n"
-                       "Fixed.\n\n## Variables on the x axis\n\n")
+            defs.write(f"    {formula}\n\n## What the curves are\n\n")
+            defs.write(overlay_note(metric) + "\n\n## Variables on the x axis\n\n")
             used = [v for v in VARIABLE_ORDER + CATEGORICAL
                     if any(e["var"] == v or e["var"].endswith("_vs_" + v) for e in entries)]
             for v in used:

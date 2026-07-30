@@ -16,6 +16,7 @@
 // across every working point.
 
 #include <algorithm>
+#include <cctype>
 #include <concepts>
 #include <memory>
 #include <optional>
@@ -268,10 +269,11 @@ private:
   std::vector<WorkingPoint> workingPoints_;
   truth::BranchSelector branchSelector_;
   const bool truthToRecoSignalOnly_;
-  // Which level of the graph the truth-driven direction asks about. NOT a working
-  // point: the working points are the reco-driven adaptive search, and the truth target
-  // must be fixed before any reco object is looked at.
-  const truth::Level truthLevel_;
+  // Which levels of the graph the truth-driven direction asks about, each with its
+  // product instance label. NOT working points: the working points are the reco-driven
+  // adaptive search, and the truth targets must be fixed before any reco object is
+  // looked at. One denominator product per level.
+  std::vector<std::pair<truth::Level, std::string>> truthLevels_;
 
   using Traits = TruthAssociationTraits<RECO>;
   using MapType = typename Traits::MapType;
@@ -291,8 +293,7 @@ template <typename RECO>
 AllRecoToTruthBranchAssociatorsProducer<RECO>::AllRecoToTruthBranchAssociatorsProducer(edm::ParameterSet const& cfg)
     : graphToken_(consumes<truth::Graph>(cfg.getParameter<edm::InputTag>("src"))),
       hitIndexToken_(consumes<truth::LogicalGraphHitIndex>(cfg.getParameter<edm::InputTag>("hitIndex"))),
-      truthToRecoSignalOnly_(cfg.getParameter<bool>("truthToRecoSignalOnly")),
-      truthLevel_(truth::levelFromName(cfg.getParameter<std::string>("truthLevel"))) {
+      truthToRecoSignalOnly_(cfg.getParameter<bool>("truthToRecoSignalOnly")) {
   if constexpr (LayerClusterBackedRecoHits<RECO>) {
     layerClustersToken_ = consumes<std::vector<reco::CaloCluster>>(cfg.getParameter<edm::InputTag>("layerClusters"));
   }
@@ -334,7 +335,7 @@ AllRecoToTruthBranchAssociatorsProducer<RECO>::AllRecoToTruthBranchAssociatorsPr
   // the graph, including those the selector rejected, and every efficiency comes out
   // low by the rejection factor.
   produces<std::vector<unsigned int>>("selectedBranchRoots");
-  // The TruthToReco denominator, which is NOT the same set as the associator's
+  // The TruthToReco denominators, which are NOT the same set as the associator's
   // candidates. Efficiency, duplicate rate and split rate ask what fraction of the
   // truth was reconstructed, and in a pileup sample that question is only meaningful
   // for the signal interaction: averaging it over 200 overlaid ones measures how well
@@ -344,8 +345,20 @@ AllRecoToTruthBranchAssociatorsProducer<RECO>::AllRecoToTruthBranchAssociatorsPr
   // The candidate set stays complete on purpose. RecoToTruth metrics, fake rate above
   // all, need pileup branches to remain matchable: a reco object built from a pileup
   // particle is not a fake, and it would become one if the candidates were signal-only.
-  produces<std::vector<unsigned int>>("truthToRecoTargets");
+  if constexpr (!ConstituentBasedDomain<RECO>) {
+    // One denominator product per configured level, labelled
+    // "truthToRecoTargets" + the level name with its first letter capitalized.
+    for (auto const& name : cfg.getParameter<std::vector<std::string>>("truthLevels")) {
+      std::string capitalized = name;
+      capitalized[0] = std::toupper(static_cast<unsigned char>(capitalized[0]));
+      truthLevels_.emplace_back(truth::levelFromName(name), "truthToRecoTargets" + capitalized);
+      produces<std::vector<unsigned int>>(truthLevels_.back().second);
+    }
+  }
   if constexpr (ConstituentBasedDomain<RECO>) {
+    // A composite object's truth target is a vertex, not a branch at some level, so
+    // there is a single denominator.
+    produces<std::vector<unsigned int>>("truthToRecoTargets");
     // A composite object is associated to a truth VERTEX, so its efficiency denominator
     // is a set of vertices, not of branch roots.
     produces<std::vector<unsigned int>>("selectedTruthVertices");
@@ -432,21 +445,23 @@ void AllRecoToTruthBranchAssociatorsProducer<RECO>::produce(edm::StreamID,
   // eventId 0 is the signal interaction; anything else is overlaid pileup.
   auto isSignalParticle = [&graph](uint32_t particleId) { return graph.particles()[particleId].eventId == 0; };
   if constexpr (!ConstituentBasedDomain<RECO>) {
-    // The level antichain, then the signal restriction, then the kinematic selector.
-    // Order matters: taking the antichain of an already kinematically-selected set would
-    // promote a soft particle to a level it does not belong to just because its parent
-    // failed the pt cut.
-    auto targets = std::make_unique<std::vector<unsigned int>>();
-    for (uint32_t id : truth::levelAntichain(graph, truthLevel_)) {
-      if (truthToRecoSignalOnly_ && !isSignalParticle(id)) {
-        continue;
+    // One denominator per level. The level antichain, then the signal restriction, then
+    // the kinematic selector. Order matters: taking the antichain of an already
+    // kinematically-selected set would promote a soft particle to a level it does not
+    // belong to just because its parent failed the pt cut.
+    for (auto const& [level, instance] : truthLevels_) {
+      auto targets = std::make_unique<std::vector<unsigned int>>();
+      for (uint32_t id : truth::levelAntichain(graph, level)) {
+        if (truthToRecoSignalOnly_ && !isSignalParticle(id)) {
+          continue;
+        }
+        if (!branchSelector_(truth::Branch(&graph, id))) {
+          continue;
+        }
+        targets->push_back(id);
       }
-      if (!branchSelector_(truth::Branch(&graph, id))) {
-        continue;
-      }
-      targets->push_back(id);
+      event.put(std::move(targets), instance);
     }
-    event.put(std::move(targets), "truthToRecoTargets");
   }
 
   [[maybe_unused]] const auto interactionVertex =
@@ -649,12 +664,15 @@ void AllRecoToTruthBranchAssociatorsProducer<RECO>::fillDescriptions(edm::Config
   selector.add<bool>("chargedOnly", false);
   selector.add<bool>("invertEta", false);
   desc.add<edm::ParameterSetDescription>("branchSelector", selector);
-  desc.add<std::string>("truthLevel", "caloBoundary")
-      ->setComment(
-          "Which level of the graph the TruthToReco direction asks about: hardProcess, stableDecayProducts or "
-          "caloBoundary. Each is an antichain, so every physical object at that level is counted once. A "
-          "kinematic selection alone is NOT a level: a tau, its decay products and their calorimeter-crossing "
-          "descendants would all enter the denominator at the same time");
+  if constexpr (!ConstituentBasedDomain<RECO>) {
+    desc.add<std::vector<std::string>>("truthLevels", {"caloBoundary"})
+        ->setComment(
+            "Which levels of the graph the TruthToReco direction asks about, one denominator product per level: "
+            "stableLegsFromUpstream, caloBoundary, stableDecayProducts, hardProcess. Each is an antichain, so "
+            "every physical object at that level is counted once. A kinematic selection alone is NOT a level: a "
+            "tau, its decay products and their calorimeter-crossing descendants would all enter the denominator "
+            "at the same time");
+  }
   desc.add<bool>("truthToRecoSignalOnly", true)
       ->setComment(
           "Restrict the TruthToReco denominator to the signal interaction. Efficiency, duplicate and split are "

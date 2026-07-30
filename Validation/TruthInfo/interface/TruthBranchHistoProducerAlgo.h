@@ -42,38 +42,42 @@ namespace truth {
   struct TruthBranchHistograms {
     using METype = dqm::reco::MonitorElement*;
 
-    // Each vector is indexed [entry][variable], entry being the (collection, working
-    // point) counter and variable the position within that side's variable list, so
-    // booking order and fill index stay in step exactly as in MTV.
+    // Each vector is indexed [entry][variable], variable being the position within that
+    // side's variable list, so booking order and fill index stay in step exactly as in
+    // MTV. The two sides carry INDEPENDENT entry counters: truth-driven rows are
+    // indexed by (collection, level) in truth-entry booking order, reco-driven rows by
+    // (collection, working point) in wp-entry booking order.
     using MERow = std::vector<METype>;
 
-    // Truth side: denominator every selected branch, numerator those a reco object was
-    // associated to.
+    // Truth side, one row per (collection, level): denominator every target at that
+    // level, numerator those a reco object was associated to.
     std::vector<MERow> h_simul, h_assoc_simToReco;
 
-    // Reco side: denominator every reco object, numerator those matched to a branch.
-    // One minus that ratio is the fake rate.
-    std::vector<MERow> h_reco, h_assoc_recoToSim;
-
-    // The three ways a truth object can fail to be reconstructed as one object, made
-    // mutually exclusive so that individual + duplicate + split + lost = 1.
+    // The two ways a truth object can be reconstructed as one object more than once or
+    // in pieces, mutually exclusive so that individual + duplicate + split + lost = 1.
     //   duplicate  more than one reco object individually reconstructs the whole thing
     //   split      no single object does, but several together cover the subgraph
-    // and a reco object matched only to a truth object from a pileup interaction.
-    std::vector<MERow> h_duplicate, h_split, h_pileup;
+    std::vector<MERow> h_duplicate, h_split;
+
+    // Reco side, one row per (collection, working point): denominator every reco
+    // object, numerator those matched to a branch; one minus that ratio is the fake
+    // rate. Pileup counts objects matched only to an overlaid interaction.
+    std::vector<MERow> h_reco, h_assoc_recoToSim, h_pileup;
 
     // Efficiency and duplicate rate against the Geant4 process that CREATED the
     // branch, which only the graph can supply: the production vertex of the branch
     // root carries its VertexReason, so a loss can be attributed to the physics that
-    // made the particle rather than only to where it landed.
+    // made the particle rather than only to where it landed. Truth side.
     std::vector<METype> h_simul_reason, h_assoc_simToReco_reason, h_duplicate_reason;
 
     // Quality of the match itself, one per direction. The denominator is what the name
-    // says: reco purity divides by the reco object, truth purity by the truth object.
+    // says: reco purity divides by the reco object (reco side), truth purity by the
+    // truth object (truth side).
     std::vector<METype> h_score, h_sharedQuantity, h_recoPurity, h_truthPurity;
 
     // Resolution inputs: 2D of (reco - truth)/truth against the truth variable, which
-    // the harvester turns into _Mean and _Sigma by a Gaussian fit per slice.
+    // the harvester turns into _Mean and _Sigma by a Gaussian fit per slice. Reco side:
+    // the pair comes from the reco-driven match, so it depends on the working point.
     std::vector<METype> h_ptres_vs_eta, h_ptres_vs_pt, h_etares_vs_eta, h_phires_vs_eta;
   };
 
@@ -81,9 +85,12 @@ namespace truth {
   public:
     explicit TruthBranchHistoProducerAlgo(edm::ParameterSet const& pset);
 
-    // Book one full set of histograms into the current folder. Call once per
-    // (collection, working point), in the order the fill side will index them.
-    void bookHistos(dqm::implementation::IBooker& booker, TruthBranchHistograms& histograms) const;
+    // Book one set of histograms into the current folder, appending one row to each of
+    // that side's vectors. Call bookRecoHistos once per (collection, working point) and
+    // bookTruthHistos once per (collection, level), each in the order the fill side
+    // will index that list.
+    void bookRecoHistos(dqm::implementation::IBooker& booker, TruthBranchHistograms& histograms) const;
+    void bookTruthHistos(dqm::implementation::IBooker& booker, TruthBranchHistograms& histograms) const;
 
     // Values of every x variable for one object, in the enum order. A domain fills only
     // the ones it has; which of them are booked is decided by the variable lists.

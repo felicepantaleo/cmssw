@@ -18,6 +18,12 @@ from SimGeneral.TruthGraphAssociatorProducers.truthGraphAssociationLabels_cff im
 
 _wps = list(truthBranchWorkingPointsPSet.names)
 
+# Branch levels of the truth graph, matching truthGraphAssociators_cff: the
+# truth-driven metrics are measured once per level, in per-level folders, while the
+# reco-driven metrics keep their per-working-point folders. Composite domains have no
+# levels; their one truth-driven folder is named by the domain's vertex resolution.
+_truthLevels = ["stableLegsFromUpstream", "caloBoundary", "stableDecayProducts", "hardProcess"]
+
 # Axis definition per x variable, shared by every domain. Built here so the booking, the
 # harvester strings and the plot script all read one list.
 _axes = {
@@ -75,6 +81,8 @@ _domains = [
         label="truthBranchVertexValidator",
         associator="allVertexToTruthBranchAssociators",
         dirName="TruthInfo/Offline/Vertexing/",
+        # A primary vertex is resolved at the INTERACTION, matching the associator.
+        vertexResolution="interaction",
         # A vertex has a position and a track multiplicity, and nothing else this set
         # can express. The TRUTH object here is a graph vertex, not a particle branch,
         # so pt, eta, depth and root_footprint_fraction do not exist on that side either.
@@ -92,6 +100,8 @@ _domains = [
         label="truthBranchSecondaryVertexValidator",
         associator="allSecondaryVertexToTruthBranchAssociators",
         dirName="TruthInfo/Offline/SecondaryVertexing/",
+        # A secondary vertex is resolved at the IMMEDIATE production vertex.
+        vertexResolution="immediate",
         recoVariables=["nhits", "vertpos", "zpos"],
         truthVariables=["nhits", "vertpos", "zpos"],
         sharedRange=(0.0, 1.0),
@@ -151,33 +161,39 @@ def _algoBlock(recoVariables, truthVariables=None, sharedRange=None, axisOverrid
 # duplicate, pileup) plus purity from the TICL trackster validation, which asks the
 # complementary question: how much of the reco object belongs to the branch it matched.
 # Which direction each metric belongs to is not a style choice; it decides the
-# denominator the number carries.
+# denominator the number carries AND the folder family it lives in.
 #
 #   TRUTH to RECO, denominator the truth object: efficiency, duplicate rate, split rate.
-#     The truth target is fixed a priori by the domain's resolution, so the reco-driven
-#     adaptive working point plays no part in choosing it.
+#     The truth target is fixed a priori per graph level, so these live in the
+#     per-level folders and never see a working point.
 #   RECO to TRUTH, denominator the reco object: fake rate, pileup rate, reco purity.
+#     These live in the per-working-point folders.
 #
 # This is the split HGVHistoProducerAlgo already uses (maxSimToRecoScoreForPurity and
 # maxSimToRecoScoreForDuplicate on one side, maxRecoToSimScoreForNonFake and
 # maxRecoToSimScoreForMerge on the other) and that QuickTrackAssociatorByHits encodes as
 # two separate implementations with different denominators.
-def _efficiencyStrings(recoVariables, truthVariables=None):
+def _truthDrivenStrings(truthVariables=None):
     out = []
     for var in (truthVariables or truthPlotVariables):
         out.append(f"efficiency_vs_{var} 'Branch efficiency vs {var}' num_assoc(simToReco)_{var} num_simul_{var}")
         out.append(f"duplicate_vs_{var} 'Duplicate rate vs {var}' num_duplicate_{var} num_simul_{var}")
         out.append(f"splitrate_vs_{var} 'Split rate vs {var}' num_split_{var} num_simul_{var}")
-    for var in recoVariables:
-        out.append(f"fakerate_vs_{var} 'Fake rate vs {var}' num_assoc(recoToSim)_{var} num_reco_{var} fake")
-        out.append(f"pileuprate_vs_{var} 'Pileup rate vs {var}' num_pileup_{var} num_reco_{var}")
-        out.append(f"recopurity_vs_{var} 'Reco purity vs {var}' num_assoc(recoToSim)_{var} num_reco_{var}")
     # Efficiency and duplicate rate against the Geant4 creation process of the branch.
     # The axis is categorical, one bin per truth::VertexReason, and it exists only
     # because the graph keeps the process that made each particle.
     out.append("efficiency_vs_reason 'Branch efficiency vs creation process' "
                "num_assoc(simToReco)_reason num_simul_reason")
     out.append("duplicate_vs_reason 'Duplicate rate vs creation process' num_duplicate_reason num_simul_reason")
+    return out
+
+
+def _recoDrivenStrings(recoVariables):
+    out = []
+    for var in recoVariables:
+        out.append(f"fakerate_vs_{var} 'Fake rate vs {var}' num_assoc(recoToSim)_{var} num_reco_{var} fake")
+        out.append(f"pileuprate_vs_{var} 'Pileup rate vs {var}' num_pileup_{var} num_reco_{var}")
+        out.append(f"recopurity_vs_{var} 'Reco purity vs {var}' num_assoc(recoToSim)_{var} num_reco_{var}")
     return out
 
 
@@ -198,6 +214,11 @@ truthBranchValidationSequence = cms.Sequence()
 truthBranchHarvestingSequence = cms.Sequence()
 
 for _d in _domains:
+    # The truth-driven folder suffixes: the graph levels for a hit-based domain, the
+    # vertex resolution for a composite one.
+    _truthSuffixes = [_d["vertexResolution"]] if "vertexResolution" in _d else _truthLevels
+    _truthArgs = (dict(vertexResolution=cms.string(_d["vertexResolution"]))
+                  if "vertexResolution" in _d else dict(truthLevels=cms.vstring(*_truthLevels)))
     _analyzer = cms.EDProducer(
         _d["module"],
         src=cms.InputTag("truthLogicalGraphProducer"),
@@ -209,16 +230,20 @@ for _d in _domains:
         workingPoints=cms.vstring(*_wps),
         histoProducerAlgoBlock=_algoBlock(_d["recoVariables"], _d.get("truthVariables"),
                                           _d.get("sharedRange"), _d.get("axisOverrides")),
+        **_truthArgs,
     )
     globals()[_d["label"]] = _analyzer
     truthBranchValidationSequence += _analyzer
 
-    _folders = [_d["dirName"] + instanceKey(_label) + "_" + _wp
-                for _label in recoLabels(_d["name"], _d["flavour"]) for _wp in _wps]
+    # Two harvesters per domain because DQMGenericClient applies one string list to all
+    # its subDirs: the per-WP folders carry only reco-driven MEs, the per-level folders
+    # only truth-driven ones, and asking a folder for a ratio it never booked is noise.
+    _wpFolders = [_d["dirName"] + instanceKey(_label) + "_" + _wp
+                  for _label in recoLabels(_d["name"], _d["flavour"]) for _wp in _wps]
     _harvester = DQMEDHarvester(
         "DQMGenericClient",
-        subDirs=cms.untracked.vstring(*_folders),
-        efficiency=cms.vstring(*_efficiencyStrings(_d["recoVariables"], _d.get("truthVariables"))),
+        subDirs=cms.untracked.vstring(*_wpFolders),
+        efficiency=cms.vstring(*_recoDrivenStrings(_d["recoVariables"])),
         resolution=cms.vstring(*_resolutions),
         # Fit the core, not the tail: the slice fit is restricted to a window around the
         # peak, which is what makes Sigma a resolution rather than the width of the axis.
@@ -228,3 +253,16 @@ for _d in _domains:
     )
     globals()[_d["label"].replace("Validator", "PostProcessor")] = _harvester
     truthBranchHarvestingSequence += _harvester
+
+    _truthFolders = [_d["dirName"] + instanceKey(_label) + "_" + _suffix
+                     for _label in recoLabels(_d["name"], _d["flavour"]) for _suffix in _truthSuffixes]
+    _truthHarvester = DQMEDHarvester(
+        "DQMGenericClient",
+        subDirs=cms.untracked.vstring(*_truthFolders),
+        efficiency=cms.vstring(*_truthDrivenStrings(_d.get("truthVariables"))),
+        resolution=cms.vstring(),
+        verbose=cms.untracked.uint32(0),
+        outputFileName=cms.untracked.string(""),
+    )
+    globals()[_d["label"].replace("Validator", "TruthPostProcessor")] = _truthHarvester
+    truthBranchHarvestingSequence += _truthHarvester

@@ -60,13 +60,15 @@ namespace truth {
     resolve(pset.getParameter<std::vector<std::string>>("recoVariables"), recoVars_, recoVarNames_, recoAxes_);
   }
 
-  void TruthBranchHistoProducerAlgo::bookHistos(dqm::implementation::IBooker& booker, TruthBranchHistograms& h) const {
+  namespace {
     // The ME names are the harvesting API: DQMGenericClient forms every ratio from
     // these by string, so a rename silently drops a plot rather than failing.
-    auto bookRow = [&](std::vector<TruthBranchHistograms::MERow>& rows,
-                       std::string const& prefix,
-                       std::vector<std::string> const& names,
-                       std::vector<Axis> const& axes) {
+    template <typename AxisT>
+    void bookRow(dqm::implementation::IBooker& booker,
+                 std::vector<TruthBranchHistograms::MERow>& rows,
+                 std::string const& prefix,
+                 std::vector<std::string> const& names,
+                 std::vector<AxisT> const& axes) {
       TruthBranchHistograms::MERow row;
       for (std::size_t v = 0; v < names.size(); ++v) {
         auto const& name = names[v];
@@ -74,15 +76,15 @@ namespace truth {
         row.push_back(booker.book1D(prefix + "_" + name, prefix + " vs " + name, axis.nbins, axis.min, axis.max));
       }
       rows.push_back(std::move(row));
-    };
+    }
+  }  // namespace
 
-    bookRow(h.h_simul, "num_simul", truthVarNames_, truthAxes_);
-    bookRow(h.h_assoc_simToReco, "num_assoc(simToReco)", truthVarNames_, truthAxes_);
-    bookRow(h.h_duplicate, "num_duplicate", truthVarNames_, truthAxes_);
-    bookRow(h.h_split, "num_split", truthVarNames_, truthAxes_);
-    bookRow(h.h_reco, "num_reco", recoVarNames_, recoAxes_);
-    bookRow(h.h_assoc_recoToSim, "num_assoc(recoToSim)", recoVarNames_, recoAxes_);
-    bookRow(h.h_pileup, "num_pileup", recoVarNames_, recoAxes_);
+  void TruthBranchHistoProducerAlgo::bookTruthHistos(dqm::implementation::IBooker& booker,
+                                                     TruthBranchHistograms& h) const {
+    bookRow(booker, h.h_simul, "num_simul", truthVarNames_, truthAxes_);
+    bookRow(booker, h.h_assoc_simToReco, "num_assoc(simToReco)", truthVarNames_, truthAxes_);
+    bookRow(booker, h.h_duplicate, "num_duplicate", truthVarNames_, truthAxes_);
+    bookRow(booker, h.h_split, "num_split", truthVarNames_, truthAxes_);
 
     // Categorical axis: one labelled bin per Geant4 creation process.
     auto bookReason = [&](std::vector<TruthBranchHistograms::METype>& v, std::string const& name) {
@@ -97,12 +99,21 @@ namespace truth {
     bookReason(h.h_assoc_simToReco_reason, "num_assoc(simToReco)_reason");
     bookReason(h.h_duplicate_reason, "num_duplicate_reason");
 
+    // Truth purity: the truth object is the denominator, so it lives on this side.
+    h.h_truthPurity.push_back(booker.book1D("truth_purity", "Truth purity", 50, 0., 1.));
+  }
+
+  void TruthBranchHistoProducerAlgo::bookRecoHistos(dqm::implementation::IBooker& booker,
+                                                    TruthBranchHistograms& h) const {
+    bookRow(booker, h.h_reco, "num_reco", recoVarNames_, recoAxes_);
+    bookRow(booker, h.h_assoc_recoToSim, "num_assoc(recoToSim)", recoVarNames_, recoAxes_);
+    bookRow(booker, h.h_pileup, "num_pileup", recoVarNames_, recoAxes_);
+
     h.h_score.push_back(booker.book1D("association_score", "Association score", nintScore_, minScore_, maxScore_));
     h.h_sharedQuantity.push_back(
         booker.book1D("shared_quantity", "Shared hits or energy", nintShared_, minShared_, maxShared_));
-    // Purity in each direction, on a [0, 1] axis because both are fractions.
+    // Reco purity: the reco object is the denominator, on a [0, 1] axis.
     h.h_recoPurity.push_back(booker.book1D("reco_purity", "Reco purity", 50, 0., 1.));
-    h.h_truthPurity.push_back(booker.book1D("truth_purity", "Truth purity", 50, 0., 1.));
 
     // 2D inputs for the Gaussian slice fit the harvester runs. Same naming as MTV so
     // the resolution strings and the plot script read the same way.

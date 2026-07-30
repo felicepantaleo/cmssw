@@ -44,11 +44,19 @@ def _tags(domain, flavour="offline"):
     return cms.VInputTag(*[cms.InputTag(*label.split(":")) for label in recoLabels(domain, flavour)])
 
 
+# Branch levels the truth-driven direction asks about, one denominator product per
+# level, side by side. Only hit-based domains have levels: a composite object's truth
+# target is a vertex, fixed by its resolution instead.
+_truthLevels = cms.vstring(
+    "stableLegsFromUpstream", "caloBoundary", "stableDecayProducts", "hardProcess"
+)
+
 # Hit-based: the object owns detector hits.
 allTrackToTruthBranchAssociators = cms.EDProducer(
     "AllTrackToTruthBranchAssociatorsProducer",
     recoCollections=_tags("tracks"),
     branchSelector=truthBranchSelectorBlock.clone(),
+    truthLevels=_truthLevels,
     **_truthSources,
     **_workingPointArgs,
 )
@@ -85,6 +93,7 @@ truthBranchTracksterAssociators = cms.EDProducer(
     recoCollections=_tags("tracksters"),
     branchSelector=truthBranchSelectorBlock.clone(),
     layerClusters=cms.InputTag("hgcalMergeLayerClusters"),
+    truthLevels=_truthLevels,
     **_truthSources,
     **_workingPointArgs,
 )
