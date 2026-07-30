@@ -169,12 +169,18 @@ namespace {
   // out at the beamspot" would be true of almost any choice. The build order is what
   // picks it; the usability test only rejects the placeholder.
   //
+  // The placeholder this rejects is a default-constructed position, an in-band value: a
+  // genuine unsmeared vertex at the exact origin is indistinguishable and gets demoted
+  // too. Harmless for the association itself, since on such a sample every candidate
+  // shares the position anyway, but the elected id can differ from the plain build-order
+  // choice there. Time is part of the test so a real origin vertex with nonzero time is
+  // kept.
   [[nodiscard]] inline bool usableAsInteractionVertex(truth::VertexData const& vertex) {
     if (vertex.hasSim()) {
       return true;
     }
     auto const& position = vertex.position;
-    return position.x() != 0. || position.y() != 0. || position.z() != 0.;
+    return position.x() != 0. || position.y() != 0. || position.z() != 0. || position.t() != 0.;
   }
 
   [[nodiscard]] inline std::unordered_map<uint64_t, uint32_t> interactionVertices(truth::Graph const& graph) {
@@ -202,10 +208,11 @@ namespace {
       if (representative.emplace(eventId, vertexId).second) {
         edm::LogWarning("AllRecoToTruthBranchAssociators")
             << "interaction " << eventId << " resolves only to logical vertex " << vertexId
-            << ", which neither merged with a SimVertex nor carries a position. Its "
-               "constituents are counted there, so any vertex efficiency or purity for "
-               "that interaction is positional nonsense. This is what a pileup sub-event "
-               "looks like when all of its GenToSim links were dropped.";
+            << ", which did not merge with a SimVertex and whose position is "
+               "indistinguishable from a default-constructed one. Its constituents are "
+               "counted there, so any vertex efficiency or purity for that interaction "
+               "is positional nonsense. This is what a pileup sub-event looks like when "
+               "all of its GenToSim links were dropped.";
       }
     }
     return representative;
