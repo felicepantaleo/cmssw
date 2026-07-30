@@ -131,7 +131,7 @@ public:
       int nc = 0;
       sharedByReco.clear();
       if (node >= 0 && static_cast<unsigned>(node) < hitIndex.nParticles()) {
-        for (auto const& h : hitIndex.subgraphHits(truth::HitChannel::HGCalCalo, static_cast<uint32_t>(node))) {
+        for (auto const& h : hitIndex.subgraphHits(truth::HitChannel::Calo, static_cast<uint32_t>(node))) {
           auto reh = rechitEnergy.find(h.detId);
           if (reh == rechitEnergy.end())
             continue;  // sim hit with no associated rechit: not deposited rechit energy
