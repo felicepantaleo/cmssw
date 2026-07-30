@@ -185,18 +185,25 @@ void TracksterLinkingByCornetto::linkBySeededGrowth(const Inputs& input,
       }
   }
 
+  // Collect by owner, treating an unclaimed trackster as its own group: nothing is
+  // dropped here, the emit-side threshold in linkTracksters is the only place anything
+  // is discarded.
   std::vector<std::vector<unsigned int>> members(n);
   for (unsigned int i = 0; i < n; ++i)
-    if (owner[i] != kUnowned)
-      members[owner[i]].push_back(i);
+    members[owner[i] != kUnowned ? owner[i] : static_cast<int>(i)].push_back(i);
+
+  // Emit keyed on the SMALLEST index in each group, exactly as the union-find path
+  // does. The group content alone is not enough: the Alpaka backend labels a group by
+  // its smallest member and emits in label order, so keying on the core index instead
+  // would order the collection differently on the two backends for identical grouping,
+  // and CornettoBackendComparator compares position by position.
+  std::vector<std::vector<unsigned int>> byMin(n);
+  for (unsigned int r = 0; r < n; ++r)
+    if (!members[r].empty())
+      byMin[members[r].front()] = std::move(members[r]);  // filled ascending, front() is the min
   for (unsigned int i = 0; i < n; ++i)
-    if (!members[i].empty())
-      groups.push_back(members[i]);
-  // Whatever no core claimed stays a trackster of its own: no energy is dropped here,
-  // the emit-side threshold in linkTracksters is the only place anything is discarded.
-  for (unsigned int i = 0; i < n; ++i)
-    if (owner[i] == kUnowned)
-      groups.push_back({i});
+    if (!byMin[i].empty())
+      groups.push_back(std::move(byMin[i]));
 }
 
 void TracksterLinkingByCornetto::linkByUnionFind(const Inputs& input,
