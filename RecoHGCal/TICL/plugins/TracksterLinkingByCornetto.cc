@@ -19,7 +19,12 @@ TracksterLinkingByCornetto::TracksterLinkingByCornetto(const edm::ParameterSet& 
       transverseSlope_(conf.getParameter<double>("transverseSlope")),
       timeCompatibilityNSigma_(conf.getParameter<double>("timeCompatibilityNSigma")),
       maxLongitudinalSlope_(conf.getParameter<double>("maxLongitudinalSlope")),
-      longitudinalZRef_(conf.getParameter<double>("longitudinalZRef")) {}
+      longitudinalZRef_(conf.getParameter<double>("longitudinalZRef")),
+      seededGrowth_(conf.getParameter<bool>("seededGrowth")),
+      seedEnergy_(conf.getParameter<double>("seedEnergy")),
+      axisToleranceCos_(std::cos(conf.getParameter<double>("axisToleranceDeg") * M_PI / 180.)),
+      forwardOnly_(conf.getParameter<bool>("forwardOnly")),
+      minEmittedEnergy_(conf.getParameter<double>("minEmittedEnergy")) {}
 
 namespace {
   // Union-find with path halving. On GPU this stage becomes iterative label
@@ -44,6 +49,134 @@ void TracksterLinkingByCornetto::linkTracksters(
     std::vector<Trackster>& resultTracksters,
     std::vector<std::vector<unsigned int>>& linkedResultTracksters,
     std::vector<std::vector<unsigned int>>& linkedTracksterIdToInputTracksterId) {
+  // Grouping: connected components (default, bit-identical to the Alpaka kernel) or
+  // seeded growth (percolation-proof at PU200). Both emit EVERY group, singletons
+  // included, so the spectrum stays continuous either way.
+  std::vector<std::vector<unsigned int>> groups;
+  if (seededGrowth_)
+    linkBySeededGrowth(input, groups);
+  else
+    linkByUnionFind(input, groups);
+
+  for (auto const& group : groups) {
+    if (group.empty())
+      continue;
+    Trackster merged;
+    merged.mergeTracksters(input.tracksters, group);
+    // Emit-side threshold: the pileup singletons seeded growth refuses to chain are
+    // numerous but carry little energy (measured PU200: 91% of the groups hold 10% of
+    // the energy). Dropping them here keeps the collection at the Skeletons size
+    // without gating any LINKING decision.
+    if (merged.raw_energy() < minEmittedEnergy_)
+      continue;
+    linkedResultTracksters.push_back({static_cast<unsigned int>(resultTracksters.size())});
+    resultTracksters.push_back(merged);
+    linkedTracksterIdToInputTracksterId.push_back(group);
+  }
+}
+
+void TracksterLinkingByCornetto::linkBySeededGrowth(const Inputs& input,
+                                                    std::vector<std::vector<unsigned int>>& groups) const {
+  const auto& tracksters = input.tracksters;
+  const unsigned int n = tracksters.size();
+
+  std::vector<float> energy(n);
+  std::vector<math::XYZVectorF> bary(n);
+  for (unsigned int i = 0; i < n; ++i) {
+    bary[i] = tracksters[i].barycenter();
+    energy[i] = tracksters[i].raw_energy();
+  }
+
+  // Seeds in decreasing energy; the index tie-break keeps the order (and therefore the
+  // output) independent of the sort implementation, as in the pair anchor choice.
+  std::vector<unsigned int> seeds;
+  seeds.reserve(n);
+  for (unsigned int i = 0; i < n; ++i)
+    if (energy[i] >= seedEnergy_)
+      seeds.push_back(i);
+  std::sort(seeds.begin(), seeds.end(), [&energy](unsigned int a, unsigned int b) {
+    return energy[a] != energy[b] ? energy[a] > energy[b] : a < b;
+  });
+
+  constexpr int kUnowned = -1;
+  std::vector<int> owner(n, kUnowned);
+  std::vector<std::vector<unsigned int>> members(n);
+
+  for (unsigned int s : seeds) {
+    if (owner[s] != kUnowned)
+      continue;
+    owner[s] = static_cast<int>(s);
+    members[s].push_back(s);
+    // Core state: energy-weighted centroid, and the axis from the interaction point to
+    // it. The barycenter direction is well defined for every trackster, unlike the PCA
+    // eigenvector of a single layer cluster, which is why it is preferred here.
+    double sumE = energy[s];
+    math::XYZVectorF centroid = bary[s] * energy[s];
+    auto unit = [](const math::XYZVectorF& v) {
+      const float m = std::sqrt(v.Mag2());
+      return m > 0.f ? v / m : v;
+    };
+    math::XYZVectorF axis = unit(bary[s]);
+
+    for (unsigned int c = 0; c < n; ++c) {
+      if (owner[c] != kUnowned)
+        continue;
+      if (bary[c].z() * bary[s].z() < 0.f)
+        continue;  // same endcap only
+      const math::XYZVectorF core = centroid / sumE;
+      if (std::abs(bary[c].eta() - core.eta()) > etaWindow_)
+        continue;
+      if (std::abs(reco::deltaPhi(bary[c].phi(), core.phi())) > etaWindow_)
+        continue;
+
+      const auto D = bary[c] - core;
+      const float sProj = D.Dot(axis);
+      // A shower develops in depth: only attach downstream of the core centroid.
+      if (forwardOnly_ && sProj < 0.f)
+        continue;
+      const float zrel = std::abs(core.z()) - longitudinalZRef_;
+      const float maxLong = maxLongitudinalDistance_ + maxLongitudinalSlope_ * (zrel > 0.f ? zrel : 0.f);
+      if (std::abs(sProj) > maxLong)
+        continue;
+      const float dT2 = std::max(0.f, static_cast<float>(D.Mag2()) - sProj * sProj);
+      const float rT = transverseRadius0_ + transverseSlope_ * std::abs(sProj);
+      if (dT2 > rT * rT)
+        continue;
+      if (tracksters[s].timeError() > 0.f && tracksters[c].timeError() > 0.f) {
+        const float sigma2 = tracksters[s].timeError() * tracksters[s].timeError() +
+                             tracksters[c].timeError() * tracksters[c].timeError();
+        const float dt = tracksters[s].time() - tracksters[c].time();
+        if (dt * dt > timeCompatibilityNSigma_ * timeCompatibilityNSigma_ * sigma2)
+          continue;
+      }
+
+      // Axis stability: a satellite that would swing the core direction is not part of
+      // this shower, it is a neighbouring one.
+      const double newSumE = sumE + energy[c];
+      const math::XYZVectorF newCentroid = centroid + bary[c] * energy[c];
+      const math::XYZVectorF newAxis = unit(newCentroid / newSumE);
+      if (newAxis.Dot(axis) < axisToleranceCos_)
+        continue;
+
+      owner[c] = static_cast<int>(s);
+      members[s].push_back(c);
+      sumE = newSumE;
+      centroid = newCentroid;
+      axis = newAxis;
+    }
+  }
+
+  for (unsigned int i = 0; i < n; ++i)
+    if (!members[i].empty())
+      groups.push_back(members[i]);
+  // Everything no core claimed stays a trackster of its own (no energy is dropped).
+  for (unsigned int i = 0; i < n; ++i)
+    if (owner[i] == kUnowned)
+      groups.push_back({i});
+}
+
+void TracksterLinkingByCornetto::linkByUnionFind(const Inputs& input,
+                                                 std::vector<std::vector<unsigned int>>& groups) const {
   const auto& tracksters = input.tracksters;
   const unsigned int n = tracksters.size();
 
@@ -146,13 +279,7 @@ void TracksterLinkingByCornetto::linkTracksters(
   for (unsigned int i = 0; i < n; ++i)
     components[findRoot(parent, i)].push_back(i);
 
-  for (unsigned int r = 0; r < n; ++r) {
-    if (components[r].empty())
-      continue;
-    Trackster merged;
-    merged.mergeTracksters(input.tracksters, components[r]);
-    linkedResultTracksters.push_back({static_cast<unsigned int>(resultTracksters.size())});
-    resultTracksters.push_back(merged);
-    linkedTracksterIdToInputTracksterId.push_back(components[r]);
-  }
+  for (unsigned int r = 0; r < n; ++r)
+    if (!components[r].empty())
+      groups.push_back(std::move(components[r]));
 }

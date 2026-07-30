@@ -8,6 +8,7 @@
 #include "ClusterFilterByAlgoAndSize.h"
 #include "ClusterFilterBySize.h"
 #include "ClusterFilterByAlgoAndSizeAndLayerRange.h"
+#include "ClusterFilterByAlgoAndSizeAndEnergy.h"
 
 using namespace ticl;
 
@@ -17,3 +18,4 @@ DEFINE_EDM_PLUGIN(ClusterFilterFactory, ClusterFilterBySize, "ClusterFilterBySiz
 DEFINE_EDM_PLUGIN(ClusterFilterFactory,
                   ClusterFilterByAlgoAndSizeAndLayerRange,
                   "ClusterFilterByAlgoAndSizeAndLayerRange");
+DEFINE_EDM_PLUGIN(ClusterFilterFactory, ClusterFilterByAlgoAndSizeAndEnergy, "ClusterFilterByAlgoAndSizeAndEnergy");

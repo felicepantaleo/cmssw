@@ -67,6 +67,8 @@ void FilteredLayerClustersProducer::fillDescriptions(edm::ConfigurationDescripti
       {reco::CaloCluster::hgcal_em, reco::CaloCluster::hgcal_had, reco::CaloCluster::hgcal_scintillator});  // 6,7,8
   desc.add<int>("min_cluster_size", 0);
   desc.add<int>("max_cluster_size", 9999);
+  desc.add<double>("min_cluster_energy", 0.0)
+      ->setComment("Minimum layer-cluster energy [GeV]; used by ClusterFilterByAlgoAndSizeAndEnergy.");
   desc.add<int>("min_layerId", 0);
   desc.add<int>("max_layerId", 9999);
   descriptions.add("filteredLayerClustersProducer", desc);
