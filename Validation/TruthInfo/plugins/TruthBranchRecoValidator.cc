@@ -30,6 +30,7 @@
 #include "SimDataFormats/Associations/interface/TICLAssociationMap.h"
 #include "SimDataFormats/TruthInfo/interface/Graph.h"
 #include "SimDataFormats/TruthInfo/interface/LogicalGraphHitIndex.h"
+#include "PhysicsTools/TruthInfo/interface/SubgraphHitView.h"
 #include "SimDataFormats/TruthInfo/interface/Particle.h"
 #include "SimDataFormats/TruthInfo/interface/VertexData.h"
 
@@ -209,7 +210,8 @@ void TruthBranchRecoValidator<RECO>::dqmAnalyze(edm::Event const& event,
                                                 edm::EventSetup const&,
                                                 Histograms const& histograms) const {
   auto const& graph = event.get(graphToken_);
-  auto const& hitIndex = event.get(hitIndexToken_);
+  auto const& hitIndexProduct = event.get(hitIndexToken_);
+  truth::SubgraphHitView hitIndex(hitIndexProduct);
 
   for (std::size_t i = 0; i < entries_.size(); ++i) {
     auto const& entry = entries_[i];
