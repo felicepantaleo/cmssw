@@ -18,6 +18,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <type_traits>
 #include <string>
 #include <vector>
 
@@ -447,10 +448,16 @@ void TruthBranchRecoValidator<RECO>::dqmAnalyze(edm::Event const& event,
       return 1.;
     };
 
+    // The association map is sized by how far the associator had entries to write, NOT
+    // by the number of particles in the graph, so a target that matched nothing can sit
+    // beyond its end. Such a target is an object with NO matches, which is a LOST entry
+    // in the denominator, not an object to skip: skipping it dropped the object from the
+    // denominator and the numerator alike and silently shrank the efficiency base.
+    using MatchList = std::decay_t<decltype(truthToReco[0])>;
+    static const MatchList kNoMatches{};
+
     for (unsigned int b : *targetsHandle) {
-      if (b >= truthToReco.size()) {
-        continue;
-      }
+      auto const& matches = (b < truthToReco.size()) ? truthToReco[b] : kNoMatches;
       Kinematics kin;
       auto reason = static_cast<unsigned int>(truth::VertexReason::Unknown);
 
@@ -531,7 +538,7 @@ void TruthBranchRecoValidator<RECO>::dqmAnalyze(edm::Event const& event,
       double collectiveCoverage = 0.;
       double leadingTruthPurity = 0.;
       double leadingSharedEnergyFraction = 0.;
-      for (auto const& match : truthToReco[b]) {
+      for (auto const& match : matches) {
         const double truthPurity = 1. - static_cast<double>(match.score());
         leadingTruthPurity = std::max(leadingTruthPurity, truthPurity);
         if constexpr (Traits::calorimetric) {
@@ -557,7 +564,7 @@ void TruthBranchRecoValidator<RECO>::dqmAnalyze(edm::Event const& event,
           }
         }
       }
-      const bool collective = collectiveCoverage >= minCollectiveCoverage_ && !truthToReco[b].empty();
+      const bool collective = collectiveCoverage >= minCollectiveCoverage_ && !matches.empty();
       Outcome outcome = Outcome::Lost;
       if constexpr (Traits::calorimetric) {
         // Duplicate refines Individual rather than competing with it, so the four
@@ -578,7 +585,7 @@ void TruthBranchRecoValidator<RECO>::dqmAnalyze(edm::Event const& event,
 
       algo_.fill_simul(histograms, i, kin, outcome, cumulative);
       algo_.fill_reason(histograms, i, reason, outcome);
-      if (!truthToReco[b].empty()) {
+      if (!matches.empty()) {
         algo_.fill_truth_purity(histograms, i, leadingTruthPurity);
         if constexpr (Traits::calorimetric) {
           algo_.fill_shared_energy_fraction(histograms, i, leadingSharedEnergyFraction);
