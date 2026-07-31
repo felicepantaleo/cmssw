@@ -26,6 +26,7 @@ truthBranchSelectorBlock = cms.PSet(
     intimeOnly=cms.bool(False),
     chargedOnly=cms.bool(False),
     invertEta=cms.bool(False),
+    kinematicsOnStableOnly=cms.bool(True),
 )
 
 _workingPointArgs = dict(

@@ -320,6 +320,7 @@ AllRecoToTruthBranchAssociatorsProducer<RECO>::AllRecoToTruthBranchAssociatorsPr
     selectorConfig.intimeOnly = sel.getParameter<bool>("intimeOnly");
     selectorConfig.chargedOnly = sel.getParameter<bool>("chargedOnly");
     selectorConfig.invertEta = sel.getParameter<bool>("invertEta");
+    selectorConfig.kinematicsOnStableOnly = sel.getParameter<bool>("kinematicsOnStableOnly");
     branchSelector_ = truth::BranchSelector(std::move(selectorConfig));
   }
 
@@ -761,6 +762,11 @@ void AllRecoToTruthBranchAssociatorsProducer<RECO>::fillDescriptions(edm::Config
   selector.add<bool>("intimeOnly", false);
   selector.add<bool>("chargedOnly", false);
   selector.add<bool>("invertEta", false);
+  selector.add<bool>("kinematicsOnStableOnly", true)
+      ->setComment(
+          "Apply ptMin/ptMax/etaMin/etaMax only to a root that decayed nowhere. The momentum of a root "
+          "that decayed is not a detector observable: a resonance at rest has pt about 0 and |eta| "
+          "unbounded, so a track-shaped cut rejects it while its decay products fill the calorimeter.");
   desc.add<edm::ParameterSetDescription>("branchSelector", selector);
   if constexpr (!ConstituentBasedDomain<RECO>) {
     desc.add<std::vector<std::string>>("truthLevels", {"caloBoundary"})
