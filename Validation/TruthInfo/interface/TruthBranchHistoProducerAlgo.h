@@ -35,9 +35,14 @@ namespace truth {
   // far down the event history the branch root sits, and root_footprint_fraction is how much of the
   // branch footprint belongs to the root particle itself rather than to its
   // descendants.
-  enum class Variable { Pt, Eta, Phi, Nhits, Vertpos, Zpos, Dxy, Dz, Depth, RootFootprintFraction };
+  enum class Variable { Pt, Eta, Phi, Nhits, Vertpos, Zpos, Dxy, Dz, Depth, RootFootprintFraction, CaloEta };
   inline static const std::vector<std::string> kVariableNames = {
-      "pt", "eta", "phi", "nhits", "vertpos", "zpos", "dxy", "dz", "depth", "root_footprint_fraction"};
+      "pt", "eta", "phi", "nhits", "vertpos", "zpos", "dxy", "dz", "depth", "root_footprint_fraction", "caloeta"};
+
+  // caloeta of a branch that never reached the calorimeter. Far outside every axis
+  // range, so such a branch lands in the underflow of BOTH numerator and denominator
+  // and the calorimeter-entrance axis shows only what a calorimeter could have seen.
+  inline constexpr double kNoCaloEntry = -999.;
 
   struct TruthBranchHistograms {
     using METype = dqm::reco::MonitorElement*;
@@ -108,9 +113,9 @@ namespace truth {
     // the ones it has; which of them are booked is decided by the variable lists.
     struct Kinematics {
       double pt = 0., eta = 0., phi = 0., nhits = 0., vertpos = 0., zpos = 0., dxy = 0., dz = 0.;
-      double depth = 0., root_footprint_fraction = 0.;
+      double depth = 0., root_footprint_fraction = 0., caloeta = kNoCaloEntry;
       std::vector<double> asVector() const {
-        return {pt, eta, phi, nhits, vertpos, zpos, dxy, dz, depth, root_footprint_fraction};
+        return {pt, eta, phi, nhits, vertpos, zpos, dxy, dz, depth, root_footprint_fraction, caloeta};
       }
     };
 

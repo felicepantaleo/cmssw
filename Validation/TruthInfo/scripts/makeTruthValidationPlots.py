@@ -118,7 +118,11 @@ METRICS = {
 }
 VARIABLE_MEANING = {
     "pt": "branch root transverse momentum",
-    "eta": "branch root pseudorapidity",
+    "eta": "pseudorapidity of the branch ROOT, that is where it was produced, NOT where its energy landed; only "
+           "for the caloBoundary level are the two the same",
+    "caloeta": "pseudorapidity at which the branch ENTERS the calorimeter, taken from the boundary crossing of its "
+               "most energetic particle to reach it; a branch that never reached the calorimeter is not plotted, so "
+               "this axis is restricted to what a calorimeter could have seen",
     "phi": "branch root azimuth",
     "nhits": "hits of the branch footprint in the truth hit index",
     "vertpos": "radius of the branch production vertex",
@@ -134,7 +138,11 @@ VARIABLE_MEANING = {
 # bracket at all for a pure count, a fraction or a dimensionless shape variable.
 AXIS_TITLE = {
     "pt": r"p$_{T}$ [GeV]",
-    "eta": r"$\eta$",
+    # The truth object here is the branch ROOT, whose eta is where it was PRODUCED, not
+    # where its energy landed. Say so on the axis: for anything but caloBoundary the root
+    # decayed long before the calorimeter, so this is not an acceptance axis. The
+    # calorimeter-entrance counterpart is caloeta.
+    "eta": r"truth root $\eta$",
     "phi": r"$\phi$ [rad]",
     "nhits": "number of hits",
     "vertpos": "vertex radius [cm]",
@@ -143,13 +151,14 @@ AXIS_TITLE = {
     "dz": r"d$_{z}$ [cm]",
     "depth": "depth (number of ancestors)",
     "root_footprint_fraction": "root footprint fraction",
+    "caloeta": r"$\eta$ at calorimeter entrance",
     "shared_energy_fraction": "shared energy fraction",
     "reason": "creation process",
 }
 # Axes drawn over their full booked range whatever the sample populates. A gun sample
 # fills a slice of eta and autoscaling would hide that the rest of the acceptance is
 # empty, which is itself the result.
-AXIS_RANGE = {"eta": (-4.0, 4.0)}
+AXIS_RANGE = {"eta": (-4.0, 4.0), "caloeta": (-4.0, 4.0)}
 # Residual axis titles per fitted quantity: the momentum residual is relative and so
 # dimensionless, the angular ones are differences and phi carries radians.
 RESIDUAL_TITLE = {
@@ -287,7 +296,11 @@ PROPOSED = [
 # Metric order drives the page order, so a reader meets efficiency before its failure modes.
 METRIC_ORDER = ["composition", "efficiency", "duplicate", "splitrate", "recopurity", "fakerate",
                 "pileuprate", "resolution"]
-VARIABLE_ORDER = ["pt", "eta", "phi", "nhits", "vertpos", "zpos", "dxy", "dz", "depth", "root_footprint_fraction"]
+# caloeta sits next to eta on purpose: the two answer "where was the branch root
+# produced" and "where did the branch reach the calorimeter", and for anything but the
+# caloBoundary level they are different questions with different answers.
+VARIABLE_ORDER = ["pt", "eta", "caloeta", "phi", "nhits", "vertpos", "zpos", "dxy", "dz", "depth",
+                  "root_footprint_fraction"]
 # Axes whose bins are named categories rather than numbers, drawn as grouped bars.
 CATEGORICAL = ["reason"]
 # Gaussian slice fits, ordered so bias is read before width for each quantity.

@@ -289,6 +289,58 @@ void TruthBranchRecoValidator<RECO>::dqmAnalyze(edm::Event const& event,
   auto const& hitIndexProduct = event.get(hitIndexToken_);
   truth::SubgraphHitView hitIndex(hitIndexProduct);
 
+  // Where the branch ENTERS the calorimeter, as opposed to where its root was produced.
+  // The root of a branch is a generator particle that decayed long before any
+  // calorimeter, so its own eta says nothing about which part of the detector saw the
+  // branch: a top at eta 0 sprays into both endcaps, and a forward top deposits where no
+  // endcap object can be reconstructed. The calorimeter-entrance eta is taken from the
+  // boundary crossing (checkpoint 0) of the branch's most energetic particle to reach
+  // the calorimeter, and propagated UP the production edges so a root inherits it from
+  // its descendants. Computed once per event over the whole graph rather than per branch:
+  // per-branch descendant walks are quadratic at PU200, where there are thousands of
+  // roots and the branches overlap heavily.
+  std::vector<double> caloEntryEta(graph.nParticles(), truth::kNoCaloEntry);
+  if constexpr (!Traits::truthIsVertex) {
+    const uint32_t nParticles = graph.nParticles();
+    std::vector<double> caloEntryEnergy(nParticles, -1.);
+    std::vector<uint32_t> worklist;
+    worklist.reserve(nParticles);
+
+    for (uint32_t p = 0; p < nParticles; ++p) {
+      // Back-scattered tracks crossed the boundary INWARD; that is the same particle
+      // coming back, not an entry, and truth::atLevel excludes them for the same reason.
+      if (graph.particles()[p].backscattered) {
+        continue;
+      }
+      const auto crossing = truth::Particle(&graph, p).checkpoint(0);
+      if (!crossing.has_value()) {
+        continue;
+      }
+      caloEntryEnergy[p] = crossing->momentum.energy();
+      caloEntryEta[p] = crossing->position.eta();
+      worklist.push_back(p);
+    }
+
+    // Carry the most energetic crossing up to every ancestor. Values only ever increase
+    // and are bounded by the largest crossing in the event, so this terminates even if
+    // the graph contains a cycle.
+    for (std::size_t head = 0; head < worklist.size(); ++head) {
+      const uint32_t p = worklist[head];
+      for (const uint32_t vertexId : graph.productionVertices(p)) {
+        if (vertexId >= graph.nVertices()) {
+          continue;
+        }
+        for (const uint32_t parent : graph.incomingParticles(vertexId)) {
+          if (parent < nParticles && caloEntryEnergy[p] > caloEntryEnergy[parent]) {
+            caloEntryEnergy[parent] = caloEntryEnergy[p];
+            caloEntryEta[parent] = caloEntryEta[p];
+            worklist.push_back(parent);
+          }
+        }
+      }
+    }
+  }
+
   // Reco-driven side, one pass per (collection, working point).
   for (std::size_t i = 0; i < wpEntries_.size(); ++i) {
     auto const& entry = wpEntries_[i];
@@ -429,6 +481,7 @@ void TruthBranchRecoValidator<RECO>::dqmAnalyze(edm::Event const& event,
         kin.pt = p4.pt();
         kin.eta = p4.eta();
         kin.phi = p4.phi();
+        kin.caloeta = caloEntryEta[b];
         // The branch's own detector footprint, which is the truth analogue of a track's
         // hit count.
         const auto subgraph = hitIndex.subgraphHits(truth::HitChannel::Tracker, b);
@@ -587,7 +640,8 @@ void TruthBranchRecoValidator<RECO>::fillDescriptions(edm::ConfigurationDescript
                                                                           {"dxy", 40, -5., 5.},
                                                                           {"dz", 40, -20., 20.},
                                                                           {"depth", 15, 0., 15.},
-                                                                          {"root_footprint_fraction", 20, 0., 1.}};
+                                                                          {"root_footprint_fraction", 20, 0., 1.},
+                                                                          {"caloeta", 50, -4., 4.}};
   for (auto const& [name, nbins, lo, hi] : axes) {
     algo.add<int>("nint_" + name, nbins);
     algo.add<double>("min_" + name, lo);

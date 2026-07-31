@@ -39,6 +39,11 @@ _axes = {
     # branch footprint that belongs to the root particle itself.
     "depth": (15, 0.0, 15.0),
     "root_footprint_fraction": (20, 0.0, 1.0),
+    # Where the branch ENTERS the calorimeter, not where its root was produced. Same
+    # range as eta so the two are read side by side; a branch that never reached the
+    # calorimeter is filled at kNoCaloEntry and lands in the underflow of both the
+    # numerator and the denominator.
+    "caloeta": (50, -4.0, 4.0),
 }
 _algoBlockArgs = {}
 for _name, (_n, _lo, _hi) in _axes.items():
@@ -64,7 +69,8 @@ _algoBlockArgs.update(
 # vertex has no momentum and no impact parameter, a trackster has no track parameters.
 # Booking a variable a domain cannot fill would put a spike at zero in every reco-side
 # plot and read as a real feature.
-truthPlotVariables = ["pt", "eta", "phi", "nhits", "vertpos", "zpos", "dxy", "dz", "depth", "root_footprint_fraction"]
+truthPlotVariables = ["pt", "eta", "phi", "nhits", "vertpos", "zpos", "dxy", "dz", "depth",
+                      "root_footprint_fraction", "caloeta"]
 
 # Individual-match thresholds per domain, taken from the corresponding standard
 # validation rather than invented. Tracks and vertices are judged on the fraction of
