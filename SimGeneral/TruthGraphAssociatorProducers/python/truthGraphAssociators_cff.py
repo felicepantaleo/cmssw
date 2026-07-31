@@ -93,6 +93,9 @@ allSecondaryVertexToTruthBranchAssociators = allVertexToTruthBranchAssociators.c
     # A secondary vertex IS a decay or interaction vertex, so the tracks that belong to
     # it were produced there and the immediate production vertex is the right target.
     vertexResolution="immediate",
+    # inclusiveSecondaryVertices reconstructs displaced heavy-flavour vertices, so the
+    # denominator is those and not every nuclear interaction and conversion in the tracker.
+    heavyFlavorOnly=cms.bool(True),
 )
 
 # Hit-based on the CALORIMETER channel: a trackster owns energy through its layer

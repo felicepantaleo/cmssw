@@ -269,6 +269,7 @@ private:
   std::vector<WorkingPoint> workingPoints_;
   truth::BranchSelector branchSelector_;
   const bool truthToRecoSignalOnly_;
+  const bool heavyFlavorOnly_;
   // The selection preset's seed species. signalSeeds is the subset of the selected
   // roots with one of these pdgIds, so the _signal efficiency denominator is the
   // preset's signal object itself and not every selected root; signalSeedsNoSelection
@@ -299,7 +300,8 @@ template <typename RECO>
 AllRecoToTruthBranchAssociatorsProducer<RECO>::AllRecoToTruthBranchAssociatorsProducer(edm::ParameterSet const& cfg)
     : graphToken_(consumes<truth::Graph>(cfg.getParameter<edm::InputTag>("src"))),
       hitIndexToken_(consumes<truth::LogicalGraphHitIndex>(cfg.getParameter<edm::InputTag>("hitIndex"))),
-      truthToRecoSignalOnly_(cfg.getParameter<bool>("truthToRecoSignalOnly")) {
+      truthToRecoSignalOnly_(cfg.getParameter<bool>("truthToRecoSignalOnly")),
+      heavyFlavorOnly_(cfg.getParameter<bool>("heavyFlavorOnly")) {
   if constexpr (LayerClusterBackedRecoHits<RECO>) {
     layerClustersToken_ = consumes<std::vector<reco::CaloCluster>>(cfg.getParameter<edm::InputTag>("layerClusters"));
   }
@@ -541,6 +543,22 @@ void AllRecoToTruthBranchAssociatorsProducer<RECO>::produce(edm::StreamID,
         }
       }
     }
+    // Restrict to what the collection is actually for. inclusiveSecondaryVertices
+    // reconstructs DISPLACED HEAVY-FLAVOUR vertices, about 4 per ttbar event, while every
+    // graph vertex with two selected roots sweeps in every nuclear interaction, conversion
+    // and decay in flight: 45.9 per event, an 11x excess that caps the efficiency near 9%
+    // however good the reconstruction is. The graph answers the question directly.
+    auto const isHeavyFlavorVertex = [&graph](unsigned int vertexId) {
+      for (const uint32_t parent : graph.incomingParticles(vertexId)) {
+        if (parent >= graph.nParticles())
+          continue;
+        const truth::Branch parentBranch(&graph, parent);
+        if (parentBranch.hasHeavyFlavor(5) || parentBranch.hasHeavyFlavor(4))
+          return true;
+      }
+      return false;
+    };
+
     auto selectedVertices = std::make_unique<std::vector<unsigned int>>();
     auto targets = std::make_unique<std::vector<unsigned int>>();
     for (auto const& [vertexId, count] : rootsPerVertex) {
@@ -551,6 +569,9 @@ void AllRecoToTruthBranchAssociatorsProducer<RECO>::produce(edm::StreamID,
       // beyond |z| of 1000 cm is not counted
       // (Validation/RecoVertex/src/PrimaryVertexAnalyzer4PUSlimmed.cc:885-886).
       if (std::abs(graph.vertices()[vertexId].position.z()) > 1000.) {
+        continue;
+      }
+      if (heavyFlavorOnly_ && !isHeavyFlavorVertex(vertexId)) {
         continue;
       }
       selectedVertices->push_back(vertexId);
@@ -788,6 +809,12 @@ void AllRecoToTruthBranchAssociatorsProducer<RECO>::fillDescriptions(edm::Config
           "Restrict the TruthToReco denominator to the signal interaction. Efficiency, duplicate and split are "
           "meaningless averaged over the overlaid pileup interactions. The associator's candidate set is NOT "
           "restricted, so pileup branches stay matchable and a pileup-matched reco object is not counted a fake");
+  desc.add<bool>("heavyFlavorOnly", false)
+      ->setComment(
+          "Composite domains only. Keep in the denominator only vertices whose incoming particle carries a b or c "
+          "hadron, which is what inclusiveSecondaryVertices reconstructs. Off by default; the secondary-vertex "
+          "associator turns it on. Without it the denominator is every graph vertex with two selected roots, "
+          "45.9 per ttbar event against 4.1 reconstructed, and the efficiency is capped by the denominator.");
   desc.add<std::vector<std::string>>("workingPointNames", {"Fixed"});
   desc.add<std::vector<double>>("adaptiveReverseWeight", {0.0});
   desc.add<std::vector<double>>("adaptiveMaxReverseScore", {0.0});
