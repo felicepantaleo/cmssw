@@ -112,7 +112,11 @@ METRICS = {
     "duplicate": (
         "Duplicate rate (TruthToReco)",
         "Of the selected truth objects, the fraction that MORE THAN ONE reco object individually reconstructed. "
-        "Redundant reconstruction, distinct from splitting.",
+        "Redundant reconstruction, distinct from splitting. NOT DRAWN FOR CALORIMETRIC COLLECTIONS: there the "
+        "criterion asks for more than one reco object each capturing most of the SAME branch energy, which "
+        "energy conservation forbids, so the curve is identically zero by construction and says nothing. "
+        "Measured on ttbar PU200: zero in all 72 calorimetric folders, nonzero only in the 12 tracking ones. "
+        "For energy the meaningful counterpart of reconstructing something twice is the SPLIT page.",
         "num_duplicate / num_simul",
     ),
     "splitrate": (
