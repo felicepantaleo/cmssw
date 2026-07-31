@@ -47,6 +47,43 @@ WP_ORDER = ["Fixed", "AdaptiveTight", "AdaptiveNominal", "AdaptiveLoose"]
 # species.
 LEVEL_ORDER = ["stableLegsFromUpstream", "caloBoundary", "stableDecayProducts", "hardProcess",
                "signal", "signalNoSelection", "allSelectedRoots"]
+# What each truth-driven series IS. These are the efficiency DENOMINATORS, and they are
+# not interchangeable: the first four are ANTICHAINS (no member is an ancestor of
+# another, so nothing is counted twice), allSelectedRoots is not. Sizes quoted are ttbar
+# PU200 D122 with the top preset, per event, measured from the associator target lists.
+LEVEL_MEANING = {
+    "caloBoundary":
+        "every particle recorded crossing the tracker/calorimeter boundary OUTWARD, back-scattered tracks "
+        "excluded. This is what actually arrived at the calorimeter, including secondaries created in the "
+        "tracker, so it is the natural denominator for a CALORIMETRIC collection. About 80 per event, of which "
+        "74% are also generator-stable.",
+    "stableDecayProducts":
+        "the generator's final state: GEN particles with status 1. Defined by the generator alone, independent "
+        "of any detector or selection, so it includes neutrinos and everything that never reaches a "
+        "calorimeter. About 2740 per event, of which only 2.2% reach the calorimeter boundary: as a "
+        "calorimetric denominator it is therefore dominated by objects no calorimeter object could ever match.",
+    "stableLegsFromUpstream":
+        "the LEAVES of the selected subgraph: follow every particle out of the artificial Upstream vertex down "
+        "until the chain stops. It is the selection's own notion of 'the interesting activity', so it exists "
+        "only when a selection preset ran. About 35 per event; 67% of it is also at the calorimeter boundary "
+        "and 44% is also generator-stable, so it is a middle ground between the two.",
+    "hardProcess":
+        "the last copy of each hard-process particle. EMPTY in these samples: the GEN shower collapse contracts "
+        "the intermediate copies away, so nothing carries both isHardProcess and isLastCopy.",
+    "signal":
+        "the preset's seed species among the selected roots, that is the physics object itself and not its "
+        "decay products: for the top preset, the two tops. About 2 per event. This is the only series that "
+        "answers 'was the object I generated reconstructed'.",
+    "signalNoSelection":
+        "the same seed species with the kinematic selector removed. Equal to signal whenever every seed passes "
+        "the selector, which is the case for tops; a difference between the two is the selector's own cost.",
+    "allSelectedRoots":
+        "every particle passing the branch selector, whatever its level or species. NOT an antichain: about "
+        "1.3% of its members have an ancestor in the same set, so a particle and its parent are both counted. "
+        "About 11300 per event, and a superset of every other series. Read it as a diagnostic of the selection, "
+        "NOT as a physics efficiency.",
+}
+
 VERTEX_SUFFIXES = ["interaction", "immediate"]
 TRUTH_SUFFIXES = LEVEL_ORDER + VERTEX_SUFFIXES
 REFERENCE_LEVEL = "caloBoundary"
@@ -1095,6 +1132,13 @@ def main():
             idx.write(f"<li><span class='f'>{var}</span> {VARIABLE_MEANING[var]}</li>")
         for var in CATEGORICAL:
             idx.write(f"<li><span class='f'>{var}</span> {CATEGORICAL_MEANING[var]}</li>")
+        idx.write("</ul><h2>Truth levels: what each series is the efficiency OF</h2>"
+                  "<p>The truth-driven pages overlay these. They are different DENOMINATORS over the same "
+                  "event, not different measurements of one quantity, so a series sitting lower than another "
+                  "usually means it is a wider denominator, not a worse reconstruction.</p><ul class='idx'>")
+        for level in LEVEL_ORDER:
+            if level in LEVEL_MEANING:
+                idx.write(f"<li><span class='f'>{level}</span> {LEVEL_MEANING[level]}</li>")
         idx.write("</ul><h2>Quality cuts applied to every plot</h2><ul class='idx'>"
                   f"<li>A ratio bin is drawn only if its denominator has at least {MIN_DENOM_ENTRIES} entries. "
                   "A ratio built from a handful of entries is noise with a large error bar, not a measurement.</li>"
