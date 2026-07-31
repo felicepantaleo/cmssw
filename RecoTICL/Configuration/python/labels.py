@@ -10,7 +10,11 @@ books an empty folder that looks like a finished measurement. So the list must b
 from the chain, not maintained beside it.
 
 ``tracksterLabels`` does that derivation from an assembled pyTICL configuration, which is
-the only object that knows what was actually scheduled. ``ticlIterLabelsPSet`` keeps the
+the only object that knows what a preset builds before a process exists. For a process
+that has already been built, use setTracksterLabelsFromProcess in
+SimGeneral/TruthGraphAssociatorProducers/truthGraphAssociationLabels_cff, which discovers
+the collections from the schedule AND from the input file and retargets the registry the
+associators and validators read. ``ticlIterLabelsPSet`` keeps the
 legacy value for the mainline ``RecoHGCal/TICL`` chain, which is what importers get today;
 a configuration that departs from it (the v6 two-stage chain, an era that adds an
 iteration) must retarget its consumers with the derived list rather than assume this one.
@@ -45,50 +49,6 @@ def tracksterLabels(assembled, config=None, includeCandidate=True):
         elif includeCandidate and kind in _CANDIDATE_TYPES:
             labels.append(label)
     return labels
-
-
-def tracksterLabelsInProcess(process, includeCandidate=True):
-    """Trackster collections actually scheduled in a process, in scheduling order.
-
-    The counterpart of tracksterLabels for consumers that run after the chain is built
-    (a RECO-step customise, a validation sequence): it asks the process what exists
-    rather than trusting a list written elsewhere, so it is correct for the mainline
-    chain, for anything pyTICL assembles, and for a configuration nobody anticipated.
-    """
-    scheduled = _scheduledModuleLabels(process)
-    labels = []
-    for label, module in process.producers_().items():
-        if label not in scheduled:
-            continue  # defined by a loaded cff but not run: consuming it books empty folders
-        kind = module.type_()
-        if kind in _TRACKSTER_TYPES:
-            labels.append(label)
-        elif includeCandidate and kind in _CANDIDATE_TYPES:
-            labels.append(label)
-    return labels
-
-
-def _scheduledModuleLabels(process):
-    """Labels of the modules the process actually runs.
-
-    process.producers_() is every module a loaded cff DEFINED, which for a RECO job is
-    every TICL iteration that exists anywhere, not the handful this chain schedules. A
-    consumer keyed on the defined set asks for products nobody produces, which surfaces
-    as ProductNotFound or, when the job is told to continue past that, as an empty folder
-    that reads like a finished measurement.
-    """
-    from FWCore.ParameterSet.SequenceTypes import ModuleNodeVisitor
-
-    modules = []
-    schedule = getattr(process, "schedule", None)
-    paths = list(schedule) if schedule is not None else list(process.paths_().values()) + list(
-        process.endpaths_().values())
-    for path in paths:
-        try:
-            path.visit(ModuleNodeVisitor(modules))
-        except Exception:
-            continue
-    return {m.label_() for m in modules if hasattr(m, "label_")}
 
 
 # The mainline RecoHGCal/TICL chain, which is what every current importer expects. Kept
