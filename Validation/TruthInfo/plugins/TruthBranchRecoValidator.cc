@@ -475,12 +475,14 @@ void TruthBranchRecoValidator<RECO>::dqmAnalyze(edm::Event const& event,
         }
         auto const& particle = graph.particles()[b];
         const auto& p4 = particle.momentum;
-        if (p4.pt() <= 0.) {
-          continue;
-        }
+        // A resonance in its pre-ISR copy carries EXACTLY zero transverse momentum, and
+        // eta is undefined there. Dropping the whole object was removing 43% of the DY Z
+        // bosons from every signal denominator, on every axis at once. Keep it, and send
+        // only the quantities that genuinely have no value to the underflow.
+        const bool hasDirection = p4.pt() > 0.;
         kin.pt = p4.pt();
-        kin.eta = p4.eta();
-        kin.phi = p4.phi();
+        kin.eta = hasDirection ? p4.eta() : truth::kNoCaloEntry;
+        kin.phi = hasDirection ? p4.phi() : truth::kNoCaloEntry;
         kin.caloeta = caloEntryEta[b];
         // The branch's own detector footprint, which is the truth analogue of a track's
         // hit count.
@@ -509,8 +511,14 @@ void TruthBranchRecoValidator<RECO>::dqmAnalyze(edm::Event const& event,
           kin.zpos = pos.z();
           // Transverse and longitudinal impact parameter of the branch direction with
           // respect to the origin, the truth counterpart of the track dxy and dz.
-          kin.dxy = (-pos.x() * p4.py() + pos.y() * p4.px()) / p4.pt();
-          kin.dz = pos.z() - (pos.x() * p4.px() + pos.y() * p4.py()) / p4.pt() * (p4.pz() / p4.pt());
+          // Both are transverse-momentum normalised, so they are meaningless at pt 0.
+          if (hasDirection) {
+            kin.dxy = (-pos.x() * p4.py() + pos.y() * p4.px()) / p4.pt();
+            kin.dz = pos.z() - (pos.x() * p4.px() + pos.y() * p4.py()) / p4.pt() * (p4.pz() / p4.pt());
+          } else {
+            kin.dxy = truth::kNoCaloEntry;
+            kin.dz = truth::kNoCaloEntry;
+          }
         }
       }
 

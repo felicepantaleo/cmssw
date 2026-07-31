@@ -62,9 +62,12 @@ namespace truth {
         // it is answered by stableLegsFromUpstream and never reaches here.
         return false;
       case Level::HardProcess:
-        // The last copy only: a hard-process particle appears several times down the
-        // shower and every copy would otherwise enter the denominator.
-        return (data.statusFlags & detail::kIsHardProcess) && (data.statusFlags & detail::kIsLastCopy);
+        // isHardProcess alone. Requiring isLastCopy as well made this level EMPTY for
+        // every sample: the two flags are never set on the same copy, measured as 0.00
+        // per event on the generator record of ttbar, DYToLL and VBFHZZ4Nu alike. The
+        // repeated copies are removed by taking the LAST hard-process copy in the
+        // antichain below, which is what the isLastCopy requirement was reaching for.
+        return (data.statusFlags & detail::kIsHardProcess) != 0;
       case Level::StableDecayProducts:
         // Final-state generator particles. Stable at GEN means no GEN descendant, so
         // these cannot contain one another.
@@ -147,14 +150,32 @@ namespace truth {
       return flags;
     }();
 
+    // Which end of a chain of candidates to keep. For every level but HardProcess the
+    // members are final states and a candidate with a candidate ANCESTOR is a duplicate
+    // of it, so the earliest is kept. HardProcess is the opposite: the incoming partons
+    // and the outgoing particles both carry the flag, the incoming ones are ancestors of
+    // the outgoing ones, and it is the outgoing ones that the level is about. Keeping
+    // the earliest there would return the beam partons, which sit at pt 0 and enormous
+    // eta and are then dropped by any kinematic selector, leaving the level empty.
+    const bool keepDeepest = (level == Level::HardProcess);
+
     std::vector<uint32_t> antichain;
     antichain.reserve(candidates.size());
     for (uint32_t id : candidates) {
       bool covered = false;
-      for (auto const& ancestor : Particle(&graph, id).ancestors()) {
-        if (ancestor.id() < nParticles && isCandidate[ancestor.id()]) {
-          covered = true;
-          break;
+      if (keepDeepest) {
+        for (auto const& descendant : Particle(&graph, id).descendants()) {
+          if (descendant.id() < nParticles && isCandidate[descendant.id()]) {
+            covered = true;
+            break;
+          }
+        }
+      } else {
+        for (auto const& ancestor : Particle(&graph, id).ancestors()) {
+          if (ancestor.id() < nParticles && isCandidate[ancestor.id()]) {
+            covered = true;
+            break;
+          }
         }
       }
       if (!covered) {
