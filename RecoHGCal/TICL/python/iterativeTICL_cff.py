@@ -136,14 +136,12 @@ ticlIterationsTask = cms.Task(
     ticlRecoveryStepTask
 )
 
-ticlIterLabelsPSet = cms.PSet(
-    labels=cms.vstring(
-        "ticlTrackstersCLUE3DHigh",
-        "ticlTracksterLinks",
-        "ticlCandidate",
-        "ticlTracksterLinksSuperclusteringDNN"
-    )
-)
+# The list of TICL collections lives in RecoTICL/Configuration/labels.py, which is the
+# single source for it: the associators, the truth-branch validators and harvesters, the
+# dumper and the nano tables all key off this one PSet, and a list maintained beside the
+# chain instead of derived from it fails silently when the two drift. Re-exported here so
+# the many importers of RecoHGCal.TICL.iterativeTICL_cff keep working unchanged.
+from RecoTICL.Configuration.labels import ticlIterLabelsPSet
 
 ticl_superclustering_mustache_ticl.toModify(
     ticlIterLabelsPSet,
