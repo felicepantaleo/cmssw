@@ -10,11 +10,19 @@ set -o pipefail
 # Global configuration
 ############################
 
-FOLDER_FILES="/data/user/${USER}/"
+FOLDER_FILES="${FOLDER_FILES:-/data/${USER}/}"
 DATASET="/RelValTTbar_14TeV/CMSSW_20_0_0_pre1-PU_150X_mcRun4_realistic_v1_STD_D121_RegeneratedGS_PU-v1/GEN-SIM-DIGI-RAW"
 
-EVENTS=1000
+EVENTS=${EVENTS:-1000}
 THREADS=4
+
+# Benchmark geometry and NUMA slot. Defaults reproduce the cms-bot configuration
+# (8 jobs x 16 threads x 16 streams on a 4-NUMA-node machine); override on hosts
+# with a different topology or to shrink the footprint.
+BENCH_JOBS=${BENCH_JOBS:-8}
+BENCH_THREADS=${BENCH_THREADS:-16}
+BENCH_STREAMS=${BENCH_STREAMS:-16}
+BENCH_SLOT=${BENCH_SLOT:-"numa=0-3:mem=0-3"}
 
 ############################
 # GPU Monitoring config
@@ -105,11 +113,35 @@ get_current_cpu_mem() {
 
 fetch_files() {
 
+    # Prefer DAS. It needs a valid X509 proxy, so fall back to listing the files
+    # directly under the mounted /eos/cms, deriving the relval path from the
+    # dataset name (/<primary>/<release>-<procstring>/<tier>).
     mapfile -t FILES < <(
-	dasgoclient -query="file dataset=${DATASET}" --limit=-1 |
+	dasgoclient -query="file dataset=${DATASET}" --limit=-1 2>/dev/null |
 	    sort |
 	    head -4
     )
+
+    if [[ ${#FILES[@]} -eq 0 ]]; then
+	echo "DAS query returned nothing (expired proxy?), listing /eos/cms directly"
+	local primary rest tier release procstring lfndir
+	IFS='/' read -r _ primary rest tier <<< "${DATASET}"
+	release="${rest%%-*}"
+	procstring="${rest#*-}"
+	lfndir="/store/relval/${release}/${primary}/${tier}/${procstring}"
+
+	mapfile -t FILES < <(
+	    find "/eos/cms${lfndir}" -name '*.root' 2>/dev/null |
+		sed 's|^/eos/cms||' |
+		sort |
+		head -4
+	)
+    fi
+
+    if [[ ${#FILES[@]} -eq 0 ]]; then
+	echo "Error: could not resolve any input file for ${DATASET}"
+	return 1
+    fi
 
     for f in "${FILES[@]}"; do
 
@@ -221,10 +253,10 @@ run_benchmark() {
 
 	# Run benchmark in background
 	patatrack-scripts/benchmark \
-	    -j 8 -t 16 -s 16 \
+	    -j ${BENCH_JOBS} -t ${BENCH_THREADS} -s ${BENCH_STREAMS} \
 	    -e ${EVENTS} \
 	    --no-input-benchmark \
-	    --slot "numa=0-3:mem=0-3" \
+	    --slot "${BENCH_SLOT}" \
 	    --event-skip 100 \
 	    --event-resolution 10 \
 	    --debug-logs \
@@ -321,10 +353,10 @@ run_benchmark() {
 	echo "Running benchmark WITHOUT RESOURCES monitoring"
 
 	patatrack-scripts/benchmark \
-	    -j 8 -t 16 -s 16 \
+	    -j ${BENCH_JOBS} -t ${BENCH_THREADS} -s ${BENCH_STREAMS} \
 	    -e ${EVENTS} \
 	    --no-input-benchmark \
-	    --slot "numa=0-3:mem=0-3" \
+	    --slot "${BENCH_SLOT}" \
 	    --event-skip 100 \
 	    --event-resolution 10 \
 	    --debug-logs \
