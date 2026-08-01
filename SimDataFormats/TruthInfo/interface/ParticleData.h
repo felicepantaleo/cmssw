@@ -43,6 +43,22 @@ namespace truth {
     Signal = 1u << 4,
   };
 
+  // What a particle IS, mirroring VertexRole on the vertex side. Absence of a GEN and a
+  // SIM back-reference does NOT identify a synthetic particle: connectors have neither,
+  // and so would anything else artificial, so the kind has to be stated rather than
+  // inferred. Guessing it from empty fields silently conflated the two.
+  enum class ParticleRole : uint8_t {
+    // A generator or Geant4 particle.
+    Normal = 0,
+    // Artificial: produced at an Interaction vertex and decaying at the Upstream or
+    // UnderlyingEvent sub-vertex, so those descend from one interaction root.
+    Connector = 1,
+    // Artificial: stands in for a resonance the generator never wrote, so the signal
+    // level is answerable on a non-resonant sample. Its momentum is an ACCOUNTING sum
+    // over the hard-process legs and is not a generator quantity.
+    SignalStandIn = 2,
+  };
+
   struct ParticleData {
     // Optional provenance/debug back-references to the raw TruthGraph nodes.
     // -1 means "not available".
@@ -86,9 +102,17 @@ namespace truth {
     // Scattering(); always false for GEN-only particles.
     bool backscattered = false;
 
+    // Real particle, connector, or synthetic stand-in. Sits in the tail padding after
+    // backscattered, so carrying it keeps sizeof(ParticleData) at 96.
+    ParticleRole role = ParticleRole::Normal;
+
     [[nodiscard]] bool hasGen() const { return genNode >= 0; }
     [[nodiscard]] bool hasSim() const { return simNode >= 0; }
     [[nodiscard]] bool valid() const { return hasGen() || hasSim(); }
+
+    // True for anything the graph invented. Never read the momentum of such a particle
+    // as a generator quantity.
+    [[nodiscard]] bool isSynthetic() const { return role != ParticleRole::Normal; }
 
     [[nodiscard]] bool isAtLevel(LevelFlag flag) const { return (levelFlags & static_cast<uint32_t>(flag)) != 0; }
     void setLevel(LevelFlag flag) { levelFlags |= static_cast<uint32_t>(flag); }

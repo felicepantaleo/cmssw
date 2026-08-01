@@ -878,6 +878,7 @@ namespace {
         connector.simNode = -1;
         connector.pdgId = 0;
         connector.status = 0;
+        connector.role = truth::ParticleRole::Connector;
         connector.genEvent = genEvent;
         connector.eventId = eventId;
 

@@ -643,7 +643,7 @@ public:
           continue;
         }
         ++signalFlagged;
-        const bool synthetic = !d.hasGen() && !d.hasSim() && d.status == 0;
+        const bool synthetic = d.role == truth::ParticleRole::SignalStandIn;
         if (synthetic) {
           ++syntheticSignal;
           continue;
@@ -811,7 +811,10 @@ public:
 
       // Big, immediately-legible particle name + PDG id as the table's title row
       // (HTML-like labels cannot mix free text and a TABLE), with the details below.
-      const std::string bigName = (!p.hasGen() && !d.hasSim()) ? std::string("connector") : pdgLabel(d.pdgId);
+      const std::string bigName = (d.role == truth::ParticleRole::Connector)       ? std::string("connector")
+                                  : (d.role == truth::ParticleRole::SignalStandIn) ? std::string("signal stand-in")
+                                  : (!p.hasGen() && !d.hasSim())                   ? std::string("connector")
+                                                                                   : pdgLabel(d.pdgId);
       os << ", label=<\n";
       os << "    <TABLE BORDER=\"0\" CELLBORDER=\"1\" CELLSPACING=\"0\" CELLPADDING=\"4\">\n";
       os << "      <TR><TD><FONT POINT-SIZE=\"22\"><B>" << bigName << "</B></FONT></TD></TR>\n";

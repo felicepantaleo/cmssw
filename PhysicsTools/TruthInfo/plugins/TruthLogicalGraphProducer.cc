@@ -71,8 +71,10 @@ namespace {
   // hard-process legs, which is the closest thing to the resonance the record still has.
   void addSyntheticSignalNode(truth::Graph& graph) {
     truth::ParticleData synthetic;
-    // No GEN and no SIM back-reference plus status 0 is the synthetic marker: every real
-    // particle has at least one of the two, and no generator writes status 0.
+    // The ROLE is the marker. Empty genNode/simNode would not do: connector particles
+    // have exactly the same empty fields and the same status 0, so inferring "synthetic"
+    // from them cannot tell a stand-in from a connector.
+    synthetic.role = truth::ParticleRole::SignalStandIn;
     synthetic.genNode = -1;
     synthetic.simNode = -1;
     synthetic.status = 0;

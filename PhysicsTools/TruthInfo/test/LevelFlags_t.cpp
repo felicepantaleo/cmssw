@@ -100,6 +100,7 @@ class LevelFlags_t : public CppUnit::TestFixture {
   CPPUNIT_TEST(testIdempotent);
   CPPUNIT_TEST(testSignalSurvivesFillLevelFlags);
   CPPUNIT_TEST(testSyntheticSignalNodeIsMarked);
+  CPPUNIT_TEST(testConnectorIsNotAStandIn);
   CPPUNIT_TEST_SUITE_END();
 
 public:
@@ -174,6 +175,7 @@ public:
     const uint32_t before = g.nParticles();
 
     truth::ParticleData synthetic;
+    synthetic.role = truth::ParticleRole::SignalStandIn;
     synthetic.genNode = -1;
     synthetic.simNode = -1;
     synthetic.status = 0;
@@ -186,16 +188,48 @@ public:
     CPPUNIT_ASSERT(g.isConsistent());
     auto const& s = g.particles()[before];
     CPPUNIT_ASSERT(s.isAtLevel(truth::LevelFlag::Signal));
-    CPPUNIT_ASSERT(!s.hasGen());
-    CPPUNIT_ASSERT(!s.hasSim());
-    CPPUNIT_ASSERT_EQUAL(int16_t{0}, s.status);
+    CPPUNIT_ASSERT(s.isSynthetic());
+    CPPUNIT_ASSERT(truth::ParticleRole::SignalStandIn == s.role);
     // Every real particle in the fixture is distinguishable from it.
     for (uint32_t id = 0; id < before; ++id) {
-      CPPUNIT_ASSERT(g.particles()[id].hasGen() || g.particles()[id].hasSim());
+      CPPUNIT_ASSERT(!g.particles()[id].isSynthetic());
     }
     // fillLevelFlags must leave a standalone synthetic node alone apart from its own bits.
     truth::fillLevelFlags(g);
     CPPUNIT_ASSERT(g.particles()[before].isAtLevel(truth::LevelFlag::Signal));
+  }
+
+  // REQUIRED: a connector and a signal stand-in must be distinguishable. Both are
+  // synthetic and both carry genNode = simNode = -1, pdgId 0 and status 0, so any test
+  // that infers the kind from those empty fields cannot tell them apart. That is exactly
+  // the bug this case exists to prevent.
+  void testConnectorIsNotAStandIn() {
+    truth::ParticleData connector;
+    connector.genNode = -1;
+    connector.simNode = -1;
+    connector.pdgId = 0;
+    connector.status = 0;
+    connector.role = truth::ParticleRole::Connector;
+
+    truth::ParticleData standIn;
+    standIn.genNode = -1;
+    standIn.simNode = -1;
+    standIn.pdgId = 0;
+    standIn.status = 0;
+    standIn.role = truth::ParticleRole::SignalStandIn;
+
+    // Indistinguishable on the fields alone, which is the point.
+    CPPUNIT_ASSERT_EQUAL(connector.genNode, standIn.genNode);
+    CPPUNIT_ASSERT_EQUAL(connector.simNode, standIn.simNode);
+    CPPUNIT_ASSERT_EQUAL(connector.status, standIn.status);
+    // Distinguishable on the role, which is why the role exists.
+    CPPUNIT_ASSERT(connector.isSynthetic());
+    CPPUNIT_ASSERT(standIn.isSynthetic());
+    CPPUNIT_ASSERT(connector.role != standIn.role);
+
+    truth::ParticleData real;
+    real.genNode = 7;
+    CPPUNIT_ASSERT(!real.isSynthetic());
   }
 };
 
