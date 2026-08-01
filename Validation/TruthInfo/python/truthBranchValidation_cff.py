@@ -221,7 +221,11 @@ def _algoBlock(recoVariables, truthVariables=None, sharedRange=None, axisOverrid
 # maxSimToRecoScoreForDuplicate on one side, maxRecoToSimScoreForNonFake and
 # maxRecoToSimScoreForMerge on the other) and that QuickTrackAssociatorByHits encodes as
 # two separate implementations with different denominators.
-def _truthDrivenStrings(truthVariables=None):
+# duplicate is skipped for a calorimetric domain, which does not book the numerator:
+# its reco objects are built from disjoint layer clusters, so two of them cannot each
+# capture most of the same branch energy. Asking for a ratio whose numerator was never
+# booked produces an empty plot and a harvester warning per folder.
+def _truthDrivenStrings(truthVariables=None, duplicate=True):
     out = []
     for var in (truthVariables or truthPlotVariables):
         out.append(f"efficiency_vs_{var} 'Branch efficiency vs {var}' num_assoc(simToReco)_{var} num_simul_{var}")
@@ -229,14 +233,16 @@ def _truthDrivenStrings(truthVariables=None):
         # collection together cover it, not only when a single one does.
         out.append(f"efficiency_cumulative_vs_{var} 'Cumulative branch efficiency vs {var}' "
                    f"num_assoc_cumulative_{var} num_simul_{var}")
-        out.append(f"duplicate_vs_{var} 'Duplicate rate vs {var}' num_duplicate_{var} num_simul_{var}")
+        if duplicate:
+            out.append(f"duplicate_vs_{var} 'Duplicate rate vs {var}' num_duplicate_{var} num_simul_{var}")
         out.append(f"splitrate_vs_{var} 'Split rate vs {var}' num_split_{var} num_simul_{var}")
     # Efficiency and duplicate rate against the Geant4 creation process of the branch.
     # The axis is categorical, one bin per truth::VertexReason, and it exists only
     # because the graph keeps the process that made each particle.
     out.append("efficiency_vs_reason 'Branch efficiency vs creation process' "
                "num_assoc(simToReco)_reason num_simul_reason")
-    out.append("duplicate_vs_reason 'Duplicate rate vs creation process' num_duplicate_reason num_simul_reason")
+    if duplicate:
+        out.append("duplicate_vs_reason 'Duplicate rate vs creation process' num_duplicate_reason num_simul_reason")
     return out
 
 
@@ -245,7 +251,9 @@ def _recoDrivenStrings(recoVariables):
     for var in recoVariables:
         out.append(f"fakerate_vs_{var} 'Fake rate vs {var}' num_assoc(recoToSim)_{var} num_reco_{var} fake")
         out.append(f"pileuprate_vs_{var} 'Pileup rate vs {var}' num_pileup_{var} num_reco_{var}")
-        out.append(f"recopurity_vs_{var} 'Reco purity vs {var}' num_assoc(recoToSim)_{var} num_reco_{var}")
+        # Its own numerator, filled with the purity as a weight. Dividing the UNWEIGHTED
+        # match count by num_reco would give the matched fraction a second time.
+        out.append(f"recopurity_vs_{var} 'Reco purity vs {var}' num_recopurity_{var} num_reco_{var}")
     return out
 
 
@@ -319,7 +327,9 @@ for _d in _domains:
     _truthHarvester = DQMEDHarvester(
         "DQMGenericClient",
         subDirs=cms.untracked.vstring(*_truthFolders),
-        efficiency=cms.vstring(*_truthDrivenStrings(_d.get("truthVariables"))),
+        efficiency=cms.vstring(*_truthDrivenStrings(
+            _d.get("truthVariables"),
+            duplicate="minSharedEnergyFractionForIndividual" not in _d["thresholds"])),
         resolution=cms.vstring(),
         verbose=cms.untracked.uint32(0),
         outputFileName=cms.untracked.string(""),

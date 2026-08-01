@@ -112,10 +112,11 @@ METRICS = {
     "duplicate": (
         "Duplicate rate (TruthToReco)",
         "Of the selected truth objects, the fraction that MORE THAN ONE reco object individually reconstructed. "
-        "Redundant reconstruction, distinct from splitting. NOT DRAWN FOR CALORIMETRIC COLLECTIONS: there the "
-        "criterion asks for more than one reco object each capturing most of the SAME branch energy, which "
-        "energy conservation forbids, so the curve is identically zero by construction and says nothing. "
-        "Measured on ttbar PU200: zero in all 72 calorimetric folders, nonzero only in the 12 tracking ones. "
+        "Redundant reconstruction, distinct from splitting. NOT BOOKED FOR CALORIMETRIC COLLECTIONS, so this "
+        "page has tracking folders only: the criterion asks for more than one reco object each missing less than "
+        "20% of the SAME branch energy, and two objects built from disjoint layer clusters have scores summing to "
+        "at least one, so it cannot fire. Every TICL collection validated here partitions its layer clusters "
+        "(measured on 200 no-PU ttbar events: no layer cluster is used by two tracksters of one collection). "
         "For energy the meaningful counterpart of reconstructing something twice is the SPLIT page.",
         "num_duplicate / num_simul",
     ),
@@ -132,12 +133,15 @@ METRICS = {
         "denominator, which is what distinguishes it from truth purity. This is where the adaptive working "
         "points earn their keep: the climb stops at the graph level that matches the object, so purity rises "
         "sharply while the lost fraction is unchanged.",
-        "num_assoc(recoToSim) / num_reco",
+        "num_recopurity / num_reco",
     ),
     "fakerate": (
         "Fake rate (RecoToTruth)",
         "Of the reco objects, the fraction with no truth object at all: reconstructed, but corresponding to "
-        "nothing in the simulated event.",
+        "nothing in the simulated event. A fraction of OBJECTS, counted one per object, which is what makes it "
+        "comparable to MultiTrackValidator's. It is not one minus the purity: an object can be matched and "
+        "impure, and the purity page is where that shows. A composite domain matches everything it builds, so "
+        "its fake rate is near zero by construction and the purity page carries the information.",
         "1 - num_assoc(recoToSim) / num_reco",
     ),
     "pileuprate": (

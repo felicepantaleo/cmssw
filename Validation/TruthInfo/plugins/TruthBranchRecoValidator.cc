@@ -277,7 +277,8 @@ void TruthBranchRecoValidator<RECO>::bookHistograms(DQMStore::IBooker& booker,
   for (auto const& entry : truthEntries_) {
     booker.setCurrentFolder(dirName_ + entry.folder);
     // The shared energy fraction is the axis the calorimetric efficiency cut acts on,
-    // so it is booked exactly where that cut is applied and nowhere else.
+    // so it is booked exactly where that cut is applied and nowhere else, and the
+    // duplicate outcome a calorimetric domain cannot produce is not booked at all.
     algo_.bookTruthHistos(booker, histograms, Traits::calorimetric);
   }
 }

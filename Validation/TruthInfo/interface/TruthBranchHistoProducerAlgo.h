@@ -64,12 +64,26 @@ namespace truth {
     // in pieces, mutually exclusive so that individual + duplicate + split + lost = 1.
     //   duplicate  more than one reco object individually reconstructs the whole thing
     //   split      no single object does, but several together cover the subgraph
+    // h_duplicate is left EMPTY for a calorimetric domain, where the outcome cannot
+    // occur: two reco objects built from disjoint layer clusters cannot each miss less
+    // than maxSimToRecoScoreForDuplicate of the same branch energy, since the two scores
+    // sum to at least one. Measured on 200 no-PU ttbar events: ticlCandidate,
+    // ticlTrackstersCLUE3DHigh and ticlTracksterLinks each use every layer cluster in at
+    // most one trackster. A collection whose objects SHARE hits would make it reachable
+    // again and would have to book it. Split carries the calorimetric pathology instead.
     std::vector<MERow> h_duplicate, h_split;
 
     // Reco side, one row per (collection, working point): denominator every reco
     // object, numerator those matched to a branch; one minus that ratio is the fake
     // rate. Pileup counts objects matched only to an overlaid interaction.
-    std::vector<MERow> h_reco, h_assoc_recoToSim, h_pileup;
+    //
+    // h_assoc_recoToSim counts matched objects, one entry each, so the fake rate is a
+    // FRACTION OF OBJECTS the way MultiTrackValidator's is. h_recopurity fills the same
+    // objects weighted by the purity of the match, so its ratio to h_reco is the mean
+    // purity. The two must stay separate: filling one histogram with the purity as a
+    // weight and reading it as a count turns the fake rate into one minus the mean
+    // purity, which on no-PU ttbar reads 0.83 where the fake rate is 0.003.
+    std::vector<MERow> h_reco, h_assoc_recoToSim, h_recopurity, h_pileup;
 
     // Efficiency and duplicate rate against the Geant4 process that CREATED the
     // branch, which only the graph can supply: the production vertex of the branch
@@ -102,12 +116,13 @@ namespace truth {
     // bookTruthHistos once per (collection, level), each in the order the fill side
     // will index that list.
     void bookRecoHistos(dqm::implementation::IBooker& booker, TruthBranchHistograms& histograms) const;
-    // sharedEnergyFraction books the extra monitor element of the domains whose
-    // efficiency is gated on that quantity; it must be the same for every truth entry
-    // of one module, so the row index stays shared with the other truth vectors.
+    // calorimetric books the shared-energy-fraction monitor element, the axis those
+    // domains gate efficiency on, and skips the duplicate ones the same domains cannot
+    // fill. It must be the same for every truth entry of one module, so the row index
+    // stays shared with the other truth vectors.
     void bookTruthHistos(dqm::implementation::IBooker& booker,
                          TruthBranchHistograms& histograms,
-                         bool sharedEnergyFraction) const;
+                         bool calorimetric) const;
 
     // Values of every x variable for one object, in the enum order. A domain fills only
     // the ones it has; which of them are booked is decided by the variable lists.
@@ -140,12 +155,12 @@ namespace truth {
                                      std::size_t index,
                                      double sharedEnergyFraction) const;
 
-    // matchQuality weights the associated-numerator fill. It is 1 for a hit-based
-    // domain, where "associated" is a yes or no, and the leading truth object's share of
-    // the composite for a constituent-based one, where every object matches something
-    // and the only meaningful question is how much of it belongs to that match. The
-    // ratio num_assoc(recoToSim)/num_reco is then a matched fraction in the first case
-    // and a mean purity in the second.
+    // matchQuality is the purity of the match: 1 minus the reco-normalised score for a
+    // hit-based domain, the leading truth vertex's share of the constituents for a
+    // composite one. It weights the h_recopurity fill only. The h_assoc_recoToSim fill
+    // is always unweighted, so num_assoc(recoToSim)/num_reco stays a fraction of
+    // objects for every domain. A composite object always matches something, so there
+    // that fraction is near one by construction and the purity is the number to read.
     void fill_reco(TruthBranchHistograms const& histograms,
                    std::size_t index,
                    Kinematics const& kin,
