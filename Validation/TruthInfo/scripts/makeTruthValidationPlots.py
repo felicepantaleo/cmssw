@@ -46,7 +46,7 @@ WP_ORDER = ["Fixed", "AdaptiveTight", "AdaptiveNominal", "AdaptiveLoose"]
 # allSelectedRoots is the widest entry: every selected root, whatever its level or
 # species.
 LEVEL_ORDER = ["stableLegsFromUpstream", "caloBoundary", "stableDecayProducts", "hardProcess",
-               "signal", "signalNoSelection", "allSelectedRoots"]
+               "reconstructableFromSignal", "signal", "signalNoSelection", "allSelectedRoots"]
 # What each truth-driven series IS. These are the efficiency DENOMINATORS, and they are
 # not interchangeable: the first four are ANTICHAINS (no member is an ancestor of
 # another, so nothing is counted twice), allSelectedRoots is not. Sizes quoted are ttbar
@@ -74,6 +74,17 @@ LEVEL_MEANING = {
         "photons; on VBF the two tagging quarks plus the four neutrinos. Measured on one event of each of the "
         "eleven generator templates. Use SIGNAL for the resonance. Empty for a particle gun, which has no "
         "hard-process record at all.",
+    "reconstructableFromSignal":
+        "the VISIBLE FINAL STATE of the resonance: walk down from each signal root and stop at the first thing a "
+        "detector reconstructs as an object. That is not the first generator-stable particle. A pi0 decays to two "
+        "photons at once, but the analysis reconstructs the pi0, so the pi0 is the entry and its photons are not; "
+        "a three-prong tau contributes its three charged pions. Intermediate resonances the detector never sees "
+        "as objects (a1, rho) are walked through, unless their pdg id is added to reconstructablePdgIds on the "
+        "graph. Neutrinos are dropped, being invisible, which is why an all-neutrino final state gives an EMPTY "
+        "level rather than a wrong one. An antichain by construction, since the walk stops at each leg. "
+        "TenTau no-PU: 18.59 per event against 10.00 signal objects. This is the denominator to read for "
+        "'was what the resonance actually produced reconstructed'. EMPTY on a sample produced before the signal "
+        "flag existed, since it is stamped at DIGI.",
     "signal":
         "the preset's seed species among the selected roots, that is THE RESONANCE itself and not its decay "
         "products: two tops for the top preset, one Z for Drell-Yan, one Higgs for VBF and ggF, ten taus for "
@@ -1078,7 +1089,8 @@ def main():
         if metric in TRUTH_METRICS:
             return ("Each plot overlays the branch LEVELS of the truth graph, the a priori definitions of what "
                     "one truth object is (stableLegsFromUpstream, caloBoundary, stableDecayProducts, "
-                    "hardProcess), plus three more series: signal, whose denominator is the preset SEED objects "
+                    "hardProcess, reconstructableFromSignal), plus three more series: signal, whose denominator "
+                    "is the preset SEED objects "
                     "among the selected roots, so with a selection preset it is the signal object's own "
                     "efficiency (the tau, not its decay legs), signalNoSelection, the same seed objects with "
                     "no branch-selector cut at all, so the efficiency is quoted against every seed in the "

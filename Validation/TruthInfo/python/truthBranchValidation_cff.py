@@ -22,7 +22,12 @@ _wps = list(truthBranchWorkingPointsPSet.names)
 # truth-driven metrics are measured once per level, in per-level folders, while the
 # reco-driven metrics keep their per-working-point folders. Composite domains have no
 # levels; their one truth-driven folder is named by the domain's vertex resolution.
-_truthLevels = ["stableLegsFromUpstream", "caloBoundary", "stableDecayProducts", "hardProcess"]
+# reconstructableFromSignal is the resonance's visible final state: the walk from each
+# signal root down to the first object a detector reconstructs, pi0 included as an object
+# rather than as two photons. It needs LevelFlag::Signal on the graph, which is stamped at
+# DIGI, so a sample produced before that carries an EMPTY level rather than a wrong one.
+_truthLevels = ["stableLegsFromUpstream", "caloBoundary", "stableDecayProducts", "hardProcess",
+                "reconstructableFromSignal"]
 
 # Axis definition per x variable, shared by every domain. Built here so the booking, the
 # harvester strings and the plot script all read one list.

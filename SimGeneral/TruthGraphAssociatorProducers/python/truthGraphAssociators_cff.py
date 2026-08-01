@@ -49,7 +49,10 @@ def _tags(domain, flavour="offline"):
 # level, side by side. Only hit-based domains have levels: a composite object's truth
 # target is a vertex, fixed by its resolution instead.
 _truthLevels = cms.vstring(
-    "stableLegsFromUpstream", "caloBoundary", "stableDecayProducts", "hardProcess"
+    "stableLegsFromUpstream", "caloBoundary", "stableDecayProducts", "hardProcess",
+    # The resonance's visible final state, which needs LevelFlag::Signal on the graph.
+    # Stamped at DIGI, so a sample produced before that carries an empty level.
+    "reconstructableFromSignal"
 )
 
 # The selection preset's seed species, so the signalSeeds product (the _signal
