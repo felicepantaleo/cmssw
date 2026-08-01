@@ -119,6 +119,8 @@ namespace truth {
                                                     TruthBranchHistograms& h,
                                                     bool calorimetric) const {
     bookRow(booker, h.h_reco, "num_reco", recoVarNames_, recoAxes_);
+    bookRow(booker, h.h_dominated, "num_dominated", recoVarNames_, recoAxes_);
+    bookRow(booker, h.h_levelCandidate, "num_levelcandidate", recoVarNames_, recoAxes_);
     bookRow(booker, h.h_assoc_recoToSim, "num_assoc(recoToSim)", recoVarNames_, recoAxes_);
     bookRow(booker, h.h_recopurity, "num_recopurity", recoVarNames_, recoAxes_);
     bookRow(booker, h.h_pileup, "num_pileup", recoVarNames_, recoAxes_);
@@ -204,22 +206,25 @@ namespace truth {
   void TruthBranchHistoProducerAlgo::fill_reco(TruthBranchHistograms const& h,
                                                std::size_t i,
                                                Kinematics const& kin,
-                                               bool associated,
-                                               bool pileup,
-                                               double matchQuality,
-                                               bool strictMatch) const {
+                                               RecoOutcome const& outcome) const {
     const auto values = kin.asVector();
     for (std::size_t v = 0; v < recoVars_.size(); ++v) {
       const double x = values[recoVars_[v]];
       h.h_reco[i][v]->Fill(x);
-      if (associated) {
-        h.h_assoc_recoToSim[i][v]->Fill(x);
-        h.h_recopurity[i][v]->Fill(x, matchQuality);
+      if (outcome.dominated) {
+        h.h_dominated[i][v]->Fill(x);
       }
-      if (pileup) {
+      if (outcome.hasLevelCandidate) {
+        h.h_levelCandidate[i][v]->Fill(x);
+      }
+      if (outcome.associated) {
+        h.h_assoc_recoToSim[i][v]->Fill(x);
+        h.h_recopurity[i][v]->Fill(x, outcome.matchQuality);
+      }
+      if (outcome.pileup) {
         h.h_pileup[i][v]->Fill(x);
       }
-      if (strictMatch && !h.h_assoc_strict.empty()) {
+      if (outcome.strictMatch && !h.h_assoc_strict.empty()) {
         h.h_assoc_strict[i][v]->Fill(x);
       }
     }

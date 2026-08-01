@@ -137,11 +137,32 @@ METRICS = {
     ),
     "fakerate": (
         "Fake rate (RecoToTruth)",
-        "Of the reco objects, the fraction with no truth object at all: reconstructed, but corresponding to "
-        "nothing in the simulated event. A fraction of OBJECTS, counted one per object, which is what makes it "
-        "comparable to MultiTrackValidator's. It is not one minus the purity: an object can be matched and "
-        "impure, and the purity page is where that shows. A composite domain matches everything it builds, so "
-        "its fake rate is near zero by construction and the purity page carries the information.",
+        "Of the reco objects, the fraction NO truth branch owns: its hits come from several different generated "
+        "particles with none dominating, so there is nothing to attribute it to. Dominance is measured over an "
+        "ANTICHAIN of the graph, the level named by dominanceLevel, and that restriction is what makes the "
+        "question well posed: over a set containing both a particle and its descendants the leader and the "
+        "runner-up can be the same particle at two depths, which read as 'nothing dominates' on no-PU TenTau "
+        "where ten isolated taus must each give one overwhelming winner (leading share 0.26 unrestricted, 0.98 "
+        "over caloBoundary). An object counts as owned when one branch of that level carries at least "
+        "minLeadingTruthShare = 0.5 of the shared quantity all of them contribute. An object matched to NOTHING "
+        "is a fake too, and the NOCANDIDATE page is that failure mode on its own. An object that matched truth "
+        "but has no candidate at the dominance level is NOT a fake: the question is undefined for it, and "
+        "counting it would measure how much of the event the level covers rather than how well the collection "
+        "reconstructs. That category has its own NOLEVELCANDIDATE page. "
+        "A fraction of OBJECTS, one per object. It is not one minus the purity: an object can be owned and "
+        "impure, and the purity page is where that shows. Identical at all four working points by construction, "
+        "since dominance is read from the only map carrying every candidate; the climb changes which branch an "
+        "object is attributed to, never whether one dominates.",
+        "1 - num_dominated / num_reco",
+    ),
+    "nocandidate": (
+        "No-candidate rate (RecoToTruth)",
+        "Of the reco objects, the fraction matched to NOTHING in the truth graph. This is one of the two ways of "
+        "being a fake and is a subset of the fake page, not a competing definition of it: the other way is having "
+        "candidates with no dominant one. Read the two together to see which mechanism a collection suffers from. "
+        "At PU200 this one saturates near zero, because the graph is dense enough that almost every reco object "
+        "overlaps some branch, so it stops discriminating and the fake and purity pages carry the information. "
+        "A composite domain matches everything it builds, so it is near zero there by construction too.",
         "1 - num_assoc(recoToSim) / num_reco",
     ),
     "contaminated": (
@@ -154,6 +175,16 @@ METRICS = {
         "while only 2.3% have no truth candidate at all. Read it as cell-level contamination, which is what the "
         "reconstruction is up against, and use it to compare against HGCalValidator, which applies the same cut.",
         "1 - num_assoc_strict / num_reco",
+    ),
+    "nolevelcandidate": (
+        "No dominance-level candidate rate (RecoToTruth)",
+        "Of the reco objects, the fraction that matched truth but whose candidates include nothing at the "
+        "dominance level, so the fake question is UNDEFINED for them rather than answered. Read it as coverage "
+        "of the level, not as a reconstruction failure: on no-PU ttbar it is 32.5% of tracksters and 36.8% of "
+        "tracks, while only 0.3% of tracks match nothing at all, and moving the tracking level to "
+        "stableDecayProducts only takes it to 27.7%. A large value here means the fake rate is being formed on "
+        "a small subset of the collection and should be quoted with this page beside it.",
+        "1 - num_levelcandidate / num_reco",
     ),
     "pileuprate": (
         "Pileup rate (RecoToTruth)",
@@ -351,7 +382,7 @@ PROPOSED = [
 ]
 # Metric order drives the page order, so a reader meets efficiency before its failure modes.
 METRIC_ORDER = ["composition", "efficiency", "duplicate", "splitrate", "recopurity", "fakerate",
-                "contaminated",
+                "nocandidate", "nolevelcandidate", "contaminated",
                 "pileuprate", "resolution"]
 # caloeta sits next to eta on purpose: the two answer "where was the branch root
 # produced" and "where did the branch reach the calorimeter", and for anything but the
@@ -383,6 +414,8 @@ DENOMINATOR = {
     "splitrate": "num_simul",
     "recopurity": "num_reco",
     "fakerate": "num_reco",
+    "nocandidate": "num_reco",
+    "nolevelcandidate": "num_reco",
     "contaminated": "num_reco",
     "pileuprate": "num_reco",
 }
@@ -398,7 +431,9 @@ CATEGORICAL_MEANING = {
     ),
 }
 _ME_RE = re.compile(
-    r"^(?P<metric>efficiency_cumulative|efficiency|recopurity|fakerate|contaminated|duplicate|splitrate|pileuprate)"
+    r"^(?P<metric>efficiency_cumulative|efficiency|recopurity|fakerate|nocandidate|nolevelcandidate"
+    r"|contaminated|duplicate"
+    r"|splitrate|pileuprate)"
     r"_vs_(?P<var>\w+)$"
 )
 

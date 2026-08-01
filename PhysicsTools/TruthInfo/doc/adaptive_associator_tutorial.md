@@ -281,7 +281,7 @@ All from the chain above, 200 events.
 | `caloBoundary` | 35.34 / event | the taus' decay products entering the calorimeter |
 | forward, abs(caloeta) above 3 | 0.0% | the gun is central plus endcap |
 | reco tracks | 13.8 / event | ten taus at one or three prongs |
-| tracking fake rate | 0.0000 | at every working point |
+| tracking fake rate | 0.2932 | at every working point. Almost all of it is "no single owner", not "matched nothing", which is 0.0000 |
 | mean reco purity | 0.582 Fixed to **0.994** AdaptiveNominal | where the adaptive climb pays |
 
 If `hardProcess` is empty, that is the expected answer here, and a good illustration that
@@ -289,17 +289,24 @@ the level means what it says: on ttbar, DY and VBF it gives 5.73, 1.51 and 6.00 
 
 ---
 
-## 6. Reading the reco-side pages: four different questions
+## 6. Reading the reco-side pages: six different questions
 
 | Page | Formula | Question |
 |---|---|---|
-| `fakerate` | `1 - num_assoc(recoToSim)/num_reco` | does the object correspond to **any** truth branch |
+| `fakerate` | `1 - num_dominated/num_reco` | does **one** truth branch own the object |
+| `nocandidate` | `1 - num_assoc(recoToSim)/num_reco` | does it correspond to **any** truth branch. A subset of `fakerate` |
+| `nolevelcandidate` | `1 - num_levelcandidate/num_reco` | is the fake question even **defined** for it |
 | `contaminated` | `1 - num_assoc_strict/num_reco` | does its best candidate pass the 0.6 recoToSim score, HGCalValidator's non-fake cut. Calorimetry only |
 | `recopurity` | `num_recopurity/num_reco` | how much of the object belongs to the branch it matched, as a **mean** |
 | `pileuprate` | `num_pileup/num_reco` | is the matched branch an overlaid interaction |
 
 Each has its **own numerator**. Merging any two is how this package produced its two worst
 bugs, both in section 8.
+
+A **fake** is an object no truth branch owns, which happens two ways: it matched nothing
+at all, or it has contributions from several different particles with none dominating.
+Section 8b is where that definition is built, including the category it deliberately does
+NOT call a fake.
 
 !!! warning "`fakerate` and `contaminated` are different questions"
     The recoToSim score is normalised against the cell's **total** truth energy
@@ -320,14 +327,25 @@ climbs from 0.58 to 0.99. Explain why before reading on.
 
 ### Exercise 2
 
-At PU200 the tracking fake rate is 0.000 to 0.006, **lower** than the 0.003 to 0.010 with
-no pileup at all. Did reconstruction improve by adding 200 interactions?
+At PU200 the tracking `nocandidate` rate is 0.000 to 0.001, **lower** than the 0.003 to
+0.010 with no pileup at all. Did reconstruction improve by adding 200 interactions?
 
 > No, the metric **saturates**. With 200 interactions the truth graph is dense enough that
 > nearly every reco object overlaps something, so "matched to nothing" stops
-> discriminating. At PU200 read the pileup rate (0.93 to 0.96) and the purity (0.10 to
-> 0.63) instead. Before quoting any rate sitting at 0 or 1, ask whether its definition can
+> discriminating. At PU200 read the pileup rate (0.93 to 0.95) and the purity (0.10 to
+> 0.73) instead. Before quoting any rate sitting at 0 or 1, ask whether its definition can
 > still vary in that regime. A saturated metric and a perfect detector draw the same plot.
+
+### Exercise 3
+
+On ttbar PU200 the `fakerate` is 0.027 and `nolevelcandidate` is 0.872. Why is the first
+number nearly meaningless on its own?
+
+> Because the fake question is only defined for the 12.8% of tracksters that have a
+> candidate at `caloBoundary`. That level holds ~113 objects per event at PU200 against
+> 99.7 with no pileup, since the selector's 1 GeV floor removes nearly all soft pileup,
+> while there are thousands of tracksters. A rate measured on a small, non-random subset
+> needs the subset size quoted with it every time.
 
 ---
 
@@ -415,12 +433,37 @@ one overwhelming winner:
 A number that moves like that between two definitions is not a threshold to tune, it is a
 bug to fix. The parameter is `dominanceLevel`, default `caloBoundary`.
 
-No dominance threshold is set in code, deliberately. `caloBoundary` is 113 per event at
-PU200 against 99.7 with no pileup, only about 14 extra from 200 interactions, because the
-selector's 1 GeV floor removes nearly all soft pileup. So the measure asks "does one
-particle above 1 GeV dominate" and never sees soft-PU mush, while a trackster built
-entirely from sub-GeV pileup has no candidate and is already counted by `fakerate`.
-Choosing a threshold is a physics decision.
+The published criterion is therefore
+
+```
+fake = matched to nothing
+       OR (has a candidate at dominanceLevel AND leading share < 0.5)
+```
+
+with the threshold in `minLeadingTruthShare`. Because dominance is read from the first
+working point's map, the only one carrying every candidate, this is **identical at all
+four working points** by construction, which is the control to check first.
+
+### 8b-bis. The category that is deliberately not a fake
+
+An object that matched truth but has **no candidate at the dominance level** is not
+counted as a fake. The question is undefined for it, not answered negatively. Counting it
+would measure how much of the event the level covers rather than how well the collection
+reconstructs, and the difference is not small: doing so gave fake rates of 0.36 to 0.60 on
+no-PU across every sample and both domains.
+
+That was settled by measurement, and the shape of the investigation is the lesson. Three
+candidate explanations were each killed with a number rather than an argument:
+
+| suspected cause | test | result |
+|---|---|---|
+| the threshold is wrong | distribution where dominance IS defined | share is 1.0 for 45% of ttbar tracksters, below 0.5 for only 5.7%. Not the threshold |
+| the level is wrong for tracking | config-only probe, `caloBoundary` to `stableDecayProducts` | 0.540 to 0.489, with calorimetry identical to four decimals as the control. Not the level |
+| nested candidates dilute the leader | project each candidate onto its antichain ancestor | changed nothing to four decimals. Not nesting |
+
+The real cause was the undefined category itself, 28% to 57% of objects, while only 0.3%
+of tracks match nothing at all. It now has its own page, `nolevelcandidate`, and the fake
+rate must be read beside it.
 
 ### 8c. Match the code that made the file
 

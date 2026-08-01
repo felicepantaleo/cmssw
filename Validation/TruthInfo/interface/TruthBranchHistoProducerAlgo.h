@@ -74,22 +74,37 @@ namespace truth {
     std::vector<MERow> h_duplicate, h_split;
 
     // Reco side, one row per (collection, working point): denominator every reco
-    // object, numerator those matched to a branch; one minus that ratio is the fake
-    // rate. Pileup counts objects matched only to an overlaid interaction.
+    // object, and three numerators answering three different questions. Pileup counts
+    // objects matched only to an overlaid interaction.
     //
-    // h_assoc_recoToSim counts matched objects, one entry each, so the fake rate is a
-    // FRACTION OF OBJECTS the way MultiTrackValidator's is. h_recopurity fills the same
-    // objects weighted by the purity of the match, so its ratio to h_reco is the mean
-    // purity. The two must stay separate: filling one histogram with the purity as a
-    // weight and reading it as a count turns the fake rate into one minus the mean
-    // purity, which on no-PU ttbar reads 0.83 where the fake rate is 0.003.
+    // h_dominated is the FAKE numerator: the object matched something AND, where the
+    // dominance question is defined for it, one truth branch of the antichain owns at
+    // least minLeadingTruthShare of the shared quantity. A fake is an object matched to
+    // nothing, or one whose contributions are comparably small with no winner.
     //
-    // h_assoc_strict is the calorimetric domains' second, STRICTER numerator: matched
-    // AND below maxRecoToSimScore, which is HGCalValidator's non-fake criterion. It is
-    // a separate histogram because that criterion mixes "corresponds to nothing" with
-    // "corresponds to something but shares its cells with other truth", and only the
-    // first is a fake. Booked for calorimetric domains only; empty elsewhere.
-    std::vector<MERow> h_reco, h_assoc_recoToSim, h_recopurity, h_pileup, h_assoc_strict;
+    // An object that matched truth but has NO candidate at the dominance level is not a
+    // fake. The question is undefined for it, not answered negatively, and folding it in
+    // measures level coverage rather than reconstruction: on no-PU ttbar it is 32.5% of
+    // tracksters and 36.8% of tracks, against 0.3% of tracks matched to nothing.
+    // h_levelCandidate counts the objects where the question IS defined, so the
+    // complement is published as its own page and stays visible.
+    //
+    // h_assoc_recoToSim counts objects matched to anything, one entry each, published as
+    // the no-candidate rate and named for what it measures so it cannot be read as a
+    // second fake rate.
+    //
+    // h_recopurity fills matched objects weighted by the purity of the match, so its
+    // ratio to h_reco is the mean purity. It must stay separate from the counts:
+    // filling one histogram with the purity as a weight and reading it as a count turns
+    // the fake rate into one minus the mean purity, which on no-PU ttbar reads 0.83
+    // where the fake rate is 0.003.
+    //
+    // h_assoc_strict is the calorimetric domains' numerator for HGCalValidator's
+    // non-fake criterion, matched AND below maxRecoToSimScore, kept only so the two
+    // validators stay comparable. That criterion is not a fake rate: it is normalised
+    // against the cell's total truth energy, so pileup on a cell drives it towards 1
+    // even for a good match. Booked for calorimetric domains only; empty elsewhere.
+    std::vector<MERow> h_reco, h_dominated, h_levelCandidate, h_assoc_recoToSim, h_recopurity, h_pileup, h_assoc_strict;
 
     // Efficiency and duplicate rate against the Geant4 process that CREATED the
     // branch, which only the graph can supply: the production vertex of the branch
@@ -172,22 +187,32 @@ namespace truth {
                                      std::size_t index,
                                      double sharedEnergyFraction) const;
 
-    // matchQuality is the purity of the match: 1 minus the reco-normalised score for a
-    // hit-based domain, the leading truth vertex's share of the constituents for a
-    // composite one. It weights the h_recopurity fill only. The h_assoc_recoToSim fill
-    // is always unweighted, so num_assoc(recoToSim)/num_reco stays a fraction of
-    // objects for every domain. A composite object always matches something, so there
-    // that fraction is near one by construction and the purity is the number to read.
-    // strictMatch is the calorimetric non-fake criterion (matched AND below
-    // maxRecoToSimScore). It fills h_assoc_strict only, never h_assoc_recoToSim, so the
-    // fake rate keeps meaning "matched to nothing" in every domain.
+    // How one reco object relates to the truth. Grouped into a struct rather than
+    // passed as five positional flags, which no call site can get right by inspection.
+    struct RecoOutcome {
+      // Not a fake: matched, and not contaminated beyond attribution. Its complement is
+      // the fake rate.
+      bool dominated = false;
+      // Matched to anything at all, one of the two ways of being a fake on its own.
+      bool associated = false;
+      // The dominance question is DEFINED for this object, that is at least one candidate
+      // projects onto the antichain. Its complement is published as its own page and is
+      // deliberately not a fake.
+      bool hasLevelCandidate = false;
+      bool pileup = false;
+      // Calorimetric only, HGCalValidator's non-fake criterion. Fills h_assoc_strict
+      // and nothing else, so it can never move the fake rate.
+      bool strictMatch = false;
+      // Purity of the match: 1 minus the reco-normalised score for a hit-based domain,
+      // the leading truth vertex's share of the constituents for a composite one. It
+      // weights the h_recopurity fill only; every other fill here is a count.
+      double matchQuality = 1.;
+    };
+
     void fill_reco(TruthBranchHistograms const& histograms,
                    std::size_t index,
                    Kinematics const& kin,
-                   bool associated,
-                   bool pileup,
-                   double matchQuality = 1.,
-                   bool strictMatch = false) const;
+                   RecoOutcome const& outcome) const;
 
     // Categorical fill against the VertexReason of the branch root's production
     // vertex, passed as its underlying integer so this header stays free of the

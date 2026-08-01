@@ -18,6 +18,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <limits>
 #include <type_traits>
 #include <string>
 #include <vector>
@@ -203,6 +204,9 @@ private:
   const double maxSimToRecoScoreForDuplicate_;
   const double maxRecoToSimScore_;
   const double minCollectiveCoverage_;
+  // The fake criterion: a reco object is NOT a fake when one branch of the dominance
+  // antichain owns at least this share of the shared quantity all of them contribute.
+  const double minLeadingTruthShare_;
   std::vector<WpEntry> wpEntries_;
   std::vector<TruthEntry> truthEntries_;
   const truth::TruthBranchHistoProducerAlgo algo_;
@@ -223,6 +227,7 @@ TruthBranchRecoValidator<RECO>::TruthBranchRecoValidator(edm::ParameterSet const
                                                           : 0.),
       maxRecoToSimScore_(Traits::calorimetric ? cfg.getParameter<double>("maxRecoToSimScore") : 0.),
       minCollectiveCoverage_(cfg.getParameter<double>("minCollectiveCoverage")),
+      minLeadingTruthShare_(Traits::truthIsVertex ? 0. : cfg.getParameter<double>("minLeadingTruthShare")),
       algo_(cfg.getParameter<edm::ParameterSet>("histoProducerAlgoBlock")) {
   const auto associator = cfg.getParameter<std::string>("associator");
   const auto workingPoints = cfg.getParameter<std::vector<std::string>>("workingPoints");
@@ -374,20 +379,58 @@ void TruthBranchRecoValidator<RECO>::dqmAnalyze(edm::Event const& event,
     }
   }
 
-  // Membership mask of the dominance antichain, built once per event.
-  std::vector<bool> inDominanceSet;
+  // PROJECTION onto the dominance antichain: for each particle, the member of the
+  // antichain it descends from, or itself if it is one. Built once per event by a
+  // downward walk, the same shape as the calorimeter-entrance propagation above.
+  //
+  // Projecting, rather than keeping only candidates that ARE members, makes a branch and
+  // its own descendants add up as the ONE contributor they are instead of competing.
+  // MEASURED EFFECT ON THE FIVE SAMPLES: none, to four decimals on every rate. The
+  // associators insert branch roots that are either members of the level already or
+  // unrelated to it, so nothing projects. It is kept as the correct definition and as a
+  // guard for a collection whose associator does insert ancestor roots, not because it
+  // changes any number quoted here.
+  //
+  // Empty means the criterion cannot be applied, either because the domain configures no
+  // antichain or because the product was missing, and the fake rate falls back to
+  // "matched to nothing". Gating on this rather than on hasDominanceTargets_ keeps a
+  // missing product from silently computing dominance over an unprojected candidate list.
+  constexpr uint32_t kNoDominanceRoot = std::numeric_limits<uint32_t>::max();
+  std::vector<uint32_t> dominanceRoot;
   if (hasDominanceTargets_) {
     edm::Handle<std::vector<unsigned int>> targets;
     event.getByToken(dominanceTargetsToken_, targets);
     if (targets.isValid()) {
-      inDominanceSet.assign(graph.nParticles(), false);
+      dominanceRoot.assign(graph.nParticles(), kNoDominanceRoot);
+      std::vector<uint32_t> worklist;
+      worklist.reserve(graph.nParticles());
       for (const unsigned int b : *targets) {
-        if (b < inDominanceSet.size()) {
-          inDominanceSet[b] = true;
+        if (b < dominanceRoot.size() && dominanceRoot[b] == kNoDominanceRoot) {
+          dominanceRoot[b] = b;
+          worklist.push_back(b);
+        }
+      }
+      // First writer wins, so a particle reachable from two members is attributed once
+      // and is never pushed twice. That also bounds the walk on a graph with a cycle.
+      for (std::size_t head = 0; head < worklist.size(); ++head) {
+        const uint32_t p = worklist[head];
+        for (const uint32_t vertexId : graph.decayVertices(p)) {
+          if (vertexId >= graph.nVertices()) {
+            continue;
+          }
+          for (const uint32_t child : graph.outgoingParticles(vertexId)) {
+            if (child < dominanceRoot.size() && dominanceRoot[child] == kNoDominanceRoot) {
+              dominanceRoot[child] = dominanceRoot[p];
+              worklist.push_back(child);
+            }
+          }
         }
       }
     }
   }
+
+  // Scratch for the per-object projected contributions, reused across objects.
+  std::vector<std::pair<uint32_t, double>> contributions;
 
   // Reco-driven side, one pass per (collection, working point).
   for (std::size_t i = 0; i < wpEntries_.size(); ++i) {
@@ -413,17 +456,17 @@ void TruthBranchRecoValidator<RECO>::dqmAnalyze(edm::Event const& event,
     // from a pileup interaction rather than the signal one.
     for (std::size_t r = 0; r < recoHandle->size(); ++r) {
       // The maps are score-sorted, so [0] is the best match. "Associated" means the
-      // object corresponds to SOMETHING in the truth graph, in every domain, so the
-      // fake rate is one quantity with one meaning across the pages.
+      // object corresponds to SOMETHING in the truth graph, in every domain. It is one
+      // of the two ways of being a fake, published on its own as the no-candidate rate.
       //
       // The calorimetric recoToSim score is NOT folded in here. That score is
       // reco-normalised against the cell's TOTAL truth energy, so at PU200 a cell shared
       // with overlaid interactions inflates it towards 1 even for a perfectly matched
-      // object, and gating "associated" on it reports contamination the reconstruction
-      // cannot avoid as if the object were spurious. Measured on ttbar PU200, 200
-      // events, ticlCandidate AdaptiveNominal: 73.8% of tracksters failed the 0.6 cut
-      // but only 2.3% had no candidate at all. It is kept as the STRICT numerator, which
-      // is HGCalValidator's non-fake criterion and is comparable to it.
+      // object, and gating on it reports contamination the reconstruction cannot avoid
+      // as if the object were spurious. Measured on ttbar PU200, 200 events,
+      // ticlCandidate AdaptiveNominal: 73.8% of tracksters failed the 0.6 cut but only
+      // 2.3% had no candidate at all. It is kept as the STRICT numerator, which is
+      // HGCalValidator's non-fake criterion and is comparable to it.
       const bool associated = r < recoToTruth.size() && !recoToTruth[r].empty();
       bool strictMatch = associated;
       if constexpr (Traits::calorimetric) {
@@ -464,30 +507,75 @@ void TruthBranchRecoValidator<RECO>::dqmAnalyze(edm::Event const& event,
       double dominanceRatio = -1.;
       if (allCandidates != nullptr) {
         auto const& row = allCandidates->getMap()[r];
-        double total = 0., best = 0., second = 0.;
+        // Shared energy per antichain member. A candidate ABOVE the antichain projects
+        // nowhere and is dropped: its subgraph already contains the members it would
+        // project onto, so counting both would count the same energy twice. Few
+        // candidates per object, so a linear scan beats a map.
+        contributions.clear();
+        double total = 0.;
         for (auto const& cand : row) {
-          // Distinct particles only: without this the list holds a whole ancestor
-          // chain whose subgraphs nest, and the leader is compared to its own child.
-          if (!inDominanceSet.empty() && (cand.index() >= inDominanceSet.size() || !inDominanceSet[cand.index()])) {
+          const uint32_t member = dominanceRoot.empty()                   ? cand.index()
+                                  : (cand.index() < dominanceRoot.size()) ? dominanceRoot[cand.index()]
+                                                                          : kNoDominanceRoot;
+          if (member == kNoDominanceRoot) {
             continue;
           }
           const double e = cand.value();
           total += e;
-          if (e > best) {
-            second = best;
-            best = e;
-          } else if (e > second) {
-            second = e;
+          auto it = std::find_if(
+              contributions.begin(), contributions.end(), [member](auto const& c) { return c.first == member; });
+          if (it == contributions.end()) {
+            contributions.emplace_back(member, e);
+          } else {
+            it->second += e;
           }
         }
         if (total > 0.) {
+          double best = 0., second = 0.;
+          for (auto const& [member, e] : contributions) {
+            if (e > best) {
+              second = best;
+              best = e;
+            } else if (e > second) {
+              second = e;
+            }
+          }
           leadingShare = best / total;
-          // Capped so the one-candidate case and a runaway ratio share a top bin.
+          // Capped so the one-contributor case and a runaway ratio share a top bin.
           dominanceRatio = (second > 0.) ? std::min(best / second, 20.) : 20.;
         }
       }
       algo_.fill_dominance(histograms, i, leadingShare, dominanceRatio);
-      algo_.fill_reco(histograms, i, kin, associated, pileup, recoPurity, strictMatch);
+
+      // THE FAKE CRITERION: an object matched to nothing, or one whose contributions come
+      // from several different generated particles with none dominating, which is a pile
+      // of contaminations nothing can be attributed to.
+      //
+      // An object with no candidate at the dominance level is NOT a fake. The question is
+      // undefined for it rather than answered negatively, and counting it as a fake
+      // measures how much of the event that level covers instead of how well the
+      // collection reconstructs: on no-PU ttbar it is 32.5% of tracksters and 36.8% of
+      // tracks, where only 0.3% of tracks match nothing at all. Choosing a
+      // tracker-appropriate level does not rescue it either, measured by a config-only
+      // probe moving the tracking level to stableDecayProducts: 36.8% to 27.7%. It is
+      // published as its own page instead.
+      //
+      // Read from the first working point's map, so this is IDENTICAL at every working
+      // point by construction: the adaptive climb changes which branch an object is
+      // attributed to, never whether one dominates.
+      const bool hasLevelCandidate = leadingShare >= 0.;
+      const bool dominated = dominanceRoot.empty()
+                                 ? associated
+                                 : (associated && (!hasLevelCandidate || leadingShare >= minLeadingTruthShare_));
+      algo_.fill_reco(histograms,
+                      i,
+                      kin,
+                      {.dominated = dominated,
+                       .associated = associated,
+                       .hasLevelCandidate = hasLevelCandidate,
+                       .pileup = pileup,
+                       .strictMatch = strictMatch,
+                       .matchQuality = recoPurity});
       if (associated) {
         algo_.fill_match(histograms, i, recoToTruth[r][0].score(), recoToTruth[r][0].value(), recoPurity);
         // Resolution against the truth object THIS working point matched, so the
@@ -707,6 +795,10 @@ void TruthBranchRecoValidator<RECO>::fillDescriptions(edm::ConfigurationDescript
             "Names the one truth-driven folder of a composite domain, matching the associator's resolution: "
             "'interaction' for primary vertices, 'immediate' for secondary vertices");
   } else {
+    desc.add<double>("minLeadingTruthShare", 0.5)
+        ->setComment(
+            "Fake criterion: one branch of dominanceLevel must own at least this share of the shared quantity all "
+            "candidates at that level contribute. An object below it, or with no candidate there, is a fake");
     desc.add<std::string>("dominanceLevel", "caloBoundary")
         ->setComment(
             "The level whose targets the leading-truth-contributor measure is computed over. It must be an "

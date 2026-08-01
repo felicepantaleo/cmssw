@@ -251,7 +251,17 @@ def _truthDrivenStrings(truthVariables=None, duplicate=True):
 def _recoDrivenStrings(recoVariables, strict=False):
     out = []
     for var in recoVariables:
-        out.append(f"fakerate_vs_{var} 'Fake rate vs {var}' num_assoc(recoToSim)_{var} num_reco_{var} fake")
+        # A fake is an object no truth branch owns: none of the dominance antichain
+        # contributes to it, or several do with no winner. The two are disjoint and
+        # nocandidate below is the first of them on its own.
+        out.append(f"fakerate_vs_{var} 'Fake rate vs {var}' num_dominated_{var} num_reco_{var} fake")
+        out.append(f"nocandidate_vs_{var} 'No-candidate rate vs {var}' "
+                   f"num_assoc(recoToSim)_{var} num_reco_{var} fake")
+        # Where the dominance question is UNDEFINED: the object matched truth, but none
+        # of its candidates sits at the dominance level. Deliberately not folded into
+        # the fake rate, which would measure level coverage rather than reconstruction.
+        out.append(f"nolevelcandidate_vs_{var} 'No dominance-level candidate vs {var}' "
+                   f"num_levelcandidate_{var} num_reco_{var} fake")
         if strict:
             out.append(f"contaminated_vs_{var} 'Contaminated rate vs {var}' "
                        f"num_assoc_strict_{var} num_reco_{var} fake")
