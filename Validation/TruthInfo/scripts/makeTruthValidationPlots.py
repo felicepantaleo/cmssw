@@ -68,12 +68,17 @@ LEVEL_MEANING = {
         "only when a selection preset ran. About 35 per event; 67% of it is also at the calorimeter boundary "
         "and 44% is also generator-stable, so it is a middle ground between the two.",
     "hardProcess":
-        "the last copy of each hard-process particle. EMPTY in these samples: the GEN shower collapse contracts "
-        "the intermediate copies away, so nothing carries both isHardProcess and isLastCopy.",
+        "the OUTGOING LEGS of the hard scatter, and NOT the resonance despite the name. isHardProcess is set on "
+        "the hard-scatter participants and the deepest-element antichain keeps the outgoing ones, so on ttbar "
+        "this holds b, b~ and the W decay products rather than the two tops; on H to two photons it holds the "
+        "photons; on VBF the two tagging quarks plus the four neutrinos. Measured on one event of each of the "
+        "eleven generator templates. Use SIGNAL for the resonance. Empty for a particle gun, which has no "
+        "hard-process record at all.",
     "signal":
-        "the preset's seed species among the selected roots, that is the physics object itself and not its "
-        "decay products: for the top preset, the two tops. About 2 per event. This is the only series that "
-        "answers 'was the object I generated reconstructed'.",
+        "the preset's seed species among the selected roots, that is THE RESONANCE itself and not its decay "
+        "products: two tops for the top preset, one Z for Drell-Yan, one Higgs for VBF and ggF, ten taus for "
+        "the TenTau gun. Verified present in all eleven generator templates. This is the series that answers "
+        "'was the object I generated reconstructed', and the one to read when hardProcess looks wrong.",
     "signalNoSelection":
         "the same seed species with the kinematic selector removed. Equal to signal whenever every seed passes "
         "the selector, which is the case for tops; a difference between the two is the selector's own cost.",

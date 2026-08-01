@@ -1392,6 +1392,26 @@ namespace truth {
     // post-collapse indexing.
     input = filterGraphByBunchCrossing(input, config_);
 
+    // Mark the resonance BEFORE the selection rewrite. These are the most upstream
+    // particles matching the preset's seed species, so the two tops rather than their
+    // decay products. Stamped on the ParticleData rather than kept as indices, because
+    // the rewrite renumbers every particle and a flag on the struct survives that for
+    // free. Runs after the collapse and pile-up steps so it sees the same indexing the
+    // selection will.
+    if (!config_.seedPdgIds.empty() || !config_.seedHadronFlavors.empty()) {
+      std::vector<uint32_t> matches;
+      for (uint32_t particleId = 0; particleId < input.nParticles(); ++particleId) {
+        if (matchesSeed(input, particleId, config_)) {
+          matches.push_back(particleId);
+        }
+      }
+      for (const uint32_t root : mostUpstreamOf(input, matches)) {
+        if (root < input.particles().size()) {
+          input.particles()[root].setLevel(truth::LevelFlag::Signal);
+        }
+      }
+    }
+
     input = filterGraphBySelection(input, config_);
 
     if (!config_.ignoredPdgIds.empty() || !config_.ignoredParticleIds.empty()) {

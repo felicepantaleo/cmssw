@@ -65,6 +65,36 @@
 
 namespace {
 
+  // Append a standalone particle carrying LevelFlag::Signal, for a sample whose generator
+  // never wrote the resonance. It has no edges, so the CSR offset arrays only need one
+  // more entry each, repeating the final offset. Its momentum is the sum of the
+  // hard-process legs, which is the closest thing to the resonance the record still has.
+  void addSyntheticSignalNode(truth::Graph& graph) {
+    truth::ParticleData synthetic;
+    // No GEN and no SIM back-reference plus status 0 is the synthetic marker: every real
+    // particle has at least one of the two, and no generator writes status 0.
+    synthetic.genNode = -1;
+    synthetic.simNode = -1;
+    synthetic.status = 0;
+    synthetic.pdgId = 0;
+    math::XYZTLorentzVectorD sum(0., 0., 0., 0.);
+    for (auto const& p : graph.particles()) {
+      if (p.isAtLevel(truth::LevelFlag::HardProcess)) {
+        sum += p.momentum;
+      }
+    }
+    synthetic.momentum = sum;
+    synthetic.setLevel(truth::LevelFlag::Signal);
+
+    graph.particles().push_back(synthetic);
+    // A particle with no production and no decay vertex: both offset arrays grow by one
+    // entry repeating the last, which is what "empty range" means in this CSR layout.
+    auto& decayOff = graph.particleToDecayVertexOffsets();
+    auto& prodOff = graph.particleToProductionVertexOffsets();
+    decayOff.push_back(decayOff.empty() ? 0 : decayOff.back());
+    prodOff.push_back(prodOff.empty() ? 0 : prodOff.back());
+  }
+
   struct DSU {
     std::vector<int> parent;
     std::vector<int> rank;
@@ -983,6 +1013,27 @@ public:
 
     if (!out->isConsistent()) {
       throw cms::Exception("TruthLogicalGraphProducer") << "Produced truth::Graph is not consistent";
+    }
+
+    // Record the seed species the selection ran with, so LevelFlag::Signal stays
+    // re-derivable by a reader that has only the graph.
+    out->signalSeedPdgIds() = postProcessor_.config().seedPdgIds;
+
+    // If the generator never wrote the resonance, stand one in for it so the signal level
+    // is answerable for every sample rather than only the resonant ones. Marked
+    // synthetic: no GEN and no SIM back-reference, and status 0, which no generator
+    // particle carries. It is an accounting object, not truth, and nothing may read its
+    // four-momentum as a generator quantity.
+    if (!out->signalSeedPdgIds().empty()) {
+      const bool haveSignal = std::any_of(out->particles().begin(), out->particles().end(), [](auto const& p) {
+        return p.isAtLevel(truth::LevelFlag::Signal);
+      });
+      if (!haveSignal) {
+        addSyntheticSignalNode(*out);
+        edm::LogWarning("TruthLogicalGraphProducer")
+            << "no particle matched the configured signal seeds; added a synthetic signal node standing for the "
+               "hard-process legs. Its momentum is their sum and is NOT a generator quantity.";
+      }
     }
 
     // Stamp level membership last, on the finished graph: the antichain reduction walks

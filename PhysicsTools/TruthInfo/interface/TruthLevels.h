@@ -12,9 +12,18 @@
 // particle as an ancestor, and the efficiency that came out of it was meaningless.
 //
 // The levels below are the three a tau makes obvious, and they generalise:
-//   HardProcess           the tau itself, the object the analysis names
+//   HardProcess           the OUTGOING LEGS of the hard scatter
 //   StableDecayProducts   each stable particle its decay produced
 //   CaloBoundary          each particle that actually reaches the calorimeter
+//
+// HardProcess is NOT the resonance, and the name invites that mistake. isHardProcess is
+// set on the hard-scatter participants, and the deepest-element antichain below keeps the
+// outgoing ones, so on ttbar the level holds b, b~ and the W decay products rather than
+// the two tops; on H to gamma gamma it holds the two photons, not the Higgs; on VBF it
+// holds the tagging quarks and the four neutrinos. Measured on one event of each of the
+// eleven generator templates.
+// For the resonance itself use the SIGNAL selection, whose seeds are the resonance PDG
+// ids for that generator fragment: it gives the two tops, the one Z, the one Higgs.
 // Each is a different question about the same event, so each gets its own collection and
 // its own efficiency, and none of them is more correct than the others.
 
@@ -78,6 +87,7 @@ namespace truth {
         // it is answered by stableLegsFromUpstream and never reaches here.
         return false;
       case Level::HardProcess:
+        // The hard-scatter legs, not the resonance: see the header note.
         // isHardProcess alone. Requiring isLastCopy as well made this level EMPTY for
         // every sample: the two flags are never set on the same copy, measured as 0.00
         // per event on the generator record of ttbar, DYToLL and VBFHZZ4Nu alike. The
@@ -228,8 +238,14 @@ namespace truth {
   // because a stale flag is indistinguishable from a fresh one by inspection, and the
   // only defence is that the operation is reproducible and idempotent.
   inline void fillLevelFlags(Graph& graph) {
+    // Clear only the bits this function owns. LevelFlag::Signal is set upstream, by the
+    // selection post-processing that knows the seed species, and clearing it here would
+    // silently erase the resonance.
+    constexpr uint32_t kOwned =
+        static_cast<uint32_t>(LevelFlag::StableLegsFromUpstream) | static_cast<uint32_t>(LevelFlag::HardProcess) |
+        static_cast<uint32_t>(LevelFlag::StableDecayProducts) | static_cast<uint32_t>(LevelFlag::CaloBoundary);
     for (auto& particle : graph.particles()) {
-      particle.levelFlags = 0;
+      particle.levelFlags &= ~kOwned;
     }
     for (const Level level : kAllLevels) {
       const LevelFlag flag = levelFlagOf(level);

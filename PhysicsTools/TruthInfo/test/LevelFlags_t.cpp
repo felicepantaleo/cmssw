@@ -98,6 +98,8 @@ class LevelFlags_t : public CppUnit::TestFixture {
   CPPUNIT_TEST(testFitsInThePaddingHole);
   CPPUNIT_TEST(testFlagsMatchTheAntichain);
   CPPUNIT_TEST(testIdempotent);
+  CPPUNIT_TEST(testSignalSurvivesFillLevelFlags);
+  CPPUNIT_TEST(testSyntheticSignalNodeIsMarked);
   CPPUNIT_TEST_SUITE_END();
 
 public:
@@ -148,6 +150,52 @@ public:
     for (uint32_t id = 0; id < g.nParticles(); ++id) {
       CPPUNIT_ASSERT_EQUAL(once[id], g.particles()[id].levelFlags);
     }
+  }
+
+  // REQUIRED: Signal is set by the selection post-processing, not by fillLevelFlags, so
+  // fillLevelFlags must clear only its own four bits. Clearing everything would erase the
+  // resonance and nothing downstream would notice.
+  void testSignalSurvivesFillLevelFlags() {
+    truth::Graph g = buildDecay();
+    g.particles()[0].setLevel(truth::LevelFlag::Signal);
+    truth::fillLevelFlags(g);
+    CPPUNIT_ASSERT(g.particles()[0].isAtLevel(truth::LevelFlag::Signal));
+    // and the levels it does own are still correct alongside it
+    CPPUNIT_ASSERT(g.particles()[0].isAtLevel(truth::LevelFlag::HardProcess));
+    CPPUNIT_ASSERT(!g.particles()[1].isAtLevel(truth::LevelFlag::Signal));
+  }
+
+  // REQUIRED: the synthetic stand-in is distinguishable from every real particle, since
+  // nothing may read its momentum as a generator quantity. No GEN, no SIM, status 0.
+  // This path fires on no sample in the current set, so this test is the only thing
+  // exercising it.
+  void testSyntheticSignalNodeIsMarked() {
+    truth::Graph g = buildDecay();
+    const uint32_t before = g.nParticles();
+
+    truth::ParticleData synthetic;
+    synthetic.genNode = -1;
+    synthetic.simNode = -1;
+    synthetic.status = 0;
+    synthetic.setLevel(truth::LevelFlag::Signal);
+    g.particles().push_back(synthetic);
+    g.particleToDecayVertexOffsets().push_back(g.particleToDecayVertexOffsets().back());
+    g.particleToProductionVertexOffsets().push_back(g.particleToProductionVertexOffsets().back());
+
+    CPPUNIT_ASSERT_EQUAL(before + 1, g.nParticles());
+    CPPUNIT_ASSERT(g.isConsistent());
+    auto const& s = g.particles()[before];
+    CPPUNIT_ASSERT(s.isAtLevel(truth::LevelFlag::Signal));
+    CPPUNIT_ASSERT(!s.hasGen());
+    CPPUNIT_ASSERT(!s.hasSim());
+    CPPUNIT_ASSERT_EQUAL(int16_t{0}, s.status);
+    // Every real particle in the fixture is distinguishable from it.
+    for (uint32_t id = 0; id < before; ++id) {
+      CPPUNIT_ASSERT(g.particles()[id].hasGen() || g.particles()[id].hasSim());
+    }
+    // fillLevelFlags must leave a standalone synthetic node alone apart from its own bits.
+    truth::fillLevelFlags(g);
+    CPPUNIT_ASSERT(g.particles()[before].isAtLevel(truth::LevelFlag::Signal));
   }
 };
 

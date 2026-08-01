@@ -33,6 +33,14 @@ namespace truth {
     HardProcess = 1u << 1,
     StableDecayProducts = 1u << 2,
     CaloBoundary = 1u << 3,
+    // The resonance the sample was generated for: the most upstream particles matching
+    // the selection preset's seed species. Two tops, one Z, one Higgs, ten taus.
+    //
+    // Unlike the four levels above this is NOT a pure function of the graph: it depends
+    // on the preset's seed species. That is why Graph records the seed PDG ids that
+    // produced it, so the bit stays re-derivable and the dumper audit can still check it.
+    // A graph whose recorded seeds are empty carries no Signal bits.
+    Signal = 1u << 4,
   };
 
   struct ParticleData {
@@ -55,8 +63,10 @@ namespace truth {
     // GEN connected component id from the raw TruthGraph, -1 if not applicable.
     int32_t genEvent = -1;
 
-    // Bitwise OR of the LevelFlag values this particle belongs to, filled once the graph
-    // is complete. Placed here on purpose: it occupies the four-byte alignment hole
+    // Bitwise OR of the LevelFlag values this particle belongs to. The four antichain
+    // levels are filled once the graph is complete; Signal is set earlier, by the
+    // selection post-processing that knows the seed species, and survives the graph
+    // rewrite because it travels on the particle rather than as an index. Placed here on purpose: it occupies the four-byte alignment hole
     // between genEvent and momentum, so sizeof(ParticleData) stays 96 (asserted in
     // LevelFlags_t). Zero means either "belongs to no level" or "written before this
     // member existed", which is why the flags are checkable against levelAntichain().

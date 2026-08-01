@@ -121,6 +121,10 @@ namespace truth {
     static edm::ParameterSetDescription psetDescription();
     static LogicalGraphPostProcessingConfig configFromPSet(edm::ParameterSet const& pset);
 
+    // The configuration this instance runs with, so a caller can record the seed
+    // species on the graph and keep LevelFlag::Signal re-derivable.
+    [[nodiscard]] LogicalGraphPostProcessingConfig const& config() const { return config_; }
+
     // particleDirectHit[i] != 0 marks logical particle i as carrying at least one
     // positive-energy calorimeter or tracker sim-hit on its own SimTrack. It must
     // be aligned to the input graph's particle ids; an empty vector disables the

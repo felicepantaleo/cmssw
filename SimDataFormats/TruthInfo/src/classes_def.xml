@@ -9,9 +9,10 @@
   <class name="std::vector<TruthGraph::NodeRef>"/>
   <class name="edm::Wrapper<TruthGraph>"/>
 
-  <class name="truth::Graph" ClassVersion="4">
+  <class name="truth::Graph" ClassVersion="5">
     <version ClassVersion="3" checksum="260758393"/>
     <version ClassVersion="4" checksum="2233235025"/>
+    <version ClassVersion="5" checksum="2021448332"/>
   </class>
   <class name="truth::Checkpoint" ClassVersion="3">
     <version ClassVersion="3" checksum="4215584109"/>
