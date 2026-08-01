@@ -1,396 +1,464 @@
-# Tutorial: the adaptive branch associator on single electron and single pion
+# Tutorial: the MC-truth graph, the branch associators, and reading the validation
 
-Associate reco tracksters to MC-truth-graph branches, including the **adaptive-level**
-match, on single-electron and single-pion samples in the HGCAL acceptance: no pileup,
-Run4 **D122** geometry.
+A hands-on introduction to the navigable MC-truth graph and the truth-branch associators.
+You will produce one sample from scratch, associate reco objects to truth branches,
+harvest the DQM pages and read them without fooling yourself.
 
-All commands are single-thread and need CVMFS.
+Everything here has been run end to end, and every number quoted is measured on the sample
+the commands produce. Check your output against it. If a number differs by more than a few
+percent, something in your chain is different and it is worth finding out what before
+going on.
+
+Budget: about 10 minutes of CPU on 16 threads and about 4 GB of disk.
+
+---
+
+## 0. What the graph is, in one page
+
+The old truth objects (`TrackingParticle`, `CaloParticle`, `SimCluster`) are FLAT: each is
+a frozen bundle of a particle plus its hits, and the relationships between them are gone.
+The MC-truth graph keeps the event history itself as something you can walk.
+
+Three ideas; the rest of this tutorial is mechanics.
+
+**Particles and vertices.** `truth::Graph` is bipartite: particles connected through
+production vertices. It spans GEN and SIM uniformly, so a generator particle and the
+Geant4 track it became are the same object seen at two depths.
+
+**A Branch is a view, not a product.** `truth::Branch` is a lightweight, non-owning view
+of one root particle plus a closure of its descendants. Nothing is copied. A branch has an
+energy, a set of hits, a production process and a pileup provenance, and you choose how
+deep the closure goes.
+
+**Levels are ANTICHAINS, and this matters more than anything else here.** A level is a set
+of branches where no member is an ancestor of another. That property is what makes
+counting meaningful. Against the FULL graph every ancestor trivially contains its
+descendants' hits, so every reco object matches a whole nested chain and every metric
+degenerates. The levels shipped are:
+
+| Level | What its roots are |
+|---|---|
+| `caloBoundary` | the particle crossing into the calorimeter, the `CaloParticle` analogue |
+| `stableDecayProducts` | status-1 particles with sim hits anywhere |
+| `stableLegsFromUpstream` | stable legs hanging off the selection's synthetic source vertices |
+| `hardProcess` | particles the generator flagged as the hard interaction |
+
+plus three diagnostic sets: `signal` (the preset's seed objects), `signalNoSelection` (the
+same with no kinematic cut) and `allSelectedRoots` (every root passing the selector, which
+is **not** an antichain and exists for diagnosis only).
+
+---
 
 ## 1. Release and branch
 
 ```bash
-source /cvmfs/cms.cern.ch/cmsset_default.sh
-
 cmsrel CMSSW_20_1_X_2026-07-22-2300
 cd CMSSW_20_1_X_2026-07-22-2300/src
 cmsenv
-
 git cms-init
-# One merge brings everything: truth-adaptive-associator is stacked on the
-# "MC-truth graph by default for Run4" branch, so this single topic pulls in both
-# the default-on truth graph and the adaptive associator.
+# One topic brings everything: truth-adaptive-associator is stacked on the
+# "MC-truth graph by default for Run4" work, so this pulls in both the
+# default-on truth graph and the associators.
 git cms-merge-topic felicepantaleo:truth-adaptive-associator
-
-scram b -j 8
+scram b -j 16
 ```
 
-Notes:
-
-- Do not set `SCRAM_ARCH` by hand: `cmsrel` picks the architecture matching your
-  machine. This IB is built for both `el8_amd64_gcc13` and `el9_amd64_gcc13`. If your OS
-  is not one of those, run inside the matching CMS container first, for example
-  `cmssw-el8` or `cmssw-el9`, and then follow the same commands.
-- The base MC-truth-graph packages (`SimDataFormats/TruthInfo`, `PhysicsTools/TruthInfo`)
-  are already in this IB; the merge adds the default-on wiring, the `Calo` channel
-  rename, and the adaptive associator.
-- Compile on one socket only.
-- The customise used below, `PhysicsTools/TruthInfo/python/addAdaptiveAssociator.py`,
-  ships with the branch. Nothing to create by hand.
-
-## 2. Single electron in HGCAL (no PU, D122)
-
-Three steps: GEN-SIM, DIGI (the truth graph is built here automatically by the era),
-then RECO with tracksters plus the associator.
+Check the unit tests before trusting anything you produce:
 
 ```bash
-# 2a. GEN-SIM: single electron, 1.7 < |eta| < 2.7 (HGCAL), pt 15 GeV
-cmsDriver.py SingleElectronPt15Eta1p7_2p7_cfi \
-  -s GEN,SIM -n 10 \
+cd PhysicsTools/TruthInfo && scram b runtests   # expect 8 passes
+cd ../..
+```
+
+---
+
+## 2. Produce the sample: ten taus, no pileup
+
+Workflow `34887.0`, `TenTau_E_15_500_pythia8` on Run4D122: ten taus per event between 15
+and 500 GeV. Chosen deliberately, because taus decay to one or three prongs, which is the
+cleanest way to see the difference between a truth object reconstructed **as one object**
+and one reconstructed **in pieces**.
+
+```bash
+mkdir -p tentau && cd tentau
+
+# 2a. GEN-SIM, 200 events
+cmsDriver.py TenTau_E_15_500_pythia8_cfi -s GEN,SIM -n 200 \
   --conditions auto:phase2_realistic_T35 --beamspot DBrealisticHLLHC \
-  --geometry ExtendedRun4D122 --era Phase2C26I13M9 \
   --datatier GEN-SIM --eventcontent FEVTDEBUG \
-  --fileout file:ele_step1.root
+  --geometry ExtendedRun4D122 --era Phase2C26I13M9 --relval 9000,100 \
+  --fileout file:step1.root --nThreads 16 \
+  --python_filename gensim.py --no_exec
+cmsRun gensim.py                                    # about 3 minutes
 
-# 2b. DIGI + L1 + RAW, no pileup. The truth graph and the unresolved hit index are
-#     built and persisted here BY DEFAULT (enableTruth is in the era): no extra option.
+# 2b. DIGI + L1 + RAW. The truth graph and the hit index are built and persisted
+#     HERE, by default: enableTruth is in the Phase2C17I13M9 era, which every
+#     Phase-2 geometry era inherits. There is no extra option to pass.
 cmsDriver.py step2 \
-  -s DIGI:pdigi_valid,L1TrackTrigger,L1,L1P2GT,DIGI2RAW,HLT:@relvalRun4 -n 10 \
-  --conditions auto:phase2_realistic_T35 \
-  --geometry ExtendedRun4D122 --era Phase2C26I13M9 \
-  --datatier GEN-SIM-DIGI-RAW --eventcontent FEVTDEBUGHLT \
-  --filein file:ele_step1.root --fileout file:ele_step2.root
+  -s DIGI:pdigi_valid,L1TrackTrigger,L1,L1P2GT,DIGI2RAW,HLT:@relvalRun4 \
+  --conditions auto:phase2_realistic_T35 --datatier GEN-SIM-DIGI-RAW -n 200 \
+  --eventcontent FEVTDEBUGHLT --geometry ExtendedRun4D122 --era Phase2C26I13M9 \
+  --filein file:step1.root --fileout file:step2.root --nThreads 16 \
+  --python_filename digi.py --no_exec
+cmsRun digi.py                                      # about 2.5 minutes
 
-# 2c. RECO: tracksters plus the adaptive associator
-cmsDriver.py step3 \
-  -s RAW2DIGI,L1Reco,RECO -n 10 \
-  --conditions auto:phase2_realistic_T35 \
-  --geometry ExtendedRun4D122 --era Phase2C26I13M9 \
-  --datatier GEN-SIM-RECO --eventcontent FEVTDEBUGHLT \
-  --filein file:ele_step2.root --fileout file:ele_step3.root \
-  --customise PhysicsTools/TruthInfo/addAdaptiveAssociator.addAdaptiveAssociator
+# 2c. RECO, with the associators attached by a customise
+cmsDriver.py step3 -s RAW2DIGI,L1Reco,RECO,RECOSIM,PAT -n 200 \
+  --conditions auto:phase2_realistic_T35 --datatier GEN-SIM-RECO \
+  --eventcontent FEVTDEBUGHLT --geometry ExtendedRun4D122 --era Phase2C26I13M9 \
+  --customise SimGeneral/TruthGraphAssociatorProducers/customiseTruthGraphAssociators.customiseTruthGraphAssociators \
+  --filein file:step2.root --fileout file:step3.root --nThreads 16 \
+  --python_filename reco.py --no_exec
+cmsRun reco.py                                      # about 2.5 minutes
 ```
 
-## 3. Single pion in HGCAL (no PU, D122)
-
-Same three steps with the charged-pion gun:
+Confirm the graph really crossed the DIGI boundary:
 
 ```bash
-cmsDriver.py SinglePiPt25Eta1p7_2p7_cfi \
-  -s GEN,SIM -n 10 \
-  --conditions auto:phase2_realistic_T35 --beamspot DBrealisticHLLHC \
-  --geometry ExtendedRun4D122 --era Phase2C26I13M9 \
-  --datatier GEN-SIM --eventcontent FEVTDEBUG \
-  --fileout file:pi_step1.root
-
-cmsDriver.py step2 \
-  -s DIGI:pdigi_valid,L1TrackTrigger,L1,L1P2GT,DIGI2RAW,HLT:@relvalRun4 -n 10 \
-  --conditions auto:phase2_realistic_T35 \
-  --geometry ExtendedRun4D122 --era Phase2C26I13M9 \
-  --datatier GEN-SIM-DIGI-RAW --eventcontent FEVTDEBUGHLT \
-  --filein file:pi_step1.root --fileout file:pi_step2.root
-
-cmsDriver.py step3 \
-  -s RAW2DIGI,L1Reco,RECO -n 10 \
-  --conditions auto:phase2_realistic_T35 \
-  --geometry ExtendedRun4D122 --era Phase2C26I13M9 \
-  --datatier GEN-SIM-RECO --eventcontent FEVTDEBUGHLT \
-  --filein file:pi_step2.root --fileout file:pi_step3.root \
-  --customise PhysicsTools/TruthInfo/addAdaptiveAssociator.addAdaptiveAssociator
+edmDumpEventContent step2.root | grep -iE "truthLogicalGraph|TruthGraph"
 ```
 
-## 4. What comes out
+You should see the logical graph, the unresolved hit index and the raw `TruthGraph_mix`.
+
+!!! warning "Consume, do not rebuild"
+    `truthLogicalGraphProducer` and `truthLogicalGraphHitIndexProducer` must **not** be
+    scheduled at RECO. Their products come from the DIGI file. If you see them as modules
+    in the RECO config, something is rebuilding the truth and your association will be
+    signal-only, silently.
+
+### 2d. The focused selection, optional but recommended
+
+A preset makes the logical graph a focused subgraph around the physics object you care
+about, and it is what materialises the synthetic Interaction and Upstream source vertices
+that `stableLegsFromUpstream` needs. Add this to `digi.py` before running it:
+
+```python
+from PhysicsTools.TruthInfo.truthGraphSelections import postProcessingPSet as _ppSet
+_preset = _ppSet(name='TenTau_E_15_500_pythia8_cfi')
+for _p in _preset.parameterNames_():
+    setattr(process.truthLogicalGraphProducer.postProcessing, _p, getattr(_preset, _p))
+```
+
+The fragment name is resolved automatically. For a particle gun the species word is
+matched, so `TenTau...` gives `seedPdgIds = [15, -15]`. Check it:
 
 ```bash
-edmDumpEventContent ele_step3.root | grep -i tracksterToTruthBranch
+python3 -c "
+from PhysicsTools.TruthInfo.truthGraphSelections import postProcessingPSet
+print(postProcessingPSet(name='TenTau_E_15_500_pythia8_cfi').seedPdgIds)"
 ```
 
-Four association products per trackster collection (here `ticlTrackstersCLUE3DHigh`):
+Skip this step and `signal` degenerates into `allSelectedRoots` while
+`stableLegsFromUpstream` comes out empty. Both are visible in the plots, so it is a useful
+thing to get wrong once on purpose.
 
-| Product | Meaning |
+---
+
+## 3. The association products
+
+```bash
+edmDumpEventContent step3.root | grep -i RecoToTruth | head
+```
+
+For every reco collection you get, per **working point**, one map in each direction:
+
+| Product | Direction | Payload |
+|---|---|---|
+| `<collection>RecoToTruth<WP>` | reco to truth | shared quantity, reco-normalised score |
+| `<collection>TruthToReco` | truth to reco | sim-normalised fraction, truth-normalised score |
+
+plus the denominator lists `truthToRecoTargets<Level>`, `selectedBranchRoots`,
+`signalSeeds` and `signalSeedsNoSelection`.
+
+The truth-to-reco map is written **once**, not per working point, on purpose: the truth
+target is fixed a priori by the level, so a reco-driven working point has no business
+entering it.
+
+### The four working points
+
+| Name | What it does |
 |---|---|
-| `ticlTrackstersCLUE3DHighToTruthBranch` | trackster to branch, fixed-level (every branch root) |
-| `TruthBranchToticlTrackstersCLUE3DHigh` | reverse, branch to trackster |
-| `ticlTrackstersCLUE3DHighToTruthBranchAdaptive` | trackster to its single adaptive-level branch |
-| `TruthBranchToticlTrackstersCLUE3DHighAdaptive` | reverse of the adaptive match |
+| `Fixed` | no climb. Keeps **every** matching branch root |
+| `AdaptiveTight`, `AdaptiveNominal`, `AdaptiveLoose` | climb to the single graph level that best matches the object, differing in how much branch spread they tolerate |
 
-The `...Adaptive` maps are the point of this associator. For each trackster it walks up
-the truth graph and keeps the single level minimizing
+The climb minimises `score + adaptiveReverseWeight * reverseScore`. `score` falls as the
+branch climbs, since it covers more of the reco object; `reverseScore` rises as the branch
+spreads into energy the object does not have. Levels above `adaptiveMaxReverseScore` are
+rejected. The climb never selects or crosses a bare parton, diquark, string or cluster
+node, so it stops at physical particles.
 
-```
-score + adaptiveReverseWeight * reverseScore
-```
+For a clean single particle the adaptive level is that particle. The climb earns its keep
+on a converted photon or a decay in flight, where the right answer is the merged parent
+rather than the individual daughters.
 
-`score` falls as the branch climbs (it covers more of the trackster); `reverseScore`
-rises as the branch spreads into energy the trackster does not have. Levels whose
-contamination exceeds `adaptiveMaxReverseScore` are rejected; if that empties the
-candidate set, the ceiling is ignored and the global minimum is returned. The climb is
-capped at physical particles: it never selects or crosses a bare parton, diquark,
-string/cluster node, or electroweak boson.
+`Fixed` matters beyond being a baseline: it is the only map carrying **more than one
+candidate per object**, so any measurement comparing a leading candidate against a
+runner-up must read it. An adaptive point inserts only the branch it climbed to.
 
-So for a clean single electron the adaptive level is the electron itself, and for a
-charged pion it is the pion; a converted photon or a decaying particle is where the
-climb starts to pay off, since the adaptive level is the merged parent rather than the
-individual daughters.
+---
 
-## 5. Tuning
+## 4. Run the validation
 
-Both knobs are arguments of the customise:
+Two steps, because a single-process analyze-plus-harvest job does **not** save the
+analyzer's monitor elements: the `DQMGlobalEDAnalyzer` per-run cache is not in the
+`DQMStore` that `DQMFileSaver` walks. Step A writes DQMIO, step B harvests it. Same split
+`MultiTrackValidator` and `HGCalValidator` use.
 
-```bash
---customise PhysicsTools/TruthInfo/addAdaptiveAssociator.addAdaptiveAssociator \
---customise_commands "process.tracksterToTruthBranch.adaptiveReverseWeight = 2.0; \
-process.tracksterToTruthBranch.adaptiveMaxReverseScore = 0.6"
-```
-
-- `adaptiveReverseWeight` (default 1.0): how hard the climb is penalized for spreading.
-  Larger values keep the match lower in the graph.
-- `adaptiveMaxReverseScore` (default 1.0): the contamination ceiling per level.
-
-To associate more collections, call the customise from your own snippet:
+Step A, `dqmA.py`:
 
 ```python
-from PhysicsTools.TruthInfo.addAdaptiveAssociator import addAdaptiveAssociator
-process = addAdaptiveAssociator(
-    process,
-    tracksterCollections=("ticlTrackstersCLUE3DHigh", "ticlTracksterLinks"),
-)
-```
-
-## 6. Reading the maps
-
-The products are `ticl::AssociationMap<ticl::mapWithSharedEnergyAndScore>`. Read them
-from a compiled `EDAnalyzer`: bare FWLite/cppyy cannot instantiate this template
-reliably. Each entry gives the branch key (the root particle index in the
-`truth::Graph`), the shared energy, and the normalized score.
-
-`AdaptiveAssociationDumper` ships with this branch and prints them directly:
-
-```python
-# dump.py
 import FWCore.ParameterSet.Config as cms
-process = cms.Process("DUMP")
+process = cms.Process("TRUTHDQM")
 process.load("FWCore.MessageService.MessageLogger_cfi")
+process.load("DQMServices.Core.DQMStore_cfi")
+process.load("Configuration.StandardSequences.Services_cff")
 process.source = cms.Source("PoolSource",
-                            fileNames=cms.untracked.vstring("file:ele_step3.root"))
-process.maxEvents = cms.untracked.PSet(input=cms.untracked.int32(5))
-process.d = cms.EDAnalyzer(
-    "AdaptiveAssociationDumper",
-    fixed    = cms.InputTag("tracksterToTruthBranch",
-                            "ticlTrackstersCLUE3DHighToTruthBranch"),
-    adaptive = cms.InputTag("tracksterToTruthBranch",
-                            "ticlTrackstersCLUE3DHighToTruthBranchAdaptive"),
-)
-process.p = cms.Path(process.d)
+                            fileNames=cms.untracked.vstring("file:step3.root"))
+process.maxEvents = cms.untracked.PSet(input=cms.untracked.int32(-1))
+process.options = cms.untracked.PSet(numberOfThreads=cms.untracked.uint32(16),
+                                     numberOfStreams=cms.untracked.uint32(16))
+
+# Point the trackster lists at what the INPUT FILE actually holds. A DQM-only job has
+# no scheduled TICL producer, so without this it falls back to the label registry,
+# which can list collections your menu does not schedule. Must run BEFORE the
+# associator and validation cffs are imported.
+from SimGeneral.TruthGraphAssociatorProducers.truthGraphAssociationLabels_cff import (
+    setTracksterLabelsFromProcess)
+setTracksterLabelsFromProcess(process)
+
+import Validation.TruthInfo.truthBranchValidation_cff as _tv
+for _label in ("truthBranchTrackValidator", "truthBranchVertexValidator",
+               "truthBranchSecondaryVertexValidator", "truthBranchTracksterValidator"):
+    setattr(process, _label, getattr(_tv, _label))
+process.truthBranchValidationSequence = _tv.truthBranchValidationSequence
+
+process.DQMoutput = cms.OutputModule(
+    "DQMRootOutputModule",
+    fileName=cms.untracked.string("file:dqmio.root"),
+    outputCommands=cms.untracked.vstring("drop *", "keep *_MEtoEDMConverter_*_*"),
+    splitLevel=cms.untracked.int32(0))
+process.p = cms.Path(process.truthBranchValidationSequence)
+process.e = cms.EndPath(process.DQMoutput)
 ```
+
+Step B reads that with `DQMRootSource`, runs `process.truthBranchHarvestingSequence` from
+the same cff and saves with `dqmSaver.workflow = "/TruthInfo/Validation/RECO"`. Then:
 
 ```bash
-cmsRun dump.py
+cmsRun dqmA.py    # about 25 seconds
+cmsRun dqmB.py    # about 3 seconds
+makeTruthValidationPlots.py DQM_V0001_R000000001__TruthInfo__Validation__RECO.root \
+  --outputDir plots --sample "TenTau E 15-500 GeV, no pileup, D122, 200 events"
 ```
 
-Output on a single-electron event (5 events, D122, no PU):
+About 690 plots in 16 pages, with an `index.html`.
+
+### The folder layout
 
 ```
-=== event 1 ===
-FIXED   [ticlTrackstersCLUE3DHighToTruthBranch]: 3 tracksters, 3 with >=1 match
-    trackster 0 -> branch 1  sharedEnergy=585      score=0.00340715
-    trackster 0 -> branch 7  sharedEnergy=99.4849  score=0.792751
-    ...
-    trackster 2 -> branch 0  sharedEnergy=666      score=1.3336e-16
-ADAPTIVE[ticlTrackstersCLUE3DHighToTruthBranchAdaptive]: 3 tracksters, 3 with >=1 match
-    trackster 0 -> branch 1  sharedEnergy=585      score=0.00340715
-    trackster 1 -> branch 1  sharedEnergy=46       score=0.0212766
-    trackster 2 -> branch 0  sharedEnergy=666      score=1.3336e-16
+TruthInfo/Offline/{Tracking,Vertexing,SecondaryVertexing,Calorimetry}/
+    <collection>_<level>     truth-driven: efficiency, split rate, composition
+    <collection>_<WP>        reco-driven:  fake, contaminated, purity, pileup, resolution
+TruthInfo/HLT/...            the same, for the HLT menu's own reconstruction
 ```
 
-Read it as: the FIXED map ranks every candidate branch per trackster (shared energy
-falling, score rising); the ADAPTIVE map keeps exactly **one** branch per trackster, the
-level that best matches it. A low score means a good match.
+Which family a metric lives in is not a style choice: it decides the denominator.
+Truth-driven metrics divide by a truth object and are binned in branch variables;
+reco-driven ones divide by a reco object and are binned in the reco object's own
+variables.
 
-## 7. What to expect: electron versus pion
+---
 
-Both samples were run end to end on this branch (5 events each, D122, no PU). Every
-trackster gets a match in both. What differs is the **number of candidate branches**,
-and it is worth understanding before you interpret your own plots:
+## 5. Check your output against these numbers
 
-| Sample | Distinct candidate branches per event |
-|---|---|
-| single electron | 15, 24, 19, 15, 20 |
-| single pion | 2, 2, 2, 2, 17 |
+All from the chain above, 200 events.
 
-The gun fires one particle per endcap, so **2** is the floor: one branch per primary.
+| Quantity | Expected | Why |
+|---|---|---|
+| `signal` denominator | **10.00 / event** | ten taus, exactly. The cleanest check that the selector is not eating signal |
+| `signalNoSelection` | **10.00 / event** | equal to `signal`, so the kinematic cut removed nothing |
+| `hardProcess` | **0.00** | correct, not a bug: a particle **gun** has no hard-process record, so `isHardProcess` is set on nothing |
+| `caloBoundary` | 35.34 / event | the taus' decay products entering the calorimeter |
+| forward, abs(caloeta) above 3 | 0.0% | the gun is central plus endcap |
+| reco tracks | 13.8 / event | ten taus at one or three prongs |
+| tracking fake rate | 0.0000 | at every working point |
+| mean reco purity | 0.582 Fixed to **0.994** AdaptiveNominal | where the adaptive climb pays |
 
-- The **electron** radiates bremsstrahlung in the tracker. Those photons cross the
-  tracker-calorimeter boundary themselves, so each becomes its own branch root, and one
-  electron produces a whole family of candidate branches. This is why the electron
-  tracksters have long ranked candidate lists.
-- The **pion** in events 1 to 4 crosses the boundary as a single particle and showers
-  *inside* the calorimeter. Its shower daughters are created past the boundary, so they
-  are not roots: they are subgraph hits of the pion branch. Hence exactly 2 branches.
-  Event 5 (17 branches) is the interesting case: a pion that interacted early, upstream
-  of the calorimeter, so its secondaries crossed the boundary and became roots.
+If `hardProcess` is empty, that is the expected answer here, and a good illustration that
+the level means what it says: on ttbar, DY and VBF it gives 5.73, 1.51 and 6.00 per event.
 
-Consequence for the adaptive level: for a clean single particle the adaptive match
-coincides with the best fixed-level match, because there is nothing to climb to. The
-adaptive climb earns its keep in **merged** topologies, where several roots belong to
-one physical object and the right label is their common parent (a pi0 whose two photons
-are separate roots, an electron plus its brem photons, an early pion interaction). Test
-it there, not on a clean pion.
+---
 
-## 8. Checking the truth-to-rechit match per calorimeter
+## 6. Reading the reco-side pages: four different questions
 
-The association matches truth to reco by `DetId`, so it only works where the hit index
-stores the same `DetId` the reco rechits use. `CaloRecHitMatchAnalyzer` checks exactly
-that, per calorimeter: it reports how many index cells, and how much index sim energy,
-are found in the HGCAL, ECAL barrel and HBHE reco rechit collections.
+| Page | Formula | Question |
+|---|---|---|
+| `fakerate` | `1 - num_assoc(recoToSim)/num_reco` | does the object correspond to **any** truth branch |
+| `contaminated` | `1 - num_assoc_strict/num_reco` | does its best candidate pass the 0.6 recoToSim score, HGCalValidator's non-fake cut. Calorimetry only |
+| `recopurity` | `num_recopurity/num_reco` | how much of the object belongs to the branch it matched, as a **mean** |
+| `pileuprate` | `num_pileup/num_reco` | is the matched branch an overlaid interaction |
 
-```python
-# calomatch.py
-import FWCore.ParameterSet.Config as cms
-process = cms.Process("CALOMATCH")
-process.load("FWCore.MessageService.MessageLogger_cfi")
-process.source = cms.Source("PoolSource",
-                            fileNames=cms.untracked.vstring("file:pi_step3.root"))
-process.maxEvents = cms.untracked.PSet(input=cms.untracked.int32(3))
-process.m = cms.EDAnalyzer("CaloRecHitMatchAnalyzer")
-process.p = cms.Path(process.m)
+Each has its **own numerator**. Merging any two is how this package produced its two worst
+bugs, both in section 8.
+
+!!! warning "`fakerate` and `contaminated` are different questions"
+    The recoToSim score is normalised against the cell's **total** truth energy
+    (`recoEnergy = fraction * cellTotalEnergy`), so at PU200 a cell shared with overlaid
+    interactions drives it towards 1 even for a well matched object. Measured on ttbar
+    PU200, `ticlCandidate` / AdaptiveNominal: **73.8%** of tracksters fail the 0.6 cut
+    while only **2.2%** have no candidate at all. Say "fake" only for the second.
+
+### Exercise 1
+
+The tracking fake rate is **identical at all four working points**, while the mean purity
+climbs from 0.58 to 0.99. Explain why before reading on.
+
+> The climb changes **which** branch an object matches, not **whether** it matches one, so
+> the adaptive gain must land on the purity page and cannot appear on the fake page. Use
+> it as a control: a fake rate that moves with the working point means the association
+> gained or lost candidates, and that needs explaining.
+
+### Exercise 2
+
+At PU200 the tracking fake rate is 0.000 to 0.006, **lower** than the 0.003 to 0.010 with
+no pileup at all. Did reconstruction improve by adding 200 interactions?
+
+> No, the metric **saturates**. With 200 interactions the truth graph is dense enough that
+> nearly every reco object overlaps something, so "matched to nothing" stops
+> discriminating. At PU200 read the pileup rate (0.93 to 0.96) and the purity (0.10 to
+> 0.63) instead. Before quoting any rate sitting at 0 or 1, ask whether its definition can
+> still vary in that regime. A saturated metric and a perfect detector draw the same plot.
+
+---
+
+## 7. Reading the truth-side pages: individual against cumulative
+
+On the efficiency page each level is drawn as a pair:
+
+- **individual**, filled and solid: a **single** reco object covered the truth object.
+- **cumulative**, open and dashed: all reco objects of the collection **together** cover it.
+
+A tau decaying to three pions is reconstructed as three tracksters, so it is individually
+LOST and cumulatively FOUND. The gap between the two curves is exactly the `splitrate`
+page, and the two must agree bin by bin, because the outcomes are mutually exclusive:
+
+```
+individual + duplicate + split + lost = 1     so     cumulative = individual + split
 ```
 
-```bash
-cmsRun calomatch.py
-```
+Split rate at `caloBoundary`, measured:
 
-Output on a 100 GeV pion in the HGCAL acceptance:
+| Sample | tracking | ticlCandidate |
+|---|---|---|
+| **TenTau no-PU** | **0.086** | **0.071** |
+| ttbar no-PU | 0.066 | 0.035 |
+| DY no-PU | 0.005 | 0.016 |
 
-```
-=== event 1: reco rechits  HGCAL=21278  ECAL(EB)=1419  HCAL(HBHE)=4
-    HGCAL EE  : cells 3800/4444 (85.5%)   simE 3.3966/3.4389 (98.8%)
-    HGCAL HSi : cells  643/906  (71.0%)   simE 0.2103/0.2211 (95.1%)
-    HGCAL HSc : cells   47/922  ( 5.1%)   simE 0.0779/0.0977 (79.7%)
-```
+TenTau opens the widest gap, which is the whole reason to run it; DY, whose Z goes to two
+leptons, is flattest. If your gap and your split rate ever disagree, that is a
+classification bug, not a tuning question.
 
-**Read the energy column, not the cell column.** A calorimeter cell with a sim deposit
-below the rechit threshold has no rechit to match, and single-particle showers leave a
-large tail of such cells: that is why the cell fractions are much lower than the energy
-fractions everywhere, including channels that are perfectly healthy. A channel is
-working when the matched sim ENERGY is high (about 80% or more); a channel whose energy
-fraction is near zero **while it holds real energy** is a genuine `DetId` mismatch.
+!!! note "`num_duplicate` is absent from calorimetric folders"
+    The duplicate outcome needs two reco objects each below
+    `maxSimToRecoScoreForDuplicate` on the **same** branch, and two objects built from
+    **disjoint** layer clusters have scores summing to at least one. Measured on 200 no-PU
+    ttbar events, `ticlCandidate`, `ticlTrackstersCLUE3DHigh` and `ticlTracksterLinks`
+    each use every layer cluster in at most one trackster. This diverges deliberately from
+    HGCalValidator, which books the plot; the split rate carries the pathology instead.
 
-Choose a sample that puts energy where you want to test. An endcap particle exercises
-HGCAL but leaves ECAL barrel and HCAL essentially empty, so their fractions there are
-meaningless; a barrel particle (for instance `SinglePiPt100_pythia8_cfi` with
-`process.generator.PGunParameters.MinEta = -1.0` and `MaxEta = 1.0`) exercises ECAL
-barrel and HCAL. Reference values measured on D122 with no pileup: HGCAL EE 99%, HGCAL
-HSi 95 to 98%, HGCAL HSc 80 to 92%, ECAL barrel 90 to 98%, HCAL barrel 89 to 92%.
+---
 
-## Notes and caveats
+## 8. How not to fool yourself
 
-- **No pileup**: the DIGI step has no `--pileup`, so these are clean single-particle
-  events. The truth graph is still built, from the signal `g4SimHits`.
-- **Truth scope**: the default is the full detector (calo + MTD + muon + tracker). This
-  associator uses only the `Calo` channel, so the scope does not change its result.
-- **Consume, do not rebuild**: `truthLogicalGraphProducer` and
-  `truthLogicalGraphHitIndexProducer` are NOT scheduled at RECO; their products come
-  from the DIGI file. If you see them as modules in the RECO config, something is
-  rebuilding the truth and the association will be signal-only.
-- **Validation state**: both chains, single electron and single pion, have been run end
-  to end on this branch (5 events each, D122, no PU): all steps exit 0, the four
-  association products are written, and the maps are populated (every trackster matched,
-  exactly one adaptive branch each). Build and unit tests pass.
+Three mistakes, all real, all expensive, all of which produced numbers that looked
+perfectly plausible. This is the most useful section here.
 
-## 9. Reading the validation plots without fooling yourself
+### 8a. Three histogram calls, three different answers
 
-The standalone customise above is the teaching path. The PRODUCTION path is
-`SimGeneral/TruthGraphAssociatorProducers/truthGraphAssociators_cff`, which runs the same
-associator over four working points at once, `Fixed`, `AdaptiveTight`,
-`AdaptiveNominal`, `AdaptiveLoose`, and writes `<collection>RecoToTruth<WP>` plus one
-`<collection>TruthToReco`. `Validation/TruthInfo` turns those into DQM pages. Everything
-below is about reading those pages, and every number is measured on 200 events.
+- `GetEntries()` counts how many times `Fill` was called and ignores weights entirely.
+- `Integral()` sums bin contents in the **visible** range and **drops** underflow and overflow.
+- a bin-content sum adds **weights**, which are not counts.
 
-`Fixed` is not a working point in the usual sense: it is the climb-free match that keeps
-EVERY candidate branch. That makes it the only map carrying more than one candidate per
-object, which matters in the last subsection.
+**Incident one.** A DY `signal` denominator read 0.57 objects per event where it must be
+exactly 1, one Z. A Z produced at rest has pt about 0 and therefore abs(eta) going to
+infinity, so it sits in the **overflow** bin, which `Integral()` excludes. Four rounds
+were lost and the correct hypothesis was killed twice by that one bad reading. Use
+`GetEntries()` when you mean "how many objects".
 
-### The four reco-side metrics are four different questions
+**Incident two.** A fake rate read 0.83 where it is 0.003, because the matched numerator
+was filled with the purity as a **weight** and then read as a count, making the fake page
+one minus the mean purity. The tell was `GetEntries()` disagreeing with the bin sum: 84
+unmatched objects by count against about 21000 by summed weight. A second tell was the
+shape, since the rate **rose** with pt, which no fake-rate mechanism explains but low
+purity at high pt does.
 
-| Page | Question | ttbar no-PU | ttbar PU200 |
-|---|---|---|---|
-| `fakerate` | does the object correspond to ANY truth branch | 0.18 | 0.022 |
-| `contaminated` | does its best candidate pass the 0.6 recoToSim score, HGCalValidator's non-fake cut | 0.63 | 0.738 |
-| `recopurity` | how much of the object belongs to the branch it matched, as a mean | 0.28 to 0.97 | 0.10 to 0.73 |
-| `pileuprate` | is the matched branch an overlaid interaction | 0 | 0.93 |
+Habit to form: on any numerator, compare `GetEntries()` against the bin sum. For an
+unweighted histogram they agree by construction, so a disagreement **is** the diagnosis.
 
-`fakerate` and `contaminated` are NOT the same question and the numbers are far apart on
-purpose. The recoToSim score is normalised against the cell's TOTAL truth energy, so at
-PU200 a cell shared with overlaid interactions drives it towards 1 even for an object that
-is matched perfectly well. On ttbar PU200, 73.8% of tracksters fail the 0.6 cut while only
-2.2% have no candidate at all. Quote `fakerate` when you mean "reconstructed something
-that is not there" and `contaminated` when you mean "shares its cells with other truth",
-and never call the second one a fake rate.
+### 8b. Antichains, again
 
-Reading exercise: `fakerate` is IDENTICAL at all four working points, while `recopurity`
-climbs from 0.28 at Fixed to 0.97 at AdaptiveNominal. Convince yourself why before reading
-on. The climb changes WHICH branch an object matches, not WHETHER it matches one, so the
-adaptive gain has to appear on the purity page and cannot appear on the fake page. If you
-ever see the fake rate move with the working point, the association gained or lost
-candidates and that is the thing to explain.
+A fake by dominance is a natural physicist's definition: an object whose hits come from
+many DIFFERENT generated particles with none dominating. Two monitor elements measure it,
+`leading_truth_share` and `dominance_ratio`, leading over runner-up.
 
-### A rate pinned to an extreme is usually saturation, not perfection
-
-The PU200 tracking fake rate is 0.000 to 0.006, LOWER than the same quantity with no
-pileup. Reconstruction did not improve by adding 200 interactions. With that many
-interactions the truth graph is dense enough that nearly every reco object overlaps
-SOMETHING, so "matched to nothing" stops being able to discriminate. At PU200 read the
-pileup rate and the purity instead. Before reporting any rate that sits at 0 or 1, ask
-whether its definition can still vary in that regime.
-
-### Three histogram calls, three different answers
-
-The single most expensive mistake in this package was reading a monitor element wrongly,
-twice. Learn the three calls:
-
-- `GetEntries()` counts how many times Fill was called, and ignores weights entirely.
-- `Integral()` sums bin contents in the VISIBLE range and DROPS underflow and overflow.
-- a bin-content sum adds WEIGHTS, which are not counts.
-
-Both incidents:
-
-1. A DY signal denominator read 0.57 objects per event where it must be exactly 1, one Z.
-   A Z produced at rest has pt about 0 and therefore |eta| going to infinity, so it sits
-   in the OVERFLOW bin, which `Integral()` excludes. Use `GetEntries()` when you mean
-   "how many objects".
-2. A fake rate read 0.83 where it is 0.003, because the matched numerator was filled with
-   the purity as a WEIGHT and then read as a count, making the fake page one minus the
-   mean purity. The tell was `GetEntries()` disagreeing with the bin sum: 84 unmatched by
-   count against about 21000 by summed weight. Cross-check any numerator that way.
-
-### Antichains: why a "fake by dominance" needs a level, not the full root set
-
-A physicist's definition of a calorimetric fake is an object whose hits come from many
-DIFFERENT generated particles with none dominating. Two monitor elements measure that,
-`leading_truth_share` and `dominance_ratio` (leading over runner-up).
-
-They must be computed over an ANTICHAIN, a set of branches where none is an ancestor of
-another. `selectedBranchRoots` is NOT one: it is every particle passing the selector, so a
-tau, its daughter pion and that pion's descendants are all candidates simultaneously and
-their subgraphs NEST, each carrying nearly the same shared energy. The leader then gets
-compared against its own child.
-
-The control that exposes it is no-PU TenTau, where ten isolated taus in an otherwise empty
-detector must give one overwhelming winner per trackster:
+They must be computed over an antichain. `selectedBranchRoots` is **not** one, so a tau,
+its daughter pion and that pion's descendants are candidates simultaneously with
+**nested** subgraphs carrying nearly identical shared energy, and the leader gets compared
+against its own child. The control is this very sample, where ten isolated taus must give
+one overwhelming winner:
 
 | candidate set | median leading share | fraction with ratio near 1 |
 |---|---|---|
-| `selectedBranchRoots` (nested) | 0.26 | 0.999 |
-| `caloBoundary` antichain | 0.98 | 0.064 |
+| `selectedBranchRoots`, nested | 0.26 | 0.999 |
+| `caloBoundary`, antichain | **0.98** | 0.064 |
 
-A number that moves like that between two definitions is not a threshold to be tuned, it
-is a bug to be fixed. The validator parameter is `dominanceLevel`, default `caloBoundary`,
-the particles entering the calorimeter, which is what "different generated particles"
-means for a calorimetric object.
+A number that moves like that between two definitions is not a threshold to tune, it is a
+bug to fix. The parameter is `dominanceLevel`, default `caloBoundary`.
 
-Open question, deliberately left open in the code: caloBoundary is 113 per event at PU200
-against 99.7 with no pileup, only about 14 extra from 200 interactions, because the branch
-selector's 1 GeV floor removes nearly all soft pileup. So the dominance measure asks "does
-one particle above 1 GeV dominate" and never sees soft-PU mush, while a trackster built
-entirely from sub-GeV pileup has no candidate at all and is already counted by `fakerate`.
-No threshold is set in code; choosing one is a physics decision.
+No dominance threshold is set in code, deliberately. `caloBoundary` is 113 per event at
+PU200 against 99.7 with no pileup, only about 14 extra from 200 interactions, because the
+selector's 1 GeV floor removes nearly all soft pileup. So the measure asks "does one
+particle above 1 GeV dominate" and never sees soft-PU mush, while a trackster built
+entirely from sub-GeV pileup has no candidate and is already counted by `fakerate`.
+Choosing a threshold is a physics decision.
+
+### 8c. Match the code that made the file
+
+The graph is built at **DIGI**. A change to the graph producer, the pruning scope or the
+sub-event id therefore cannot be repaired by re-running the validation: you must re-run
+step2. A change to the selector, the levels, the associators or the validators runs in the
+DQM step, so re-harvesting an existing RECO file **is** the full chain for those.
+
+Not academic. Three PU200 samples were once compared where two carried a graph built
+before a pruning fix and one after. It showed as `stableDecayProducts` reading 175 per
+event in one and 7640 in the others, and tracking efficiency 0.690 against 0.008. Always
+put your samples side by side before believing any single one.
+
+---
+
+## 9. Where to look next
+
+- `PhysicsTools/TruthInfo/interface/Branch.h` for the closure specifications:
+  `subtree`, `stableLeaves`, `depth(n)`, `untilPdgId`, `predicate`.
+- `PhysicsTools/TruthInfo/src/BranchHitAssociator.cc` for the scores, in particular how
+  `simFraction` is normalised, which is what section 6 is about.
+- `Validation/TruthInfo/python/truthBranchValidation_cff.py`: one entry in `_domains` is
+  all it takes to add a reco domain. Folder names, harvester subdirectories and every
+  ratio string are derived from it.
+- `SimGeneral/TruthGraphAssociatorProducers/plugins/TruthBranchAssociationDumper.cc` when
+  you need to know what is actually **in** a map rather than whether it exists.
+
+## Notes and caveats
+
+- **No pileup** in this tutorial. The truth graph is still built, from the signal
+  `g4SimHits`. With pileup, `collapsePileupGen` keeps each overlaid interaction's stable
+  status-1 GEN particles on one collapsed vertex **plus** the full SIM continuation; only
+  the intermediate GEN decay chain is dropped.
+- **Truth scope** defaults to the full detector: calo, MTD, muon and tracker. The
+  calorimetric associator uses only the `Calo` channel, so the scope does not change its
+  result. `customiseTruthReduced` drops the tracker, the largest sim-hit family.
+- **A/B a parameter cheaply.** `maxRecoToSimScore`, `minSharedEnergyFractionForIndividual`
+  and `dominanceLevel` are all **validator** parameters, so you can clone the DQM config,
+  change one and re-run step A only, holding the graph, the hits and the associators
+  bit-identical. Far cheaper than a rebuild, and it is how the 73.8%-against-2.2% split in
+  section 6 was established.
