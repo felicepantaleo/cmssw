@@ -22,6 +22,7 @@
 #define PhysicsTools_TruthInfo_interface_TruthLevels_h
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -45,6 +46,21 @@ namespace truth {
       return Level::CaloBoundary;
     throw std::runtime_error("unknown truth level '" + name +
                              "', expected hardProcess, stableDecayProducts or caloBoundary");
+  }
+
+  // Inverse of levelFromName, so a log line and a configuration string use one spelling.
+  [[nodiscard]] inline std::string levelName(Level level) {
+    switch (level) {
+      case Level::StableLegsFromUpstream:
+        return "stableLegsFromUpstream";
+      case Level::HardProcess:
+        return "hardProcess";
+      case Level::StableDecayProducts:
+        return "stableDecayProducts";
+      case Level::CaloBoundary:
+        return "caloBoundary";
+    }
+    return "unknown";
   }
 
   namespace detail {
@@ -183,6 +199,46 @@ namespace truth {
       }
     }
     return antichain;
+  }
+
+  // The persisted bit for a level. Kept next to the Level enum so adding a level forces
+  // the author past this switch, which has no default for that reason.
+  [[nodiscard]] inline LevelFlag levelFlagOf(Level level) {
+    switch (level) {
+      case Level::StableLegsFromUpstream:
+        return LevelFlag::StableLegsFromUpstream;
+      case Level::HardProcess:
+        return LevelFlag::HardProcess;
+      case Level::StableDecayProducts:
+        return LevelFlag::StableDecayProducts;
+      case Level::CaloBoundary:
+        return LevelFlag::CaloBoundary;
+    }
+    return LevelFlag::CaloBoundary;
+  }
+
+  inline constexpr std::array<Level, 4> kAllLevels = {
+      Level::StableLegsFromUpstream, Level::HardProcess, Level::StableDecayProducts, Level::CaloBoundary};
+
+  // Stamp every particle with the levels it belongs to. Call once, on the COMPLETE graph:
+  // levelAntichain walks ancestors and descendants, so a graph still being assembled
+  // gives an antichain of whatever existed at the time.
+  //
+  // Clears first, so calling it twice is the same as calling it once. That matters
+  // because a stale flag is indistinguishable from a fresh one by inspection, and the
+  // only defence is that the operation is reproducible and idempotent.
+  inline void fillLevelFlags(Graph& graph) {
+    for (auto& particle : graph.particles()) {
+      particle.levelFlags = 0;
+    }
+    for (const Level level : kAllLevels) {
+      const LevelFlag flag = levelFlagOf(level);
+      for (const uint32_t id : levelAntichain(graph, level)) {
+        if (id < graph.nParticles()) {
+          graph.particles()[id].setLevel(flag);
+        }
+      }
+    }
   }
 
 }  // namespace truth

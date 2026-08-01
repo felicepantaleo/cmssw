@@ -24,6 +24,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
+#include <sstream>
 #include <vector>
 
 #include "FWCore/Framework/interface/Event.h"
@@ -38,6 +39,8 @@
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
 
 #include "DataFormats/Math/interface/LorentzVector.h"
+
+#include "PhysicsTools/TruthInfo/interface/TruthLevels.h"
 
 #include "SimDataFormats/Track/interface/SimTrackContainer.h"
 #include "SimDataFormats/Vertex/interface/SimVertexContainer.h"
@@ -319,6 +322,7 @@ public:
         hepmc3Token_(mayConsume<edm::HepMC3Product>(cfg.getParameter<edm::InputTag>("genEventHepMC3"))),
         hepmc2Token_(mayConsume<edm::HepMCProduct>(cfg.getParameter<edm::InputTag>("genEventHepMC"))),
         mergeGenSimVertices_(cfg.getParameter<bool>("mergeGenSimVertices")),
+        verbosity_(cfg.getUntrackedParameter<unsigned>("verbosity")),
         dropHitlessSimSubgraphs_(
             cfg.getParameter<edm::ParameterSet>("postProcessing").getParameter<bool>("dropHitlessSimSubgraphs")),
         postProcessor_(truth::TruthLogicalGraphPostProcessor::configFromPSet(
@@ -347,6 +351,9 @@ public:
     desc.add<edm::InputTag>("genEventHepMC3", edm::InputTag("generatorSmeared"));
     desc.add<edm::InputTag>("genEventHepMC", edm::InputTag("generatorSmeared"));
 
+    desc.addUntracked<unsigned>("verbosity", 0)
+        ->setComment(
+            "Above 0, log the particle and vertex counts and the size of each level antichain, once per event");
     desc.add<bool>("mergeGenSimVertices", true)
         ->setComment(
             "If true, merge production GenVertex and SimVertex only for locally one-to-one matches induced by "
@@ -978,6 +985,27 @@ public:
       throw cms::Exception("TruthLogicalGraphProducer") << "Produced truth::Graph is not consistent";
     }
 
+    // Stamp level membership last, on the finished graph: the antichain reduction walks
+    // ancestors and descendants, so anything earlier would classify a graph that the
+    // post-processor is still rewriting.
+    truth::fillLevelFlags(*out);
+
+    if (verbosity_ > 0) {
+      std::ostringstream levels;
+      for (const truth::Level level : truth::kAllLevels) {
+        const truth::LevelFlag flag = truth::levelFlagOf(level);
+        std::size_t n = 0;
+        for (auto const& particle : out->particles()) {
+          n += particle.isAtLevel(flag) ? 1 : 0;
+        }
+        levels << "  " << truth::levelName(level) << " " << n << "\n";
+      }
+      edm::LogVerbatim("TruthLogicalGraphProducer")
+          << "truth graph: " << out->nParticles() << " particles, " << out->nVertices()
+          << " vertices\nlevel membership (antichain sizes):\n"
+          << levels.str();
+    }
+
     evt.put(std::move(out));
   }
 
@@ -991,6 +1019,7 @@ private:
   std::vector<edm::EDGetTokenT<edm::PSimHitContainer>> trackerSimHitTokens_;
 
   bool mergeGenSimVertices_;
+  unsigned verbosity_ = 0;
   bool dropHitlessSimSubgraphs_;
   truth::TruthLogicalGraphPostProcessor postProcessor_;
 };

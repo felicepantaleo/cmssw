@@ -27,6 +27,7 @@
 #include "SimDataFormats/TruthInfo/interface/Graph.h"
 #include "SimDataFormats/TruthInfo/interface/LogicalGraphHitIndex.h"
 #include "PhysicsTools/TruthInfo/interface/SubgraphHitView.h"
+#include "PhysicsTools/TruthInfo/interface/TruthLevels.h"
 #include "SimDataFormats/TruthInfo/interface/TruthGraph.h"
 
 namespace {
@@ -587,6 +588,45 @@ public:
     // ------------------------------------------------------------------
     // Particle nodes
     // ------------------------------------------------------------------
+
+    // AUDIT the persisted flags against a fresh computation on the very graph being
+    // dumped. A stored flag is only trustworthy if it still agrees with the definition
+    // that produced it, and a file written before a level definition changed is
+    // indistinguishable from a fresh one by inspection. Logged, never thrown: a stale
+    // file should still be readable and should say loudly that it is stale.
+    {
+      std::size_t disagreements = 0;
+      std::ostringstream perLevel;
+      for (const truth::Level level : truth::kAllLevels) {
+        std::vector<bool> expected(g.nParticles(), false);
+        for (const uint32_t id : truth::levelAntichain(g, level)) {
+          if (id < g.nParticles()) {
+            expected[id] = true;
+          }
+        }
+        const truth::LevelFlag flag = truth::levelFlagOf(level);
+        std::size_t stored = 0, bad = 0;
+        for (uint32_t id = 0; id < g.nParticles(); ++id) {
+          const bool has = g.particles()[id].isAtLevel(flag);
+          stored += has ? 1 : 0;
+          bad += (has != expected[id]) ? 1 : 0;
+        }
+        disagreements += bad;
+        perLevel << "  " << truth::levelName(level) << " stored=" << stored
+                 << " recomputed=" << truth::levelAntichain(g, level).size() << " disagree=" << bad << "\n";
+      }
+      if (disagreements == 0) {
+        edm::LogVerbatim("TruthLogicalGraphDumper") << "levelFlags audit OK, " << g.nParticles() << " particles\n"
+                                                    << perLevel.str();
+      } else {
+        edm::LogWarning("TruthLogicalGraphDumper")
+            << "levelFlags DISAGREE with a fresh computation on " << disagreements
+            << " particle/level pairs. This graph was probably written before a level definition "
+               "changed; re-produce it rather than trusting the flags.\n"
+            << perLevel.str();
+      }
+    }
+
     for (uint32_t i = 0; i < nParticles; ++i) {
       if (hideParticle[i])
         continue;
@@ -641,6 +681,19 @@ public:
 
       os << "  p" << i << " [shape=ellipse, hasCheckpoints=" << p.hasCheckpoints() << ", hasGen=" << p.hasGen()
          << ", hasSim=" << d.hasSim();
+
+      // Level membership, straight off the persisted flags: the point of storing them is
+      // that a reader needs no knowledge of how a level is defined. Emitted as a dot
+      // attribute per level so a graphviz filter can select on it.
+      {
+        std::string levels;
+        for (const truth::Level level : truth::kAllLevels) {
+          if (d.isAtLevel(truth::levelFlagOf(level))) {
+            levels += (levels.empty() ? "" : ",") + truth::levelName(level);
+          }
+        }
+        os << ", levels=\"" << levels << "\"";
+      }
 
       if (p.hasCheckpoints()) {
         os << ", color=\"red\", penwidth=2";
