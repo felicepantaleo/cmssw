@@ -41,6 +41,23 @@ namespace truth {
     // produced it, so the bit stays re-derivable and the dumper audit can still check it.
     // A graph whose recorded seeds are empty carries no Signal bits.
     Signal = 1u << 4,
+    // The first RECONSTRUCTABLE decay products of the signal: walk down from each Signal
+    // root and stop at the first thing a detector could reconstruct as an object.
+    //
+    // That is not the same as the first generator-stable particle. A pi0 decays instantly
+    // to two photons, but it is the pi0 the analysis reconstructs, so the walk stops
+    // there and labels the pi0. A tau to three charged pions labels the three pions.
+    // Intermediate resonances the detector cannot see as objects, an a1 or a rho, are
+    // walked THROUGH and never labelled, unless their PDG id is added to the graph's
+    // reconstructablePdgIds. Neutrinos are dropped, being invisible.
+    //
+    // The pdg ids that terminate the walk are recorded on the Graph, so like Signal this
+    // level stays re-derivable by a reader that has only the graph.
+    //
+    // An antichain by construction: the walk stops at each leg, so no member can be an
+    // ancestor of another. Derived from Signal, so it inherits the same requirement that
+    // the seed species be recorded for it to stay re-derivable.
+    ReconstructableFromSignal = 1u << 5,
   };
 
   // What a particle IS, mirroring VertexRole on the vertex side. Absence of a GEN and a

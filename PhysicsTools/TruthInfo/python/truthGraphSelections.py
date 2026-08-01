@@ -206,6 +206,9 @@ def postProcessingPSet(name=None, template=None, **overrides):
     return cms.PSet(
         collapseIntermediateGenParticles=cms.bool(overrides.get("collapseIntermediateGenParticles", True)),
         seedPdgIds=cms.vint32(*s["seedPdgIds"]),
+        # Terminates the walk from the signal to its reconstructable products. pi0 by
+        # default: it decays at once to two photons but is what the analysis reconstructs.
+        reconstructablePdgIds=cms.vint32(*overrides.get("reconstructablePdgIds", [111])),
         seedHadronFlavors=cms.vint32(*s["seedHadronFlavors"]),
         seedParentDepth=cms.uint32(s["seedParentDepth"]),
         keepStableSpectators=cms.bool(s["keepStableSpectators"]),

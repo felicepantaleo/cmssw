@@ -101,6 +101,9 @@ class LevelFlags_t : public CppUnit::TestFixture {
   CPPUNIT_TEST(testSignalSurvivesFillLevelFlags);
   CPPUNIT_TEST(testSyntheticSignalNodeIsMarked);
   CPPUNIT_TEST(testConnectorIsNotAStandIn);
+  CPPUNIT_TEST(testReconstructableFromSignalDropsNeutrinos);
+  CPPUNIT_TEST(testPi0IsLabelledNotItsPhotons);
+  CPPUNIT_TEST(testThreeProngThroughAnIntermediateResonance);
   CPPUNIT_TEST_SUITE_END();
 
 public:
@@ -230,6 +233,111 @@ public:
     truth::ParticleData real;
     real.genNode = 7;
     CPPUNIT_ASSERT(!real.isSynthetic());
+  }
+
+  // REQUIRED: from a signal root, the first GEN-stable descendants, with neutrinos
+  // dropped because they cannot be reconstructed. The fixture tau decays to a pion and a
+  // neutrino, so the visible final state is the pion alone. Empty when nothing is Signal.
+  void testReconstructableFromSignalDropsNeutrinos() {
+    truth::Graph g = buildDecay();
+
+    // No Signal flag anywhere: the level is empty, not the whole event.
+    CPPUNIT_ASSERT(truth::reconstructableFromSignal(g).empty());
+
+    g.particles()[0].setLevel(truth::LevelFlag::Signal);
+    truth::fillLevelFlags(g);
+
+    const auto legs = truth::reconstructableFromSignal(g);
+    CPPUNIT_ASSERT_EQUAL(std::size_t{1}, legs.size());
+    CPPUNIT_ASSERT_EQUAL(uint32_t{1}, legs[0]);  // the pion
+    CPPUNIT_ASSERT(g.particles()[1].isAtLevel(truth::LevelFlag::ReconstructableFromSignal));
+    // the neutrino is stable but invisible, so it is not a leg
+    CPPUNIT_ASSERT(!g.particles()[2].isAtLevel(truth::LevelFlag::ReconstructableFromSignal));
+    // the tau decayed, so it is not its own leg
+    CPPUNIT_ASSERT(!g.particles()[0].isAtLevel(truth::LevelFlag::ReconstructableFromSignal));
+  }
+
+  // REQUIRED: a pi0 decays to two photons at once, but it is the pi0 the analysis
+  // reconstructs, so the pi0 is labelled and its photons are not.
+  //   p0 tau (signal) -> v0 -> p1 pi0 -> v1 -> p2 gamma, p3 gamma
+  void testPi0IsLabelledNotItsPhotons() {
+    GraphBuilder b(4, 2);
+    auto set = [&](uint32_t i, int32_t pdg, int16_t st) {
+      auto& d = b.graph.particles()[i];
+      d.genNode = 100 + i;
+      d.pdgId = pdg;
+      d.status = st;
+      d.momentum = math::XYZTLorentzVectorD(10., 0., 0., 10.);
+    };
+    set(0, 15, 2);   // tau, decays
+    set(1, 111, 2);  // pi0, decays, but reconstructable as an object
+    set(2, 22, 1);   // gamma
+    set(3, 22, 1);   // gamma
+    b.addDecay(0, 0);
+    b.addProduction(0, 1);
+    b.addDecay(1, 1);
+    b.addProduction(1, 2);
+    b.addProduction(1, 3);
+    truth::Graph g = b.finish();
+    g.reconstructablePdgIds() = {111};
+    g.particles()[0].setLevel(truth::LevelFlag::Signal);
+    truth::fillLevelFlags(g);
+
+    const auto legs = truth::reconstructableFromSignal(g);
+    CPPUNIT_ASSERT_EQUAL(std::size_t{1}, legs.size());
+    CPPUNIT_ASSERT_EQUAL(uint32_t{1}, legs[0]);
+    CPPUNIT_ASSERT(g.particles()[1].isAtLevel(truth::LevelFlag::ReconstructableFromSignal));
+    CPPUNIT_ASSERT(!g.particles()[2].isAtLevel(truth::LevelFlag::ReconstructableFromSignal));
+    CPPUNIT_ASSERT(!g.particles()[3].isAtLevel(truth::LevelFlag::ReconstructableFromSignal));
+
+    // With the pi0 NOT declared reconstructable the walk goes through it to the photons,
+    // which is the control showing the configuration is what decides, not the code.
+    g.reconstructablePdgIds().clear();
+    const auto through = truth::reconstructableFromSignal(g);
+    CPPUNIT_ASSERT_EQUAL(std::size_t{2}, through.size());
+  }
+
+  // REQUIRED: a three-prong tau decay labels the three charged pions, and the
+  // intermediate resonance they came from is walked THROUGH, never labelled.
+  //   p0 tau (signal) -> v0 -> p1 a1 -> v1 -> p2,p3,p4 pi+/-
+  void testThreeProngThroughAnIntermediateResonance() {
+    GraphBuilder b(5, 2);
+    auto set = [&](uint32_t i, int32_t pdg, int16_t st) {
+      auto& d = b.graph.particles()[i];
+      d.genNode = 100 + i;
+      d.pdgId = pdg;
+      d.status = st;
+      d.momentum = math::XYZTLorentzVectorD(10., 0., 0., 10.);
+    };
+    set(0, 15, 2);     // tau
+    set(1, 20213, 2);  // a1, an intermediate the detector never sees as an object
+    set(2, 211, 1);
+    set(3, -211, 1);
+    set(4, 211, 1);
+    b.addDecay(0, 0);
+    b.addProduction(0, 1);
+    b.addDecay(1, 1);
+    b.addProduction(1, 2);
+    b.addProduction(1, 3);
+    b.addProduction(1, 4);
+    truth::Graph g = b.finish();
+    g.reconstructablePdgIds() = {111};
+    g.particles()[0].setLevel(truth::LevelFlag::Signal);
+    truth::fillLevelFlags(g);
+
+    const auto legs = truth::reconstructableFromSignal(g);
+    CPPUNIT_ASSERT_EQUAL(std::size_t{3}, legs.size());
+    CPPUNIT_ASSERT(!g.particles()[1].isAtLevel(truth::LevelFlag::ReconstructableFromSignal));
+    for (uint32_t id : {2u, 3u, 4u}) {
+      CPPUNIT_ASSERT(g.particles()[id].isAtLevel(truth::LevelFlag::ReconstructableFromSignal));
+    }
+
+    // Adding the a1 to the configuration labels it instead of its prongs, which is the
+    // documented escape hatch.
+    g.reconstructablePdgIds() = {111, 20213};
+    const auto stopped = truth::reconstructableFromSignal(g);
+    CPPUNIT_ASSERT_EQUAL(std::size_t{1}, stopped.size());
+    CPPUNIT_ASSERT_EQUAL(uint32_t{1}, stopped[0]);
   }
 };
 

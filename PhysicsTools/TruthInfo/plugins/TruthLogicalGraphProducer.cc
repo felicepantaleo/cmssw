@@ -1020,6 +1020,7 @@ public:
     // Record the seed species the selection ran with, so LevelFlag::Signal stays
     // re-derivable by a reader that has only the graph.
     out->signalSeedPdgIds() = postProcessor_.config().seedPdgIds;
+    out->reconstructablePdgIds() = postProcessor_.config().reconstructablePdgIds;
 
     // If the generator never wrote the resonance, stand one in for it so the signal level
     // is answerable for every sample rather than only the resonant ones. Marked

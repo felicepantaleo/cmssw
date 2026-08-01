@@ -1277,6 +1277,13 @@ namespace truth {
             "GEN skeleton outside removed SIM subtrees is preserved). Requires the producer to supply the "
             "per-particle sim-hit presence (it consumes the calo/tracker sim-hit collections); a no-op otherwise.");
 
+    desc.add<std::vector<int32_t>>("reconstructablePdgIds", {111})
+        ->setComment(
+            "Species the detector reconstructs as an object even though they decay, which therefore terminate the "
+            "walk from the signal down to its reconstructable products. Defaults to the pi0: it decays to two "
+            "photons immediately, but the analysis reconstructs the pi0, so the pi0 is what gets labelled. "
+            "Intermediate resonances the detector cannot see as objects (a1, rho) are absent on purpose, so the "
+            "walk passes through them; add a pdg id here to label it instead");
     desc.add<std::vector<int32_t>>("seedPdgIds", {})
         ->setComment(
             "If non-empty, particles with these exact PDG ids seed the selection: the most upstream particle of "
@@ -1360,6 +1367,7 @@ namespace truth {
     config.collapseIntermediateGenParticles = pset.getParameter<bool>("collapseIntermediateGenParticles");
     config.dropHitlessSimSubgraphs = pset.getParameter<bool>("dropHitlessSimSubgraphs");
     config.seedPdgIds = pset.getParameter<std::vector<int32_t>>("seedPdgIds");
+    config.reconstructablePdgIds = pset.getParameter<std::vector<int32_t>>("reconstructablePdgIds");
     config.seedHadronFlavors = pset.getParameter<std::vector<int32_t>>("seedHadronFlavors");
     config.seedParentDepth = pset.getParameter<uint32_t>("seedParentDepth");
     config.keepStableSpectators = pset.getParameter<bool>("keepStableSpectators");

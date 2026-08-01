@@ -44,6 +44,8 @@ namespace {
         return "#d7f9d7";
       case truth::Level::CaloBoundary:
         return "#ffc9c9";
+      case truth::Level::ReconstructableFromSignal:
+        return "#e8d5ff";
     }
     return "#ffffff";
   }

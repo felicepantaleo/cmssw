@@ -32,6 +32,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -42,7 +43,13 @@
 
 namespace truth {
 
-  enum class Level { StableLegsFromUpstream, HardProcess, StableDecayProducts, CaloBoundary };
+  enum class Level {
+    StableLegsFromUpstream,
+    HardProcess,
+    StableDecayProducts,
+    CaloBoundary,
+    ReconstructableFromSignal
+  };
 
   [[nodiscard]] inline Level levelFromName(std::string const& name) {
     if (name == "stableLegsFromUpstream")
@@ -53,6 +60,8 @@ namespace truth {
       return Level::StableDecayProducts;
     if (name == "caloBoundary")
       return Level::CaloBoundary;
+    if (name == "reconstructableFromSignal")
+      return Level::ReconstructableFromSignal;
     throw std::runtime_error("unknown truth level '" + name +
                              "', expected hardProcess, stableDecayProducts or caloBoundary");
   }
@@ -68,6 +77,8 @@ namespace truth {
         return "stableDecayProducts";
       case Level::CaloBoundary:
         return "caloBoundary";
+      case Level::ReconstructableFromSignal:
+        return "reconstructableFromSignal";
     }
     return "unknown";
   }
@@ -98,6 +109,10 @@ namespace truth {
         // Final-state generator particles. Stable at GEN means no GEN descendant, so
         // these cannot contain one another.
         return data.hasGen() && data.status == 1;
+      case Level::ReconstructableFromSignal:
+        // Not a per-particle predicate either: it is a walk down from the signal roots,
+        // so it is answered by reconstructableFromSignal and never reaches here.
+        return false;
       case Level::CaloBoundary:
         // Recorded crossing the tracker-calorimeter boundary outward. Back-scattered
         // tracks crossed it inward and are the same particle coming back.
@@ -152,6 +167,79 @@ namespace truth {
     return legs;
   }
 
+  // Species a detector cannot reconstruct at all, so they are not part of the visible
+  // final state. Only the neutrinos today; anything else invisible would belong here.
+  [[nodiscard]] inline bool isInvisible(int32_t pdgId) {
+    const int32_t a = std::abs(pdgId);
+    return a == 12 || a == 14 || a == 16;
+  }
+
+  // The first stable, reconstructable particles the signal produced.
+  //
+  // Walk down from every Signal root and stop at the first generator-stable descendant,
+  // which is where the decay chain ends and the detector's job begins. GEN-stable
+  // terminates the walk on purpose: a stable pion still has a SIM continuation as it
+  // showers, and descending into that would return shower fragments instead of the
+  // particle the resonance actually produced.
+  //
+  // Neutrinos are dropped rather than walked through, so the result is the VISIBLE final
+  // state of the resonance. A signal root that is itself stable, a gun electron say, is
+  // its own leg.
+  //
+  // An antichain by construction: the walk stops at each leg, so no leg can be an
+  // ancestor of another. Empty when nothing carries the Signal flag.
+  [[nodiscard]] inline std::vector<uint32_t> reconstructableFromSignal(Graph const& graph) {
+    const uint32_t nParticles = graph.nParticles();
+    std::vector<uint32_t> legs;
+    std::vector<bool> seen(nParticles, false);
+    std::vector<uint32_t> stack;
+
+    for (uint32_t p = 0; p < nParticles; ++p) {
+      if (graph.particles()[p].isAtLevel(LevelFlag::Signal)) {
+        seen[p] = true;
+        stack.push_back(p);
+      }
+    }
+
+    while (!stack.empty()) {
+      const uint32_t p = stack.back();
+      stack.pop_back();
+      auto const& data = graph.particles()[p];
+
+      // Terminal three ways: the detector reconstructs this species as an object even
+      // though it decays (pi0), the generator called it stable, or the graph has nothing
+      // below it. Anything else is an intermediate the detector never sees as an object,
+      // an a1 or a rho, and the walk goes through it without labelling it.
+      // The seen mask makes this terminate on a graph with a cycle.
+      auto const& terminating = graph.reconstructablePdgIds();
+      const bool reconstructableSpecies =
+          std::find(terminating.begin(), terminating.end(), data.pdgId) != terminating.end();
+      const bool genStable = data.hasGen() && data.status == 1;
+      if (reconstructableSpecies || genStable || graph.decayVertices(p).empty()) {
+        if (!isInvisible(data.pdgId)) {
+          legs.push_back(p);
+        }
+        continue;
+      }
+
+      for (const uint32_t vertexId : graph.decayVertices(p)) {
+        if (vertexId >= graph.nVertices()) {
+          continue;
+        }
+        for (const uint32_t child : graph.outgoingParticles(vertexId)) {
+          if (child < nParticles && !seen[child]) {
+            seen[child] = true;
+            stack.push_back(child);
+          }
+        }
+      }
+    }
+
+    std::sort(legs.begin(), legs.end());
+    legs.erase(std::unique(legs.begin(), legs.end()), legs.end());
+    return legs;
+  }
+
   // The level as an antichain. Candidates that have another candidate as an ancestor are
   // dropped, so what remains is one entry per physical object at that level. The
   // membership rules above are already antichains in a well-formed graph; the check is
@@ -160,6 +248,9 @@ namespace truth {
   [[nodiscard]] inline std::vector<uint32_t> levelAntichain(Graph const& graph, Level level) {
     if (level == Level::StableLegsFromUpstream) {
       return stableLegsFromUpstream(graph);
+    }
+    if (level == Level::ReconstructableFromSignal) {
+      return reconstructableFromSignal(graph);
     }
     std::vector<uint32_t> candidates;
     const uint32_t nParticles = graph.nParticles();
@@ -223,12 +314,17 @@ namespace truth {
         return LevelFlag::StableDecayProducts;
       case Level::CaloBoundary:
         return LevelFlag::CaloBoundary;
+      case Level::ReconstructableFromSignal:
+        return LevelFlag::ReconstructableFromSignal;
     }
     return LevelFlag::CaloBoundary;
   }
 
-  inline constexpr std::array<Level, 4> kAllLevels = {
-      Level::StableLegsFromUpstream, Level::HardProcess, Level::StableDecayProducts, Level::CaloBoundary};
+  inline constexpr std::array<Level, 5> kAllLevels = {Level::StableLegsFromUpstream,
+                                                      Level::HardProcess,
+                                                      Level::StableDecayProducts,
+                                                      Level::CaloBoundary,
+                                                      Level::ReconstructableFromSignal};
 
   // Stamp every particle with the levels it belongs to. Call once, on the COMPLETE graph:
   // levelAntichain walks ancestors and descendants, so a graph still being assembled
