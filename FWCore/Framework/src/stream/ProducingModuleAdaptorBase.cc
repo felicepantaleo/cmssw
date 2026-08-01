@@ -12,6 +12,8 @@
 
 // system include files
 #include <cassert>
+#include <cstdlib>
+#include <string_view>
 
 // user include files
 #include "FWCore/Framework/interface/stream/ProducingModuleAdaptorBase.h"
@@ -24,6 +26,7 @@
 #include "FWCore/Framework/interface/TransitionInfoTypes.h"
 #include "FWCore/Framework/interface/EventForTransformer.h"
 #include "FWCore/Framework/interface/ModuleConsumesMinimalESInfo.h"
+#include "FWCore/MessageLogger/interface/MessageLogger.h"
 #include "FWCore/ServiceRegistry/interface/ESParentContext.h"
 #include "FWCore/ServiceRegistry/interface/ModuleConsumesInfo.h"
 
@@ -45,6 +48,16 @@ namespace edm {
 
     template <typename T>
     ProducingModuleAdaptorBase<T>::~ProducingModuleAdaptorBase() {
+      // Prototype telemetry: with CMSSW_ELASTIC_GATE_REPORT set, report where each
+      // module's gate converged so the tuned limits can be compared with the
+      // occupancy predicted from a timing run.
+      if (m_gate and std::getenv("CMSSW_ELASTIC_GATE_REPORT") != nullptr) {
+        edm::LogSystem("ElasticGate") << "elasticgate " << moduleDescription_.moduleLabel() << " limit "
+                                      << m_gate->concurrencyLimit() << " max " << m_gate->maxConcurrency() << " demand "
+                                      << m_gate->policy().demandEstimate() << " invocations "
+                                      << m_gate->policy().invocations() << " inline " << m_gate->inlineRuns()
+                                      << " queued " << m_gate->queuedRuns();
+      }
       for (auto m : m_streamModules) {
         delete m;
       }
@@ -68,6 +81,30 @@ namespace edm {
       setupStreamModules();
       preallocRuns(iPrealloc.numberOfRuns());
       preallocLumis(iPrealloc.numberOfLuminosityBlocks());
+      // No more invocations than streams can ever be in flight, so that is the cap.
+      // Prototype escape hatch: CMSSW_ELASTIC_GATE=0 restores the ungated path so
+      // that a gated and an ungated job can be compared from the same build.
+      const char* const disable = std::getenv("CMSSW_ELASTIC_GATE");
+      if (disable == nullptr or std::string_view{disable} != "0") {
+        ModulePoolPolicy::Config config;
+        // Prototype knob: scan the headroom without rebuilding.
+        if (const char* const h = std::getenv("CMSSW_ELASTIC_HEADROOM"); h != nullptr) {
+          const double parsed = std::atof(h);
+          if (parsed > 0.) {
+            config.headroom = parsed;
+          }
+        }
+        if (const char* const f = std::getenv("CMSSW_ELASTIC_MIN_SLOTS"); f != nullptr) {
+          const int parsed = std::atoi(f);
+          if (parsed > 0) {
+            config.minInstances = static_cast<unsigned int>(parsed);
+          }
+        }
+        if (std::getenv("CMSSW_ELASTIC_NEVER_LIMIT") != nullptr) {
+          config.neverLimit = true;
+        }
+        m_gate = std::make_unique<ElasticGate>(iPrealloc.numberOfStreams(), config);
+      }
     }
 
     template <typename T>

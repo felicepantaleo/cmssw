@@ -20,7 +20,9 @@
 
 // system include files
 #include <array>
+#include <atomic>
 #include <map>
+#include <memory>
 #include <string>
 #include <vector>
 #include <unordered_map>
@@ -42,6 +44,7 @@
 #include "FWCore/Framework/interface/Run.h"
 #include "FWCore/Framework/interface/LuminosityBlock.h"
 #include "FWCore/ServiceRegistry/interface/ServiceRegistryfwd.h"
+#include "FWCore/Concurrency/interface/ElasticGate.h"
 
 // forward declarations
 
@@ -162,6 +165,11 @@ namespace edm {
 
       void deleteModulesEarly();
 
+      // Bounds how many streams run this module at once. Starts at one slot, moves
+      // to what the observed load justifies, capped at the stream count, and falls
+      // back to one at each new run. Available once doPreallocate has run.
+      ElasticGate* elasticGate() noexcept { return m_gate.get(); }
+
     private:
       void doPreallocate(PreallocationConfiguration const&);
       virtual void preallocRuns(unsigned int) {}
@@ -197,6 +205,8 @@ namespace edm {
       // ---------- member data --------------------------------
       void setModuleDescription(ModuleDescription const& md) { moduleDescription_ = md; }
       ModuleDescription moduleDescription_;
+
+      std::unique_ptr<ElasticGate> m_gate;
 
     protected:
       std::vector<T*> m_streamModules;

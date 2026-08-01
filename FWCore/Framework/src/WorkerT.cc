@@ -608,6 +608,17 @@ namespace edm {
   Worker::TaskQueueAdaptor WorkerT<limited::OutputModuleBase>::serializeRunModule() {
     return &(module_->queue());
   }
+  // Stream modules keep one instance per stream, so the gate does not protect the
+  // instance. It bounds how many streams are inside the module at once, tuned to
+  // the load, which bounds the peak of any resource acquired per invocation.
+  template <>
+  Worker::TaskQueueAdaptor WorkerT<stream::EDProducerAdaptorBase>::serializeRunModule() {
+    return module_->elasticGate();
+  }
+  template <>
+  Worker::TaskQueueAdaptor WorkerT<stream::EDFilterAdaptorBase>::serializeRunModule() {
+    return module_->elasticGate();
+  }
 
   template <>
   Worker::Types WorkerT<edm::one::EDProducerBase>::moduleType() const {

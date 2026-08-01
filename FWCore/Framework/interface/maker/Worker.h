@@ -44,6 +44,7 @@ the worker is reset().
 #include "FWCore/ServiceRegistry/interface/ServiceRegistryfwd.h"
 #include "FWCore/Concurrency/interface/SerialTaskQueueChain.h"
 #include "FWCore/Concurrency/interface/LimitedTaskQueue.h"
+#include "FWCore/Concurrency/interface/ElasticGate.h"
 #include "FWCore/Concurrency/interface/FunctorTask.h"
 #include "FWCore/Utilities/interface/Exception.h"
 #include "FWCore/Utilities/interface/ConvertException.h"
@@ -91,19 +92,25 @@ namespace edm {
     struct TaskQueueAdaptor {
       SerialTaskQueueChain* serial_ = nullptr;
       LimitedTaskQueue* limited_ = nullptr;
+      ElasticGate* elastic_ = nullptr;
 
       TaskQueueAdaptor() = default;
       TaskQueueAdaptor(SerialTaskQueueChain* iChain) : serial_(iChain) {}
       TaskQueueAdaptor(LimitedTaskQueue* iLimited) : limited_(iLimited) {}
+      TaskQueueAdaptor(ElasticGate* iElastic) : elastic_(iElastic) {}
 
-      operator bool() { return serial_ != nullptr or limited_ != nullptr; }
+      operator bool() { return serial_ != nullptr or limited_ != nullptr or elastic_ != nullptr; }
+
+      ElasticGate* elastic() const { return elastic_; }
 
       template <class F>
       void push(oneapi::tbb::task_group& iG, F&& iF) {
         if (serial_) {
           serial_->push(iG, iF);
-        } else {
+        } else if (limited_) {
           limited_->push(iG, iF);
+        } else {
+          elastic_->push(iG, iF);
         }
       }
     };
@@ -427,6 +434,18 @@ namespace edm {
 
         if (not excptr) {
           if (auto queue = m_worker->serializeRunModule()) {
+            if constexpr (T::isEvent_) {
+              // With an acquire, the slot was reserved there and is still ours, so
+              // run produce on it directly and end the reservation afterwards
+              // instead of queueing a second time.
+              if (auto* gate = queue.elastic(); gate != nullptr and m_worker->hasAcquire()) {
+                const unsigned int streamID = m_streamID.value();
+                m_worker->template runModuleAfterAsyncPrefetch<T>(
+                    excptr, m_transitionInfo, m_streamID, m_parentContext, m_context);
+                gate->releaseSlot(streamID);
+                return;
+              }
+            }
             auto f = [worker = m_worker,
                       info = m_transitionInfo,
                       streamID = m_streamID,
@@ -520,18 +539,26 @@ namespace edm {
 
         if (not excptr) {
           if (auto queue = m_worker->serializeRunModule()) {
-            queue.push(*m_holder.group(),
-                       [worker = m_worker,
-                        info = m_eventTransitionInfo,
-                        parentContext = m_parentContext,
-                        serviceToken = m_serviceToken,
-                        holder = std::move(m_holder)]() mutable {
-                         //Need to make the services available
-                         ServiceRegistry::Operate operateRunAcquire(serviceToken.lock());
+            auto group = m_holder.group();
+            auto runAcquire = [worker = m_worker,
+                               info = m_eventTransitionInfo,
+                               parentContext = m_parentContext,
+                               serviceToken = m_serviceToken,
+                               holder = std::move(m_holder)]() mutable {
+              //Need to make the services available
+              ServiceRegistry::Operate operateRunAcquire(serviceToken.lock());
 
-                         std::exception_ptr ptr;
-                         worker->runAcquireAfterAsyncPrefetch(ptr, info, parentContext, std::move(holder));
-                       });
+              std::exception_ptr ptr;
+              worker->runAcquireAfterAsyncPrefetch(ptr, info, parentContext, std::move(holder));
+            };
+            if (auto* gate = queue.elastic()) {
+              // The module's per-stream state stays in use by the asynchronous
+              // work this acquire starts, so hold the slot until produce is done
+              // rather than releasing it when acquire returns.
+              gate->pushAndHold(*group, m_eventTransitionInfo.principal().streamID().value(), std::move(runAcquire));
+            } else {
+              queue.push(*group, std::move(runAcquire));
+            }
             return;
           }
         }
