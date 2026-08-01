@@ -116,15 +116,23 @@ namespace truth {
   }
 
   void TruthBranchHistoProducerAlgo::bookRecoHistos(dqm::implementation::IBooker& booker,
-                                                    TruthBranchHistograms& h) const {
+                                                    TruthBranchHistograms& h,
+                                                    bool calorimetric) const {
     bookRow(booker, h.h_reco, "num_reco", recoVarNames_, recoAxes_);
     bookRow(booker, h.h_assoc_recoToSim, "num_assoc(recoToSim)", recoVarNames_, recoAxes_);
     bookRow(booker, h.h_recopurity, "num_recopurity", recoVarNames_, recoAxes_);
     bookRow(booker, h.h_pileup, "num_pileup", recoVarNames_, recoAxes_);
+    if (calorimetric) {
+      bookRow(booker, h.h_assoc_strict, "num_assoc_strict", recoVarNames_, recoAxes_);
+    }
 
     h.h_score.push_back(booker.book1D("association_score", "Association score", nintScore_, minScore_, maxScore_));
     h.h_sharedQuantity.push_back(
         booker.book1D("shared_quantity", "Shared hits or energy", nintShared_, minShared_, maxShared_));
+    h.h_leadingShare.push_back(booker.book1D("leading_truth_share", "Leading truth contributor share", 50, 0., 1.));
+    h.h_dominanceRatio.push_back(
+        booker.book1D("dominance_ratio", "Leading over runner-up truth contributor", 40, 0., 20.));
+
     // Reco purity: the reco object is the denominator, on a [0, 1] axis.
     h.h_recoPurity.push_back(booker.book1D("reco_purity", "Reco purity", 50, 0., 1.));
 
@@ -198,7 +206,8 @@ namespace truth {
                                                Kinematics const& kin,
                                                bool associated,
                                                bool pileup,
-                                               double matchQuality) const {
+                                               double matchQuality,
+                                               bool strictMatch) const {
     const auto values = kin.asVector();
     for (std::size_t v = 0; v < recoVars_.size(); ++v) {
       const double x = values[recoVars_[v]];
@@ -209,6 +218,9 @@ namespace truth {
       }
       if (pileup) {
         h.h_pileup[i][v]->Fill(x);
+      }
+      if (strictMatch && !h.h_assoc_strict.empty()) {
+        h.h_assoc_strict[i][v]->Fill(x);
       }
     }
   }
@@ -228,6 +240,17 @@ namespace truth {
     if (duplicate && !h.h_duplicate_reason.empty()) {
       h.h_duplicate_reason[i]->Fill(bin);
     }
+  }
+
+  void TruthBranchHistoProducerAlgo::fill_dominance(TruthBranchHistograms const& h,
+                                                    std::size_t i,
+                                                    double leadingShare,
+                                                    double dominanceRatio) const {
+    if (leadingShare < 0.) {
+      return;
+    }
+    h.h_leadingShare[i]->Fill(leadingShare);
+    h.h_dominanceRatio[i]->Fill(dominanceRatio);
   }
 
   void TruthBranchHistoProducerAlgo::fill_match(

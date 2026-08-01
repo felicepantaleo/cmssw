@@ -144,6 +144,17 @@ METRICS = {
         "its fake rate is near zero by construction and the purity page carries the information.",
         "1 - num_assoc(recoToSim) / num_reco",
     ),
+    "contaminated": (
+        "Contaminated rate (RecoToTruth), calorimetry only",
+        "Of the reco objects, the fraction whose best truth candidate does NOT pass HGCalValidator's non-fake "
+        "criterion, recoToSim score below maxRecoToSimScore = 0.6. This is NOT a fake rate and the fake page is "
+        "the one to read for that. The score is normalised against the cell's TOTAL truth energy, so a cell "
+        "shared with overlaid interactions pushes it towards 1 even for a perfectly matched object, and at PU200 "
+        "it saturates: measured on ttbar PU200, ticlCandidate AdaptiveNominal, 73.8% of tracksters fail this cut "
+        "while only 2.3% have no truth candidate at all. Read it as cell-level contamination, which is what the "
+        "reconstruction is up against, and use it to compare against HGCalValidator, which applies the same cut.",
+        "1 - num_assoc_strict / num_reco",
+    ),
     "pileuprate": (
         "Pileup rate (RecoToTruth)",
         "Of the reco objects, the fraction whose match belongs to a pileup interaction rather than the signal "
@@ -340,6 +351,7 @@ PROPOSED = [
 ]
 # Metric order drives the page order, so a reader meets efficiency before its failure modes.
 METRIC_ORDER = ["composition", "efficiency", "duplicate", "splitrate", "recopurity", "fakerate",
+                "contaminated",
                 "pileuprate", "resolution"]
 # caloeta sits next to eta on purpose: the two answer "where was the branch root
 # produced" and "where did the branch reach the calorimeter", and for anything but the
@@ -371,6 +383,7 @@ DENOMINATOR = {
     "splitrate": "num_simul",
     "recopurity": "num_reco",
     "fakerate": "num_reco",
+    "contaminated": "num_reco",
     "pileuprate": "num_reco",
 }
 CATEGORICAL_MEANING = {
@@ -385,7 +398,7 @@ CATEGORICAL_MEANING = {
     ),
 }
 _ME_RE = re.compile(
-    r"^(?P<metric>efficiency_cumulative|efficiency|recopurity|fakerate|duplicate|splitrate|pileuprate)"
+    r"^(?P<metric>efficiency_cumulative|efficiency|recopurity|fakerate|contaminated|duplicate|splitrate|pileuprate)"
     r"_vs_(?P<var>\w+)$"
 )
 

@@ -246,10 +246,15 @@ def _truthDrivenStrings(truthVariables=None, duplicate=True):
     return out
 
 
-def _recoDrivenStrings(recoVariables):
+# strict adds the calorimetric non-fake criterion as its OWN page. Only a calorimetric
+# domain books num_assoc_strict, so asking for it elsewhere would be an empty plot.
+def _recoDrivenStrings(recoVariables, strict=False):
     out = []
     for var in recoVariables:
         out.append(f"fakerate_vs_{var} 'Fake rate vs {var}' num_assoc(recoToSim)_{var} num_reco_{var} fake")
+        if strict:
+            out.append(f"contaminated_vs_{var} 'Contaminated rate vs {var}' "
+                       f"num_assoc_strict_{var} num_reco_{var} fake")
         out.append(f"pileuprate_vs_{var} 'Pileup rate vs {var}' num_pileup_{var} num_reco_{var}")
         # Its own numerator, filled with the purity as a weight. Dividing the UNWEIGHTED
         # match count by num_reco would give the matched fraction a second time.
@@ -311,7 +316,9 @@ for _d in _domains:
     _harvester = DQMEDHarvester(
         "DQMGenericClient",
         subDirs=cms.untracked.vstring(*_wpFolders),
-        efficiency=cms.vstring(*_recoDrivenStrings(_d["recoVariables"])),
+        efficiency=cms.vstring(*_recoDrivenStrings(
+            _d["recoVariables"],
+            strict="minSharedEnergyFractionForIndividual" in _d["thresholds"])),
         resolution=cms.vstring(*_resolutions),
         # Fit the core, not the tail: the slice fit is restricted to a window around the
         # peak, which is what makes Sigma a resolution rather than the width of the axis.

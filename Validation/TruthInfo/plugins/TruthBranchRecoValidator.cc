@@ -154,7 +154,23 @@ private:
     edm::EDGetTokenT<std::vector<RECO>> recoToken;
     // Reco-driven, one per working point: score is 1 - reco purity.
     edm::EDGetTokenT<MapType> recoToTruthToken;
+    // The FIRST working point's map, which is the WP-free hit-sharing measure and the
+    // only one carrying every candidate branch: an adaptive point inserts just the one
+    // branch it climbed to, so a leading-versus-runner-up comparison is impossible on
+    // it. Dominance is therefore always read from this map, for every working point.
+    edm::EDGetTokenT<MapType> allCandidatesToken;
   };
+
+  // The antichain the dominance measure is computed over. selectedBranchRoots is NOT
+  // one: it is every particle passing the selector, so a tau, its daughter pion and
+  // that pion's descendants are all candidates at once and their subgraphs are NESTED,
+  // each contributing nearly the same shared energy. Comparing a parent against its own
+  // child is meaningless, and it showed: on no-PU TenTau, 99.9% of tracksters had a
+  // leading-to-runner-up ratio of about one, where ten isolated taus should give a
+  // single overwhelming winner. Restricting the candidates to one level makes them
+  // distinct physical particles, which is what "different generated particles" means.
+  edm::EDGetTokenT<std::vector<unsigned int>> dominanceTargetsToken_;
+  bool hasDominanceTargets_ = false;
 
   // One entry per (collection, graph level) for a hit-based domain, per collection for
   // a composite one, in booking order: the truth-driven monitor elements.
@@ -235,6 +251,19 @@ TruthBranchRecoValidator<RECO>::TruthBranchRecoValidator(edm::ParameterSet const
     truthTargets.emplace_back("allSelectedRoots", "selectedBranchRoots");
   }
 
+  // Dominance is measured against ONE level, so the candidates are distinct particles.
+  if constexpr (!Traits::truthIsVertex) {
+    auto const& levels = cfg.getParameter<std::vector<std::string>>("truthLevels");
+    const std::string wanted = cfg.getParameter<std::string>("dominanceLevel");
+    if (std::find(levels.begin(), levels.end(), wanted) != levels.end()) {
+      std::string capitalized = wanted;
+      capitalized[0] = std::toupper(static_cast<unsigned char>(capitalized[0]));
+      dominanceTargetsToken_ = consumes<std::vector<unsigned int>>(
+          edm::InputTag(associator, std::string(Traits::denominatorInstance) + capitalized));
+      hasDominanceTargets_ = true;
+    }
+  }
+
   for (auto const& tag : cfg.getParameter<std::vector<edm::InputTag>>("recoCollections")) {
     // The one key rule of this package: label and instance joined by an underscore,
     // used for the product instance labels AND for the folder name.
@@ -247,6 +276,8 @@ TruthBranchRecoValidator<RECO>::TruthBranchRecoValidator(edm::ParameterSet const
       entry.folder = key + "_" + wp;
       entry.recoToken = consumes<std::vector<RECO>>(tag);
       entry.recoToTruthToken = consumes<MapType>(edm::InputTag(associator, key + "RecoToTruth" + wp));
+      entry.allCandidatesToken =
+          consumes<MapType>(edm::InputTag(associator, key + "RecoToTruth" + workingPoints.front()));
       wpEntries_.push_back(std::move(entry));
     }
     for (auto const& [suffix, instance] : truthTargets) {
@@ -272,7 +303,7 @@ void TruthBranchRecoValidator<RECO>::bookHistograms(DQMStore::IBooker& booker,
   // same order, so the two must stay in lockstep per list.
   for (auto const& entry : wpEntries_) {
     booker.setCurrentFolder(dirName_ + entry.folder);
-    algo_.bookRecoHistos(booker, histograms);
+    algo_.bookRecoHistos(booker, histograms, Traits::calorimetric);
   }
   for (auto const& entry : truthEntries_) {
     booker.setCurrentFolder(dirName_ + entry.folder);
@@ -343,6 +374,21 @@ void TruthBranchRecoValidator<RECO>::dqmAnalyze(edm::Event const& event,
     }
   }
 
+  // Membership mask of the dominance antichain, built once per event.
+  std::vector<bool> inDominanceSet;
+  if (hasDominanceTargets_) {
+    edm::Handle<std::vector<unsigned int>> targets;
+    event.getByToken(dominanceTargetsToken_, targets);
+    if (targets.isValid()) {
+      inDominanceSet.assign(graph.nParticles(), false);
+      for (const unsigned int b : *targets) {
+        if (b < inDominanceSet.size()) {
+          inDominanceSet[b] = true;
+        }
+      }
+    }
+  }
+
   // Reco-driven side, one pass per (collection, working point).
   for (std::size_t i = 0; i < wpEntries_.size(); ++i) {
     auto const& entry = wpEntries_[i];
@@ -357,15 +403,31 @@ void TruthBranchRecoValidator<RECO>::dqmAnalyze(edm::Event const& event,
 
     auto const& recoToTruth = recoToTruthHandle->getMap();
 
+    // Every candidate branch of every object, from the first working point's map. Used
+    // only for the dominance measure below.
+    edm::Handle<MapType> allCandidatesHandle;
+    event.getByToken(entry.allCandidatesToken, allCandidatesHandle);
+    MapType const* allCandidates = allCandidatesHandle.isValid() ? allCandidatesHandle.product() : nullptr;
+
     // Reco side: every object, whether it found a branch, and whether that branch came
     // from a pileup interaction rather than the signal one.
     for (std::size_t r = 0; r < recoHandle->size(); ++r) {
-      // The maps are score-sorted, so [0] is the best match. A calorimetric object
-      // additionally has to pass the recoToSim score cut to count as anything but a
-      // fake, which is HGCalValidator's non-fake criterion.
-      bool associated = r < recoToTruth.size() && !recoToTruth[r].empty();
+      // The maps are score-sorted, so [0] is the best match. "Associated" means the
+      // object corresponds to SOMETHING in the truth graph, in every domain, so the
+      // fake rate is one quantity with one meaning across the pages.
+      //
+      // The calorimetric recoToSim score is NOT folded in here. That score is
+      // reco-normalised against the cell's TOTAL truth energy, so at PU200 a cell shared
+      // with overlaid interactions inflates it towards 1 even for a perfectly matched
+      // object, and gating "associated" on it reports contamination the reconstruction
+      // cannot avoid as if the object were spurious. Measured on ttbar PU200, 200
+      // events, ticlCandidate AdaptiveNominal: 73.8% of tracksters failed the 0.6 cut
+      // but only 2.3% had no candidate at all. It is kept as the STRICT numerator, which
+      // is HGCalValidator's non-fake criterion and is comparable to it.
+      const bool associated = r < recoToTruth.size() && !recoToTruth[r].empty();
+      bool strictMatch = associated;
       if constexpr (Traits::calorimetric) {
-        associated = associated && recoToTruth[r][0].score() < maxRecoToSimScore_;
+        strictMatch = associated && recoToTruth[r][0].score() < maxRecoToSimScore_;
       }
       const Kinematics kin = Traits::kinematics((*recoHandle)[r]);
 
@@ -391,7 +453,41 @@ void TruthBranchRecoValidator<RECO>::dqmAnalyze(edm::Event const& event,
       // unrelated vertex are the remainder.
       // Reco purity, the reco-normalised quantity this direction exists to measure.
       const double recoPurity = associated ? 1. - static_cast<double>(recoToTruth[r][0].score()) : 0.;
-      algo_.fill_reco(histograms, i, kin, associated, pileup, recoPurity);
+
+      // DOMINANCE: a reco object is attributable when ONE truth branch stands out among
+      // its contributors, and is a fake when the contributions are all comparably small
+      // and no winner exists. Measured on the shared ENERGY each candidate contributes,
+      // not on the score, because the score penalises every contamination quadratically
+      // and so condemns an object that one branch plainly dominates. The row is sorted
+      // by score, not by shared energy, so the leader is taken by scan.
+      double leadingShare = -1.;
+      double dominanceRatio = -1.;
+      if (allCandidates != nullptr) {
+        auto const& row = allCandidates->getMap()[r];
+        double total = 0., best = 0., second = 0.;
+        for (auto const& cand : row) {
+          // Distinct particles only: without this the list holds a whole ancestor
+          // chain whose subgraphs nest, and the leader is compared to its own child.
+          if (!inDominanceSet.empty() && (cand.index() >= inDominanceSet.size() || !inDominanceSet[cand.index()])) {
+            continue;
+          }
+          const double e = cand.value();
+          total += e;
+          if (e > best) {
+            second = best;
+            best = e;
+          } else if (e > second) {
+            second = e;
+          }
+        }
+        if (total > 0.) {
+          leadingShare = best / total;
+          // Capped so the one-candidate case and a runaway ratio share a top bin.
+          dominanceRatio = (second > 0.) ? std::min(best / second, 20.) : 20.;
+        }
+      }
+      algo_.fill_dominance(histograms, i, leadingShare, dominanceRatio);
+      algo_.fill_reco(histograms, i, kin, associated, pileup, recoPurity, strictMatch);
       if (associated) {
         algo_.fill_match(histograms, i, recoToTruth[r][0].score(), recoToTruth[r][0].value(), recoPurity);
         // Resolution against the truth object THIS working point matched, so the
@@ -611,6 +707,11 @@ void TruthBranchRecoValidator<RECO>::fillDescriptions(edm::ConfigurationDescript
             "Names the one truth-driven folder of a composite domain, matching the associator's resolution: "
             "'interaction' for primary vertices, 'immediate' for secondary vertices");
   } else {
+    desc.add<std::string>("dominanceLevel", "caloBoundary")
+        ->setComment(
+            "The level whose targets the leading-truth-contributor measure is computed over. It must be an "
+            "ANTICHAIN of distinct particles: selectedBranchRoots is not one, and using it compares a branch "
+            "against its own descendants");
     desc.add<std::vector<std::string>>("truthLevels", {"caloBoundary"})
         ->setComment(
             "Graph levels the truth-driven metrics are measured at, one folder per level. Must match the "

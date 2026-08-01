@@ -83,7 +83,13 @@ namespace truth {
     // purity. The two must stay separate: filling one histogram with the purity as a
     // weight and reading it as a count turns the fake rate into one minus the mean
     // purity, which on no-PU ttbar reads 0.83 where the fake rate is 0.003.
-    std::vector<MERow> h_reco, h_assoc_recoToSim, h_recopurity, h_pileup;
+    //
+    // h_assoc_strict is the calorimetric domains' second, STRICTER numerator: matched
+    // AND below maxRecoToSimScore, which is HGCalValidator's non-fake criterion. It is
+    // a separate histogram because that criterion mixes "corresponds to nothing" with
+    // "corresponds to something but shares its cells with other truth", and only the
+    // first is a fake. Booked for calorimetric domains only; empty elsewhere.
+    std::vector<MERow> h_reco, h_assoc_recoToSim, h_recopurity, h_pileup, h_assoc_strict;
 
     // Efficiency and duplicate rate against the Geant4 process that CREATED the
     // branch, which only the graph can supply: the production vertex of the branch
@@ -95,6 +101,14 @@ namespace truth {
     // says: reco purity divides by the reco object (reco side), truth purity by the
     // truth object (truth side).
     std::vector<METype> h_score, h_sharedQuantity, h_recoPurity, h_truthPurity;
+
+    // DOMINANCE of the leading truth contributor, the axis a fake criterion built on
+    // "no truth dominates the little contaminations" would cut on. leading_truth_share
+    // is the leading branch's shared energy over the shared energy of ALL candidate
+    // branches; dominance_ratio is leading over runner-up, capped at 20. Reco side, and
+    // both are read from the FIRST working point's map, the only one that carries every
+    // candidate. Filled for every reco object with at least one candidate.
+    std::vector<METype> h_leadingShare, h_dominanceRatio;
 
     // The axis the calorimetric efficiency cut acts on: shared energy over the truth
     // branch's own energy. Booked only by the domains judged on it, so it is empty for
@@ -115,7 +129,10 @@ namespace truth {
     // that side's vectors. Call bookRecoHistos once per (collection, working point) and
     // bookTruthHistos once per (collection, level), each in the order the fill side
     // will index that list.
-    void bookRecoHistos(dqm::implementation::IBooker& booker, TruthBranchHistograms& histograms) const;
+    // calorimetric additionally books the strict numerator described above.
+    void bookRecoHistos(dqm::implementation::IBooker& booker,
+                        TruthBranchHistograms& histograms,
+                        bool calorimetric) const;
     // calorimetric books the shared-energy-fraction monitor element, the axis those
     // domains gate efficiency on, and skips the duplicate ones the same domains cannot
     // fill. It must be the same for every truth entry of one module, so the row index
@@ -161,12 +178,16 @@ namespace truth {
     // is always unweighted, so num_assoc(recoToSim)/num_reco stays a fraction of
     // objects for every domain. A composite object always matches something, so there
     // that fraction is near one by construction and the purity is the number to read.
+    // strictMatch is the calorimetric non-fake criterion (matched AND below
+    // maxRecoToSimScore). It fills h_assoc_strict only, never h_assoc_recoToSim, so the
+    // fake rate keeps meaning "matched to nothing" in every domain.
     void fill_reco(TruthBranchHistograms const& histograms,
                    std::size_t index,
                    Kinematics const& kin,
                    bool associated,
                    bool pileup,
-                   double matchQuality = 1.) const;
+                   double matchQuality = 1.,
+                   bool strictMatch = false) const;
 
     // Categorical fill against the VertexReason of the branch root's production
     // vertex, passed as its underlying integer so this header stays free of the
@@ -175,6 +196,12 @@ namespace truth {
                      std::size_t index,
                      unsigned int reason,
                      TruthOutcome outcome) const;
+
+    // Negative values mean the object had no candidate at all and are not filled.
+    void fill_dominance(TruthBranchHistograms const& histograms,
+                        std::size_t index,
+                        double leadingShare,
+                        double dominanceRatio) const;
 
     void fill_match(TruthBranchHistograms const& histograms,
                     std::size_t index,
