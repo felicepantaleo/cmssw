@@ -296,3 +296,101 @@ HSi 95 to 98%, HGCAL HSc 80 to 92%, ECAL barrel 90 to 98%, HCAL barrel 89 to 92%
   to end on this branch (5 events each, D122, no PU): all steps exit 0, the four
   association products are written, and the maps are populated (every trackster matched,
   exactly one adaptive branch each). Build and unit tests pass.
+
+## 9. Reading the validation plots without fooling yourself
+
+The standalone customise above is the teaching path. The PRODUCTION path is
+`SimGeneral/TruthGraphAssociatorProducers/truthGraphAssociators_cff`, which runs the same
+associator over four working points at once, `Fixed`, `AdaptiveTight`,
+`AdaptiveNominal`, `AdaptiveLoose`, and writes `<collection>RecoToTruth<WP>` plus one
+`<collection>TruthToReco`. `Validation/TruthInfo` turns those into DQM pages. Everything
+below is about reading those pages, and every number is measured on 200 events.
+
+`Fixed` is not a working point in the usual sense: it is the climb-free match that keeps
+EVERY candidate branch. That makes it the only map carrying more than one candidate per
+object, which matters in the last subsection.
+
+### The four reco-side metrics are four different questions
+
+| Page | Question | ttbar no-PU | ttbar PU200 |
+|---|---|---|---|
+| `fakerate` | does the object correspond to ANY truth branch | 0.18 | 0.022 |
+| `contaminated` | does its best candidate pass the 0.6 recoToSim score, HGCalValidator's non-fake cut | 0.63 | 0.738 |
+| `recopurity` | how much of the object belongs to the branch it matched, as a mean | 0.28 to 0.97 | 0.10 to 0.73 |
+| `pileuprate` | is the matched branch an overlaid interaction | 0 | 0.93 |
+
+`fakerate` and `contaminated` are NOT the same question and the numbers are far apart on
+purpose. The recoToSim score is normalised against the cell's TOTAL truth energy, so at
+PU200 a cell shared with overlaid interactions drives it towards 1 even for an object that
+is matched perfectly well. On ttbar PU200, 73.8% of tracksters fail the 0.6 cut while only
+2.2% have no candidate at all. Quote `fakerate` when you mean "reconstructed something
+that is not there" and `contaminated` when you mean "shares its cells with other truth",
+and never call the second one a fake rate.
+
+Reading exercise: `fakerate` is IDENTICAL at all four working points, while `recopurity`
+climbs from 0.28 at Fixed to 0.97 at AdaptiveNominal. Convince yourself why before reading
+on. The climb changes WHICH branch an object matches, not WHETHER it matches one, so the
+adaptive gain has to appear on the purity page and cannot appear on the fake page. If you
+ever see the fake rate move with the working point, the association gained or lost
+candidates and that is the thing to explain.
+
+### A rate pinned to an extreme is usually saturation, not perfection
+
+The PU200 tracking fake rate is 0.000 to 0.006, LOWER than the same quantity with no
+pileup. Reconstruction did not improve by adding 200 interactions. With that many
+interactions the truth graph is dense enough that nearly every reco object overlaps
+SOMETHING, so "matched to nothing" stops being able to discriminate. At PU200 read the
+pileup rate and the purity instead. Before reporting any rate that sits at 0 or 1, ask
+whether its definition can still vary in that regime.
+
+### Three histogram calls, three different answers
+
+The single most expensive mistake in this package was reading a monitor element wrongly,
+twice. Learn the three calls:
+
+- `GetEntries()` counts how many times Fill was called, and ignores weights entirely.
+- `Integral()` sums bin contents in the VISIBLE range and DROPS underflow and overflow.
+- a bin-content sum adds WEIGHTS, which are not counts.
+
+Both incidents:
+
+1. A DY signal denominator read 0.57 objects per event where it must be exactly 1, one Z.
+   A Z produced at rest has pt about 0 and therefore |eta| going to infinity, so it sits
+   in the OVERFLOW bin, which `Integral()` excludes. Use `GetEntries()` when you mean
+   "how many objects".
+2. A fake rate read 0.83 where it is 0.003, because the matched numerator was filled with
+   the purity as a WEIGHT and then read as a count, making the fake page one minus the
+   mean purity. The tell was `GetEntries()` disagreeing with the bin sum: 84 unmatched by
+   count against about 21000 by summed weight. Cross-check any numerator that way.
+
+### Antichains: why a "fake by dominance" needs a level, not the full root set
+
+A physicist's definition of a calorimetric fake is an object whose hits come from many
+DIFFERENT generated particles with none dominating. Two monitor elements measure that,
+`leading_truth_share` and `dominance_ratio` (leading over runner-up).
+
+They must be computed over an ANTICHAIN, a set of branches where none is an ancestor of
+another. `selectedBranchRoots` is NOT one: it is every particle passing the selector, so a
+tau, its daughter pion and that pion's descendants are all candidates simultaneously and
+their subgraphs NEST, each carrying nearly the same shared energy. The leader then gets
+compared against its own child.
+
+The control that exposes it is no-PU TenTau, where ten isolated taus in an otherwise empty
+detector must give one overwhelming winner per trackster:
+
+| candidate set | median leading share | fraction with ratio near 1 |
+|---|---|---|
+| `selectedBranchRoots` (nested) | 0.26 | 0.999 |
+| `caloBoundary` antichain | 0.98 | 0.064 |
+
+A number that moves like that between two definitions is not a threshold to be tuned, it
+is a bug to be fixed. The validator parameter is `dominanceLevel`, default `caloBoundary`,
+the particles entering the calorimeter, which is what "different generated particles"
+means for a calorimetric object.
+
+Open question, deliberately left open in the code: caloBoundary is 113 per event at PU200
+against 99.7 with no pileup, only about 14 extra from 200 interactions, because the branch
+selector's 1 GeV floor removes nearly all soft pileup. So the dominance measure asks "does
+one particle above 1 GeV dominate" and never sees soft-PU mush, while a trackster built
+entirely from sub-GeV pileup has no candidate at all and is already counted by `fakerate`.
+No threshold is set in code; choosing one is a physics decision.
