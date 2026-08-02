@@ -16,6 +16,7 @@
 #include <vector>
 
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
+#include "PhysicsTools/TruthInfo/interface/TruthLevels.h"
 #include "SimDataFormats/EncodedEventId/interface/EncodedEventId.h"
 
 namespace {
@@ -62,17 +63,7 @@ namespace {
     return std::find(particleIds.begin(), particleIds.end(), particleId) != particleIds.end();
   }
 
-  // True if pdgId is an ordinary hadron whose quark content includes the given
-  // flavor (5 = b, 4 = c, ...), using the PDG hadron-numbering digits.
-  bool hadronHasQuark(int32_t pdgId, int32_t flavor) {
-    const int32_t id = std::abs(pdgId);
-    if (id < 100 || id >= 1000000000)  // leptons/bosons/diquark-free codes and nuclei are not hadrons here
-      return false;
-    const int32_t nq1 = (id / 1000) % 10;
-    const int32_t nq2 = (id / 100) % 10;
-    const int32_t nq3 = (id / 10) % 10;
-    return nq1 == flavor || nq2 == flavor || nq3 == flavor;
-  }
+  using truth::hadronHasQuark;
 
   bool matchesSeed(truth::Graph const& graph,
                    uint32_t particleId,

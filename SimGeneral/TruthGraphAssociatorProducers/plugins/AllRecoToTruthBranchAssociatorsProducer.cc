@@ -22,6 +22,7 @@
 #include <optional>
 #include <span>
 #include <unordered_map>
+#include <unordered_set>
 #include <string>
 #include <vector>
 
@@ -569,16 +570,27 @@ void AllRecoToTruthBranchAssociatorsProducer<RECO>::produce(edm::StreamID,
     // graph vertex with two selected roots sweeps in every nuclear interaction, conversion
     // and decay in flight: 45.9 per event, an 11x excess that caps the efficiency near 9%
     // however good the reconstruction is. The graph answers the question directly.
-    auto const isHeavyFlavorVertex = [&graph](unsigned int vertexId) {
-      for (const uint32_t parent : graph.incomingParticles(vertexId)) {
-        if (parent >= graph.nParticles())
-          continue;
-        const truth::Branch parentBranch(&graph, parent);
-        if (parentBranch.hasHeavyFlavor(5) || parentBranch.hasHeavyFlavor(4))
-          return true;
+    // WHERE THE HEAVY-FLAVOUR HADRON DECAYED, which is what a secondary vertex is. Asking
+    // instead whether the incoming particle's subgraph contains a b or c hadron anywhere
+    // is true at every vertex along the chain above and below it: measured on no-PU ttbar
+    // it selects 12 and 16 vertices per event against the 4 and 5 the hadrons actually
+    // decay at, and 4.1 reconstructed, so the denominator is inflated 3x and caps the
+    // efficiency near a third however good the reconstruction is.
+    //
+    // The levels are antichains, so a B* radiating down to a B contributes ONE vertex
+    // rather than one per generator copy. Beauty and charm are asked separately because a
+    // B decays to a D and a combined level would drop every charm vertex.
+    const std::unordered_set<unsigned int> heavyFlavorDecayVertices = [&graph] {
+      std::unordered_set<unsigned int> vertices;
+      for (const truth::Level level : {truth::Level::BHadrons, truth::Level::CHadrons}) {
+        for (const uint32_t id : truth::levelAntichain(graph, level)) {
+          for (const uint32_t vertexId : graph.decayVertices(id)) {
+            vertices.insert(vertexId);
+          }
+        }
       }
-      return false;
-    };
+      return vertices;
+    }();
 
     auto selectedVertices = std::make_unique<std::vector<unsigned int>>();
     auto targets = std::make_unique<std::vector<unsigned int>>();
@@ -592,7 +604,7 @@ void AllRecoToTruthBranchAssociatorsProducer<RECO>::produce(edm::StreamID,
       if (std::abs(graph.vertices()[vertexId].position.z()) > 1000.) {
         continue;
       }
-      if (heavyFlavorOnly_ && !isHeavyFlavorVertex(vertexId)) {
+      if (heavyFlavorOnly_ && heavyFlavorDecayVertices.count(vertexId) == 0u) {
         continue;
       }
       selectedVertices->push_back(vertexId);
@@ -832,10 +844,11 @@ void AllRecoToTruthBranchAssociatorsProducer<RECO>::fillDescriptions(edm::Config
           "restricted, so pileup branches stay matchable and a pileup-matched reco object is not counted a fake");
   desc.add<bool>("heavyFlavorOnly", false)
       ->setComment(
-          "Composite domains only. Keep in the denominator only vertices whose incoming particle carries a b or c "
-          "hadron, which is what inclusiveSecondaryVertices reconstructs. Off by default; the secondary-vertex "
-          "associator turns it on. Without it the denominator is every graph vertex with two selected roots, "
-          "45.9 per ttbar event against 4.1 reconstructed, and the efficiency is capped by the denominator.");
+          "Composite domains only. Keep in the denominator only the vertices where a b or c hadron DECAYED, which "
+          "is what inclusiveSecondaryVertices reconstructs: 4 and 5 per no-PU ttbar event against 4.1 "
+          "reconstructed. Off by default; the secondary-vertex associator turns it on. Without it the denominator "
+          "is every graph vertex with two selected roots, 45.9 per event, and the efficiency is capped by the "
+          "denominator.");
   desc.add<std::vector<std::string>>("workingPointNames", {"Fixed"});
   desc.add<std::vector<double>>("adaptiveReverseWeight", {0.0});
   desc.add<std::vector<double>>("adaptiveMaxReverseScore", {0.0});

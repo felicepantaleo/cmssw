@@ -48,6 +48,12 @@ namespace {
         return "#e8d5ff";
       case truth::Level::UnderlyingEvent:
         return "#e8e8e8";
+      case truth::Level::PartonJets:
+        return "#ffe9a8";
+      case truth::Level::BHadrons:
+        return "#c9e4d6";
+      case truth::Level::CHadrons:
+        return "#f2d5e0";
     }
     return "#ffffff";
   }

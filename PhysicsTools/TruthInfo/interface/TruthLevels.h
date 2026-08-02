@@ -49,7 +49,10 @@ namespace truth {
     StableDecayProducts,
     CaloBoundary,
     ReconstructableFromSignal,
-    UnderlyingEvent
+    UnderlyingEvent,
+    PartonJets,
+    BHadrons,
+    CHadrons
   };
 
   [[nodiscard]] inline Level levelFromName(std::string const& name) {
@@ -65,6 +68,12 @@ namespace truth {
       return Level::ReconstructableFromSignal;
     if (name == "underlyingEvent")
       return Level::UnderlyingEvent;
+    if (name == "partonJets")
+      return Level::PartonJets;
+    if (name == "bHadrons")
+      return Level::BHadrons;
+    if (name == "cHadrons")
+      return Level::CHadrons;
     throw std::runtime_error("unknown truth level '" + name +
                              "', expected hardProcess, stableDecayProducts or caloBoundary");
   }
@@ -84,6 +93,12 @@ namespace truth {
         return "reconstructableFromSignal";
       case Level::UnderlyingEvent:
         return "underlyingEvent";
+      case Level::PartonJets:
+        return "partonJets";
+      case Level::BHadrons:
+        return "bHadrons";
+      case Level::CHadrons:
+        return "cHadrons";
     }
     return "unknown";
   }
@@ -93,6 +108,25 @@ namespace truth {
     constexpr uint16_t kIsHardProcess = 1u << 7;
     constexpr uint16_t kIsLastCopy = 1u << 13;
   }  // namespace detail
+
+  // Quarks and gluons. Strings, clusters and diquarks are collapsed away by
+  // truth::collapseGenShower before the graph is built, so they cannot appear here.
+  [[nodiscard]] inline bool isParton(int32_t pdgId) {
+    const int32_t a = std::abs(pdgId);
+    return (a >= 1 && a <= 6) || a == 21;
+  }
+
+  // Ordinary hadron whose quark content includes `flavor` (5 = b, 4 = c), read off the
+  // PDG hadron-numbering digits. Nuclei and generator-internal codes are not hadrons here.
+  [[nodiscard]] inline bool hadronHasQuark(int32_t pdgId, int32_t flavor) {
+    const int32_t id = std::abs(pdgId);
+    if (id < 100 || id >= 1000000000)
+      return false;
+    const int32_t nq1 = (id / 1000) % 10;
+    const int32_t nq2 = (id / 100) % 10;
+    const int32_t nq3 = (id / 10) % 10;
+    return nq1 == flavor || nq2 == flavor || nq3 == flavor;
+  }
 
   // Whether one particle belongs to a level, before the antichain check.
   [[nodiscard]] inline bool atLevel(Graph const& graph, uint32_t id, Level level) {
@@ -122,6 +156,17 @@ namespace truth {
         // Not a per-particle predicate either: it is a walk down from the signal roots,
         // so it is answered by reconstructableFromSignal and never reaches here.
         return false;
+      case Level::PartonJets:
+        // Derived from the HardProcess antichain, so it needs that level's result rather
+        // than a per-particle rule, and is answered by partonJets().
+        return false;
+      case Level::BHadrons:
+        // The earliest-element antichain then keeps the B* and drops the B below it.
+        return hadronHasQuark(data.pdgId, 5);
+      case Level::CHadrons:
+        // A c hadron from a B decay is a legitimate member: the nesting that matters is
+        // within one flavour, and beauty and charm are deliberately different levels.
+        return hadronHasQuark(data.pdgId, 4);
       case Level::CaloBoundary:
         // Recorded crossing the tracker-calorimeter boundary outward. Back-scattered
         // tracks crossed it inward and are the same particle coming back.
@@ -261,6 +306,44 @@ namespace truth {
     return legs;
   }
 
+  // PartonJets is defined in terms of the HardProcess antichain and levelAntichain
+  // dispatches back to it, so one of the two has to be declared ahead of the other.
+  [[nodiscard]] inline std::vector<uint32_t> levelAntichain(Graph const& graph, Level level);
+
+  // One root per parton-initiated jet. The jet is the descendant subgraph of the parton;
+  // there is no clustering and no cone, and the flavour is the parton's own PDG id.
+  //
+  // The members are the hard-scatter legs that are partons. That is the COMPLETE set of
+  // quarks and gluons the graph holds: collapseGenShower removes every shower parton, so
+  // a parton survives the build only by carrying isHardProcess, and "the early quark" and
+  // "the quark that is present" are the same particle here.
+  //
+  // Inherits the deepest-element rule from HardProcess, which is what keeps a top out in
+  // favour of its b, and what keeps the INCOMING beam partons out: they sit at pt 0 and
+  // beam rapidity, and the outgoing legs are their descendants. A hard gluon radiated at
+  // the production vertex has no hard-process descendant, so it stays, and it is a real
+  // gluon jet rather than an artefact.
+  //
+  // EMPTY, not wrong, when statusFlags are unavailable: the HepMC3 path never fills them,
+  // and pile-up sub-events contribute only stable GEN particles, so a jet here is always
+  // a signal jet.
+  //
+  // The ROOTS are an antichain but the SUBGRAPHS are not disjoint, and that is inherent to
+  // defining a jet without a clustering algorithm. Two quarks colour-connected to each
+  // other, the u and dbar of a hadronic W, fragment through one string, so its hadrons
+  // descend from both and their hits are counted under both jets. Measured on no-PU ttbar:
+  // 1221 of 8096 hits shared, 0.15 of the union, ALL of it between that one pair, while
+  // the b and bbar share nothing; a dileptonic event with no hadronic W shares 0.00.
+  // Assigning each hadron to exactly one jet is what a clustering algorithm is for.
+  [[nodiscard]] inline std::vector<uint32_t> partonJets(Graph const& graph) {
+    std::vector<uint32_t> roots = levelAntichain(graph, Level::HardProcess);
+    roots.erase(
+        std::remove_if(
+            roots.begin(), roots.end(), [&graph](uint32_t id) { return !isParton(graph.particles()[id].pdgId); }),
+        roots.end());
+    return roots;
+  }
+
   // The level as an antichain. Candidates that have another candidate as an ancestor are
   // dropped, so what remains is one entry per physical object at that level. The
   // membership rules above are already antichains in a well-formed graph; the check is
@@ -275,6 +358,9 @@ namespace truth {
     }
     if (level == Level::UnderlyingEvent) {
       return stableLegsFromUnderlyingEvent(graph);
+    }
+    if (level == Level::PartonJets) {
+      return partonJets(graph);
     }
     std::vector<uint32_t> candidates;
     const uint32_t nParticles = graph.nParticles();
@@ -342,16 +428,25 @@ namespace truth {
         return LevelFlag::ReconstructableFromSignal;
       case Level::UnderlyingEvent:
         return LevelFlag::UnderlyingEvent;
+      case Level::PartonJets:
+        return LevelFlag::PartonJets;
+      case Level::BHadrons:
+        return LevelFlag::BHadrons;
+      case Level::CHadrons:
+        return LevelFlag::CHadrons;
     }
     return LevelFlag::CaloBoundary;
   }
 
-  inline constexpr std::array<Level, 6> kAllLevels = {Level::StableLegsFromUpstream,
+  inline constexpr std::array<Level, 9> kAllLevels = {Level::StableLegsFromUpstream,
                                                       Level::HardProcess,
                                                       Level::StableDecayProducts,
                                                       Level::CaloBoundary,
                                                       Level::ReconstructableFromSignal,
-                                                      Level::UnderlyingEvent};
+                                                      Level::UnderlyingEvent,
+                                                      Level::PartonJets,
+                                                      Level::BHadrons,
+                                                      Level::CHadrons};
 
   // Stamp every particle with the levels it belongs to. Call once, on the COMPLETE graph:
   // levelAntichain walks ancestors and descendants, so a graph still being assembled
@@ -366,7 +461,9 @@ namespace truth {
     // silently erase the resonance.
     constexpr uint32_t kOwned =
         static_cast<uint32_t>(LevelFlag::StableLegsFromUpstream) | static_cast<uint32_t>(LevelFlag::HardProcess) |
-        static_cast<uint32_t>(LevelFlag::StableDecayProducts) | static_cast<uint32_t>(LevelFlag::CaloBoundary);
+        static_cast<uint32_t>(LevelFlag::StableDecayProducts) | static_cast<uint32_t>(LevelFlag::CaloBoundary) |
+        static_cast<uint32_t>(LevelFlag::PartonJets) | static_cast<uint32_t>(LevelFlag::BHadrons) |
+        static_cast<uint32_t>(LevelFlag::CHadrons);
     for (auto& particle : graph.particles()) {
       particle.levelFlags &= ~kOwned;
     }

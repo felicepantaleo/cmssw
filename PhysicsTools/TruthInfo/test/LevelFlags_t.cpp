@@ -91,6 +91,81 @@ namespace {
     return b.finish();
   }
 
+  // A semileptonic top decay chain, the shape the parton jet level has to get right.
+  //   p0  g,    incoming beam parton at beam rapidity, decays at v2
+  //   p1  t,    decays at v0
+  //   p2  b,    outgoing leg, no children
+  //   p3  W+,   decays at v1
+  //   p4  u,    outgoing leg, no children
+  //   p5  dbar, outgoing leg, no children
+  // Every one of them carries isHardProcess, which is what makes this the discriminating
+  // fixture: the level has to separate them on ancestry and species, not on the flag.
+  truth::Graph buildTopDecay() {
+    GraphBuilder b(6, 3);
+
+    auto set = [&](uint32_t id, int32_t pdgId, int16_t status, math::XYZTLorentzVectorD p4) {
+      auto& particle = b.graph.particles()[id];
+      particle.genNode = 100 + static_cast<int32_t>(id);
+      particle.pdgId = pdgId;
+      particle.status = status;
+      particle.statusFlags = truth::detail::kIsHardProcess;
+      particle.momentum = p4;
+    };
+
+    set(0, 21, 21, math::XYZTLorentzVectorD(0., 0., 857., 857.));
+    set(1, 6, 22, math::XYZTLorentzVectorD(60., 20., 30., 190.));
+    set(2, 5, 23, math::XYZTLorentzVectorD(10., 1., 18., 21.));
+    set(3, 24, 22, math::XYZTLorentzVectorD(50., 19., 12., 100.));
+    set(4, 2, 23, math::XYZTLorentzVectorD(-34., -6., -150., 154.));
+    set(5, -1, 23, math::XYZTLorentzVectorD(-30., 70., -139., 159.));
+
+    b.addDecay(0, 2);
+    b.addProduction(2, 1);
+    b.addDecay(1, 0);
+    b.addProduction(0, 2);
+    b.addProduction(0, 3);
+    b.addDecay(3, 1);
+    b.addProduction(1, 4);
+    b.addProduction(1, 5);
+    return b.finish();
+  }
+
+  // A b quark fragmenting to a B* that radiates to a B, which decays to a D, which decays
+  // to a kaon and a pion. Both the generator-copy nesting (B* above B) and the
+  // cross-flavour nesting (B above D) are present, since those are the two things the
+  // heavy-flavour levels have to get right.
+  //   p0 b -> v0 -> p1 B*+ -> v1 -> p2 B+ -> v2 -> p3 D0bar -> v3 -> p4 K+, p5 pi-
+  truth::Graph buildHeavyFlavour() {
+    GraphBuilder b(6, 4);
+
+    auto set = [&](uint32_t id, int32_t pdgId, int16_t status) {
+      auto& particle = b.graph.particles()[id];
+      particle.genNode = 300 + static_cast<int32_t>(id);
+      particle.pdgId = pdgId;
+      particle.status = status;
+      particle.momentum = math::XYZTLorentzVectorD(10., 2., 5., 12.);
+    };
+
+    set(0, 5, 23);
+    b.graph.particles()[0].statusFlags = truth::detail::kIsHardProcess;
+    set(1, 523, 2);
+    set(2, 521, 2);
+    set(3, -421, 2);
+    set(4, 321, 1);
+    set(5, -211, 1);
+
+    b.addDecay(0, 0);
+    b.addProduction(0, 1);
+    b.addDecay(1, 1);
+    b.addProduction(1, 2);
+    b.addDecay(2, 2);
+    b.addProduction(2, 3);
+    b.addDecay(3, 3);
+    b.addProduction(3, 4);
+    b.addProduction(3, 5);
+    return b.finish();
+  }
+
 }  // namespace
 
 class LevelFlags_t : public CppUnit::TestFixture {
@@ -104,6 +179,10 @@ class LevelFlags_t : public CppUnit::TestFixture {
   CPPUNIT_TEST(testReconstructableFromSignalDropsNeutrinos);
   CPPUNIT_TEST(testPi0IsLabelledNotItsPhotons);
   CPPUNIT_TEST(testThreeProngThroughAnIntermediateResonance);
+  CPPUNIT_TEST(testPartonJetsKeepTheQuarksNotTheTopOrTheBeam);
+  CPPUNIT_TEST(testPartonJetsExcludeLeptons);
+  CPPUNIT_TEST(testHeavyFlavourKeepsTheExcitedStateOnly);
+  CPPUNIT_TEST(testBeautyAndCharmAreSeparateLevels);
   CPPUNIT_TEST_SUITE_END();
 
 public:
@@ -338,6 +417,80 @@ public:
     const auto stopped = truth::reconstructableFromSignal(g);
     CPPUNIT_ASSERT_EQUAL(std::size_t{1}, stopped.size());
     CPPUNIT_ASSERT_EQUAL(uint32_t{1}, stopped[0]);
+  }
+
+  // REQUIRED: the jet roots are the hard-scatter partons and nothing else. The top is
+  // excluded because its b is deeper, which is also the physics: the top decays before it
+  // hadronises. The incoming beam gluon is excluded for the same structural reason, and
+  // that matters because it sits at beam rapidity with the whole event below it.
+  void testPartonJetsKeepTheQuarksNotTheTopOrTheBeam() {
+    truth::Graph g = buildTopDecay();
+    const auto jets = truth::partonJets(g);
+
+    const std::vector<uint32_t> expected = {2u, 4u, 5u};  // b, u, dbar
+    CPPUNIT_ASSERT_EQUAL(expected.size(), jets.size());
+    CPPUNIT_ASSERT(std::is_permutation(expected.begin(), expected.end(), jets.begin()));
+
+    CPPUNIT_ASSERT(std::find(jets.begin(), jets.end(), 0u) == jets.end());  // incoming gluon
+    CPPUNIT_ASSERT(std::find(jets.begin(), jets.end(), 1u) == jets.end());  // top
+    CPPUNIT_ASSERT(std::find(jets.begin(), jets.end(), 3u) == jets.end());  // W
+
+    // No member may be an ancestor of another, the property every level owes its
+    // denominator.
+    for (uint32_t id : jets) {
+      for (auto const& descendant : truth::Particle(&g, id).descendants()) {
+        CPPUNIT_ASSERT(std::find(jets.begin(), jets.end(), descendant.id()) == jets.end());
+      }
+    }
+
+    truth::fillLevelFlags(g);
+    for (uint32_t id : expected) {
+      CPPUNIT_ASSERT(g.particles()[id].isAtLevel(truth::LevelFlag::PartonJets));
+    }
+    CPPUNIT_ASSERT(!g.particles()[1].isAtLevel(truth::LevelFlag::PartonJets));
+  }
+
+  // REQUIRED: a hard-process leg that is a lepton is not a jet. The tau fixture is a
+  // hard-process particle and the level must still come out empty rather than adopting it.
+  void testPartonJetsExcludeLeptons() {
+    truth::Graph g = buildDecay();
+    CPPUNIT_ASSERT(truth::partonJets(g).empty());
+  }
+
+  // REQUIRED: one member per physical heavy-flavour decay, not one per generator copy.
+  // A B* radiates down to a B and both are b hadrons; the level keeps the B* alone.
+  void testHeavyFlavourKeepsTheExcitedStateOnly() {
+    truth::Graph g = buildHeavyFlavour();
+
+    // Both are b hadrons by species, which is what makes the antichain the load-bearing part.
+    CPPUNIT_ASSERT(truth::atLevel(g, 1u, truth::Level::BHadrons));
+    CPPUNIT_ASSERT(truth::atLevel(g, 2u, truth::Level::BHadrons));
+
+    const auto bees = truth::levelAntichain(g, truth::Level::BHadrons);
+    CPPUNIT_ASSERT_EQUAL(std::size_t{1}, bees.size());
+    CPPUNIT_ASSERT_EQUAL(uint32_t{1}, bees[0]);
+  }
+
+  // REQUIRED: beauty and charm stay separate levels. The D descends from the B, so one
+  // combined level would keep the B and drop the D, and charm would silently vanish.
+  void testBeautyAndCharmAreSeparateLevels() {
+    truth::Graph g = buildHeavyFlavour();
+
+    const auto cees = truth::levelAntichain(g, truth::Level::CHadrons);
+    CPPUNIT_ASSERT_EQUAL(std::size_t{1}, cees.size());
+    CPPUNIT_ASSERT_EQUAL(uint32_t{3}, cees[0]);
+
+    // The nesting that makes a combined level wrong.
+    bool bIsAncestorOfC = false;
+    for (auto const& ancestor : truth::Particle(&g, 3u).ancestors()) {
+      bIsAncestorOfC = bIsAncestorOfC || ancestor.id() == 1u;
+    }
+    CPPUNIT_ASSERT(bIsAncestorOfC);
+
+    truth::fillLevelFlags(g);
+    CPPUNIT_ASSERT(g.particles()[1].isAtLevel(truth::LevelFlag::BHadrons));
+    CPPUNIT_ASSERT(g.particles()[3].isAtLevel(truth::LevelFlag::CHadrons));
+    CPPUNIT_ASSERT(!g.particles()[3].isAtLevel(truth::LevelFlag::BHadrons));
   }
 };
 

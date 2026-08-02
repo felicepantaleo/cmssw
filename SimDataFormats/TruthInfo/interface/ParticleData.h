@@ -67,6 +67,34 @@ namespace truth {
     // Like StableLegsFromUpstream it exists only when a selection preset ran, since the
     // artificial vertices are what the preset builds. Empty otherwise, not wrong.
     UnderlyingEvent = 1u << 6,
+    // One entry per parton-initiated jet: the hard-process legs that are quarks or
+    // gluons, each standing for everything downstream of it. There is no clustering and
+    // no cone; the jet IS the descendant subgraph of the parton, and its flavour is the
+    // parton's PDG id.
+    //
+    // A subset of HardProcess, so it inherits that level's deepest-element rule and with
+    // it the answer to the nesting question: a top has a hard-process b below it, so the
+    // b is kept and the top is not. That is the physical rule as well, since the top
+    // decays before it hadronises and only the b makes a jet. A top-initiated jet is
+    // therefore never a member unless the top is the deepest hard-process parton.
+    //
+    // An antichain because HardProcess is one and this only removes members.
+    PartonJets = 1u << 7,
+    // The b hadron and the c hadron each event produced, taking the FIRST one of that
+    // flavour along a chain. A B* radiates down to a B, and both are b hadrons, so the
+    // earliest-element antichain keeps the B* and drops the B: one member per physical
+    // heavy-flavour decay rather than one per generator copy.
+    //
+    // Beauty and charm are separate levels ON PURPOSE. A B decays to a D, so the two
+    // flavours are nested, and a single combined level would keep the B and silently drop
+    // every D. Split, each is an antichain in its own right and both are answerable.
+    //
+    // Distinct from PartonJets, and the difference is the measurement: on no-PU ttbar the
+    // b quark subgraph holds 961 and 1932 sim hits while the B hadron below it holds 758
+    // and 519, so the quark is the whole jet including fragmentation and the hadron is the
+    // displaced-vertex part a b tagger reconstructs.
+    BHadrons = 1u << 8,
+    CHadrons = 1u << 9,
   };
 
   // What a particle IS, mirroring VertexRole on the vertex side. Absence of a GEN and a

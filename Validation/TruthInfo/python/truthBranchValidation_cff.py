@@ -36,8 +36,12 @@ _wps = list(truthBranchWorkingPointsPSet.names)
 # signal root down to the first object a detector reconstructs, pi0 included as an object
 # rather than as two photons. It needs LevelFlag::Signal on the graph, which is stamped at
 # DIGI, so a sample produced before that carries an EMPTY level rather than a wrong one.
+# partonJets is one root per parton-initiated jet: the hard-scatter legs that are quarks
+# or gluons, each standing for everything downstream of it. There is no clustering; the
+# jet IS the descendant subgraph and its flavour is the parton's PDG id. The deepest-
+# element rule keeps the b rather than the top above it, so a jet is never counted twice.
 _truthLevels = ["stableLegsFromUpstream", "caloBoundary", "stableDecayProducts", "hardProcess",
-                "reconstructableFromSignal", "underlyingEvent"]
+                "reconstructableFromSignal", "underlyingEvent", "partonJets"]
 
 # Axis definition per x variable, shared by every domain. Built here so the booking, the
 # harvester strings and the plot script all read one list.
