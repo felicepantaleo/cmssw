@@ -854,7 +854,8 @@ void TruthBranchRecoValidator<RECO>::fillDescriptions(edm::ConfigurationDescript
                                                                           {"dz", 40, -20., 20.},
                                                                           {"depth", 15, 0., 15.},
                                                                           {"root_footprint_fraction", 20, 0., 1.},
-                                                                          {"caloeta", 50, -4., 4.}};
+                                                                          {"caloeta", 50, -4., 4.},
+                                                                          {"flavour", 8, 0., 8.}};
   for (auto const& [name, nbins, lo, hi] : axes) {
     algo.add<int>("nint_" + name, nbins);
     algo.add<double>("min_" + name, lo);

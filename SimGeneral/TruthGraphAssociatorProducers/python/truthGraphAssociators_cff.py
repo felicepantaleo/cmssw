@@ -52,7 +52,10 @@ _truthLevels = cms.vstring(
     "stableLegsFromUpstream", "caloBoundary", "stableDecayProducts", "hardProcess",
     # The resonance's visible final state, which needs LevelFlag::Signal on the graph.
     # Stamped at DIGI, so a sample produced before that carries an empty level.
-    "reconstructableFromSignal", "underlyingEvent"
+    "reconstructableFromSignal", "underlyingEvent",
+    # One root per parton-initiated jet: the hard-scatter legs that are quarks or gluons,
+    # each standing for everything downstream of it. No clustering.
+    "partonJets"
 )
 
 # The selection preset's seed species, so the signalSeeds product (the _signal
