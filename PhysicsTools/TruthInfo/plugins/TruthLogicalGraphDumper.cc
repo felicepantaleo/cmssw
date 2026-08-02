@@ -46,6 +46,8 @@ namespace {
         return "#ffc9c9";
       case truth::Level::ReconstructableFromSignal:
         return "#e8d5ff";
+      case truth::Level::UnderlyingEvent:
+        return "#e8e8e8";
     }
     return "#ffffff";
   }

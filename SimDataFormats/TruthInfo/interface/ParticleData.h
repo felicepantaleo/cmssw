@@ -58,6 +58,15 @@ namespace truth {
     // ancestor of another. Derived from Signal, so it inherits the same requirement that
     // the seed species be recorded for it to stay re-derivable.
     ReconstructableFromSignal = 1u << 5,
+    // The stable legs of the UNDERLYING EVENT, the spectator activity the artificial
+    // UnderlyingEvent vertex collects. The counterpart of StableLegsFromUpstream, which
+    // holds the ISR and upstream side of the same interaction. Together with the signal
+    // levels these partition what the event contains: what the analysis asked for, what
+    // radiated into it, and what came along with it.
+    //
+    // Like StableLegsFromUpstream it exists only when a selection preset ran, since the
+    // artificial vertices are what the preset builds. Empty otherwise, not wrong.
+    UnderlyingEvent = 1u << 6,
   };
 
   // What a particle IS, mirroring VertexRole on the vertex side. Absence of a GEN and a

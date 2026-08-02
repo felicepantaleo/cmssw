@@ -47,7 +47,7 @@ WP_ORDER = ["Fixed", "AdaptiveTight", "AdaptiveNominal", "AdaptiveLoose"]
 # allSelectedRoots is absent: it is every selected root regardless of level, so a particle
 # and its own daughter are both in it.
 LEVEL_ORDER = ["stableLegsFromUpstream", "caloBoundary", "stableDecayProducts", "hardProcess",
-               "reconstructableFromSignal", "signal", "signalNoSelection"]
+               "reconstructableFromSignal", "underlyingEvent", "signal", "signalNoSelection"]
 # What each truth-driven series IS. These are the efficiency DENOMINATORS, and they are not
 # interchangeable, but every one of them is an ANTICHAIN: no member is an ancestor of
 # another, so no efficiency counts one object twice. Sizes quoted are ttbar PU200 D122 with
@@ -86,6 +86,13 @@ LEVEL_MEANING = {
         "TenTau no-PU: 18.59 per event against 10.00 signal objects. This is the denominator to read for "
         "'was what the resonance actually produced reconstructed'. EMPTY on a sample produced before the signal "
         "flag existed, since it is stamped at DIGI.",
+    "underlyingEvent":
+        "the stable legs of the UNDERLYING EVENT, the spectator activity hanging off the artificial "
+        "UnderlyingEvent vertex. The counterpart of stableLegsFromUpstream, which holds the ISR and upstream "
+        "side of the same interaction, so between them and the signal levels the event is partitioned into what "
+        "the analysis asked for, what radiated into it, and what came along with it. An antichain: a leg is a "
+        "particle that produced nothing further. Exists only when a selection preset ran, since the artificial "
+        "vertices are what the preset builds, and is EMPTY rather than wrong otherwise.",
     "signal":
         "the preset's seed species among the selected roots, that is THE RESONANCE itself and not its decay "
         "products: two tops for the top preset, one Z for Drell-Yan, one Higgs for VBF and ggF, ten taus for "

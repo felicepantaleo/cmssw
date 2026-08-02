@@ -48,7 +48,8 @@ namespace truth {
     HardProcess,
     StableDecayProducts,
     CaloBoundary,
-    ReconstructableFromSignal
+    ReconstructableFromSignal,
+    UnderlyingEvent
   };
 
   [[nodiscard]] inline Level levelFromName(std::string const& name) {
@@ -62,6 +63,8 @@ namespace truth {
       return Level::CaloBoundary;
     if (name == "reconstructableFromSignal")
       return Level::ReconstructableFromSignal;
+    if (name == "underlyingEvent")
+      return Level::UnderlyingEvent;
     throw std::runtime_error("unknown truth level '" + name +
                              "', expected hardProcess, stableDecayProducts or caloBoundary");
   }
@@ -79,6 +82,8 @@ namespace truth {
         return "caloBoundary";
       case Level::ReconstructableFromSignal:
         return "reconstructableFromSignal";
+      case Level::UnderlyingEvent:
+        return "underlyingEvent";
     }
     return "unknown";
   }
@@ -109,6 +114,10 @@ namespace truth {
         // Final-state generator particles. Stable at GEN means no GEN descendant, so
         // these cannot contain one another.
         return data.hasGen() && data.status == 1;
+      case Level::UnderlyingEvent:
+        // Reachability from the artificial UnderlyingEvent vertex, answered by
+        // stableLegsFromUnderlyingEvent.
+        return false;
       case Level::ReconstructableFromSignal:
         // Not a per-particle predicate either: it is a walk down from the signal roots,
         // so it is answered by reconstructableFromSignal and never reaches here.
@@ -131,14 +140,18 @@ namespace truth {
   // decay products, for a dijet event they are the hadrons, and nothing in the rule
   // mentions taus or jets. It is an antichain by construction because a leg is a
   // particle that produced nothing further.
-  [[nodiscard]] inline std::vector<uint32_t> stableLegsFromUpstream(Graph const& graph) {
+  // Stable legs hanging off every artificial vertex of one role. Upstream collects the
+  // ISR and upstream side of the interaction, UnderlyingEvent the spectators; the walk is
+  // identical, so it is written once. A leg is a particle that produced nothing further,
+  // which makes the result an antichain by construction.
+  [[nodiscard]] inline std::vector<uint32_t> stableLegsFromRole(Graph const& graph, VertexRole role) {
     std::vector<uint32_t> legs;
     std::vector<bool> seen(graph.nParticles(), false);
 
     const uint32_t nVertices = graph.nVertices();
     for (uint32_t v = 0; v < nVertices; ++v) {
       auto const& vertexData = graph.vertices()[v];
-      if (vertexData.vertexRole() != VertexRole::Upstream) {
+      if (vertexData.vertexRole() != role) {
         continue;
       }
       // Depth-first from each outgoing particle; a particle with no children is a leg.
@@ -165,6 +178,14 @@ namespace truth {
     }
     std::sort(legs.begin(), legs.end());
     return legs;
+  }
+
+  [[nodiscard]] inline std::vector<uint32_t> stableLegsFromUpstream(Graph const& graph) {
+    return stableLegsFromRole(graph, VertexRole::Upstream);
+  }
+
+  [[nodiscard]] inline std::vector<uint32_t> stableLegsFromUnderlyingEvent(Graph const& graph) {
+    return stableLegsFromRole(graph, VertexRole::UnderlyingEvent);
   }
 
   // Species a detector cannot reconstruct at all, so they are not part of the visible
@@ -252,6 +273,9 @@ namespace truth {
     if (level == Level::ReconstructableFromSignal) {
       return reconstructableFromSignal(graph);
     }
+    if (level == Level::UnderlyingEvent) {
+      return stableLegsFromUnderlyingEvent(graph);
+    }
     std::vector<uint32_t> candidates;
     const uint32_t nParticles = graph.nParticles();
     for (uint32_t id = 0; id < nParticles; ++id) {
@@ -316,15 +340,18 @@ namespace truth {
         return LevelFlag::CaloBoundary;
       case Level::ReconstructableFromSignal:
         return LevelFlag::ReconstructableFromSignal;
+      case Level::UnderlyingEvent:
+        return LevelFlag::UnderlyingEvent;
     }
     return LevelFlag::CaloBoundary;
   }
 
-  inline constexpr std::array<Level, 5> kAllLevels = {Level::StableLegsFromUpstream,
+  inline constexpr std::array<Level, 6> kAllLevels = {Level::StableLegsFromUpstream,
                                                       Level::HardProcess,
                                                       Level::StableDecayProducts,
                                                       Level::CaloBoundary,
-                                                      Level::ReconstructableFromSignal};
+                                                      Level::ReconstructableFromSignal,
+                                                      Level::UnderlyingEvent};
 
   // Stamp every particle with the levels it belongs to. Call once, on the COMPLETE graph:
   // levelAntichain walks ancestors and descendants, so a graph still being assembled

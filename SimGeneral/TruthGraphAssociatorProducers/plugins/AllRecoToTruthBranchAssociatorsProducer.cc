@@ -343,7 +343,6 @@ AllRecoToTruthBranchAssociatorsProducer<RECO>::AllRecoToTruthBranchAssociatorsPr
   // set as the efficiency DENOMINATOR. Without it a validator counts every particle in
   // the graph, including those the selector rejected, and every efficiency comes out
   // low by the rejection factor.
-  produces<std::vector<unsigned int>>("selectedBranchRoots");
   // The preset seed objects among them, the denominator of the signal efficiency.
   signalSeedPdgIds_ = cfg.getParameter<std::vector<int>>("signalSeedPdgIds");
   produces<std::vector<unsigned int>>("signalSeeds");
@@ -456,8 +455,10 @@ void AllRecoToTruthBranchAssociatorsProducer<RECO>::produce(edm::StreamID,
     }
   }
 
-  event.put(std::make_unique<std::vector<unsigned int>>(selectedRoots.begin(), selectedRoots.end()),
-            "selectedBranchRoots");
+  // selectedRoots is NOT emitted. It is every particle passing the selector, so it can
+  // hold a particle together with its own ancestor and any efficiency over it counts the
+  // same object twice: 1.3% of its members have an ancestor in the same set. It stays a
+  // local, because the signal seeds below are the subset of it carrying a seed species.
 
   // The preset seed objects: with a tau preset the tau roots alone, so the signal
   // efficiency is the tau's own, not its decay legs'. No preset means every selected
@@ -801,7 +802,7 @@ void AllRecoToTruthBranchAssociatorsProducer<RECO>::fillDescriptions(edm::Config
   desc.add<std::vector<int>>("signalSeedPdgIds", {})
       ->setComment(
           "The selection preset's seed pdgIds (truthGraphSelections seedPdgIdsForPreset). signalSeeds is the "
-          "subset of selectedBranchRoots with one of these pdgIds, signalSeedsNoSelection every particle with "
+          "subset of the selected roots with one of these pdgIds, signalSeedsNoSelection every particle with "
           "one of them whatever the branch selector says; empty means no preset ran and both fall back to "
           "every selected root");
   desc.add<bool>("truthToRecoSignalOnly", true)
@@ -846,7 +847,8 @@ DEFINE_FWK_MODULE(AllVertexToTruthBranchAssociatorsProducer);
 // product instances by label+instance with no separator, offers one adaptive point next
 // to the fixed match, and takes its candidate roots from an external product; this one
 // keys by label_instance, carries the whole working-point list, and publishes
-// selectedBranchRoots so a validator can use the same denominator the associator used.
+// the per-level target lists, every one of them an antichain, so no efficiency can count
+// one object twice.
 // Consolidating the two is follow-up work; until then a duplicate class name would make
 // the framework pick one of them at random.
 using TruthBranchTracksterAssociatorsProducer = AllRecoToTruthBranchAssociatorsProducer<ticl::Trackster>;

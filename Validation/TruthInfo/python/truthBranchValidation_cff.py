@@ -37,7 +37,7 @@ _wps = list(truthBranchWorkingPointsPSet.names)
 # rather than as two photons. It needs LevelFlag::Signal on the graph, which is stamped at
 # DIGI, so a sample produced before that carries an EMPTY level rather than a wrong one.
 _truthLevels = ["stableLegsFromUpstream", "caloBoundary", "stableDecayProducts", "hardProcess",
-                "reconstructableFromSignal"]
+                "reconstructableFromSignal", "underlyingEvent"]
 
 # Axis definition per x variable, shared by every domain. Built here so the booking, the
 # harvester strings and the plot script all read one list.
@@ -309,11 +309,11 @@ for _d in _domains:
     # same energy twice: measured on ttbar, 24% of a pt-selected set had another selected
     # particle as an ancestor. Every denominator here is an antichain, the levels by
     # construction and signal/signalNoSelection because the seeds are reduced to their
-    # most upstream members. The associator still emits selectedBranchRoots for diagnosis.
+    # most upstream members.
     # The truth-driven folder suffixes: the graph levels, the overall signal entry
     # (denominator the preset seed objects, signalSeeds), the same seed objects with no
     # selector cut at all (signalSeedsNoSelection) and the widest entry over every
-    # selected root (denominator selectedBranchRoots) for a hit-based domain, the vertex
+    # for a hit-based domain, the vertex
     # resolution for a composite one.
     _truthSuffixes = ([_d["vertexResolution"]] if "vertexResolution" in _d
                       else _truthLevels + ["signal", "signalNoSelection"])
