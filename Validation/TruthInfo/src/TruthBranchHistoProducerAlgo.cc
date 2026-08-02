@@ -74,7 +74,15 @@ namespace truth {
       for (std::size_t v = 0; v < names.size(); ++v) {
         auto const& name = names[v];
         auto const& axis = axes[v];
-        row.push_back(booker.book1D(prefix + "_" + name, prefix + " vs " + name, axis.nbins, axis.min, axis.max));
+        auto* me = booker.book1D(prefix + "_" + name, prefix + " vs " + name, axis.nbins, axis.min, axis.max);
+        // The flavour axis is species, not a number: label it so the DQM GUI reads as
+        // d/u/s/c/b/t/g rather than as bin indices.
+        if (name == "flavour") {
+          for (int f = 0; f < kNFlavourBins && f < axis.nbins; ++f) {
+            me->setBinLabel(f + 1, kFlavourBinNames[f]);
+          }
+        }
+        row.push_back(me);
       }
       rows.push_back(std::move(row));
     }

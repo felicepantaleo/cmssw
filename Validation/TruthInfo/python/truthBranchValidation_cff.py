@@ -58,6 +58,10 @@ _axes = {
     # branch footprint that belongs to the root particle itself.
     "depth": (15, 0.0, 15.0),
     "root_footprint_fraction": (20, 0.0, 1.0),
+    # The species that initiated the truth object, one bin each for other, d, u, s, c, b,
+    # t, g. Only partonJets roots are partons, so every other level sits in bin 0 and the
+    # axis reads as "which flavour of jet" on that level alone.
+    "flavour": (8, 0.0, 8.0),
     # Where the branch ENTERS the calorimeter, not where its root was produced. Same
     # range as eta so the two are read side by side; a branch that never reached the
     # calorimeter is filled at kNoCaloEntry and lands in the underflow of both the
@@ -89,7 +93,7 @@ _algoBlockArgs.update(
 # Booking a variable a domain cannot fill would put a spike at zero in every reco-side
 # plot and read as a real feature.
 truthPlotVariables = ["pt", "eta", "phi", "nhits", "vertpos", "zpos", "dxy", "dz", "depth",
-                      "root_footprint_fraction", "caloeta"]
+                      "root_footprint_fraction", "caloeta", "flavour"]
 
 # Individual-match thresholds per domain, taken from the corresponding standard
 # validation rather than invented. Tracks and vertices are judged on the fraction of

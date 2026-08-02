@@ -690,6 +690,9 @@ void TruthBranchRecoValidator<RECO>::dqmAnalyze(edm::Event const& event,
         // hits all come from what it produced.
         const auto direct = hitIndex.directHits(truth::HitChannel::Tracker, b);
         kin.root_footprint_fraction = subgraph.empty() ? 0. : static_cast<double>(direct.size()) / subgraph.size();
+        // What species the object came from. Only partonJets roots are partons; every
+        // other level sits in the Other bin.
+        kin.flavour = truth::flavourBin(particle.pdgId);
 
         const auto vertices = branchRoot.productionVertices();
         if (!vertices.empty()) {

@@ -58,9 +58,39 @@ namespace truth {
   // far down the event history the branch root sits, and root_footprint_fraction is how much of the
   // branch footprint belongs to the root particle itself rather than to its
   // descendants.
-  enum class Variable { Pt, Eta, Phi, Nhits, Vertpos, Zpos, Dxy, Dz, Depth, RootFootprintFraction, CaloEta };
-  inline static const std::vector<std::string> kVariableNames = {
-      "pt", "eta", "phi", "nhits", "vertpos", "zpos", "dxy", "dz", "depth", "root_footprint_fraction", "caloeta"};
+  enum class Variable { Pt, Eta, Phi, Nhits, Vertpos, Zpos, Dxy, Dz, Depth, RootFootprintFraction, CaloEta, Flavour };
+  inline static const std::vector<std::string> kVariableNames = {"pt",
+                                                                 "eta",
+                                                                 "phi",
+                                                                 "nhits",
+                                                                 "vertpos",
+                                                                 "zpos",
+                                                                 "dxy",
+                                                                 "dz",
+                                                                 "depth",
+                                                                 "root_footprint_fraction",
+                                                                 "caloeta",
+                                                                 "flavour"};
+
+  // The species that initiated a truth object, as a bin index. Answers "what kind of
+  // particle made this" on the same axis machinery every other variable uses, so
+  // efficiency and efficiency_cumulative against it need no special case.
+  //
+  // Only the partonJets level populates anything but Other: every level is booked on
+  // every axis, and a level whose roots are not partons is entirely in bin 0 by
+  // construction rather than by accident.
+  enum class FlavourBin { Other = 0, Down, Up, Strange, Charm, Bottom, Top, Gluon };
+  inline static constexpr int kNFlavourBins = 8;
+  inline static const std::vector<std::string> kFlavourBinNames = {"other", "d", "u", "s", "c", "b", "t", "g"};
+
+  [[nodiscard]] inline double flavourBin(int32_t pdgId) {
+    const int32_t a = std::abs(pdgId);
+    if (a >= 1 && a <= 6)
+      return static_cast<double>(a) + 0.5;
+    if (a == 21)
+      return static_cast<double>(FlavourBin::Gluon) + 0.5;
+    return static_cast<double>(FlavourBin::Other) + 0.5;
+  }
 
   // caloeta of a branch that never reached the calorimeter. Far outside every axis
   // range, so such a branch lands in the underflow of BOTH numerator and denominator
@@ -201,8 +231,9 @@ namespace truth {
     struct Kinematics {
       double pt = 0., eta = 0., phi = 0., nhits = 0., vertpos = 0., zpos = 0., dxy = 0., dz = 0.;
       double depth = 0., root_footprint_fraction = 0., caloeta = kNoCaloEntry;
+      double flavour = static_cast<double>(FlavourBin::Other) + 0.5;
       std::vector<double> asVector() const {
-        return {pt, eta, phi, nhits, vertpos, zpos, dxy, dz, depth, root_footprint_fraction, caloeta};
+        return {pt, eta, phi, nhits, vertpos, zpos, dxy, dz, depth, root_footprint_fraction, caloeta, flavour};
       }
     };
 

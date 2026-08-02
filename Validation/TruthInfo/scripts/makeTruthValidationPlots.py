@@ -237,11 +237,17 @@ VARIABLE_MEANING = {
     "depth": "number of ancestors of the branch root in the graph, that is how far down the event history it sits",
     "root_footprint_fraction": "fraction of the branch tracker footprint that belongs to the root particle itself rather than to "
                 "its descendants; near 1 is a clean single particle",
+    "flavour": "species that initiated the truth object, read off the branch root PDG id. Only the partonJets level has parton roots, so on every other level the whole distribution sits in the `other` bin by construction",
     "shared_energy_fraction": "fraction of the truth branch energy that the matched reco object shares with it",
 }
 # Axis title per variable, in the CMS convention: the unit in square brackets, and no
 # bracket at all for a pure count, a fraction or a dimensionless shape variable.
+# Bin names of the flavour axis, mirroring truth::kFlavourBinNames. The axis is species
+# rather than a number, so the ticks are named and never drawn as bin indices.
+FLAVOUR_BINS = ["other", "d", "u", "s", "c", "b", "t", "g"]
+
 AXIS_TITLE = {
+    "flavour": "initiating parton",
     "pt": r"p$_{T}$ [GeV]",
     # The truth object here is the branch ROOT, whose eta is where it was PRODUCED, not
     # where its energy landed. Say so on the axis: for anything but caloBoundary the root
@@ -406,7 +412,7 @@ METRIC_ORDER = ["composition", "efficiency", "duplicate", "splitrate", "recopuri
 # produced" and "where did the branch reach the calorimeter", and for anything but the
 # caloBoundary level they are different questions with different answers.
 VARIABLE_ORDER = ["pt", "eta", "caloeta", "phi", "nhits", "vertpos", "zpos", "dxy", "dz", "depth",
-                  "root_footprint_fraction"]
+                  "root_footprint_fraction", "flavour"]
 # Axes whose bins are named categories rather than numbers, drawn as grouped bars.
 CATEGORICAL = ["reason"]
 # Gaussian slice fits, ordered so bias is read before width for each quantity.
@@ -927,6 +933,9 @@ def plot_metric(category, collection, metric, var, per_wp, outdir, index, slices
     xvar = var.rsplit("_vs_", 1)[-1].split("_")[0] if "_vs_" in var else var
     # The two pads share the x axis, so the title is written once, under the ratio.
     rax.set_xlabel(axis_title(xvar), fontsize=AXIS_TITLE_SIZE)
+    if xvar == "flavour":
+        rax.set_xticks([i + 0.5 for i in range(len(FLAVOUR_BINS))])
+        rax.set_xticklabels(FLAVOUR_BINS)
     if xvar in AXIS_RANGE:
         rax.set_xlim(*AXIS_RANGE[xvar])
     rax.grid(alpha=0.3)
