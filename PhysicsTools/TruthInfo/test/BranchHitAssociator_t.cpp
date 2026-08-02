@@ -5,6 +5,7 @@
 #include "Utilities/Testing/interface/CppUnit_testdriver.icpp"
 #include "cppunit/extensions/HelperMacros.h"
 
+#include <cmath>
 #include <cstdint>
 #include <vector>
 
@@ -29,10 +30,10 @@ namespace {
     b.setSimTrackForParticle(0, 0, 100);
     b.setSimTrackForParticle(1, 0, 101);
     b.addParticleChild(0, 1);
-    b.addHit(truth::HitChannel::HGCalCalo, 0, 100, 10, 1.0f, 0);
-    b.addHit(truth::HitChannel::HGCalCalo, 0, 100, 11, 1.0f, 0);
-    b.addHit(truth::HitChannel::HGCalCalo, 0, 101, 11, 1.0f, 0);
-    b.addHit(truth::HitChannel::HGCalCalo, 0, 101, 12, 2.0f, 0);
+    b.addHit(truth::HitChannel::Calo, 0, 100, 10, 1.0f, 0);
+    b.addHit(truth::HitChannel::Calo, 0, 100, 11, 1.0f, 0);
+    b.addHit(truth::HitChannel::Calo, 0, 101, 11, 1.0f, 0);
+    b.addHit(truth::HitChannel::Calo, 0, 101, 12, 2.0f, 0);
     return b.finish();
   }
 
@@ -43,11 +44,40 @@ namespace {
     b.setSimTrackForParticle(0, 0, 100);
     b.setSimTrackForParticle(1, 0, 101);
     b.addParticleChild(0, 1);
-    b.addHit(truth::HitChannel::HGCalCalo, 0, 100, 10, 1.0f, 0);  // calo channel
+    b.addHit(truth::HitChannel::Calo, 0, 100, 10, 1.0f, 0);  // calo channel
     b.addHit(truth::HitChannel::Tracker, 0, 100, 20, 1.0f);
     b.addHit(truth::HitChannel::Tracker, 0, 100, 21, 1.0f);
     b.addHit(truth::HitChannel::Tracker, 0, 101, 21, 1.0f);
     b.addHit(truth::HitChannel::Tracker, 0, 101, 22, 2.0f);
+    return b.finish();
+  }
+
+  // Two independent roots sharing one cell, with UNEQUAL energies so the arithmetic
+  // below has no accidental symmetry:
+  //   p0 direct: cell 10 (e3)
+  //   p1 direct: cell 10 (e1), cell 11 (e4)
+  // => cellTotal = {10:4, 11:4}, so on cell 10 the sim fractions are 0.75 and 0.25.
+  truth::LogicalGraphHitIndex buildScoreIndex() {
+    truth::LogicalGraphHitIndexBuilder b(2);
+    b.setSimTrackForParticle(0, 0, 100);
+    b.setSimTrackForParticle(1, 0, 101);
+    b.addHit(truth::HitChannel::Calo, 0, 100, 10, 3.0f, 0);
+    b.addHit(truth::HitChannel::Calo, 0, 101, 10, 1.0f, 0);
+    b.addHit(truth::HitChannel::Calo, 0, 101, 11, 4.0f, 0);
+    return b.finish();
+  }
+
+  // One branch depositing in TWO detectors of the calorimetric channel, as a real one
+  // does: cell 10 of detector 8 (an endcap detector) with energy 2, cell 1 of detector
+  // 3 (a barrel one) with energy 8. Its channel energy is 10, its detector-8 energy 2.
+  constexpr uint32_t kEndcapCell = (8u << 28) | 10u;
+  constexpr uint32_t kBarrelCell = (3u << 28) | 1u;
+
+  truth::LogicalGraphHitIndex buildTwoDetectorIndex() {
+    truth::LogicalGraphHitIndexBuilder b(1);
+    b.setSimTrackForParticle(0, 0, 100);
+    b.addHit(truth::HitChannel::Calo, 0, 100, kEndcapCell, 2.0f, 0);
+    b.addHit(truth::HitChannel::Calo, 0, 100, kBarrelCell, 8.0f, 0);
     return b.finish();
   }
 
@@ -61,6 +91,8 @@ class TestBranchHitAssociator : public CppUnit::TestFixture {
   CPPUNIT_TEST(testTrackerChannel);
   CPPUNIT_TEST(testEmptyRootsMatchNothingWhenRestricted);
   CPPUNIT_TEST(testReverseScoreIsBranchNormalized);
+  CPPUNIT_TEST(testTiclScoreArithmetic);
+  CPPUNIT_TEST(testSharedEnergyFractionCountsOnlyTheRequestedDetectors);
   CPPUNIT_TEST_SUITE_END();
 
 public:
@@ -70,6 +102,8 @@ public:
   void testTrackerChannel();
   void testEmptyRootsMatchNothingWhenRestricted();
   void testReverseScoreIsBranchNormalized();
+  void testTiclScoreArithmetic();
+  void testSharedEnergyFractionCountsOnlyTheRequestedDetectors();
 };
 
 CPPUNIT_TEST_SUITE_REGISTRATION(TestBranchHitAssociator);
@@ -145,7 +179,7 @@ void TestBranchHitAssociator::testTrackerChannel() {
   CPPUNIT_ASSERT(assoc.bestBranches(caloReco).empty());
   // ...and a calo associator ignores the tracker cells.
   truth::BranchHitAssociator caloAssoc(
-      index, {}, truth::BranchHitAssociator::Metric::SharedHits, truth::HitChannel::HGCalCalo);
+      index, {}, truth::BranchHitAssociator::Metric::SharedHits, truth::HitChannel::Calo);
   CPPUNIT_ASSERT(caloAssoc.bestBranches(reco).empty());
 }
 
@@ -159,7 +193,7 @@ void TestBranchHitAssociator::testEmptyRootsMatchNothingWhenRestricted() {
   truth::BranchHitAssociator restricted(index,
                                         {},
                                         truth::BranchHitAssociator::Metric::SharedEnergy,
-                                        truth::HitChannel::HGCalCalo,
+                                        truth::HitChannel::Calo,
                                         /*emptyRootsMeansAll=*/false);
   std::vector<truth::RecoHit> reco{{10, 1.0f, 1.0f}, {11, 2.0f, 1.0f}, {12, 2.0f, 1.0f}};
   CPPUNIT_ASSERT(restricted.bestBranches(reco).empty());
@@ -194,4 +228,88 @@ void TestBranchHitAssociator::testReverseScoreIsBranchNormalized() {
     }
   }
   CPPUNIT_ASSERT(sawRoot1);
+}
+
+void TestBranchHitAssociator::testTiclScoreArithmetic() {
+  auto index = buildScoreIndex();
+  truth::BranchHitAssociator assoc(index);  // SharedEnergy, all roots
+
+  // Reco object: half of cell 10 and all of cell 11. RecoHit::energy is deliberately
+  // absurd, because the shared-energy metric must take the cell energy from the index.
+  std::vector<truth::RecoHit> reco{{10, 99.f, 0.5f}, {11, 99.f, 1.0f}};
+  auto matches = assoc.bestBranches(reco);
+  CPPUNIT_ASSERT_EQUAL(std::size_t(2), matches.size());
+
+  // Hand-computed, following AllTracksterToSimTracksterAssociatorsByHitsProducer.cc
+  // :341-364 (recoToSim) and :428-453 (simToReco), with the cell energy as the rechit
+  // energy. Reco energies: 0.5*4 = 2 on cell 10, 1.0*4 = 4 on cell 11.
+  // recoToSim denominator = 2^2 + 4^2 = 20.
+  const truth::BranchMatch* root0 = nullptr;
+  const truth::BranchMatch* root1 = nullptr;
+  for (auto const& m : matches) {
+    (m.rootParticleId == 0 ? root0 : root1) = &m;
+  }
+  CPPUNIT_ASSERT(root0 != nullptr && root1 != nullptr);
+
+  // Root 1 owns 1 on cell 10 and 4 on cell 11.
+  //   recoToSim: max(0, 2-1)^2 + max(0, 4-4)^2 = 1, over 20.
+  //   shared energy: min(2,1) + min(4,4) = 5, and the branch owns 5, so the fraction
+  //   is 1 while the reco object is only half of cell 10: sim-normalised, as intended.
+  //   simToReco: the reco object covers every unit of the branch, so 0. That the reco
+  //   object has MORE energy than the branch on cell 10 is a good association.
+  CPPUNIT_ASSERT_DOUBLES_EQUAL(1.0 / 20.0, root1->score, 1e-6);
+  CPPUNIT_ASSERT_DOUBLES_EQUAL(5.0, root1->sharedEnergy, 1e-6);
+  CPPUNIT_ASSERT_DOUBLES_EQUAL(1.0, root1->sharedEnergyFraction, 1e-6);
+  CPPUNIT_ASSERT_DOUBLES_EQUAL(0.0, root1->reverseScore, 1e-6);
+
+  // Root 0 owns 3 on cell 10 and nothing on cell 11.
+  //   recoToSim: max(0, 2-3)^2 + max(0, 4-0)^2 = 16, over 20.
+  //   shared energy: min(2,3) + min(4,0) = 2, over the branch's own 3.
+  //   simToReco: max(0, 3-2)^2 = 1, over the branch self energy 3^2 = 9.
+  CPPUNIT_ASSERT_DOUBLES_EQUAL(16.0 / 20.0, root0->score, 1e-6);
+  CPPUNIT_ASSERT_DOUBLES_EQUAL(2.0, root0->sharedEnergy, 1e-6);
+  CPPUNIT_ASSERT_DOUBLES_EQUAL(2.0 / 3.0, root0->sharedEnergyFraction, 1e-6);
+  CPPUNIT_ASSERT_DOUBLES_EQUAL(1.0 / 9.0, root0->reverseScore, 1e-6);
+
+  // The shared energy fraction is NOT one minus the score in either direction: the
+  // scores are squared and energy weighted, the fraction is linear. That is exactly why
+  // HGCalValidator gates efficiency on the fraction and purity on the score.
+  CPPUNIT_ASSERT(std::abs((1.f - root0->reverseScore) - root0->sharedEnergyFraction) > 0.2f);
+}
+
+void TestBranchHitAssociator::testSharedEnergyFractionCountsOnlyTheRequestedDetectors() {
+  auto index = buildTwoDetectorIndex();
+
+  // A reco object that takes the whole endcap cell and nothing else, which is what an
+  // endcap reco collection can do at best for this branch.
+  std::vector<truth::RecoHit> reco{{kEndcapCell, 99.f, 1.0f}};
+
+  // Whole channel in the denominator: shared 2 over the branch's 2 + 8, which is below
+  // the 0.5 efficiency gate although the reco object took everything it could reach.
+  truth::BranchHitAssociator wholeChannel(index);
+  auto wholeMatches = wholeChannel.bestBranches(reco);
+  CPPUNIT_ASSERT_EQUAL(std::size_t(1), wholeMatches.size());
+  CPPUNIT_ASSERT_DOUBLES_EQUAL(2.0, wholeMatches.front().sharedEnergy, 1e-6);
+  CPPUNIT_ASSERT_DOUBLES_EQUAL(2.0 / 10.0, wholeMatches.front().sharedEnergyFraction, 1e-6);
+
+  // Detector 8 only: shared 2 over the branch's 2 there, so the fraction is 1.
+  truth::BranchHitAssociator endcapOnly(index,
+                                        {},
+                                        truth::BranchHitAssociator::Metric::SharedEnergy,
+                                        truth::HitChannel::Calo,
+                                        /*emptyRootsMeansAll=*/true,
+                                        truth::BranchHitAssociator::detectorBit(kEndcapCell));
+  auto endcapMatches = endcapOnly.bestBranches(reco);
+  CPPUNIT_ASSERT_EQUAL(std::size_t(1), endcapMatches.size());
+  CPPUNIT_ASSERT_DOUBLES_EQUAL(2.0, endcapMatches.front().sharedEnergy, 1e-6);
+  CPPUNIT_ASSERT_DOUBLES_EQUAL(1.0, endcapMatches.front().sharedEnergyFraction, 1e-6);
+
+  // The restriction touches the fraction and nothing else: both TICL scores keep their
+  // own denominators over the whole channel. recoToSim is 0 (the reco object covers its
+  // own energy exactly, 1.0 * 2 against the branch's 2); simToReco is the barrel energy
+  // the reco object misses, (2^2 + 8^2 - 2^2) / (2^2 + 8^2) = 64 / 68.
+  CPPUNIT_ASSERT_DOUBLES_EQUAL(0.0, endcapMatches.front().score, 1e-6);
+  CPPUNIT_ASSERT_DOUBLES_EQUAL(wholeMatches.front().score, endcapMatches.front().score, 1e-6);
+  CPPUNIT_ASSERT_DOUBLES_EQUAL(64.0 / 68.0, endcapMatches.front().reverseScore, 1e-6);
+  CPPUNIT_ASSERT_DOUBLES_EQUAL(wholeMatches.front().reverseScore, endcapMatches.front().reverseScore, 1e-6);
 }

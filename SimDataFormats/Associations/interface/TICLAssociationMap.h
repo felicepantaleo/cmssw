@@ -9,6 +9,7 @@
 #include <iostream>
 #include <cassert>
 
+#include <concepts>
 #include <limits>
 
 // CMSSW specific includes
@@ -37,16 +38,62 @@ namespace ticl {
     }
   };
 
-  // AssociationElement class to store index and value, and provide methods directly
+  // Shared-hit multiplicity. Distinct from SharedEnergyType because detectors with no
+  // per-cell energy (tracker, muon chambers) match on a hit COUNT, and calling that
+  // "shared energy" hides the difference at every call site.
+  struct SharedHitsType {
+    float value;
+    SharedHitsType(float v = 0.0f) : value(v) {}
+    SharedHitsType& operator+=(float v) {
+      value += v;
+      return *this;
+    }
+  };
+
+  // The payload vocabulary, as concepts. A scalar payload carries one float; a scored
+  // payload pairs one with an association score. The pair layout is deliberate: it is
+  // what the ROOT dictionary already persists, so it must not be replaced by a nicer
+  // wrapper without a schema migration.
+  template <typename T>
+  concept ScalarPayload =
+      std::same_as<T, FractionType> || std::same_as<T, SharedEnergyType> || std::same_as<T, SharedHitsType>;
+
+  namespace detail {
+    template <typename T>
+    struct is_scored_payload : std::false_type {};
+    template <ScalarPayload P>
+    struct is_scored_payload<std::pair<P, float>> : std::true_type {};
+  }  // namespace detail
+
+  template <typename T>
+  concept ScoredPayload = detail::is_scored_payload<T>::value;
+
+  // Every payload AssociationElement accepts. Constraining on this turns "someone added
+  // a payload and forgot a branch" from silent undefined behaviour into a compile error.
+  template <typename T>
+  concept AssociationPayload = ScalarPayload<T> || ScoredPayload<T>;
+
+  // AssociationElement class to store index and value, and provide methods directly.
+  //
+  // The payload contract is enforced by the static_assert below rather than by a
+  // constraint on the template parameter: rootcling emits its forward declaration of
+  // this class UNCONSTRAINED ("template <class V> class AssociationElement;"), so a
+  // constrained declaration here is a redeclaration mismatch that cling reports as
+  // "type constraint differs in template redeclaration" and that then crashes product
+  // registration. The static_assert gives the same compile-time guarantee without
+  // changing the declaration the dictionary has to match.
   template <typename V>
   class AssociationElement {
+    static_assert(AssociationPayload<V>,
+                  "ticl::AssociationElement payload must be a ScalarPayload or a ScoredPayload; "
+                  "add the type to the concept and to the branches that switch on it");
+
   public:
     using value_type = V;
     AssociationElement() : index_(std::numeric_limits<unsigned int>::max()) {
-      if constexpr (std::is_same_v<V, FractionType> || std::is_same_v<V, SharedEnergyType>) {
+      if constexpr (ScalarPayload<V>) {
         value_.value = -1.f;
-      } else if constexpr (std::is_same_v<V, std::pair<FractionType, float>> ||
-                           std::is_same_v<V, std::pair<SharedEnergyType, float>>) {
+      } else {
         value_.first.value = -1.f;
       }
     }
@@ -55,58 +102,61 @@ namespace ticl {
     unsigned int index() const { return index_; }
 
     bool isValid() const {
-      if constexpr (std::is_same_v<V, FractionType> || std::is_same_v<V, SharedEnergyType>) {
+      if constexpr (ScalarPayload<V>) {
         return value_.value >= 0.f;
-      } else if constexpr (std::is_same_v<V, std::pair<FractionType, float>> ||
-                           std::is_same_v<V, std::pair<SharedEnergyType, float>>) {
+      } else {
         return value_.first.value >= 0.f;
       }
     }
 
-    // Enable fraction() if ValueType is FractionType
-    template <typename T = V, typename std::enable_if_t<std::is_same_v<T, FractionType>, int> = 0>
-    float fraction() const {
-      return value_.value;
+    // The stored float, whatever the payload calls it. The named accessors below are
+    // thin aliases so a call site still reads in the units it means.
+    float value() const {
+      if constexpr (ScalarPayload<V>) {
+        return value_.value;
+      } else {
+        return value_.first.value;
+      }
     }
 
-    // Enable sharedEnergy() if ValueType is SharedEnergyType
-    template <typename T = V, typename std::enable_if_t<std::is_same_v<T, SharedEnergyType>, int> = 0>
-    float sharedEnergy() const {
-      return value_.value;
+    // Named accessors. Each is enabled only for the payloads that carry that quantity,
+    // so asking a shared-hits map for sharedEnergy() is a compile error naming the
+    // constraint, not a silent reinterpretation of the float.
+    [[nodiscard]] float fraction() const
+      requires std::same_as<V, FractionType> || std::same_as<V, std::pair<FractionType, float>>
+    {
+      return value();
     }
 
-    // Enable fraction() and score() if ValueType is std::pair<FractionType, float>
-    template <typename T = V, typename std::enable_if_t<std::is_same_v<T, std::pair<FractionType, float>>, int> = 0>
-    float fraction() const {
-      return value_.first.value;
-    }
-    template <typename T = V, typename std::enable_if_t<std::is_same_v<T, std::pair<FractionType, float>>, int> = 0>
-    float score() const {
-      return value_.second;
+    [[nodiscard]] float sharedEnergy() const
+      requires std::same_as<V, SharedEnergyType> || std::same_as<V, std::pair<SharedEnergyType, float>>
+    {
+      return value();
     }
 
-    // Enable sharedEnergy() and score() if ValueType is std::pair<SharedEnergyType, float>
-    template <typename T = V, typename std::enable_if_t<std::is_same_v<T, std::pair<SharedEnergyType, float>>, int> = 0>
-    float sharedEnergy() const {
-      return value_.first.value;
+    [[nodiscard]] float sharedHits() const
+      requires std::same_as<V, SharedHitsType> || std::same_as<V, std::pair<SharedHitsType, float>>
+    {
+      return value();
     }
-    template <typename T = V, typename std::enable_if_t<std::is_same_v<T, std::pair<SharedEnergyType, float>>, int> = 0>
-    float score() const {
+
+    [[nodiscard]] float score() const
+      requires ScoredPayload<V>
+    {
       return value_.second;
     }
 
     // Method to accumulate values
     void accumulate(const V& other_value) {
-      if constexpr (std::is_same_v<V, FractionType> || std::is_same_v<V, SharedEnergyType>) {
+      if constexpr (ScalarPayload<V>) {
         value_.value += other_value.value;
-      } else if constexpr (std::is_same_v<V, std::pair<FractionType, float>> ||
-                           std::is_same_v<V, std::pair<SharedEnergyType, float>>) {
+      } else {
         value_.first.value += other_value.first.value;
         value_.second += other_value.second;
       }
     }
     bool operator==(const AssociationElement& other) const {
-      return index_ == other.index_ && value_.value == other.value_.value;
+      return index_ == other.index_ && value() == other.value();
     }
 
     bool operator!=(const AssociationElement& other) const { return !(*this == other); }
@@ -146,6 +196,11 @@ namespace ticl {
   using mapWithFractionAndScore = std::vector<std::vector<AssociationElement<std::pair<FractionType, float>>>>;
   using oneToOneMapWithFraction = std::vector<AssociationElement<FractionType>>;
   using oneToOneMapWithFractionAndScore = std::vector<AssociationElement<std::pair<FractionType, float>>>;
+
+  using mapWithSharedHits = std::vector<std::vector<AssociationElement<SharedHitsType>>>;
+  using mapWithSharedHitsAndScore = std::vector<std::vector<AssociationElement<std::pair<SharedHitsType, float>>>>;
+  using oneToOneMapWithSharedHits = std::vector<AssociationElement<SharedHitsType>>;
+  using oneToOneMapWithSharedHitsAndScore = std::vector<AssociationElement<std::pair<SharedHitsType, float>>>;
 
   using mapWithSharedEnergy = std::vector<std::vector<AssociationElement<SharedEnergyType>>>;
   using mapWithSharedEnergyAndScore = std::vector<std::vector<AssociationElement<std::pair<SharedEnergyType, float>>>>;
@@ -278,23 +333,16 @@ namespace ticl {
               }
             });
           } else {
-            if constexpr (std::is_same_v<V, FractionType> || std::is_same_v<V, std::pair<FractionType, float>>) {
-              std::sort(vec.begin(), vec.end(), [](const auto& a, const auto& b) {
-                if (a.fraction() != b.fraction()) {
-                  return a.fraction() > b.fraction();
-                } else {
-                  return a.index() < b.index();
-                }
-              });
-            } else {
-              std::sort(vec.begin(), vec.end(), [](const auto& a, const auto& b) {
-                if (a.sharedEnergy() != b.sharedEnergy()) {
-                  return a.sharedEnergy() > b.sharedEnergy();
-                } else {
-                  return a.index() < b.index();
-                }
-              });
-            }
+            // Descending by the stored quantity, ties broken by index. Reading it
+            // through value() rather than a payload-specific accessor keeps this
+            // correct for every payload: the previous branch hardcoded sharedEnergy()
+            // and so did not compile for any payload that does not carry energy.
+            std::sort(vec.begin(), vec.end(), [](const auto& a, const auto& b) {
+              if (a.value() != b.value()) {
+                return a.value() > b.value();
+              }
+              return a.index() < b.index();
+            });
           }
         }
       }

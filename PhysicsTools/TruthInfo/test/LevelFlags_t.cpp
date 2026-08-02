@@ -1,0 +1,344 @@
+// Original author: Felice Pantaleo (CERN) <felice.pantaleo@cern.ch>
+// Part of the MC-truth-graph prototype - under heavy development, not yet open
+// to external contributions (see PhysicsTools/TruthInfo/README.md).
+
+#include "Utilities/Testing/interface/CppUnit_testdriver.icpp"
+#include "cppunit/extensions/HelperMacros.h"
+
+#include <algorithm>
+#include <cstdint>
+#include <utility>
+#include <vector>
+
+#include "PhysicsTools/TruthInfo/interface/TruthLevels.h"
+#include "SimDataFormats/TruthInfo/interface/Graph.h"
+
+namespace {
+
+  // Minimal CSR graph builder, the same one the other tests in this package use.
+  struct GraphBuilder {
+    explicit GraphBuilder(uint32_t nParticles, uint32_t nVertices) {
+      graph.particles().resize(nParticles);
+      graph.vertices().resize(nVertices);
+    }
+    void addDecay(uint32_t particleId, uint32_t vertexId) {
+      d2v.emplace_back(particleId, vertexId);
+      v2i.emplace_back(vertexId, particleId);
+    }
+    void addProduction(uint32_t vertexId, uint32_t particleId) {
+      v2o.emplace_back(vertexId, particleId);
+      p2v.emplace_back(particleId, vertexId);
+    }
+    static void csr(uint32_t n,
+                    std::vector<std::pair<uint32_t, uint32_t>>& pairs,
+                    std::vector<uint32_t>& off,
+                    std::vector<uint32_t>& flat) {
+      std::sort(pairs.begin(), pairs.end());
+      pairs.erase(std::unique(pairs.begin(), pairs.end()), pairs.end());
+      off.assign(n + 1, 0);
+      for (auto const& pr : pairs)
+        ++off[pr.first + 1];
+      for (uint32_t i = 1; i <= n; ++i)
+        off[i] += off[i - 1];
+      flat.assign(pairs.size(), 0);
+      auto cur = off;
+      for (auto const& pr : pairs)
+        flat[cur[pr.first]++] = pr.second;
+    }
+    truth::Graph finish() {
+      csr(graph.nParticles(), d2v, graph.particleToDecayVertexOffsets(), graph.particleToDecayVertices());
+      csr(graph.nParticles(), p2v, graph.particleToProductionVertexOffsets(), graph.particleToProductionVertices());
+      csr(graph.nVertices(), v2o, graph.vertexToOutgoingParticleOffsets(), graph.vertexToOutgoingParticles());
+      csr(graph.nVertices(), v2i, graph.vertexToIncomingParticleOffsets(), graph.vertexToIncomingParticles());
+      CPPUNIT_ASSERT(graph.isConsistent());
+      return graph;
+    }
+    truth::Graph graph;
+    std::vector<std::pair<uint32_t, uint32_t>> d2v, p2v, v2o, v2i;
+  };
+
+  // A tau decaying to a pion and a neutrino, the pion reaching the calorimeter.
+  //   p0  tau, isHardProcess, decays at v0
+  //   p1  pi+, status 1, records a calorimeter boundary crossing
+  //   p2  nu,  status 1, no crossing
+  truth::Graph buildDecay() {
+    GraphBuilder b(3, 1);
+
+    auto& tau = b.graph.particles()[0];
+    tau.genNode = 100;
+    tau.pdgId = 15;
+    tau.status = 2;
+    tau.statusFlags = truth::detail::kIsHardProcess;
+    tau.momentum = math::XYZTLorentzVectorD(50., 0., 0., 60.);
+
+    auto& pion = b.graph.particles()[1];
+    pion.genNode = 101;
+    pion.simNode = 201;
+    pion.pdgId = 211;
+    pion.status = 1;
+    pion.momentum = math::XYZTLorentzVectorD(30., 0., 0., 35.);
+    pion.checkpoints.push_back(truth::Checkpoint{});
+
+    auto& nu = b.graph.particles()[2];
+    nu.genNode = 102;
+    nu.pdgId = 16;
+    nu.status = 1;
+    nu.momentum = math::XYZTLorentzVectorD(5., 0., 0., 5.);
+
+    b.addDecay(0, 0);
+    b.addProduction(0, 1);
+    b.addProduction(0, 2);
+    return b.finish();
+  }
+
+}  // namespace
+
+class LevelFlags_t : public CppUnit::TestFixture {
+  CPPUNIT_TEST_SUITE(LevelFlags_t);
+  CPPUNIT_TEST(testFitsInThePaddingHole);
+  CPPUNIT_TEST(testFlagsMatchTheAntichain);
+  CPPUNIT_TEST(testIdempotent);
+  CPPUNIT_TEST(testSignalSurvivesFillLevelFlags);
+  CPPUNIT_TEST(testSyntheticSignalNodeIsMarked);
+  CPPUNIT_TEST(testConnectorIsNotAStandIn);
+  CPPUNIT_TEST(testReconstructableFromSignalDropsNeutrinos);
+  CPPUNIT_TEST(testPi0IsLabelledNotItsPhotons);
+  CPPUNIT_TEST(testThreeProngThroughAnIntermediateResonance);
+  CPPUNIT_TEST_SUITE_END();
+
+public:
+  // REQUIRED: the flags word occupies the alignment hole between genEvent and momentum,
+  // so carrying it costs no memory. A change that grows ParticleData past 96 bytes has
+  // moved it out of the hole and needs to be justified, not absorbed silently.
+  void testFitsInThePaddingHole() { CPPUNIT_ASSERT_EQUAL(std::size_t{96}, sizeof(truth::ParticleData)); }
+
+  // REQUIRED: a stored flag says exactly what levelAntichain() would say. This is the
+  // defence against a graph written before a level definition changed, which is
+  // indistinguishable from a fresh one by inspection.
+  void testFlagsMatchTheAntichain() {
+    truth::Graph g = buildDecay();
+    truth::fillLevelFlags(g);
+
+    for (const truth::Level level : truth::kAllLevels) {
+      std::vector<bool> expected(g.nParticles(), false);
+      for (const uint32_t id : truth::levelAntichain(g, level)) {
+        expected[id] = true;
+      }
+      const truth::LevelFlag flag = truth::levelFlagOf(level);
+      for (uint32_t id = 0; id < g.nParticles(); ++id) {
+        CPPUNIT_ASSERT_EQUAL(static_cast<bool>(expected[id]), g.particles()[id].isAtLevel(flag));
+      }
+    }
+
+    // The physics the sample encodes, so a passing test means the right thing and not
+    // merely a self-consistent one: the tau is the hard process, the pion and the
+    // neutrino are the stable decay products, only the pion reaches the calorimeter.
+    CPPUNIT_ASSERT(g.particles()[0].isAtLevel(truth::LevelFlag::HardProcess));
+    CPPUNIT_ASSERT(!g.particles()[1].isAtLevel(truth::LevelFlag::HardProcess));
+    CPPUNIT_ASSERT(g.particles()[1].isAtLevel(truth::LevelFlag::StableDecayProducts));
+    CPPUNIT_ASSERT(g.particles()[2].isAtLevel(truth::LevelFlag::StableDecayProducts));
+    CPPUNIT_ASSERT(g.particles()[1].isAtLevel(truth::LevelFlag::CaloBoundary));
+    CPPUNIT_ASSERT(!g.particles()[2].isAtLevel(truth::LevelFlag::CaloBoundary));
+  }
+
+  // REQUIRED: filling twice leaves the same answer as filling once, so a graph that
+  // passes through the stamp again cannot accumulate membership it no longer has.
+  void testIdempotent() {
+    truth::Graph g = buildDecay();
+    truth::fillLevelFlags(g);
+    std::vector<uint32_t> once;
+    for (auto const& p : g.particles()) {
+      once.push_back(p.levelFlags);
+    }
+    truth::fillLevelFlags(g);
+    for (uint32_t id = 0; id < g.nParticles(); ++id) {
+      CPPUNIT_ASSERT_EQUAL(once[id], g.particles()[id].levelFlags);
+    }
+  }
+
+  // REQUIRED: Signal is set by the selection post-processing, not by fillLevelFlags, so
+  // fillLevelFlags must clear only its own four bits. Clearing everything would erase the
+  // resonance and nothing downstream would notice.
+  void testSignalSurvivesFillLevelFlags() {
+    truth::Graph g = buildDecay();
+    g.particles()[0].setLevel(truth::LevelFlag::Signal);
+    truth::fillLevelFlags(g);
+    CPPUNIT_ASSERT(g.particles()[0].isAtLevel(truth::LevelFlag::Signal));
+    // and the levels it does own are still correct alongside it
+    CPPUNIT_ASSERT(g.particles()[0].isAtLevel(truth::LevelFlag::HardProcess));
+    CPPUNIT_ASSERT(!g.particles()[1].isAtLevel(truth::LevelFlag::Signal));
+  }
+
+  // REQUIRED: the synthetic stand-in is distinguishable from every real particle, since
+  // nothing may read its momentum as a generator quantity. No GEN, no SIM, status 0.
+  // This path fires on no sample in the current set, so this test is the only thing
+  // exercising it.
+  void testSyntheticSignalNodeIsMarked() {
+    truth::Graph g = buildDecay();
+    const uint32_t before = g.nParticles();
+
+    truth::ParticleData synthetic;
+    synthetic.role = truth::ParticleRole::SignalStandIn;
+    synthetic.genNode = -1;
+    synthetic.simNode = -1;
+    synthetic.status = 0;
+    synthetic.setLevel(truth::LevelFlag::Signal);
+    g.particles().push_back(synthetic);
+    g.particleToDecayVertexOffsets().push_back(g.particleToDecayVertexOffsets().back());
+    g.particleToProductionVertexOffsets().push_back(g.particleToProductionVertexOffsets().back());
+
+    CPPUNIT_ASSERT_EQUAL(before + 1, g.nParticles());
+    CPPUNIT_ASSERT(g.isConsistent());
+    auto const& s = g.particles()[before];
+    CPPUNIT_ASSERT(s.isAtLevel(truth::LevelFlag::Signal));
+    CPPUNIT_ASSERT(s.isSynthetic());
+    CPPUNIT_ASSERT(truth::ParticleRole::SignalStandIn == s.role);
+    // Every real particle in the fixture is distinguishable from it.
+    for (uint32_t id = 0; id < before; ++id) {
+      CPPUNIT_ASSERT(!g.particles()[id].isSynthetic());
+    }
+    // fillLevelFlags must leave a standalone synthetic node alone apart from its own bits.
+    truth::fillLevelFlags(g);
+    CPPUNIT_ASSERT(g.particles()[before].isAtLevel(truth::LevelFlag::Signal));
+  }
+
+  // REQUIRED: a connector and a signal stand-in must be distinguishable. Both are
+  // synthetic and both carry genNode = simNode = -1, pdgId 0 and status 0, so any test
+  // that infers the kind from those empty fields cannot tell them apart. That is exactly
+  // the bug this case exists to prevent.
+  void testConnectorIsNotAStandIn() {
+    truth::ParticleData connector;
+    connector.genNode = -1;
+    connector.simNode = -1;
+    connector.pdgId = 0;
+    connector.status = 0;
+    connector.role = truth::ParticleRole::Connector;
+
+    truth::ParticleData standIn;
+    standIn.genNode = -1;
+    standIn.simNode = -1;
+    standIn.pdgId = 0;
+    standIn.status = 0;
+    standIn.role = truth::ParticleRole::SignalStandIn;
+
+    // Indistinguishable on the fields alone, which is the point.
+    CPPUNIT_ASSERT_EQUAL(connector.genNode, standIn.genNode);
+    CPPUNIT_ASSERT_EQUAL(connector.simNode, standIn.simNode);
+    CPPUNIT_ASSERT_EQUAL(connector.status, standIn.status);
+    // Distinguishable on the role, which is why the role exists.
+    CPPUNIT_ASSERT(connector.isSynthetic());
+    CPPUNIT_ASSERT(standIn.isSynthetic());
+    CPPUNIT_ASSERT(connector.role != standIn.role);
+
+    truth::ParticleData real;
+    real.genNode = 7;
+    CPPUNIT_ASSERT(!real.isSynthetic());
+  }
+
+  // REQUIRED: from a signal root, the first GEN-stable descendants, with neutrinos
+  // dropped because they cannot be reconstructed. The fixture tau decays to a pion and a
+  // neutrino, so the visible final state is the pion alone. Empty when nothing is Signal.
+  void testReconstructableFromSignalDropsNeutrinos() {
+    truth::Graph g = buildDecay();
+
+    // No Signal flag anywhere: the level is empty, not the whole event.
+    CPPUNIT_ASSERT(truth::reconstructableFromSignal(g).empty());
+
+    g.particles()[0].setLevel(truth::LevelFlag::Signal);
+    truth::fillLevelFlags(g);
+
+    const auto legs = truth::reconstructableFromSignal(g);
+    CPPUNIT_ASSERT_EQUAL(std::size_t{1}, legs.size());
+    CPPUNIT_ASSERT_EQUAL(uint32_t{1}, legs[0]);  // the pion
+    CPPUNIT_ASSERT(g.particles()[1].isAtLevel(truth::LevelFlag::ReconstructableFromSignal));
+    // the neutrino is stable but invisible, so it is not a leg
+    CPPUNIT_ASSERT(!g.particles()[2].isAtLevel(truth::LevelFlag::ReconstructableFromSignal));
+    // the tau decayed, so it is not its own leg
+    CPPUNIT_ASSERT(!g.particles()[0].isAtLevel(truth::LevelFlag::ReconstructableFromSignal));
+  }
+
+  // REQUIRED: a pi0 decays to two photons at once, but it is the pi0 the analysis
+  // reconstructs, so the pi0 is labelled and its photons are not.
+  //   p0 tau (signal) -> v0 -> p1 pi0 -> v1 -> p2 gamma, p3 gamma
+  void testPi0IsLabelledNotItsPhotons() {
+    GraphBuilder b(4, 2);
+    auto set = [&](uint32_t i, int32_t pdg, int16_t st) {
+      auto& d = b.graph.particles()[i];
+      d.genNode = 100 + i;
+      d.pdgId = pdg;
+      d.status = st;
+      d.momentum = math::XYZTLorentzVectorD(10., 0., 0., 10.);
+    };
+    set(0, 15, 2);   // tau, decays
+    set(1, 111, 2);  // pi0, decays, but reconstructable as an object
+    set(2, 22, 1);   // gamma
+    set(3, 22, 1);   // gamma
+    b.addDecay(0, 0);
+    b.addProduction(0, 1);
+    b.addDecay(1, 1);
+    b.addProduction(1, 2);
+    b.addProduction(1, 3);
+    truth::Graph g = b.finish();
+    g.reconstructablePdgIds() = {111};
+    g.particles()[0].setLevel(truth::LevelFlag::Signal);
+    truth::fillLevelFlags(g);
+
+    const auto legs = truth::reconstructableFromSignal(g);
+    CPPUNIT_ASSERT_EQUAL(std::size_t{1}, legs.size());
+    CPPUNIT_ASSERT_EQUAL(uint32_t{1}, legs[0]);
+    CPPUNIT_ASSERT(g.particles()[1].isAtLevel(truth::LevelFlag::ReconstructableFromSignal));
+    CPPUNIT_ASSERT(!g.particles()[2].isAtLevel(truth::LevelFlag::ReconstructableFromSignal));
+    CPPUNIT_ASSERT(!g.particles()[3].isAtLevel(truth::LevelFlag::ReconstructableFromSignal));
+
+    // With the pi0 NOT declared reconstructable the walk goes through it to the photons,
+    // which is the control showing the configuration is what decides, not the code.
+    g.reconstructablePdgIds().clear();
+    const auto through = truth::reconstructableFromSignal(g);
+    CPPUNIT_ASSERT_EQUAL(std::size_t{2}, through.size());
+  }
+
+  // REQUIRED: a three-prong tau decay labels the three charged pions, and the
+  // intermediate resonance they came from is walked THROUGH, never labelled.
+  //   p0 tau (signal) -> v0 -> p1 a1 -> v1 -> p2,p3,p4 pi+/-
+  void testThreeProngThroughAnIntermediateResonance() {
+    GraphBuilder b(5, 2);
+    auto set = [&](uint32_t i, int32_t pdg, int16_t st) {
+      auto& d = b.graph.particles()[i];
+      d.genNode = 100 + i;
+      d.pdgId = pdg;
+      d.status = st;
+      d.momentum = math::XYZTLorentzVectorD(10., 0., 0., 10.);
+    };
+    set(0, 15, 2);     // tau
+    set(1, 20213, 2);  // a1, an intermediate the detector never sees as an object
+    set(2, 211, 1);
+    set(3, -211, 1);
+    set(4, 211, 1);
+    b.addDecay(0, 0);
+    b.addProduction(0, 1);
+    b.addDecay(1, 1);
+    b.addProduction(1, 2);
+    b.addProduction(1, 3);
+    b.addProduction(1, 4);
+    truth::Graph g = b.finish();
+    g.reconstructablePdgIds() = {111};
+    g.particles()[0].setLevel(truth::LevelFlag::Signal);
+    truth::fillLevelFlags(g);
+
+    const auto legs = truth::reconstructableFromSignal(g);
+    CPPUNIT_ASSERT_EQUAL(std::size_t{3}, legs.size());
+    CPPUNIT_ASSERT(!g.particles()[1].isAtLevel(truth::LevelFlag::ReconstructableFromSignal));
+    for (uint32_t id : {2u, 3u, 4u}) {
+      CPPUNIT_ASSERT(g.particles()[id].isAtLevel(truth::LevelFlag::ReconstructableFromSignal));
+    }
+
+    // Adding the a1 to the configuration labels it instead of its prongs, which is the
+    // documented escape hatch.
+    g.reconstructablePdgIds() = {111, 20213};
+    const auto stopped = truth::reconstructableFromSignal(g);
+    CPPUNIT_ASSERT_EQUAL(std::size_t{1}, stopped.size());
+    CPPUNIT_ASSERT_EQUAL(uint32_t{1}, stopped[0]);
+  }
+};
+
+CPPUNIT_TEST_SUITE_REGISTRATION(LevelFlags_t);

@@ -38,6 +38,14 @@
   <class name="edm::Wrapper<ticl::LayerClusterToSimTracksterAssociator>" persistent="false"/>
   
   <class name="ticl::SharedEnergyType"/>
+  <class name="ticl::SharedHitsType"/>
+  <class name="std::pair<ticl::SharedHitsType, float>"/>
+  <class name="ticl::AssociationElement<ticl::SharedHitsType>"/>
+  <class name="std::vector<ticl::AssociationElement<ticl::SharedHitsType> >"/>
+  <class name="std::vector<std::vector<ticl::AssociationElement<ticl::SharedHitsType> > >"/>
+  <class name="ticl::AssociationElement<std::pair<ticl::SharedHitsType, float> >"/>
+  <class name="std::vector<ticl::AssociationElement<std::pair<ticl::SharedHitsType, float> > >"/>
+  <class name="std::vector<std::vector<ticl::AssociationElement<std::pair<ticl::SharedHitsType, float> > > >"/>
   <class name="std::pair<ticl::SharedEnergyType, float>"/>
   <class name="ticl::FractionType"/>
   <class name="std::pair<ticl::FractionType, float>"/>
@@ -69,6 +77,10 @@
   <class name="ticl::AssociationMap<ticl::mapWithFractionAndScore, std::vector<ticl::Trackster>, std::vector<ticl::Trackster> >"/>
   <class name="edm::Wrapper<ticl::AssociationMap<ticl::mapWithFractionAndScore, std::vector<ticl::Trackster>, std::vector<ticl::Trackster> > >"/>
   <class name="ticl::AssociationMap<ticl::mapWithFractionAndScore, void, void >"/>
+  <class name="ticl::AssociationMap<ticl::mapWithSharedHits, void, void >"/>
+  <class name="edm::Wrapper<ticl::AssociationMap<ticl::mapWithSharedHits, void, void > >"/>
+  <class name="ticl::AssociationMap<ticl::mapWithSharedHitsAndScore, void, void >"/>
+  <class name="edm::Wrapper<ticl::AssociationMap<ticl::mapWithSharedHitsAndScore, void, void > >"/>
   <class name="edm::Wrapper<ticl::AssociationMap<ticl::mapWithFractionAndScore, void, void > >"/>
   <!-- For one-to-one map with FractionType -->
   <class name="ticl::AssociationMap<ticl::oneToOneMapWithFraction, std::vector<io_v1::SimCluster>, std::vector<io_v1::CaloParticle> >"/>

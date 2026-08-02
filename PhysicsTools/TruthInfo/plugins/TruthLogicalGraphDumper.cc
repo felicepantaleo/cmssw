@@ -26,9 +26,29 @@
 
 #include "SimDataFormats/TruthInfo/interface/Graph.h"
 #include "SimDataFormats/TruthInfo/interface/LogicalGraphHitIndex.h"
+#include "PhysicsTools/TruthInfo/interface/SubgraphHitView.h"
+#include "PhysicsTools/TruthInfo/interface/TruthLevels.h"
 #include "SimDataFormats/TruthInfo/interface/TruthGraph.h"
 
 namespace {
+
+  // One colour per level, shared by the node labels and the legend so the two cannot
+  // drift. Pale on purpose: these are backgrounds behind black text.
+  std::string levelColor(truth::Level level) {
+    switch (level) {
+      case truth::Level::StableLegsFromUpstream:
+        return "#cfe8ff";
+      case truth::Level::HardProcess:
+        return "#ffd6a5";
+      case truth::Level::StableDecayProducts:
+        return "#d7f9d7";
+      case truth::Level::CaloBoundary:
+        return "#ffc9c9";
+      case truth::Level::ReconstructableFromSignal:
+        return "#e8d5ff";
+    }
+    return "#ffffff";
+  }
 
   std::string pdgNameUtf8(int pdgId) {
     const int ap = std::abs(pdgId);
@@ -455,7 +475,10 @@ public:
     if (useHitIndex_) {
       evt.getByToken(hitIndexToken_, hHitIndex);
     }
-    truth::LogicalGraphHitIndex const* hitIndex = hHitIndex.isValid() ? &(*hHitIndex) : nullptr;
+    std::optional<truth::SubgraphHitView> hitIndexView;
+    if (hHitIndex.isValid())
+      hitIndexView.emplace(*hHitIndex);
+    truth::SubgraphHitView* hitIndex = hitIndexView ? &(*hitIndexView) : nullptr;
 
     const std::vector<float> recHitEnergies = collectRecHitEnergies(evt);
 
@@ -583,6 +606,79 @@ public:
     // ------------------------------------------------------------------
     // Particle nodes
     // ------------------------------------------------------------------
+
+    // AUDIT the persisted flags against a fresh computation on the very graph being
+    // dumped. A stored flag is only trustworthy if it still agrees with the definition
+    // that produced it, and a file written before a level definition changed is
+    // indistinguishable from a fresh one by inspection. Logged, never thrown: a stale
+    // file should still be readable and should say loudly that it is stale.
+    {
+      std::size_t disagreements = 0;
+      std::ostringstream perLevel;
+      for (const truth::Level level : truth::kAllLevels) {
+        std::vector<bool> expected(g.nParticles(), false);
+        for (const uint32_t id : truth::levelAntichain(g, level)) {
+          if (id < g.nParticles()) {
+            expected[id] = true;
+          }
+        }
+        const truth::LevelFlag flag = truth::levelFlagOf(level);
+        std::size_t stored = 0, bad = 0;
+        for (uint32_t id = 0; id < g.nParticles(); ++id) {
+          const bool has = g.particles()[id].isAtLevel(flag);
+          stored += has ? 1 : 0;
+          bad += (has != expected[id]) ? 1 : 0;
+        }
+        disagreements += bad;
+        perLevel << "  " << truth::levelName(level) << " stored=" << stored
+                 << " recomputed=" << truth::levelAntichain(g, level).size() << " disagree=" << bad << "\n";
+      }
+      // Signal cannot be recomputed from the graph alone, so it is checked against the
+      // RECORDED seed species instead: every flagged particle must either match a seed or
+      // be the synthetic stand-in, and no flagged particle may have a seed-matching
+      // ancestor, which is what "most upstream match" means.
+      std::size_t signalFlagged = 0, signalBad = 0, syntheticSignal = 0;
+      auto const& seeds = g.signalSeedPdgIds();
+      for (uint32_t id = 0; id < g.nParticles(); ++id) {
+        auto const& d = g.particles()[id];
+        if (!d.isAtLevel(truth::LevelFlag::Signal)) {
+          continue;
+        }
+        ++signalFlagged;
+        const bool synthetic = d.role == truth::ParticleRole::SignalStandIn;
+        if (synthetic) {
+          ++syntheticSignal;
+          continue;
+        }
+        const bool matchesSeed = std::find(seeds.begin(), seeds.end(), d.pdgId) != seeds.end();
+        bool ancestorMatches = false;
+        for (auto const& ancestor : truth::Particle(&g, id).ancestors()) {
+          if (ancestor.id() < g.nParticles() &&
+              std::find(seeds.begin(), seeds.end(), g.particles()[ancestor.id()].pdgId) != seeds.end()) {
+            ancestorMatches = true;
+            break;
+          }
+        }
+        if (!matchesSeed || ancestorMatches) {
+          ++signalBad;
+        }
+      }
+      perLevel << "  signal stored=" << signalFlagged << " synthetic=" << syntheticSignal << " disagree=" << signalBad
+               << " recordedSeeds=" << seeds.size() << "\n";
+      disagreements += signalBad;
+
+      if (disagreements == 0) {
+        edm::LogVerbatim("TruthLogicalGraphDumper") << "levelFlags audit OK, " << g.nParticles() << " particles\n"
+                                                    << perLevel.str();
+      } else {
+        edm::LogWarning("TruthLogicalGraphDumper")
+            << "levelFlags DISAGREE with a fresh computation on " << disagreements
+            << " particle/level pairs. This graph was probably written before a level definition "
+               "changed; re-produce it rather than trusting the flags.\n"
+            << perLevel.str();
+      }
+    }
+
     for (uint32_t i = 0; i < nParticles; ++i) {
       if (hideParticle[i])
         continue;
@@ -592,9 +688,9 @@ public:
 
       const bool hasHitInfo = hitIndex != nullptr && i < hitIndex->nParticles();
 
-      const auto directHits = hasHitInfo ? hitIndex->directHits(truth::HitChannel::HGCalCalo, i)
+      const auto directHits = hasHitInfo ? hitIndex->directHits(truth::HitChannel::Calo, i)
                                          : std::span<const truth::LogicalGraphHitIndex::Hit>();
-      const auto subgraphHits = hasHitInfo ? hitIndex->subgraphHits(truth::HitChannel::HGCalCalo, i)
+      const auto subgraphHits = hasHitInfo ? hitIndex->subgraphHits(truth::HitChannel::Calo, i)
                                            : std::span<const truth::LogicalGraphHitIndex::Hit>();
 
       const HitSummary directSummary = hasHitInfo ? summarizeHits(directHits, recHitEnergies) : HitSummary();
@@ -637,6 +733,19 @@ public:
 
       os << "  p" << i << " [shape=ellipse, hasCheckpoints=" << p.hasCheckpoints() << ", hasGen=" << p.hasGen()
          << ", hasSim=" << d.hasSim();
+
+      // Level membership, straight off the persisted flags: the point of storing them is
+      // that a reader needs no knowledge of how a level is defined. Emitted BOTH as a dot
+      // attribute a graphviz filter can select on AND, below, as a coloured row in the
+      // label, because graphviz silently ignores attributes it does not know and an
+      // attribute alone renders to nothing at all.
+      std::string levels;
+      for (const truth::Level level : truth::kAllLevels) {
+        if (d.isAtLevel(truth::levelFlagOf(level))) {
+          levels += (levels.empty() ? "" : ",") + truth::levelName(level);
+        }
+      }
+      os << ", levels=\"" << levels << "\"";
 
       if (p.hasCheckpoints()) {
         os << ", color=\"red\", penwidth=2";
@@ -704,11 +813,23 @@ public:
 
       // Big, immediately-legible particle name + PDG id as the table's title row
       // (HTML-like labels cannot mix free text and a TABLE), with the details below.
-      const std::string bigName = (!p.hasGen() && !d.hasSim()) ? std::string("connector") : pdgLabel(d.pdgId);
+      const std::string bigName = (d.role == truth::ParticleRole::Connector)       ? std::string("connector")
+                                  : (d.role == truth::ParticleRole::SignalStandIn) ? std::string("signal stand-in")
+                                  : (!p.hasGen() && !d.hasSim())                   ? std::string("connector")
+                                                                                   : pdgLabel(d.pdgId);
       os << ", label=<\n";
       os << "    <TABLE BORDER=\"0\" CELLBORDER=\"1\" CELLSPACING=\"0\" CELLPADDING=\"4\">\n";
       os << "      <TR><TD><FONT POINT-SIZE=\"22\"><B>" << bigName << "</B></FONT></TD></TR>\n";
       os << "      <TR><TD><B>Particle " << i << "</B></TD></TR>\n";
+
+      // One coloured row per level the particle belongs to. Colours match the legend
+      // node emitted once per graph, so the levels are readable without a key.
+      for (const truth::Level level : truth::kAllLevels) {
+        if (d.isAtLevel(truth::levelFlagOf(level))) {
+          os << "      <TR><TD BGCOLOR=\"" << levelColor(level) << "\"><B>" << truth::levelName(level)
+             << "</B></TD></TR>\n";
+        }
+      }
 
       if (d.pdgId != 0)
         os << "      <TR><TD>pid: " << pdgLabel(d.pdgId) << "</TD></TR>\n";

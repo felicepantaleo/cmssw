@@ -41,6 +41,9 @@
 <use name="DataFormats/TrackerRecHit2D"/>
 <use name="DataFormats/HGCalReco"/>
 <use name="DataFormats/CaloRecHit"/>
+<use name="DataFormats/HcalRecHit"/>
+<use name="DataFormats/EcalRecHit"/>
+<use name="DataFormats/HGCRecHit"/>
 <use name="SimDataFormats/TrackingAnalysis"/>
 <use name="SimTracker/TrackAssociation"/>
 <use name="SimTracker/TrackerHitAssociation"/>
@@ -49,6 +52,18 @@
 
 <use name="DQMServices/Core"/>
 <use name="SimDataFormats/Associations"/>
+
+<library file="AllTracksterToTruthBranchAssociatorsProducer.cc" name="AllTracksterToTruthBranchAssociatorsPlugins">
+  <flags EDM_PLUGIN="1"/>
+</library>
+
+<library file="CaloRecHitMatchAnalyzer.cc" name="CaloRecHitMatchAnalyzerPlugins">
+  <flags EDM_PLUGIN="1"/>
+</library>
+
+<library file="AdaptiveAssociationDumper.cc" name="AdaptiveAssociationDumperPlugins">
+  <flags EDM_PLUGIN="1"/>
+</library>
 
 <library file="TruthGraphProducer.cc" name="TruthGraphProducerPlugins">
   <flags EDM_PLUGIN="1"/>

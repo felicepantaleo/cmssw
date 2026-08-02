@@ -1,0 +1,4 @@
+<bin name="testTICLAssociationMapPayloads" file="testTICLAssociationMapPayloads.cpp">
+  <use name="SimDataFormats/Associations"/>
+  <use name="cppunit"/>
+</bin>
