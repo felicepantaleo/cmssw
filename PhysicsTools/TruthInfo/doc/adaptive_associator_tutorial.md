@@ -41,19 +41,33 @@ degenerates. The levels shipped are:
 | `caloBoundary` | the particle crossing into the calorimeter, the `CaloParticle` analogue |
 | `stableDecayProducts` | status-1 particles with sim hits anywhere |
 | `stableLegsFromUpstream` | stable legs hanging off the selection's synthetic source vertices |
-| `hardProcess` | particles the generator flagged as the hard interaction |
+| `hardProcess` | the **outgoing legs** of the hard scatter, NOT the resonance. On ttbar it is b, b~ and the W decay products, not the two tops; on H to two photons it is the photons |
+| `reconstructableFromSignal` | the signal's **visible final state**: walk down from each signal root, stop at the first thing a detector reconstructs as an object. A pi0 is an object even though it decays, so the pi0 is labelled and its two photons are not; an a1 or rho is walked through. Neutrinos are dropped |
+| `underlyingEvent` | the stable legs of the underlying event, the counterpart of `stableLegsFromUpstream` on the ISR side |
 
-plus three diagnostic sets: `signal` (the preset's seed objects), `signalNoSelection` (the
-same with no kinematic cut) and `allSelectedRoots` (every root passing the selector, which
-is **not** an antichain and exists for diagnosis only).
+plus `signal` (the preset's seed objects, so the RESONANCE itself: two tops, one Z, one
+Higgs, ten taus) and `signalNoSelection` (the same with no kinematic cut).
+
+**Every one of these is an ANTICHAIN**: no member is an ancestor of another, so no
+efficiency counts one object twice. That is the entry requirement. `allSelectedRoots` was
+removed in 2026-08 for failing it, 1.3% of its members having an ancestor in the same set.
+
+Since 2026-08 the levels also travel WITH the graph, as a `levelFlags` bitmask on every
+`ParticleData`, so the dot dump, a job log and a consumer outside CMSSW all see them
+without knowing how a level is defined. `signal` is the one bit that cannot be recomputed
+from the graph alone, so the seed species that produced it are recorded on the graph and
+the dumper audits every flagged particle against them.
 
 ---
 
 ## 1. Release and branch
 
 ```bash
-cmsrel CMSSW_20_1_X_2026-07-22-2300
-cd CMSSW_20_1_X_2026-07-22-2300/src
+# Pick an IB that still EXISTS: they are rotated off cvmfs after about a week, and an
+# area whose base has gone fails with "Missing Release top" and a missing cmsRun.
+scram list -c CMSSW | grep CMSSW_20_1_X_2026
+cmsrel CMSSW_20_1_X_2026-08-01-1100     # or whatever the newest one is today
+cd CMSSW_20_1_X_2026-08-01-1100/src
 cmsenv
 git cms-init
 # One topic brings everything: truth-adaptive-associator is stacked on the
@@ -148,7 +162,7 @@ from PhysicsTools.TruthInfo.truthGraphSelections import postProcessingPSet
 print(postProcessingPSet(name='TenTau_E_15_500_pythia8_cfi').seedPdgIds)"
 ```
 
-Skip this step and `signal` degenerates into `allSelectedRoots` while
+Skip this step and `signal` degenerates into every selected root while
 `stableLegsFromUpstream` comes out empty. Both are visible in the plots, so it is a useful
 thing to get wrong once on purpose.
 
@@ -167,8 +181,9 @@ For every reco collection you get, per **working point**, one map in each direct
 | `<collection>RecoToTruth<WP>` | reco to truth | shared quantity, reco-normalised score |
 | `<collection>TruthToReco` | truth to reco | sim-normalised fraction, truth-normalised score |
 
-plus the denominator lists `truthToRecoTargets<Level>`, `selectedBranchRoots`,
-`signalSeeds` and `signalSeedsNoSelection`.
+plus the denominator lists `truthToRecoTargets<Level>`, `signalSeeds` and
+`signalSeedsNoSelection`. (`selectedBranchRoots` was emitted until 2026-08 and is gone:
+it was the one target list that is not an antichain.)
 
 The truth-to-reco map is written **once**, not per working point, on purpose: the truth
 target is fixed a priori by the level, so a reco-driven working point has no business
@@ -277,12 +292,18 @@ All from the chain above, 200 events.
 |---|---|---|
 | `signal` denominator | **10.00 / event** | ten taus, exactly. The cleanest check that the selector is not eating signal |
 | `signalNoSelection` | **10.00 / event** | equal to `signal`, so the kinematic cut removed nothing |
+| `reconstructableFromSignal` | 18.59 / event | the taus' visible decay products, pi0 counted as one object rather than two photons |
 | `hardProcess` | **0.00** | correct, not a bug: a particle **gun** has no hard-process record, so `isHardProcess` is set on nothing |
+| `underlyingEvent` | **0.00** | also correct: a gun has no underlying event. On ttbar it is 103.17 |
 | `caloBoundary` | 35.34 / event | the taus' decay products entering the calorimeter |
-| forward, abs(caloeta) above 3 | 0.0% | the gun is central plus endcap |
-| reco tracks | 13.8 / event | ten taus at one or three prongs |
-| tracking fake rate | 0.2932 | at every working point. Almost all of it is "no single owner", not "matched nothing", which is 0.0000 |
-| mean reco purity | 0.582 Fixed to **0.994** AdaptiveNominal | where the adaptive climb pays |
+| `stableDecayProducts` | 36.33 / event | the generator-stable final state |
+| `stableLegsFromUpstream` | 39.90 / event | the ISR and upstream side of the interaction |
+| reco tracksters | 13.2 / event | ten taus at one or three prongs |
+| reco tracks | 13.8 / event | same |
+| trackster fake rate | 0.0484 | identical at every working point, by construction |
+| tracking fake rate | 0.2904 | at every working point. Almost all of it is "no single owner", not "matched nothing", which is 0.0000 |
+| mean reco purity, tracks | 0.583 Fixed to **0.994** AdaptiveNominal | where the adaptive climb pays |
+| mean reco purity, tracksters | 0.347 Fixed to **0.972** AdaptiveNominal | the same effect in the calorimeter |
 
 If `hardProcess` is empty, that is the expected answer here, and a good illustration that
 the level means what it says: on ttbar, DY and VBF it gives 5.73, 1.51 and 6.00 per event.
@@ -386,6 +407,35 @@ classification bug, not a tuning question.
 
 ---
 
+### 7b. Always read the ACCEPTANCE REGION, not the inclusive number
+
+Every metric is booked four times: inclusively, and again in three eta sub-folders
+`etaLt15`, `eta15to30`, `eta30to45`. The plot pages carry one set per region. This is not
+a refinement, it is usually the difference between a number that means something and one
+that does not.
+
+Take the tau itself, `signal`, ticlCandidate, on the sample you just produced:
+
+| region | taus | individual | split | cumulative |
+|---|---|---|---|---|
+| inclusive | 2000 | 0.194 | 0.098 | 0.291 |
+| abs(eta) below 1.5 | 1230 | 0.016 | 0.006 | 0.022 |
+| 1.5 to 3.0 | 767 | **0.478** | **0.246** | **0.725** |
+| 3.0 to 4.5 | 3 | 0.000 | 0.000 | 0.000 |
+
+Read inclusively you would conclude the calorimeter reconstructs 19% of taus. It does not:
+**61.5% of the taus enter the barrel**, where no trackster can exist, and that population
+sets the inclusive number. In the endcap, where the reconstruction actually runs, a single
+trackster covers the tau 48% of the time and the collection covers it 73% of the time.
+
+The 24.6-point gap between individual and cumulative IS the split rate, and it is what a
+multi-prong decay looks like: no one trackster holds the whole tau, several together do.
+Compare with `caloBoundary`, a generic single particle, which splits less (0.223).
+
+CONTROL you can run yourself: the regions must partition the sample. 1230 + 767 + 3 =
+2000, and the region numerators weighted by their denominators reproduce the inclusive
+value to three decimals. If they do not, something is being double counted or dropped.
+
 ## 8. How not to fool yourself
 
 Three mistakes, all real, all expensive, all of which produced numbers that looked
@@ -419,7 +469,7 @@ A fake by dominance is a natural physicist's definition: an object whose hits co
 many DIFFERENT generated particles with none dominating. Two monitor elements measure it,
 `leading_truth_share` and `dominance_ratio`, leading over runner-up.
 
-They must be computed over an antichain. `selectedBranchRoots` is **not** one, so a tau,
+They must be computed over an antichain. The selected-root set is **not** one, so a tau,
 its daughter pion and that pion's descendants are candidates simultaneously with
 **nested** subgraphs carrying nearly identical shared energy, and the leader gets compared
 against its own child. The control is this very sample, where ten isolated taus must give
@@ -427,7 +477,7 @@ one overwhelming winner:
 
 | candidate set | median leading share | fraction with ratio near 1 |
 |---|---|---|
-| `selectedBranchRoots`, nested | 0.26 | 0.999 |
+| every selected root, nested | 0.26 | 0.999 |
 | `caloBoundary`, antichain | **0.98** | 0.064 |
 
 A number that moves like that between two definitions is not a threshold to tune, it is a
