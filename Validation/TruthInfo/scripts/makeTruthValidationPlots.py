@@ -573,6 +573,22 @@ def definitions_html():
     return "".join(out)
 
 
+def region_label(category):
+    """The acceptance range this plot covers, spelled out for the image itself.
+
+    Without it a region plot and the inclusive one carry the SAME title, so a PNG on its
+    own is ambiguous: the range only survives in the filename and the page it sits on.
+    Inclusive says so explicitly rather than staying silent, since silence is what made
+    the region plots indistinguishable in the first place.
+    """
+    region = category.rsplit("/", 1)[-1] if "/" in category else ""
+    return {
+        "etaLt15": "|eta| < 1.5",
+        "eta15to30": "1.5 < |eta| < 3.0",
+        "eta30to45": "3.0 < |eta| < 4.5",
+    }.get(region, "all |eta|")
+
+
 def discover(tfile):
     """Yield (flavour, category, folder, TDirectory) for every directory with histograms.
 
@@ -834,10 +850,10 @@ def plot_metric(category, collection, metric, var, per_wp, outdir, index, slices
     if ref and others:
         rest = sum(others) / len(others)
         delta = (rest - ref) / ref * 100.0 if ref else 0.0
-        caption = (f"{title}. Bin-averaged over filled bins: others {rest:.2f}, "
+        caption = (f"{title}, {region_label(category)}. Bin-averaged over filled bins: others {rest:.2f}, "
                    f"{reference} {ref:.2f} ({delta:+.0f}%).")
     else:
-        caption = title
+        caption = f"{title}, {region_label(category)}"
 
     fig.suptitle(title, fontsize=16, y=0.965)
     # Centred on the MAIN pad: the CMS top location hangs the title from the top of the
@@ -863,7 +879,7 @@ def plot_metric(category, collection, metric, var, per_wp, outdir, index, slices
         # own definition; the sources of the thresholds are in DEFINITIONS.md.
         fig.text(0.5, 0.002, note, ha="center", va="bottom", fontsize=9, color="0.35")
     ax.tick_params(labelbottom=False)
-    hep.cms.label(ax=ax, llabel="Private Work", rlabel="Phase-2 Simulation", fontsize=15)
+    hep.cms.label(ax=ax, llabel="Private Work", rlabel=f"Phase-2 Simulation, {region_label(category)}", fontsize=15)
 
     # Ratio panel: only where the reference has a value, so an empty reference bin does
     # not manufacture a spike.
@@ -989,7 +1005,7 @@ def plot_categorical(category, collection, metric, var, per_wp, counts, outdir, 
     handles, lbls = ax.get_legend_handles_labels()
     fig.legend(handles, lbls, fontsize=13, loc="lower center", ncol=len(lbls), frameon=False,
                bbox_to_anchor=(0.5, 0.15 / height))
-    hep.cms.label(ax=ax, llabel="Private Work", rlabel="Phase-2 Simulation", fontsize=15)
+    hep.cms.label(ax=ax, llabel="Private Work", rlabel=f"Phase-2 Simulation, {region_label(category)}", fontsize=15)
 
     top = max(keep, key=lambda k: population[k]) if population is not None else keep[0]
     caption = (f"{title}. Most populated process: {labels[top]} "
@@ -1036,7 +1052,7 @@ def plot_residual(category, collection, source, per_wp, outdir, index):
     ax.grid(alpha=0.3)
     ax.legend(fontsize=13, frameon=False)
     fig.suptitle(f"{source} residual distribution", fontsize=16, y=0.965)
-    hep.cms.label(ax=ax, llabel="Private Work", rlabel="Phase-2 Simulation", fontsize=15)
+    hep.cms.label(ax=ax, llabel="Private Work", rlabel=f"Phase-2 Simulation, {region_label(category)}", fontsize=15)
 
     ref = cores.get(REFERENCE_WP)
     caption = (f"{source} residual distribution, area normalised. Fraction within 10%: "
@@ -1069,7 +1085,7 @@ def plot_composition(category, collection, counts, outdir, index, reference=None
     ax.tick_params(axis="x", labelsize=TICK_LABEL_SIZE)
     ax.grid(axis="x", alpha=0.3)
     fig.suptitle("Selected truth branches by creation process", fontsize=16, y=0.965)
-    hep.cms.label(ax=ax, llabel="Private Work", rlabel="Phase-2 Simulation", fontsize=15)
+    hep.cms.label(ax=ax, llabel="Private Work", rlabel=f"Phase-2 Simulation, {region_label(category)}", fontsize=15)
 
     caption = ("Composition of the truth-branch denominator by the Geant4 process that created each branch root. "
                f"Leading process {labels[order[0]]} at {frac[0]*100:.0f}% of {int(values.sum())} branches.")
