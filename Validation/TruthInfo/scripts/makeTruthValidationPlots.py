@@ -475,6 +475,17 @@ def bin_labels(h):
 FLAVOURS = ["Offline", "HLT"]
 
 
+# Acceptance-region sub-folders, mirroring truth::kEtaRegionFolders. Same ME names as the
+# inclusive folder, so they need no other special handling.
+REGION_FOLDERS = {"etaLt15", "eta15to30", "eta30to45"}
+REGION_MEANING = {
+    "etaLt15": "|eta| below 1.5, the barrel. No trackster exists here, so a calorimetric efficiency in this "
+               "region is an acceptance statement and not a reconstruction one.",
+    "eta15to30": "|eta| 1.5 to 3.0, the HGCAL endcap, where the calorimetric reconstruction actually runs.",
+    "eta30to45": "|eta| 3.0 to 4.5, forward. Usually a handful of objects, so read the denominator before the ratio.",
+}
+
+
 def discover(tfile):
     """Yield (flavour, category, folder, TDirectory) for every directory with histograms.
 
@@ -492,8 +503,16 @@ def discover(tfile):
             elif obj.InheritsFrom("TH1"):
                 holds = True
         if holds and len(path) >= 2:
-            flavour = path[-3] if len(path) >= 3 and path[-3] in FLAVOURS else "Offline"
-            yield flavour, path[-2], path[-1], directory
+            # An acceptance region is a sub-folder of the collection folder, carrying the
+            # same ME names. Fold it into the CATEGORY so every downstream page, caption
+            # and ratio works unchanged and the regions simply appear as their own
+            # entries rather than being silently skipped by the collection_wp split.
+            if path[-1] in REGION_FOLDERS and len(path) >= 3:
+                flavour = path[-4] if len(path) >= 4 and path[-4] in FLAVOURS else "Offline"
+                yield flavour, path[-3] + "/" + path[-1], path[-2], directory
+            else:
+                flavour = path[-3] if len(path) >= 3 and path[-3] in FLAVOURS else "Offline"
+                yield flavour, path[-2], path[-1], directory
 
     yield from walk(tfile, [])
 
