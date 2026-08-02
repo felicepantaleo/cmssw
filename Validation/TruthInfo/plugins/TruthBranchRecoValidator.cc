@@ -162,8 +162,8 @@ private:
     edm::EDGetTokenT<MapType> allCandidatesToken;
   };
 
-  // The antichain the dominance measure is computed over. selectedBranchRoots is NOT
-  // one: it is every particle passing the selector, so a tau, its daughter pion and
+  // The antichain the dominance measure is computed over. The full set of selected roots
+  // is NOT one: it is every particle passing the selector, so a tau, its daughter pion and
   // that pion's descendants are all candidates at once and their subgraphs are NESTED,
   // each contributing nearly the same shared energy. Comparing a parent against its own
   // child is meaningless, and it showed: on no-PU TenTau, 99.9% of tracksters had a
@@ -252,10 +252,9 @@ TruthBranchRecoValidator<RECO>::TruthBranchRecoValidator(edm::ParameterSet const
     // every seed in the event rather than against the ones the kinematic selection
     // kept. The gap to the signal folder is what the selection removed.
     truthTargets.emplace_back("signalNoSelection", "signalSeedsNoSelection");
-    // selectedBranchRoots is NOT offered as a truth denominator. It is every particle
-    // passing the selector, so it can contain a particle and its own ancestor, and an
-    // efficiency over it counts the same object twice. Every denominator above is an
-    // antichain. The product still exists for diagnosis; it is just not a page.
+    // Every denominator above is an ANTICHAIN. A set of all selected roots is not one,
+    // since it can contain a particle together with its own ancestor and an efficiency
+    // over it would count the same object twice, so no such denominator is offered.
   }
 
   // Dominance is measured against ONE level, so the candidates are distinct particles.
@@ -804,7 +803,7 @@ void TruthBranchRecoValidator<RECO>::fillDescriptions(edm::ConfigurationDescript
     desc.add<std::string>("dominanceLevel", "caloBoundary")
         ->setComment(
             "The level whose targets the leading-truth-contributor measure is computed over. It must be an "
-            "ANTICHAIN of distinct particles: selectedBranchRoots is not one, and using it compares a branch "
+            "ANTICHAIN of distinct particles: the full selected-root set is not one, and using it compares a branch "
             "against its own descendants");
     desc.add<std::vector<std::string>>("truthLevels", {"caloBoundary"})
         ->setComment(

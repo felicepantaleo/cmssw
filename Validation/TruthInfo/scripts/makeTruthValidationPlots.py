@@ -43,9 +43,8 @@ WP_ORDER = ["Fixed", "AdaptiveTight", "AdaptiveNominal", "AdaptiveLoose"]
 # roots, so with a selection preset it is the efficiency of the signal object itself
 # (the tau, not its decay legs). signalNoSelection is the same seed objects with no
 # selector cut at all, so the efficiency is quoted against every seed in the event.
-# Every entry here is an ANTICHAIN, so no efficiency counts one object twice. That is why
-# allSelectedRoots is absent: it is every selected root regardless of level, so a particle
-# and its own daughter are both in it.
+# Every entry here is an ANTICHAIN: no member is an ancestor of another, so no efficiency
+# counts one object twice. That is the entry requirement for a truth denominator.
 LEVEL_ORDER = ["stableLegsFromUpstream", "caloBoundary", "stableDecayProducts", "hardProcess",
                "reconstructableFromSignal", "underlyingEvent", "signal", "signalNoSelection"]
 # What each truth-driven series IS. These are the efficiency DENOMINATORS, and they are not
@@ -1202,8 +1201,8 @@ def main():
                     "efficiency (the tau, not its decay legs), signalNoSelection, the same seed objects with "
                     "no branch-selector cut at all, so the efficiency is quoted against every seed in the "
                     "event and the gap to signal is what the selection removed. Every one of these is an "
-                    "ANTICHAIN, so no object is counted twice; allSelectedRoots was dropped for exactly that "
-                    "reason, 1.3% of its members having an ancestor in the same set. A "
+                    "ANTICHAIN, so no object is counted twice: a denominator holding both a particle and "
+                    "its own daughter would count the same energy twice. A "
                     "composite domain has a single folder named by its vertex resolution. On the efficiency "
                     "page each series is a pair: individual (filled, solid) means a single reco object covers "
                     "the truth object, cumulative (open, dashed, same colour) means all reco objects of the "

@@ -49,8 +49,8 @@ plus `signal` (the preset's seed objects, so the RESONANCE itself: two tops, one
 Higgs, ten taus) and `signalNoSelection` (the same with no kinematic cut).
 
 **Every one of these is an ANTICHAIN**: no member is an ancestor of another, so no
-efficiency counts one object twice. That is the entry requirement. `allSelectedRoots` was
-removed in 2026-08 for failing it, 1.3% of its members having an ancestor in the same set.
+efficiency counts one object twice. That is the entry requirement: a denominator holding
+both a particle and its own daughter would count the same energy twice.
 
 Since 2026-08 the levels also travel WITH the graph, as a `levelFlags` bitmask on every
 `ParticleData`, so the dot dump, a job log and a consumer outside CMSSW all see them
@@ -182,8 +182,7 @@ For every reco collection you get, per **working point**, one map in each direct
 | `<collection>TruthToReco` | truth to reco | sim-normalised fraction, truth-normalised score |
 
 plus the denominator lists `truthToRecoTargets<Level>`, `signalSeeds` and
-`signalSeedsNoSelection`. (`selectedBranchRoots` was emitted until 2026-08 and is gone:
-it was the one target list that is not an antichain.)
+`signalSeedsNoSelection`.
 
 The truth-to-reco map is written **once**, not per working point, on purpose: the truth
 target is fixed a priori by the level, so a reco-driven working point has no business
