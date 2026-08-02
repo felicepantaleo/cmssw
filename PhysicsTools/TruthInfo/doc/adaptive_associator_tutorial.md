@@ -44,6 +44,15 @@ degenerates. The levels shipped are:
 | `hardProcess` | the **outgoing legs** of the hard scatter, NOT the resonance. On ttbar it is b, b~ and the W decay products, not the two tops; on H to two photons it is the photons |
 | `reconstructableFromSignal` | the signal's **visible final state**: walk down from each signal root, stop at the first thing a detector reconstructs as an object. A pi0 is an object even though it decays, so the pi0 is labelled and its two photons are not; an a1 or rho is walked through. Neutrinos are dropped |
 | `underlyingEvent` | the stable legs of the underlying event, the counterpart of `stableLegsFromUpstream` on the ISR side |
+| `partonJets` | one root per **parton-initiated jet**: the hard-scatter legs that are quarks or gluons, each standing for everything downstream of it. No clustering and no cone; the jet IS the descendant subgraph and its flavour is the parton PDG id. It is a subset of `hardProcess`, so it inherits the deepest-element rule that keeps the b rather than the top above it, which is also the physics: the top decays before it hadronises |
+
+Two more levels exist in the graph but are not asked as branch denominators, because
+their job is to define the **secondary-vertex** truth instead (section 5b):
+
+| Level | What its roots are |
+|---|---|
+| `bHadrons` | the first b hadron along each chain. A B\* radiates down to a B and both are b hadrons, so the antichain keeps the B\*: one member per physical decay, not one per generator copy |
+| `cHadrons` | the same for charm. Beauty and charm are SEPARATE levels on purpose: a B decays to a D, so a single combined level would keep the B and silently drop every charm vertex |
 
 plus `signal` (the preset's seed objects, so the RESONANCE itself: two tops, one Z, one
 Higgs, ten taus) and `signalNoSelection` (the same with no kinematic cut).
@@ -294,6 +303,7 @@ All from the chain above, 200 events.
 | `reconstructableFromSignal` | 18.59 / event | the taus' visible decay products, pi0 counted as one object rather than two photons |
 | `hardProcess` | **0.00** | correct, not a bug: a particle **gun** has no hard-process record, so `isHardProcess` is set on nothing |
 | `underlyingEvent` | **0.00** | also correct: a gun has no underlying event. On ttbar it is 103.17 |
+| `partonJets` | **0.00** | a gun has no partons either. On no-PU ttbar it is 4.80 / event: 400 b jets over 200 events, exactly two per event, plus 560 light-quark jets |
 | `caloBoundary` | 35.34 / event | the taus' decay products entering the calorimeter |
 | `stableDecayProducts` | 36.33 / event | the generator-stable final state |
 | `stableLegsFromUpstream` | 39.90 / event | the ISR and upstream side of the interaction |
@@ -306,6 +316,31 @@ All from the chain above, 200 events.
 
 If `hardProcess` is empty, that is the expected answer here, and a good illustration that
 the level means what it says: on ttbar, DY and VBF it gives 5.73, 1.51 and 6.00 per event.
+
+---
+
+## 5b. The secondary-vertex denominator is the heavy-flavour DECAY vertices
+
+A secondary vertex is where a b or c hadron decayed, so that is exactly what the
+denominator is: the decay vertices of the `bHadrons` and `cHadrons` antichains. The
+associator switches this on with `heavyFlavorOnly`.
+
+The looser question, "does this vertex's incoming particle carry heavy flavour anywhere
+in its subgraph", is true at every vertex all the way along the chain, and it inflates
+the denominator about threefold. Measured on no-PU ttbar:
+
+| Criterion | Truth SVs per event |
+|---|---|
+| b/c hadron decay vertices | **4.00**, measured over 200 events |
+| incoming particle's subgraph carries heavy flavour | 12 and 16 |
+| every graph vertex with two selected roots (no restriction at all) | 45.9 |
+| what `inclusiveSecondaryVertices` actually reconstructs | **4.1** |
+
+Only the first matches reco, and it matches it to two decimals: 801 truth secondary
+vertices over 200 events against 4.1 reconstructed. The other two cap the efficiency at a third and at a tenth
+respectively, however good the reconstruction is, and the cap is a property of the
+denominator rather than of the detector. This is the single most common way to produce a
+believable-looking efficiency that means nothing.
 
 ---
 
@@ -434,6 +469,41 @@ Compare with `caloBoundary`, a generic single particle, which splits less (0.223
 CONTROL you can run yourself: the regions must partition the sample. 1230 + 767 + 3 =
 2000, and the region numerators weighted by their denominators reproduce the inclusive
 value to three decimals. If they do not, something is being double counted or dropped.
+
+### 7c. Jets: read the flavour axis, and read it cumulatively
+
+`partonJets` gives one truth object per parton-initiated jet, so every metric can be read
+against `flavour`, an axis with one named bin per initiating species (`other`, `d`, `u`,
+`s`, `c`, `b`, `t`, `g`). Only this level has parton roots; on every other level the whole
+distribution sits in `other` by construction, which is a feature rather than a gap.
+
+Read it CUMULATIVELY. A jet is reconstructed as many objects, never as one, so individual
+efficiency answers a question nobody asked. This is the same lesson the three-prong tau
+teaches in 7b, one step further along.
+
+Measured, 200 no-PU ttbar events, `ticlCandidate`, denominator `num_simul_flavour`:
+
+| | denominator | endcap denominator | endcap cumulative efficiency |
+|---|---|---|---|
+| b jets | **400** (exactly 2 per event) | 87 | **0.59** |
+| all parton jets | 960 | 249 | **0.60** |
+
+The b count is the strongest single check in this document: a ttbar event has exactly two
+b quarks, and 400 over 200 events is that statement. If your b bin is not exactly twice
+your event count, the level is wrong before any efficiency is worth reading.
+
+The inclusive cumulative efficiency is 0.22, and it is again the barrel doing it: read the
+region, per 7b.
+
+!!! warning "Jet subgraphs OVERLAP, and the roots being an antichain does not prevent it"
+    The jet ROOTS are an antichain, so no jet contains another. The SUBGRAPHS are not
+    disjoint. Two quarks colour connected to each other, the u and d~ of a hadronic W,
+    fragment through one string, so its hadrons descend from BOTH and their hits are
+    counted under both jets. Measured on no-PU ttbar: 1221 of 8096 hits shared, 0.15 of
+    the union, ALL of it between that one pair; the b and b~ share nothing, and a
+    dileptonic event with no hadronic W shares 0.00. This is inherent to defining a jet
+    with no clustering algorithm. Assigning each hadron to exactly one jet is precisely
+    what a clustering algorithm is for, and it is the reason one would add one.
 
 ## 8. How not to fool yourself
 
