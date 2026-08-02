@@ -1085,6 +1085,9 @@ def main():
     ap.add_argument("--outputDir", default="plots")
     ap.add_argument("--sample", default="ttbar, no pileup, D122")
     ap.add_argument("--title", default="MC-truth graph validation")
+    ap.add_argument("--jobs", default=0, type=int,
+                    help="Processes for drawing plots. 0 (default) uses every core; 1 draws in the main "
+                         "process, which is what you want when reading a traceback.")
     ap.add_argument("--gallery", default="truth-validation",
                     help="orbit gallery name; also the .orbit target, so two samples can be published side by side")
     args = ap.parse_args()
@@ -1101,6 +1104,7 @@ def main():
         return 1
 
     written = []
+    metric_tasks = []
     index = 1
     for category in sorted(data):
         for collection in sorted(data[category]):
@@ -1112,7 +1116,7 @@ def main():
                 result = plot_composition(category, collection, all_counts["reason"], args.outputDir, index)
                 if result:
                     name, caption = result
-                    written.append({"category": category, "collection": collection, "metric": "composition",
+                    written.append({"_ord": index, "category": category, "collection": collection, "metric": "composition",
                                     "var": "reason", "png": name, "caption": caption})
                     index += 1
             for metric in METRIC_ORDER:
@@ -1132,18 +1136,21 @@ def main():
                         continue
                     _criterion = (MATCH_CRITERIA.get(category.split("/")[-1])
                                   if metric in TRUTH_METRICS else None)
-                    result = plot_metric(
-                        category, collection, metric, var, per_metric[var], args.outputDir, index,
-                        denom=all_denom.get(f"{DENOMINATOR.get(metric, '')}_{var}"),
-                        order=series_order, reference=series_ref,
-                        paired=cumulative.get(var),
-                        note=_criterion[0] if _criterion else None,
-                    )
-                    if result:
-                        name, caption = result
-                        written.append({"category": category, "collection": collection, "metric": metric,
-                                        "var": var, "png": name, "caption": caption})
-                        index += 1
+                    # Queued rather than drawn here: every argument is numpy arrays and
+                    # plain values, since hist_arrays converts the TH1 before this point,
+                    # so the work pickles and a worker process can do it. Drawing is the
+                    # bulk of the runtime and is what parallelises.
+                    metric_tasks.append((
+                        (category, collection, metric, var, per_metric[var], args.outputDir, index,
+                         None,
+                         all_denom.get(f"{DENOMINATOR.get(metric, '')}_{var}"),
+                         series_order, series_ref, cumulative.get(var),
+                         _criterion[0] if _criterion else None),
+                        {"_ord": index, "category": category, "collection": collection, "metric": metric, "var": var},
+                    ))
+                    # Unconditional now: the index only has to be unique per plot, and the
+                    # worker decides whether the plot is drawable.
+                    index += 1
                 if metric == "resolution":
                     for source in RESOLUTION_SOURCES:
                         if source not in all_residual:
@@ -1153,7 +1160,7 @@ def main():
                         )
                         if result:
                             name, caption = result
-                            written.append({"category": category, "collection": collection, "metric": metric,
+                            written.append({"_ord": index, "category": category, "collection": collection, "metric": metric,
                                             "var": source, "png": name, "caption": caption})
                             index += 1
                     for var in RESOLUTION_ORDER:
@@ -1166,7 +1173,7 @@ def main():
                         )
                         if result:
                             name, caption = result
-                            written.append({"category": category, "collection": collection, "metric": metric,
+                            written.append({"_ord": index, "category": category, "collection": collection, "metric": metric,
                                             "var": var, "png": name, "caption": caption})
                             index += 1
                     continue
@@ -1180,10 +1187,30 @@ def main():
                     )
                     if result:
                         name, caption = result
-                        written.append({"category": category, "collection": collection, "metric": metric,
+                        written.append({"_ord": index, "category": category, "collection": collection, "metric": metric,
                                         "var": var, "png": name, "caption": caption})
                         index += 1
 
+    # Draw the queued plots in a process pool. One task is one plot, which is the same
+    # granularity SimpleValidation uses for the standard validation, and the natural unit
+    # here since each writes its own PNG and shares nothing.
+    if metric_tasks:
+        nproc = args.jobs if args.jobs > 0 else os.cpu_count()
+        nproc = max(1, min(nproc, len(metric_tasks)))
+        if nproc == 1:
+            results = [plot_metric(*t[0]) for t in metric_tasks]
+        else:
+            import multiprocessing
+            with multiprocessing.Pool(nproc) as pool:
+                results = pool.starmap(plot_metric, [t[0] for t in metric_tasks], chunksize=4)
+        for (_, meta), result in zip(metric_tasks, results):
+            if result:
+                name, caption = result
+                written.append(dict(meta, png=name, caption=caption))
+
+    # Restore creation order: the queued plots are appended after the loop, so without
+    # this the categorical plots drawn inline would jump ahead of them on the page.
+    written.sort(key=lambda e: e["_ord"])
     by_page = {}
     for entry in written:
         flavour = entry["category"].split("/", 1)[0]
