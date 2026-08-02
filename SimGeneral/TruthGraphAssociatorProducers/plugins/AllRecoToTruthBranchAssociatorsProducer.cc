@@ -186,6 +186,26 @@ namespace {
 
   [[nodiscard]] inline std::unordered_map<uint64_t, uint32_t> interactionVertices(truth::Graph const& graph) {
     std::unordered_map<uint64_t, uint32_t> representative;
+
+    // An interaction the graph actually models gets a VertexRole::Interaction node, built
+    // by the selection preset, and THAT is the primary vertex: it is the interaction
+    // point, not a vertex elected to stand for it. Only these enter the primary-vertex
+    // plots, so what is drawn is the interaction rather than whichever production vertex
+    // happened to be built first and whichever position that carries.
+    for (uint32_t v = 0; v < graph.nVertices(); ++v) {
+      auto const& data = graph.vertices()[v];
+      if (data.vertexRole() == truth::VertexRole::Interaction) {
+        representative.emplace(data.eventId, v);
+      }
+    }
+    if (!representative.empty()) {
+      return representative;
+    }
+
+    // No preset ran, so no interaction node exists and there is nothing to plot but an
+    // elected stand-in. Measured on ttbar without a preset, all 534 vertices are Normal.
+    // The election below is kept for that case, and it is the reason a primary-vertex
+    // position is only as good as the preset: with one, the node is the interaction.
     std::unordered_map<uint64_t, uint32_t> placeholderOnly;
     const uint32_t nParticles = graph.nParticles();
     for (uint32_t id = 0; id < nParticles; ++id) {
