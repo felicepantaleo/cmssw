@@ -1,6 +1,7 @@
 // Original author: Felice Pantaleo (CERN) <felice.pantaleo@cern.ch>
 
 #include <algorithm>
+#include <cmath>
 #include <iterator>
 
 #include "FWCore/Utilities/interface/Exception.h"
@@ -82,6 +83,20 @@ namespace truth {
   void TruthBranchHistoProducerAlgo::bookTruthHistos(dqm::implementation::IBooker& booker,
                                                      TruthBranchHistograms& h,
                                                      bool calorimetric) const {
+    // One block of kNEtaRegions rows per entry, the region ones in sub-folders carrying
+    // the SAME ME names, so every harvester string and the plot script work unchanged.
+    const std::string base = booker.pwd();
+    for (std::size_t r = 0; r < kNEtaRegions; ++r) {
+      booker.setCurrentFolder(r == 0 ? base : base + "/" + kEtaRegionFolders[r]);
+      bookTruthRow(booker, h, calorimetric);
+    }
+    booker.setCurrentFolder(base);
+    bookTruthDiagnostics(booker, h, calorimetric);
+  }
+
+  void TruthBranchHistoProducerAlgo::bookTruthRow(dqm::implementation::IBooker& booker,
+                                                  TruthBranchHistograms& h,
+                                                  bool calorimetric) const {
     bookRow(booker, h.h_simul, "num_simul", truthVarNames_, truthAxes_);
     bookRow(booker, h.h_assoc_simToReco, "num_assoc(simToReco)", truthVarNames_, truthAxes_);
     bookRow(booker, h.h_assoc_simToReco_cumulative, "num_assoc_cumulative", truthVarNames_, truthAxes_);
@@ -89,7 +104,14 @@ namespace truth {
       bookRow(booker, h.h_duplicate, "num_duplicate", truthVarNames_, truthAxes_);
     }
     bookRow(booker, h.h_split, "num_split", truthVarNames_, truthAxes_);
+  }
 
+  // Booked ONCE per entry, in the base folder, not per region: these are distributions
+  // rather than ratio numerators, and their fills index the entry directly. Booking them
+  // per region would leave the region copies unfilled and shift every index.
+  void TruthBranchHistoProducerAlgo::bookTruthDiagnostics(dqm::implementation::IBooker& booker,
+                                                          TruthBranchHistograms& h,
+                                                          bool calorimetric) const {
     // Categorical axis: one labelled bin per Geant4 creation process.
     auto bookReason = [&](std::vector<TruthBranchHistograms::METype>& v, std::string const& name) {
       auto* me = booker.book1D(name, name, kNReasonBins, -0.5, kNReasonBins - 0.5);
@@ -118,6 +140,18 @@ namespace truth {
   void TruthBranchHistoProducerAlgo::bookRecoHistos(dqm::implementation::IBooker& booker,
                                                     TruthBranchHistograms& h,
                                                     bool calorimetric) const {
+    const std::string base = booker.pwd();
+    for (std::size_t r = 0; r < kNEtaRegions; ++r) {
+      booker.setCurrentFolder(r == 0 ? base : base + "/" + kEtaRegionFolders[r]);
+      bookRecoRow(booker, h, calorimetric);
+    }
+    booker.setCurrentFolder(base);
+    bookRecoDiagnostics(booker, h, calorimetric);
+  }
+
+  void TruthBranchHistoProducerAlgo::bookRecoRow(dqm::implementation::IBooker& booker,
+                                                 TruthBranchHistograms& h,
+                                                 bool calorimetric) const {
     bookRow(booker, h.h_reco, "num_reco", recoVarNames_, recoAxes_);
     bookRow(booker, h.h_dominated, "num_dominated", recoVarNames_, recoAxes_);
     bookRow(booker, h.h_levelCandidate, "num_levelcandidate", recoVarNames_, recoAxes_);
@@ -127,7 +161,11 @@ namespace truth {
     if (calorimetric) {
       bookRow(booker, h.h_assoc_strict, "num_assoc_strict", recoVarNames_, recoAxes_);
     }
+  }
 
+  void TruthBranchHistoProducerAlgo::bookRecoDiagnostics(dqm::implementation::IBooker& booker,
+                                                         TruthBranchHistograms& h,
+                                                         bool calorimetric) const {
     h.h_score.push_back(booker.book1D("association_score", "Association score", nintScore_, minScore_, maxScore_));
     h.h_sharedQuantity.push_back(
         booker.book1D("shared_quantity", "Shared hits or energy", nintShared_, minShared_, maxShared_));
@@ -169,6 +207,22 @@ namespace truth {
                                                 Kinematics const& kin,
                                                 TruthOutcome outcome,
                                                 bool cumulative) const {
+    // Inclusive row always, plus the object's region row. The region variable is the one
+    // that decides acceptance: where the branch ENTERS the calorimeter when the domain
+    // records that, since a branch produced centrally can deposit in an endcap.
+    const double regionEta = (kin.caloeta != kNoCaloEntry) ? kin.caloeta : kin.eta;
+    const auto region = etaRegionOf(std::abs(regionEta));
+    fill_simul_row(h, kNEtaRegions * i, kin, outcome, cumulative);
+    if (region != EtaRegion::Inclusive) {
+      fill_simul_row(h, kNEtaRegions * i + static_cast<std::size_t>(region), kin, outcome, cumulative);
+    }
+  }
+
+  void TruthBranchHistoProducerAlgo::fill_simul_row(TruthBranchHistograms const& h,
+                                                    std::size_t i,
+                                                    Kinematics const& kin,
+                                                    TruthOutcome outcome,
+                                                    bool cumulative) const {
     const auto values = kin.asVector();
     for (std::size_t v = 0; v < truthVars_.size(); ++v) {
       const double x = values[truthVars_[v]];
@@ -207,6 +261,17 @@ namespace truth {
                                                std::size_t i,
                                                Kinematics const& kin,
                                                RecoOutcome const& outcome) const {
+    const auto region = etaRegionOf(std::abs(kin.eta));
+    fill_reco_row(h, kNEtaRegions * i, kin, outcome);
+    if (region != EtaRegion::Inclusive) {
+      fill_reco_row(h, kNEtaRegions * i + static_cast<std::size_t>(region), kin, outcome);
+    }
+  }
+
+  void TruthBranchHistoProducerAlgo::fill_reco_row(TruthBranchHistograms const& h,
+                                                   std::size_t i,
+                                                   Kinematics const& kin,
+                                                   RecoOutcome const& outcome) const {
     const auto values = kin.asVector();
     for (std::size_t v = 0; v < recoVars_.size(); ++v) {
       const double x = values[recoVars_[v]];

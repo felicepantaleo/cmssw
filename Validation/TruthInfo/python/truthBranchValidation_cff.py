@@ -10,6 +10,16 @@
 import FWCore.ParameterSet.Config as cms
 from DQMServices.Core.DQMEDHarvester import DQMEDHarvester
 
+# Acceptance regions, mirroring truth::kEtaRegionFolders. Each num_* row is booked again
+# in a sub-folder of the same name, with the SAME ME names, so one string list harvests
+# the inclusive folder and every region.
+_etaRegions = ["", "etaLt15", "eta15to30", "eta30to45"]
+
+
+def _withRegions(folders):
+    return [f + ("" if not r else "/" + r) for f in folders for r in _etaRegions]
+
+
 from SimGeneral.TruthGraphAssociatorProducers.truthGraphAssociationLabels_cff import (
     truthBranchWorkingPointsPSet,
     recoLabels,
@@ -330,7 +340,7 @@ for _d in _domains:
                   for _label in recoLabels(_d["name"], _d["flavour"]) for _wp in _wps]
     _harvester = DQMEDHarvester(
         "DQMGenericClient",
-        subDirs=cms.untracked.vstring(*_wpFolders),
+        subDirs=cms.untracked.vstring(*_withRegions(_wpFolders)),
         efficiency=cms.vstring(*_recoDrivenStrings(
             _d["recoVariables"],
             strict="minSharedEnergyFractionForIndividual" in _d["thresholds"])),
@@ -348,7 +358,7 @@ for _d in _domains:
                      for _label in recoLabels(_d["name"], _d["flavour"]) for _suffix in _truthSuffixes]
     _truthHarvester = DQMEDHarvester(
         "DQMGenericClient",
-        subDirs=cms.untracked.vstring(*_truthFolders),
+        subDirs=cms.untracked.vstring(*_withRegions(_truthFolders)),
         efficiency=cms.vstring(*_truthDrivenStrings(
             _d.get("truthVariables"),
             duplicate="minSharedEnergyFractionForIndividual" not in _d["thresholds"])),

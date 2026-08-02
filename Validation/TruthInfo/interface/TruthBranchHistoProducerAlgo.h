@@ -30,6 +30,29 @@
 
 namespace truth {
 
+  // Acceptance regions. Every num_* row is booked once inclusively and once per region,
+  // in a sub-folder of the same name, so a metric can be read where the detector that
+  // reconstructs it actually is. Mixing them is not a detail: on no-PU TenTau 58.6% of
+  // the taus enter the calorimeter in the barrel, where no trackster can exist, which
+  // pulled the inclusive calorimetric efficiency from 0.49 down to 0.19.
+  //
+  // Index 0 is the inclusive row and is always filled. An object outside every band, or
+  // one whose region variable is undefined, is filled ONLY there.
+  enum class EtaRegion { Inclusive = 0, Barrel, Endcap, Forward };
+  inline constexpr std::size_t kNEtaRegions = 4;
+  inline static const std::vector<std::string> kEtaRegionFolders = {"", "etaLt15", "eta15to30", "eta30to45"};
+
+  // Which band an absolute pseudorapidity falls in; Inclusive when it is in none.
+  [[nodiscard]] inline EtaRegion etaRegionOf(double absEta) {
+    if (absEta < 1.5)
+      return EtaRegion::Barrel;
+    if (absEta < 3.0)
+      return EtaRegion::Endcap;
+    if (absEta < 4.5)
+      return EtaRegion::Forward;
+    return EtaRegion::Inclusive;
+  }
+
   // The x variables, following the MTVHistoProducerAlgoForTracker set restricted to
   // what a truth branch can supply, plus two the graph alone can supply: depth is how
   // far down the event history the branch root sits, and root_footprint_fraction is how much of the
@@ -47,6 +70,10 @@ namespace truth {
   struct TruthBranchHistograms {
     using METype = dqm::reco::MonitorElement*;
 
+    // Rows are booked in blocks of kNEtaRegions per entry: index kNEtaRegions * entry + r
+    // is entry's row for region r, r = 0 being inclusive. The fill side does that
+    // arithmetic once and fills exactly two rows, the inclusive one and the object's.
+    //
     // Each vector is indexed [entry][variable], variable being the position within that
     // side's variable list, so booking order and fill index stay in step exactly as in
     // MTV. The two sides carry INDEPENDENT entry counters: truth-driven rows are
@@ -156,6 +183,19 @@ namespace truth {
                          TruthBranchHistograms& histograms,
                          bool calorimetric) const;
 
+    // One region's worth of rows, into the booker's current folder. bookTruthHistos and
+    // bookRecoHistos call these once per region.
+    void bookTruthRow(dqm::implementation::IBooker& booker, TruthBranchHistograms& histograms, bool calorimetric) const;
+    void bookRecoRow(dqm::implementation::IBooker& booker, TruthBranchHistograms& histograms, bool calorimetric) const;
+
+    // The once-per-entry distributions, booked in the base folder only.
+    void bookTruthDiagnostics(dqm::implementation::IBooker& booker,
+                              TruthBranchHistograms& histograms,
+                              bool calorimetric) const;
+    void bookRecoDiagnostics(dqm::implementation::IBooker& booker,
+                             TruthBranchHistograms& histograms,
+                             bool calorimetric) const;
+
     // Values of every x variable for one object, in the enum order. A domain fills only
     // the ones it has; which of them are booked is decided by the variable lists.
     struct Kinematics {
@@ -171,6 +211,14 @@ namespace truth {
 
     // cumulative is true when the collection as a whole covers the truth object,
     // whether by one reco object or by several together.
+    // The two row-level fills, one region's row each. fill_simul and fill_reco call them
+    // for the inclusive row and for the object's region row.
+    void fill_simul_row(TruthBranchHistograms const& histograms,
+                        std::size_t index,
+                        Kinematics const& kin,
+                        TruthOutcome outcome,
+                        bool cumulative) const;
+
     void fill_simul(TruthBranchHistograms const& histograms,
                     std::size_t index,
                     Kinematics const& kin,
@@ -213,6 +261,11 @@ namespace truth {
                    std::size_t index,
                    Kinematics const& kin,
                    RecoOutcome const& outcome) const;
+
+    void fill_reco_row(TruthBranchHistograms const& histograms,
+                       std::size_t index,
+                       Kinematics const& kin,
+                       RecoOutcome const& outcome) const;
 
     // Categorical fill against the VertexReason of the branch root's production
     // vertex, passed as its underlying integer so this header stays free of the
