@@ -43,14 +43,15 @@ WP_ORDER = ["Fixed", "AdaptiveTight", "AdaptiveNominal", "AdaptiveLoose"]
 # roots, so with a selection preset it is the efficiency of the signal object itself
 # (the tau, not its decay legs). signalNoSelection is the same seed objects with no
 # selector cut at all, so the efficiency is quoted against every seed in the event.
-# allSelectedRoots is the widest entry: every selected root, whatever its level or
-# species.
+# Every entry here is an ANTICHAIN, so no efficiency counts one object twice. That is why
+# allSelectedRoots is absent: it is every selected root regardless of level, so a particle
+# and its own daughter are both in it.
 LEVEL_ORDER = ["stableLegsFromUpstream", "caloBoundary", "stableDecayProducts", "hardProcess",
-               "reconstructableFromSignal", "signal", "signalNoSelection", "allSelectedRoots"]
-# What each truth-driven series IS. These are the efficiency DENOMINATORS, and they are
-# not interchangeable: the first four are ANTICHAINS (no member is an ancestor of
-# another, so nothing is counted twice), allSelectedRoots is not. Sizes quoted are ttbar
-# PU200 D122 with the top preset, per event, measured from the associator target lists.
+               "reconstructableFromSignal", "signal", "signalNoSelection"]
+# What each truth-driven series IS. These are the efficiency DENOMINATORS, and they are not
+# interchangeable, but every one of them is an ANTICHAIN: no member is an ancestor of
+# another, so no efficiency counts one object twice. Sizes quoted are ttbar PU200 D122 with
+# the top preset, per event, measured from the associator target lists.
 LEVEL_MEANING = {
     "caloBoundary":
         "every particle recorded crossing the tracker/calorimeter boundary OUTWARD, back-scattered tracks "
@@ -93,11 +94,6 @@ LEVEL_MEANING = {
     "signalNoSelection":
         "the same seed species with the kinematic selector removed. Equal to signal whenever every seed passes "
         "the selector, which is the case for tops; a difference between the two is the selector's own cost.",
-    "allSelectedRoots":
-        "every particle passing the branch selector, whatever its level or species. NOT an antichain: about "
-        "1.3% of its members have an ancestor in the same set, so a particle and its parent are both counted. "
-        "About 11300 per event, and a superset of every other series. Read it as a diagnostic of the selection, "
-        "NOT as a physics efficiency.",
 }
 
 VERTEX_SUFFIXES = ["interaction", "immediate"]
@@ -484,6 +480,91 @@ REGION_MEANING = {
     "eta15to30": "|eta| 1.5 to 3.0, the HGCAL endcap, where the calorimetric reconstruction actually runs.",
     "eta30to45": "|eta| 3.0 to 4.5, forward. Usually a handful of objects, so read the denominator before the ratio.",
 }
+
+
+
+def _source_of(relpath, start_marker, end_marker=None, max_lines=80):
+    """The actual source text of a definition, read at plot time from the release.
+
+    A page that cites "SomeFile.cc:2819" is wrong the moment a line is inserted above it,
+    and the reader cannot tell. Embedding the text means the page always shows the
+    definition that produced the numbers on it, and there is nothing to keep in sync.
+    """
+    import os
+    for base in (os.environ.get("CMSSW_BASE"), os.environ.get("CMSSW_RELEASE_BASE")):
+        if not base:
+            continue
+        path = os.path.join(base, "src", relpath)
+        if not os.path.exists(path):
+            continue
+        with open(path, errors="ignore") as fh:
+            lines = fh.read().splitlines()
+        try:
+            i = next(n for n, l in enumerate(lines) if start_marker in l)
+        except StopIteration:
+            continue
+        out = []
+        for l in lines[i:i + max_lines]:
+            out.append(l)
+            if end_marker is not None and len(out) > 1 and end_marker in l:
+                break
+        return "\n".join(out), os.path.join("src", relpath)
+    return None, None
+
+
+def _configured_values():
+    """The thresholds and species actually configured, imported rather than transcribed."""
+    rows = []
+    try:
+        import Validation.TruthInfo.truthBranchValidation_cff as _cff
+        for d in _cff._domains:
+            th = ", ".join(f"{k} = {v}" for k, v in sorted(d["thresholds"].items()))
+            rows.append((d["name"], th or "(none)"))
+    except Exception as exc:
+        rows.append(("could not import the validation configuration", str(exc)))
+    seeds = []
+    try:
+        from PhysicsTools.TruthInfo.truthGraphSelections import postProcessingPSet
+        ps = postProcessingPSet(name="TenTau_E_15_500_pythia8_cfi")
+        seeds.append(("seedPdgIds", list(ps.seedPdgIds)))
+        seeds.append(("reconstructablePdgIds", list(ps.reconstructablePdgIds)))
+    except Exception as exc:
+        seeds.append(("could not import the selection preset", str(exc)))
+    return rows, seeds
+
+
+def definitions_html():
+    """A section showing the real definitions: configured values and predicate source."""
+    out = ["<h2>Definitions, as the code actually has them</h2>",
+           "<p>Read at plot time from the release this file was made with, so nothing here can drift "
+           "out of date against the numbers on these pages. No file-and-line citations: those go stale "
+           "silently the moment a line is inserted above them.</p>"]
+    rows, seeds = _configured_values()
+    out.append("<h3>Thresholds each domain is judged by</h3><ul class='idx'>")
+    for name, th in rows:
+        out.append(f"<li><span class='f'>{name}</span> {th}</li>")
+    out.append("</ul>")
+    out.append("<h3>Selection preset, TenTau shown as the example</h3><ul class='idx'>")
+    for k, v in seeds:
+        out.append(f"<li><span class='f'>{k}</span> {v}</li>")
+    out.append("</ul>")
+    for title, relpath, marker, end in (
+            ("Level membership, the per-particle predicate",
+             "PhysicsTools/TruthInfo/interface/TruthLevels.h", "inline bool atLevel(", "  }"),
+            ("The antichain reduction every level goes through",
+             "PhysicsTools/TruthInfo/interface/TruthLevels.h", "levelAntichain(Graph const&", "return antichain;"),
+            ("The visible final state of the signal",
+             "PhysicsTools/TruthInfo/interface/TruthLevels.h", "reconstructableFromSignal(Graph const&",
+             "return legs;"),
+            ("Acceptance regions",
+             "Validation/TruthInfo/interface/TruthBranchHistoProducerAlgo.h", "inline EtaRegion etaRegionOf(",
+             "  }")):
+        text, shown = _source_of(relpath, marker, end)
+        if text:
+            import html as _html
+            out.append(f"<h3>{title}</h3><p class='f'>{shown}</p>"
+                       f"<pre style='background:#f6f6f6;padding:8px;overflow-x:auto'>{_html.escape(text)}</pre>")
+    return "".join(out)
 
 
 def discover(tfile):
@@ -1113,8 +1194,9 @@ def main():
                     "among the selected roots, so with a selection preset it is the signal object's own "
                     "efficiency (the tau, not its decay legs), signalNoSelection, the same seed objects with "
                     "no branch-selector cut at all, so the efficiency is quoted against every seed in the "
-                    "event and the gap to signal is what the selection removed, and allSelectedRoots, whose "
-                    "denominator is every selected root whatever its level or species. A "
+                    "event and the gap to signal is what the selection removed. Every one of these is an "
+                    "ANTICHAIN, so no object is counted twice; allSelectedRoots was dropped for exactly that "
+                    "reason, 1.3% of its members having an ancestor in the same set. A "
                     "composite domain has a single folder named by its vertex resolution. On the efficiency "
                     "page each series is a pair: individual (filled, solid) means a single reco object covers "
                     "the truth object, cumulative (open, dashed, same colour) means all reco objects of the "
@@ -1224,7 +1306,8 @@ def main():
             idx.write(f"<li><span class='f'>{var}</span> {VARIABLE_MEANING[var]}</li>")
         for var in CATEGORICAL:
             idx.write(f"<li><span class='f'>{var}</span> {CATEGORICAL_MEANING[var]}</li>")
-        idx.write("</ul><h2>Truth levels: what each series is the efficiency OF</h2>"
+        idx.write(definitions_html())
+        idx.write("<h2>Truth levels: what each series is the efficiency OF</h2>"
                   "<p>The truth-driven pages overlay these. They are different DENOMINATORS over the same "
                   "event, not different measurements of one quantity, so a series sitting lower than another "
                   "usually means it is a wider denominator, not a worse reconstruction.</p><ul class='idx'>")

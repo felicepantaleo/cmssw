@@ -252,8 +252,10 @@ TruthBranchRecoValidator<RECO>::TruthBranchRecoValidator(edm::ParameterSet const
     // every seed in the event rather than against the ones the kinematic selection
     // kept. The gap to the signal folder is what the selection removed.
     truthTargets.emplace_back("signalNoSelection", "signalSeedsNoSelection");
-    // Every selected root, whatever its level or species: the widest truth denominator.
-    truthTargets.emplace_back("allSelectedRoots", "selectedBranchRoots");
+    // selectedBranchRoots is NOT offered as a truth denominator. It is every particle
+    // passing the selector, so it can contain a particle and its own ancestor, and an
+    // efficiency over it counts the same object twice. Every denominator above is an
+    // antichain. The product still exists for diagnosis; it is just not a page.
   }
 
   // Dominance is measured against ONE level, so the candidates are distinct particles.

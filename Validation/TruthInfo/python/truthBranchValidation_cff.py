@@ -304,13 +304,19 @@ truthBranchValidationSequence = cms.Sequence()
 truthBranchHarvestingSequence = cms.Sequence()
 
 for _d in _domains:
+    # allSelectedRoots is deliberately ABSENT. It is every particle passing the selector,
+    # so a tau and its own daughter are both in it and an efficiency over it counts the
+    # same energy twice: measured on ttbar, 24% of a pt-selected set had another selected
+    # particle as an ancestor. Every denominator here is an antichain, the levels by
+    # construction and signal/signalNoSelection because the seeds are reduced to their
+    # most upstream members. The associator still emits selectedBranchRoots for diagnosis.
     # The truth-driven folder suffixes: the graph levels, the overall signal entry
     # (denominator the preset seed objects, signalSeeds), the same seed objects with no
     # selector cut at all (signalSeedsNoSelection) and the widest entry over every
     # selected root (denominator selectedBranchRoots) for a hit-based domain, the vertex
     # resolution for a composite one.
     _truthSuffixes = ([_d["vertexResolution"]] if "vertexResolution" in _d
-                      else _truthLevels + ["signal", "signalNoSelection", "allSelectedRoots"])
+                      else _truthLevels + ["signal", "signalNoSelection"])
     _truthArgs = (dict(vertexResolution=cms.string(_d["vertexResolution"]))
                   if "vertexResolution" in _d else dict(truthLevels=cms.vstring(*_truthLevels)))
     _analyzer = cms.EDProducer(
