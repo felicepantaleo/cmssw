@@ -41,7 +41,8 @@ _wps = list(truthBranchWorkingPointsPSet.names)
 # jet IS the descendant subgraph and its flavour is the parton's PDG id. The deepest-
 # element rule keeps the b rather than the top above it, so a jet is never counted twice.
 _truthLevels = ["stableLegsFromUpstream", "caloBoundary", "stableDecayProducts", "hardProcess",
-                "reconstructableFromSignal", "underlyingEvent", "partonJets"]
+                "reconstructableFromSignal", "underlyingEvent", "partonJets",
+                "bHadrons", "cHadrons"]
 
 # Axis definition per x variable, shared by every domain. Built here so the booking, the
 # harvester strings and the plot script all read one list.

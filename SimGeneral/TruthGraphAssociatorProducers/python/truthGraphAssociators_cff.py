@@ -55,7 +55,10 @@ _truthLevels = cms.vstring(
     "reconstructableFromSignal", "underlyingEvent",
     # One root per parton-initiated jet: the hard-scatter legs that are quarks or gluons,
     # each standing for everything downstream of it. No clustering.
-    "partonJets"
+    "partonJets",
+    # The first hadron of each heavy flavour along a chain. Separate levels because a B
+    # decays to a D, so one combined level would keep the B and drop every charm member.
+    "bHadrons", "cHadrons"
 )
 
 # The selection preset's seed species, so the signalSeeds product (the _signal
