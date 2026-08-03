@@ -495,6 +495,18 @@ your event count, the level is wrong before any efficiency is worth reading.
 The inclusive cumulative efficiency is 0.22, and it is again the barrel doing it: read the
 region, per 7b.
 
+The gluon bin needs a sample whose hard scatter makes gluons. On QCD flat pT (workflow
+34843.0, 200 events, no PU) `partonJets` is **400 = exactly 2.00 per event**, a dijet
+having two hard-scatter legs, split g 266, u 65, d 43, s 11, c 8, b 7. Gluon dominance is
+what QCD at the LHC has to give. There `partonJets` and `hardProcess` coincide bin for
+bin, because every hard-scatter leg in a QCD event IS a parton; on ttbar they differ by
+exactly the 186 leptonic legs (1146 minus 960). Those two statements together are a good
+check that the level is the subset it claims to be.
+
+The `t` bin is never filled by `partonJets`, and that is the deepest-element rule working:
+a top always has a hard-process b below it. It IS filled by the `signal` level on ttbar,
+with 2.00 per event, so a point at `t` tells you which level you are reading.
+
 !!! warning "Jet subgraphs OVERLAP, and the roots being an antichain does not prevent it"
     The jet ROOTS are an antichain, so no jet contains another. The SUBGRAPHS are not
     disjoint. Two quarks colour connected to each other, the u and d~ of a hadronic W,
