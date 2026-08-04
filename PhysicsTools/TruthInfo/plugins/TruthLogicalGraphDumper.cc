@@ -606,7 +606,11 @@ public:
         }
       }
       for (uint32_t i = 0; i < nParticles; ++i) {
-        if (!hideParticle[i] && !hasVisibleEdge[i])
+        // A SYNTHETIC node is drawn even with no edge at all. The signal stand-in has
+        // neither a production nor a decay vertex by construction, so this rule hid the
+        // one node class a reader most needs to see, and a dump that silently omits a node
+        // class is worse than no dump: it was read as proof the node did not exist.
+        if (!hideParticle[i] && !hasVisibleEdge[i] && !g.particles()[i].isSynthetic())
           hideParticle[i] = 1;
       }
     }

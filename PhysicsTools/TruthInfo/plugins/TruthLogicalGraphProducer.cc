@@ -79,10 +79,14 @@ namespace {
     synthetic.simNode = -1;
     synthetic.status = 0;
     synthetic.pdgId = 0;
+    // The hard-process legs, computed HERE rather than read off LevelFlag::HardProcess.
+    // That bit is written by truth::fillLevelFlags, which by design runs on the FINISHED
+    // graph and therefore after this function, so reading it summed over the empty set and
+    // handed every stand-in a momentum of exactly zero, in every sample, silently.
     math::XYZTLorentzVectorD sum(0., 0., 0., 0.);
-    for (auto const& p : graph.particles()) {
-      if (p.isAtLevel(truth::LevelFlag::HardProcess)) {
-        sum += p.momentum;
+    for (const uint32_t id : truth::levelAntichain(graph, truth::Level::HardProcess)) {
+      if (id < graph.nParticles()) {
+        sum += graph.particles()[id].momentum;
       }
     }
     synthetic.momentum = sum;
@@ -1027,7 +1031,15 @@ public:
     // synthetic: no GEN and no SIM back-reference, and status 0, which no generator
     // particle carries. It is an accounting object, not truth, and nothing may read its
     // four-momentum as a generator quantity.
-    if (!out->signalSeedPdgIds().empty()) {
+    //
+    // The full-graph preset is spelled seedPdgIds = {0}, and that means NO SELECTION, not
+    // "a resonance the generator failed to write". No real particle carries pdgId 0, so
+    // nothing can ever match it and the fallback would stand a resonance in on EVERY
+    // event of every unselected sample. Treat {0} exactly as filterGraphBySelection
+    // already treats it, as the escape hatch that asks for the whole graph.
+    auto const& seeds = out->signalSeedPdgIds();
+    const bool seedsNameAResonance = !seeds.empty() && std::find(seeds.begin(), seeds.end(), 0) == seeds.end();
+    if (seedsNameAResonance) {
       const bool haveSignal = std::any_of(out->particles().begin(), out->particles().end(), [](auto const& p) {
         return p.isAtLevel(truth::LevelFlag::Signal);
       });
@@ -1035,7 +1047,10 @@ public:
         addSyntheticSignalNode(*out);
         edm::LogWarning("TruthLogicalGraphProducer")
             << "no particle matched the configured signal seeds; added a synthetic signal node standing for the "
-               "hard-process legs. Its momentum is their sum and is NOT a generator quantity.";
+               "hard-process legs, pt "
+            << out->particles().back().momentum.pt()
+            << ". Its momentum is their sum and is NOT a generator quantity; a pt of exactly 0 means the sample has "
+               "no hard-process legs either.";
       }
     }
 
