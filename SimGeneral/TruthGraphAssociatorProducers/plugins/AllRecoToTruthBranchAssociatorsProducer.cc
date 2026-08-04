@@ -495,10 +495,13 @@ void AllRecoToTruthBranchAssociatorsProducer<RECO>::produce(edm::StreamID,
     // look for, so there is nothing to un-select and it repeats signalSeeds rather
     // than promoting every particle in the graph to an efficiency denominator.
     auto signalSeedsNoSelection = std::make_unique<std::vector<unsigned int>>();
-    if (signalSeedPdgIds_.empty()) {
-      signalSeeds->assign(selectedRoots.begin(), selectedRoots.end());
-      signalSeedsNoSelection->assign(selectedRoots.begin(), selectedRoots.end());
-    } else {
+    // With no seed species there is no resonance in this sample, so BOTH products stay
+    // EMPTY. They used to be filled with every selected root, which is not an antichain:
+    // it holds particles together with their own ancestors, so an efficiency over it
+    // counts the same energy twice. That set was removed as a denominator under its own
+    // name and must not come back under this one. Measured on QCD before this: 518.89
+    // seeds per event against 164 generator-stable particles per event.
+    if (truth::seedsNameAResonance(signalSeedPdgIds_)) {
       for (uint32_t id : selectedRoots) {
         if (isSeedSpecies(id)) {
           signalSeeds->push_back(id);

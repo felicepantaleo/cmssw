@@ -128,6 +128,22 @@ namespace truth {
     return nq1 == flavor || nq2 == flavor || nq3 == flavor;
   }
 
+  // Whether a seed pdgId list names a RESONANCE to look for.
+  //
+  // Two spellings mean "no selection" and both must be read that way: an EMPTY list, which
+  // is what a production with no preset configures, and {0}, the full-graph escape hatch,
+  // since no real particle carries pdgId 0. Neither may be read as "the resonance is
+  // missing", and neither may be read as "everything is signal": on such a sample the
+  // signal level is NOT ANSWERABLE, so it is not offered at all.
+  //
+  // Templated because the seed list is std::vector<int> in the module parameters and
+  // std::vector<int32_t> on the Graph. One definition so the three call sites, the graph
+  // producer, the associator and the validator, cannot drift apart.
+  template <typename Seeds>
+  [[nodiscard]] inline bool seedsNameAResonance(Seeds const& seeds) {
+    return !seeds.empty() && std::find(seeds.begin(), seeds.end(), 0) == seeds.end();
+  }
+
   // Whether one particle belongs to a level, before the antichain check.
   [[nodiscard]] inline bool atLevel(Graph const& graph, uint32_t id, Level level) {
     auto const& data = graph.particles()[id];

@@ -1037,9 +1037,7 @@ public:
     // nothing can ever match it and the fallback would stand a resonance in on EVERY
     // event of every unselected sample. Treat {0} exactly as filterGraphBySelection
     // already treats it, as the escape hatch that asks for the whole graph.
-    auto const& seeds = out->signalSeedPdgIds();
-    const bool seedsNameAResonance = !seeds.empty() && std::find(seeds.begin(), seeds.end(), 0) == seeds.end();
-    if (seedsNameAResonance) {
+    if (truth::seedsNameAResonance(out->signalSeedPdgIds())) {
       const bool haveSignal = std::any_of(out->particles().begin(), out->particles().end(), [](auto const& p) {
         return p.isAtLevel(truth::LevelFlag::Signal);
       });

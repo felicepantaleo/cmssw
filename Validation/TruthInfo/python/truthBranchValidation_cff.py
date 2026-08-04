@@ -26,6 +26,10 @@ from SimGeneral.TruthGraphAssociatorProducers.truthGraphAssociationLabels_cff im
     instanceKey,
 )
 
+# The same seed list the associators are configured with, so the analyzer's decision to
+# book the signal folders and the associator's decision to fill them cannot disagree.
+from SimGeneral.TruthGraphAssociatorProducers.truthGraphAssociators_cff import _signalSeedPdgIds
+
 _wps = list(truthBranchWorkingPointsPSet.names)
 
 # Branch levels of the truth graph, matching truthGraphAssociators_cff: the
@@ -323,8 +327,14 @@ for _d in _domains:
     # resolution for a composite one.
     _truthSuffixes = ([_d["vertexResolution"]] if "vertexResolution" in _d
                       else _truthLevels + ["signal", "signalNoSelection"])
+    # signalSeedPdgIds travels with truthLevels because the analyzer books the signal
+    # folders from it, and it must carry the SAME value the associators get. A production
+    # that applies a preset sets it on the analyzers as well as on the associators; with
+    # no preset it stays empty and the signal folders are simply not booked.
     _truthArgs = (dict(vertexResolution=cms.string(_d["vertexResolution"]))
-                  if "vertexResolution" in _d else dict(truthLevels=cms.vstring(*_truthLevels)))
+                  if "vertexResolution" in _d
+                  else dict(truthLevels=cms.vstring(*_truthLevels),
+                            signalSeedPdgIds=cms.vint32(*_signalSeedPdgIds)))
     _analyzer = cms.EDProducer(
         _d["module"],
         src=cms.InputTag("truthLogicalGraphProducer"),

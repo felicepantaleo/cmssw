@@ -36,6 +36,7 @@
 #include "SimDataFormats/TruthInfo/interface/Graph.h"
 #include "SimDataFormats/TruthInfo/interface/LogicalGraphHitIndex.h"
 #include "PhysicsTools/TruthInfo/interface/SubgraphHitView.h"
+#include "PhysicsTools/TruthInfo/interface/TruthLevels.h"
 #include "SimDataFormats/TruthInfo/interface/Particle.h"
 #include "SimDataFormats/TruthInfo/interface/VertexData.h"
 
@@ -246,12 +247,20 @@ TruthBranchRecoValidator<RECO>::TruthBranchRecoValidator(edm::ParameterSet const
     }
     // The overall signal entry: its denominator is the preset SEED objects among the
     // selected roots (the tau, not its decay legs), so the folder measures the signal
-    // object's own efficiency. Without a preset every selected root is a seed.
-    truthTargets.emplace_back("signal", "signalSeeds");
-    // The same seed objects with NO selector cut, so the efficiency is quoted against
-    // every seed in the event rather than against the ones the kinematic selection
-    // kept. The gap to the signal folder is what the selection removed.
-    truthTargets.emplace_back("signalNoSelection", "signalSeedsNoSelection");
+    // object's own efficiency.
+    //
+    // NOT BOOKED AT ALL on a sample with no resonance, rather than booked empty: the
+    // question "how well is the signal reconstructed" has no meaning where the
+    // configuration names no signal, and an empty folder invites the reading that the
+    // efficiency is zero. This used to fall back to every selected root, which is not an
+    // antichain and is the denominator removed for that reason.
+    if (truth::seedsNameAResonance(cfg.getParameter<std::vector<int>>("signalSeedPdgIds"))) {
+      truthTargets.emplace_back("signal", "signalSeeds");
+      // The same seed objects with NO selector cut, so the efficiency is quoted against
+      // every seed in the event rather than against the ones the kinematic selection
+      // kept. The gap to the signal folder is what the selection removed.
+      truthTargets.emplace_back("signalNoSelection", "signalSeedsNoSelection");
+    }
     // Every denominator above is an ANTICHAIN. A set of all selected roots is not one,
     // since it can contain a particle together with its own ancestor and an efficiency
     // over it would count the same object twice, so no such denominator is offered.
@@ -812,6 +821,11 @@ void TruthBranchRecoValidator<RECO>::fillDescriptions(edm::ConfigurationDescript
         ->setComment(
             "Graph levels the truth-driven metrics are measured at, one folder per level. Must match the "
             "associator's truthLevels: each level consumes its own denominator product");
+    desc.add<std::vector<int>>("signalSeedPdgIds", {})
+        ->setComment(
+            "The selection preset's seed species, the SAME values the associators get. Empty, or the full-graph "
+            "escape hatch {0}, means the sample has no resonance, and then the signal and signalNoSelection "
+            "folders are NOT BOOKED: the question has no meaning where the configuration names no signal");
   }
   if constexpr (Traits::calorimetric) {
     desc.add<double>("minSharedEnergyFractionForIndividual", 0.5)
