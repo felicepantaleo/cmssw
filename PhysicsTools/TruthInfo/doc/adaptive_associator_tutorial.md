@@ -54,6 +54,13 @@ their job is to define the **secondary-vertex** truth instead (section 5b):
 | `bHadrons` | the first b hadron along each chain. A B\* radiates down to a B and both are b hadrons, so the antichain keeps the B\*: one member per physical decay, not one per generator copy |
 | `cHadrons` | the same for charm. Beauty and charm are SEPARATE levels on purpose: a B decays to a D, so a single combined level would keep the B and silently drop every charm vertex |
 
+A sample with NO resonance has no `signal` level at all. Both `signal` and
+`signalNoSelection` are simply **not booked** when the configuration names no seed
+species, rather than booked empty: the question has no meaning there, and an empty folder
+reads as an efficiency of zero. QCD is the sample in the set where this shows. It used to
+fall back to every selected root, which is not an antichain and is exactly the denominator
+that was removed for that reason.
+
 plus `signal` (the preset's seed objects, so the RESONANCE itself: two tops, one Z, one
 Higgs, ten taus) and `signalNoSelection` (the same with no kinematic cut).
 
