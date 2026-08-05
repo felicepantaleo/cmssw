@@ -898,6 +898,10 @@ void TruthBranchRecoValidator<RECO>::fillDescriptions(edm::ConfigurationDescript
     algo.add<int>("nint_" + name, nbins);
     algo.add<double>("min_" + name, lo);
     algo.add<double>("max_" + name, hi);
+    // 0 keeps the axis uniform. A positive value asks for symlog binning: one linear bin
+    // up to it, then a log ladder, so a quantity spanning decades is readable without
+    // losing the entries that sit at exactly 0.
+    algo.add<double>("linthresh_" + name, 0.);
   }
   algo.add<std::vector<std::string>>("truthVariables", {"pt", "eta", "phi"});
   algo.add<std::vector<std::string>>("recoVariables", {"pt", "eta", "phi"});

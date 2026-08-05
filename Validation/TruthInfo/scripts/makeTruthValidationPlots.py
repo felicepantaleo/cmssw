@@ -246,6 +246,14 @@ VARIABLE_MEANING = {
 # rather than a number, so the ticks are named and never drawn as bin indices.
 FLAVOUR_BINS = ["other", "d", "u", "s", "c", "b", "t", "g"]
 
+# Axes booked with symlog bin edges, mirroring _linthresh in truthBranchValidation_cff.
+# The value is the linear-to-log crossover, and it must match the booking or the drawn
+# axis and the bin edges disagree.
+SYMLOG_AXES = {
+    "pt": 0.1,
+    "vertpos": 0.001,
+}
+
 AXIS_TITLE = {
     "flavour": "initiating parton",
     "pt": r"p$_{T}$ [GeV]",
@@ -933,6 +941,13 @@ def plot_metric(category, collection, metric, var, per_wp, outdir, index, slices
     xvar = var.rsplit("_vs_", 1)[-1].split("_")[0] if "_vs_" in var else var
     # The two pads share the x axis, so the title is written once, under the ratio.
     rax.set_xlabel(axis_title(xvar), fontsize=AXIS_TITLE_SIZE)
+    # Axes booked with symlog bin edges must be DRAWN symlog, or the log ladder is
+    # squashed into the right-hand sliver of a linear axis and reads as an empty plot.
+    # Linear below the threshold so the entries at exactly 0 stay visible: on DY 20.5% of
+    # the signal level sits at pt exactly 0.
+    if xvar in SYMLOG_AXES:
+        rax.set_xscale("symlog", linthresh=SYMLOG_AXES[xvar])
+        ax.set_xscale("symlog", linthresh=SYMLOG_AXES[xvar])
     if xvar == "flavour":
         rax.set_xticks([i + 0.5 for i in range(len(FLAVOUR_BINS))])
         rax.set_xticklabels(FLAVOUR_BINS)

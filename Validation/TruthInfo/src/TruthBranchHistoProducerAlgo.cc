@@ -55,11 +55,35 @@ namespace truth {
         kept.push_back(name);
         axes.push_back({pset.getParameter<int>("nint_" + name),
                         pset.getParameter<double>("min_" + name),
-                        pset.getParameter<double>("max_" + name)});
+                        pset.getParameter<double>("max_" + name),
+                        pset.getParameter<double>("linthresh_" + name)});
       }
     };
     resolve(pset.getParameter<std::vector<std::string>>("truthVariables"), truthVars_, truthVarNames_, truthAxes_);
     resolve(pset.getParameter<std::vector<std::string>>("recoVariables"), recoVars_, recoVarNames_, recoAxes_);
+  }
+
+  std::vector<float> TruthBranchHistoProducerAlgo::binEdges(SymlogAxis const& axis) {
+    std::vector<float> edges;
+    edges.reserve(axis.nbins + 1);
+    if (axis.linthresh <= 0. || axis.linthresh >= axis.max || axis.nbins < 2) {
+      const double width = (axis.max - axis.min) / axis.nbins;
+      for (int i = 0; i <= axis.nbins; ++i) {
+        edges.push_back(static_cast<float>(axis.min + i * width));
+      }
+      return edges;
+    }
+    // One linear bin holding everything below the threshold, zero included, then a log
+    // ladder to the top. The first edge stays at min so nothing that used to be in range
+    // silently becomes underflow.
+    edges.push_back(static_cast<float>(axis.min));
+    const int nLog = axis.nbins - 1;
+    const double lo = std::log10(axis.linthresh);
+    const double hi = std::log10(axis.max);
+    for (int i = 0; i <= nLog; ++i) {
+      edges.push_back(static_cast<float>(std::pow(10., lo + (hi - lo) * i / nLog)));
+    }
+    return edges;
   }
 
   namespace {
@@ -75,7 +99,8 @@ namespace truth {
       for (std::size_t v = 0; v < names.size(); ++v) {
         auto const& name = names[v];
         auto const& axis = axes[v];
-        auto* me = booker.book1D(prefix + "_" + name, prefix + " vs " + name, axis.nbins, axis.min, axis.max);
+        const auto edges = TruthBranchHistoProducerAlgo::binEdges({axis.nbins, axis.min, axis.max, axis.linthresh});
+        auto* me = booker.book1D(prefix + "_" + name, prefix + " vs " + name, axis.nbins, edges.data());
         // The flavour axis is species, not a number: label it so the DQM GUI reads as
         // d/u/s/c/b/t/g rather than as bin indices.
         if (name == "flavour") {

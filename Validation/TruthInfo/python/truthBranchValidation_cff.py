@@ -51,10 +51,14 @@ _truthLevels = ["stableLegsFromUpstream", "caloBoundary", "stableDecayProducts",
 # Axis definition per x variable, shared by every domain. Built here so the booking, the
 # harvester strings and the plot script all read one list.
 _axes = {
-    "pt": (50, 0.0, 100.0),
+    # Symlog to 1000 GeV: a parton jet reaches several hundred GeV in ttbar and the QCD
+    # flat-pT sample goes to 3000, while caloBoundary is dominated by sub-GeV particles.
+    "pt": (50, 0.0, 1000.0),
     "eta": (50, -4.0, 4.0),
     "phi": (36, -3.2, 3.2),
     "nhits": (40, 0.0, 40.0),
+    # Symlog: a heavy-flavour decay length is sub-millimetre while a nuclear interaction
+    # sits at tens of cm, so a uniform 1.5 cm bin put 93.4% of truth SVs in the first one.
     "vertpos": (40, 0.0, 60.0),
     "zpos": (40, -30.0, 30.0),
     "dxy": (40, -5.0, 5.0),
@@ -73,11 +77,23 @@ _axes = {
     # numerator and the denominator.
     "caloeta": (50, -4.0, 4.0),
 }
+# Axes whose quantity spans decades get SYMLOG binning: one linear bin up to the value
+# below, then a log ladder to the top. Plain log cannot hold 0, and both of these have a
+# real population there: on DY 20.5% of the signal level sits at pt EXACTLY 0, the
+# pre-ISR copy of the resonance, and a decay length of 0 means the vertex coincides with
+# the primary. Measured motivation: 19% of partonJets entries were in the pt OVERFLOW at
+# 100 GeV, and 93.4% of all truth secondary vertices fell in the first 1.5 cm bin.
+_linthresh = {
+    "pt": 0.1,        # GeV
+    "vertpos": 0.001,  # cm, that is 10 microns
+}
+
 _algoBlockArgs = {}
 for _name, (_n, _lo, _hi) in _axes.items():
     _algoBlockArgs["nint_" + _name] = cms.int32(_n)
     _algoBlockArgs["min_" + _name] = cms.double(_lo)
     _algoBlockArgs["max_" + _name] = cms.double(_hi)
+    _algoBlockArgs["linthresh_" + _name] = cms.double(_linthresh.get(_name, 0.0))
 _algoBlockArgs.update(
     nintScore=cms.int32(50), minScore=cms.double(0.0), maxScore=cms.double(1.0),
     nintShared=cms.int32(50), minShared=cms.double(0.0), maxShared=cms.double(50.0),
@@ -219,6 +235,10 @@ def _algoBlock(recoVariables, truthVariables=None, sharedRange=None, axisOverrid
         args["nint_" + _var] = cms.int32(_n)
         args["min_" + _var] = cms.double(_lo)
         args["max_" + _var] = cms.double(_hi)
+        # An override replaces the range, so it must also drop any symlog threshold that
+        # belonged to the old one, or the ladder would be built against a range it no
+        # longer matches.
+        args["linthresh_" + _var] = cms.double(0.0)
     if sharedRange is not None:
         # A composite domain's shared quantity is a FRACTION of the object's
         # constituents, so it lives in [0, 1]; the hit-based default of [0, 50] counts

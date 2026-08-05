@@ -264,6 +264,19 @@ namespace truth {
                     bool cumulative,
                     uint32_t failedCuts) const;
 
+    // linthresh > 0 asks for SYMLOG binning: one linear bin [min, linthresh] and the rest
+    // log-spaced up to max. Plain log cannot represent 0, and on DY 20.5% of the signal
+    // level sits at pt EXACTLY 0, the pre-ISR copy of the resonance, so a log axis would
+    // move a fifth of that denominator into the underflow where nobody would see it.
+    //
+    // float rather than double because that is what the DQM booker's variable-bin
+    // overload takes; histogram edges do not need more.
+    struct SymlogAxis {
+      int nbins;
+      double min, max, linthresh;
+    };
+    [[nodiscard]] static std::vector<float> binEdges(SymlogAxis const& axis);
+
     // The cut bit a truth variable is the axis of, or 0 for a variable no cut touches.
     // Indexed like kVariableNames, so booking order and this table cannot drift.
     [[nodiscard]] static uint32_t cutBitOfVariable(std::string const& name);
@@ -343,6 +356,7 @@ namespace truth {
     struct Axis {
       int nbins;
       double min, max;
+      double linthresh = 0.;
     };
     // Which entries of Kinematics::asVector each side books, in booking order.
     std::vector<std::size_t> truthVars_, recoVars_;
