@@ -249,9 +249,12 @@ FLAVOUR_BINS = ["other", "d", "u", "s", "c", "b", "t", "g"]
 # Axes booked with symlog bin edges, mirroring _linthresh in truthBranchValidation_cff.
 # The value is the linear-to-log crossover, and it must match the booking or the drawn
 # axis and the bin edges disagree.
+# (linthresh, max). The maximum is needed because matplotlib's symlog is SYMMETRIC about
+# zero by default: without an explicit left limit it draws a negative branch, and a
+# negative pt or radius cannot exist, so half the canvas went to empty mirror decades.
 SYMLOG_AXES = {
-    "pt": 0.1,
-    "vertpos": 0.001,
+    "pt": (0.1, 1000.0),
+    "vertpos": (0.001, 60.0),
 }
 
 AXIS_TITLE = {
@@ -946,8 +949,11 @@ def plot_metric(category, collection, metric, var, per_wp, outdir, index, slices
     # Linear below the threshold so the entries at exactly 0 stay visible: on DY 20.5% of
     # the signal level sits at pt exactly 0.
     if xvar in SYMLOG_AXES:
-        rax.set_xscale("symlog", linthresh=SYMLOG_AXES[xvar])
-        ax.set_xscale("symlog", linthresh=SYMLOG_AXES[xvar])
+        _lin, _max = SYMLOG_AXES[xvar]
+        for _a in (rax, ax):
+            _a.set_xscale("symlog", linthresh=_lin)
+            # Clamp at 0: symlog would otherwise mirror the decades into negative x.
+            _a.set_xlim(0.0, _max)
     if xvar == "flavour":
         rax.set_xticks([i + 0.5 for i in range(len(FLAVOUR_BINS))])
         rax.set_xticklabels(FLAVOUR_BINS)
