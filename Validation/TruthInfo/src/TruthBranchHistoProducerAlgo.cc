@@ -252,7 +252,7 @@ namespace truth {
     // that decides acceptance: where the branch ENTERS the calorimeter when the domain
     // records that, since a branch produced centrally can deposit in an endcap.
     const double regionEta = (kin.caloeta != kNoCaloEntry) ? kin.caloeta : kin.eta;
-    const auto region = etaRegionOf(regionEta);
+    const auto region = etaRegionOf(std::abs(regionEta));
     fill_simul_row(h, kNEtaRegions * i, kin, outcome, cumulative, failedCuts);
     if (region != EtaRegion::Inclusive) {
       fill_simul_row(h, kNEtaRegions * i + static_cast<std::size_t>(region), kin, outcome, cumulative, failedCuts);
@@ -317,7 +317,7 @@ namespace truth {
                                                std::size_t i,
                                                Kinematics const& kin,
                                                RecoOutcome const& outcome) const {
-    const auto region = etaRegionOf(kin.eta);
+    const auto region = etaRegionOf(std::abs(kin.eta));
     fill_reco_row(h, kNEtaRegions * i, kin, outcome);
     if (region != EtaRegion::Inclusive) {
       fill_reco_row(h, kNEtaRegions * i + static_cast<std::size_t>(region), kin, outcome);

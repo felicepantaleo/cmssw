@@ -13,9 +13,7 @@ from DQMServices.Core.DQMEDHarvester import DQMEDHarvester
 # Acceptance regions, mirroring truth::kEtaRegionFolders. Each num_* row is booked again
 # in a sub-folder of the same name, with the SAME ME names, so one string list harvests
 # the inclusive folder and every region.
-# The two endcaps are separate: a position plot pooling them shows two lobes with the
-# whole barrel gap between, and any asymmetry between +z and -z averages away.
-_etaRegions = ["", "etaLt15", "eta15to30Pos", "eta15to30Neg", "eta30to45Pos", "eta30to45Neg"]
+_etaRegions = ["", "etaLt15", "eta15to30", "eta30to45"]
 
 
 def _withRegions(folders):
@@ -56,11 +54,11 @@ _axes = {
     # Symlog to 1000 GeV: a parton jet reaches several hundred GeV in ttbar and the QCD
     # flat-pT sample goes to 3000, while caloBoundary is dominated by sub-GeV particles.
     "pt": (50, 0.0, 1000.0),
-    # +-5, not +-4: the forward acceptance region runs to |eta| 4.5, so an axis stopping
-    # at 4 put part of that region's own population off the end of the axis it is binned
-    # against. Truth branches reach beyond 5 (beam remnants) and still overflow, which is
-    # expected rather than a range error.
-    "eta": (50, -5.0, 5.0),
+    # +-4.5, matching the forward acceptance boundary exactly: an axis stopping at 4 put
+    # part of the eta30to45 region's own population off the end of the axis it is binned
+    # against. Truth branches reach beyond 4.5 (beam remnants) and still overflow, which
+    # is outside every acceptance region and expected rather than a range error.
+    "eta": (50, -4.5, 4.5),
     "phi": (36, -3.2, 3.2),
     # Symlog: a branch footprint runs from one hit to thousands. Measured on no-PU ttbar,
     # 7.1% of truth nhits was in the overflow at 40, and a partonJets subgraph holds 961
@@ -87,10 +85,10 @@ _axes = {
     # range as eta so the two are read side by side; a branch that never reached the
     # calorimeter is filled at kNoCaloEntry and lands in the underflow of both the
     # numerator and the denominator.
-    # Same +-5 as eta. The large UNDERFLOW here is by design and must not be "fixed":
+    # Same +-4.5 as eta. The large UNDERFLOW here is by design and must not be "fixed":
     # a branch that never reached the calorimeter is filled at kNoCaloEntry so it lands in
     # the underflow of numerator and denominator alike.
-    "caloeta": (50, -5.0, 5.0),
+    "caloeta": (50, -4.5, 4.5),
 }
 # Axes whose quantity spans decades get SYMLOG binning: one linear bin up to the value
 # below, then a log ladder to the top. Plain log cannot hold 0, and both of these have a

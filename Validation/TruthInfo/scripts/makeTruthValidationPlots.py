@@ -497,16 +497,12 @@ FLAVOURS = ["Offline", "HLT"]
 
 # Acceptance-region sub-folders, mirroring truth::kEtaRegionFolders. Same ME names as the
 # inclusive folder, so they need no other special handling.
-REGION_FOLDERS = {"etaLt15", "eta15to30Pos", "eta15to30Neg", "eta30to45Pos", "eta30to45Neg"}
+REGION_FOLDERS = {"etaLt15", "eta15to30", "eta30to45"}
 REGION_MEANING = {
     "etaLt15": "|eta| below 1.5, the barrel. No trackster exists here, so a calorimetric efficiency in this "
-               "region is an acceptance statement and not a reconstruction one. Not split by sign: the barrel "
-               "has no gap between its halves.",
-    "eta15to30Pos": "eta 1.5 to 3.0, the +z HGCAL endcap, where the calorimetric reconstruction actually runs.",
-    "eta15to30Neg": "eta -3.0 to -1.5, the -z HGCAL endcap. Kept apart from +z because a position plot pooling "
-                    "the two shows two lobes with the whole barrel between them, and any asymmetry averages away.",
-    "eta30to45Pos": "eta 3.0 to 4.5, forward +z. Usually a handful of objects, so read the denominator first.",
-    "eta30to45Neg": "eta -4.5 to -3.0, forward -z. Usually a handful of objects, so read the denominator first.",
+               "region is an acceptance statement and not a reconstruction one.",
+    "eta15to30": "|eta| 1.5 to 3.0, the HGCAL endcap, where the calorimetric reconstruction actually runs.",
+    "eta30to45": "|eta| 3.0 to 4.5, forward. Usually a handful of objects, so read the denominator before the ratio.",
 }
 
 
@@ -606,11 +602,9 @@ def region_label(category):
     region = category.rsplit("/", 1)[-1] if "/" in category else ""
     return {
         "etaLt15": "|eta| < 1.5",
-        "eta15to30Pos": "1.5 < eta < 3.0",
-        "eta15to30Neg": "-3.0 < eta < -1.5",
-        "eta30to45Pos": "3.0 < eta < 4.5",
-        "eta30to45Neg": "-4.5 < eta < -3.0",
-    }.get(region, "all eta")
+        "eta15to30": "1.5 < |eta| < 3.0",
+        "eta30to45": "3.0 < |eta| < 4.5",
+    }.get(region, "all |eta|")
 
 
 def discover(tfile):

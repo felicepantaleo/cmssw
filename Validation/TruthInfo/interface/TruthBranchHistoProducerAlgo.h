@@ -41,24 +41,22 @@ namespace truth {
   //
   // Index 0 is the inclusive row and is always filled. An object outside every band, or
   // one whose region variable is undefined, is filled ONLY there.
-  // The two endcaps are SEPARATE regions, because a position plot that pools them shows
-  // two lobes with the whole barrel gap between: HGCal sits at |z| between about 320 and
-  // 520 cm, so +z and -z share no bins and averaging them hides any asymmetry between
-  // them. The barrel is not split, having no such gap.
-  enum class EtaRegion { Inclusive = 0, Barrel, EndcapPos, EndcapNeg, ForwardPos, ForwardNeg };
-  inline constexpr std::size_t kNEtaRegions = 6;
-  inline static const std::vector<std::string> kEtaRegionFolders = {
-      "", "etaLt15", "eta15to30Pos", "eta15to30Neg", "eta30to45Pos", "eta30to45Neg"};
+  // Bands in ABSOLUTE pseudorapidity, so every metric is measured once per band and the
+  // two detector halves are pooled. Splitting the endcaps by sign would multiply every
+  // plot in every domain by 1.5 to serve the handful where the two lobes are physically
+  // far apart, which is a question about drawing a position axis and not about acceptance.
+  enum class EtaRegion { Inclusive = 0, Barrel, Endcap, Forward };
+  inline constexpr std::size_t kNEtaRegions = 4;
+  inline static const std::vector<std::string> kEtaRegionFolders = {"", "etaLt15", "eta15to30", "eta30to45"};
 
-  // Which band a SIGNED pseudorapidity falls in; Inclusive when it is in none.
-  [[nodiscard]] inline EtaRegion etaRegionOf(double eta) {
-    const double absEta = std::abs(eta);
+  // Which band an absolute pseudorapidity falls in; Inclusive when it is in none.
+  [[nodiscard]] inline EtaRegion etaRegionOf(double absEta) {
     if (absEta < 1.5)
       return EtaRegion::Barrel;
     if (absEta < 3.0)
-      return eta > 0. ? EtaRegion::EndcapPos : EtaRegion::EndcapNeg;
+      return EtaRegion::Endcap;
     if (absEta < 4.5)
-      return eta > 0. ? EtaRegion::ForwardPos : EtaRegion::ForwardNeg;
+      return EtaRegion::Forward;
     return EtaRegion::Inclusive;
   }
 
