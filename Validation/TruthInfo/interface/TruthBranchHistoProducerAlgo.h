@@ -22,6 +22,7 @@
 #ifndef Validation_TruthInfo_TruthBranchHistoProducerAlgo_h
 #define Validation_TruthInfo_TruthBranchHistoProducerAlgo_h
 
+#include <cmath>
 #include <string>
 #include <vector>
 
@@ -40,18 +41,24 @@ namespace truth {
   //
   // Index 0 is the inclusive row and is always filled. An object outside every band, or
   // one whose region variable is undefined, is filled ONLY there.
-  enum class EtaRegion { Inclusive = 0, Barrel, Endcap, Forward };
-  inline constexpr std::size_t kNEtaRegions = 4;
-  inline static const std::vector<std::string> kEtaRegionFolders = {"", "etaLt15", "eta15to30", "eta30to45"};
+  // The two endcaps are SEPARATE regions, because a position plot that pools them shows
+  // two lobes with the whole barrel gap between: HGCal sits at |z| between about 320 and
+  // 520 cm, so +z and -z share no bins and averaging them hides any asymmetry between
+  // them. The barrel is not split, having no such gap.
+  enum class EtaRegion { Inclusive = 0, Barrel, EndcapPos, EndcapNeg, ForwardPos, ForwardNeg };
+  inline constexpr std::size_t kNEtaRegions = 6;
+  inline static const std::vector<std::string> kEtaRegionFolders = {
+      "", "etaLt15", "eta15to30Pos", "eta15to30Neg", "eta30to45Pos", "eta30to45Neg"};
 
-  // Which band an absolute pseudorapidity falls in; Inclusive when it is in none.
-  [[nodiscard]] inline EtaRegion etaRegionOf(double absEta) {
+  // Which band a SIGNED pseudorapidity falls in; Inclusive when it is in none.
+  [[nodiscard]] inline EtaRegion etaRegionOf(double eta) {
+    const double absEta = std::abs(eta);
     if (absEta < 1.5)
       return EtaRegion::Barrel;
     if (absEta < 3.0)
-      return EtaRegion::Endcap;
+      return eta > 0. ? EtaRegion::EndcapPos : EtaRegion::EndcapNeg;
     if (absEta < 4.5)
-      return EtaRegion::Forward;
+      return eta > 0. ? EtaRegion::ForwardPos : EtaRegion::ForwardNeg;
     return EtaRegion::Inclusive;
   }
 

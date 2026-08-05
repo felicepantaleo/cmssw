@@ -902,6 +902,13 @@ void TruthBranchRecoValidator<RECO>::fillDescriptions(edm::ConfigurationDescript
     // up to it, then a log ladder, so a quantity spanning decades is readable without
     // losing the entries that sit at exactly 0.
     algo.add<double>("linthresh_" + name, 0.);
+    // Optional reco-side override of the same axis, for a domain whose reco object lives
+    // somewhere the truth branch does not. Declared for every axis so a domain can
+    // override any of them; unset means the reco side uses the shared range.
+    algo.addOptional<int>("nint_reco_" + name);
+    algo.addOptional<double>("min_reco_" + name);
+    algo.addOptional<double>("max_reco_" + name);
+    algo.addOptional<double>("linthresh_reco_" + name);
   }
   algo.add<std::vector<std::string>>("truthVariables", {"pt", "eta", "phi"});
   algo.add<std::vector<std::string>>("recoVariables", {"pt", "eta", "phi"});

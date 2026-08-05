@@ -42,10 +42,15 @@ namespace truth {
                    pset.getParameter<double>("max_res_pt")} {
     // Resolve a variable name to its position in Kinematics::asVector, so a typo in the
     // configuration is a configuration error and not a silently missing plot.
+    // prefix lets ONE side override a range the other must keep. The truth zpos of a
+    // trackster branch is its production vertex, in the tracker; the reco zpos is the
+    // trackster barycentre, in HGCal at |z| of 320 to 520 cm. Sharing one range put 100%
+    // of reco trackster z in the under and overflow, so that plot drew nothing at all.
     auto resolve = [&](std::vector<std::string> const& names,
                        std::vector<std::size_t>& indices,
                        std::vector<std::string>& kept,
-                       std::vector<Axis>& axes) {
+                       std::vector<Axis>& axes,
+                       std::string const& prefix = "") {
       for (auto const& name : names) {
         const auto it = std::find(kVariableNames.begin(), kVariableNames.end(), name);
         if (it == kVariableNames.end()) {
@@ -53,14 +58,15 @@ namespace truth {
         }
         indices.push_back(static_cast<std::size_t>(std::distance(kVariableNames.begin(), it)));
         kept.push_back(name);
-        axes.push_back({pset.getParameter<int>("nint_" + name),
-                        pset.getParameter<double>("min_" + name),
-                        pset.getParameter<double>("max_" + name),
-                        pset.getParameter<double>("linthresh_" + name)});
+        const std::string key = (!prefix.empty() && pset.existsAs<int>("nint_" + prefix + name)) ? prefix + name : name;
+        axes.push_back({pset.getParameter<int>("nint_" + key),
+                        pset.getParameter<double>("min_" + key),
+                        pset.getParameter<double>("max_" + key),
+                        pset.getParameter<double>("linthresh_" + key)});
       }
     };
     resolve(pset.getParameter<std::vector<std::string>>("truthVariables"), truthVars_, truthVarNames_, truthAxes_);
-    resolve(pset.getParameter<std::vector<std::string>>("recoVariables"), recoVars_, recoVarNames_, recoAxes_);
+    resolve(pset.getParameter<std::vector<std::string>>("recoVariables"), recoVars_, recoVarNames_, recoAxes_, "reco_");
   }
 
   std::vector<float> TruthBranchHistoProducerAlgo::binEdges(SymlogAxis const& axis) {
@@ -246,7 +252,7 @@ namespace truth {
     // that decides acceptance: where the branch ENTERS the calorimeter when the domain
     // records that, since a branch produced centrally can deposit in an endcap.
     const double regionEta = (kin.caloeta != kNoCaloEntry) ? kin.caloeta : kin.eta;
-    const auto region = etaRegionOf(std::abs(regionEta));
+    const auto region = etaRegionOf(regionEta);
     fill_simul_row(h, kNEtaRegions * i, kin, outcome, cumulative, failedCuts);
     if (region != EtaRegion::Inclusive) {
       fill_simul_row(h, kNEtaRegions * i + static_cast<std::size_t>(region), kin, outcome, cumulative, failedCuts);
@@ -311,7 +317,7 @@ namespace truth {
                                                std::size_t i,
                                                Kinematics const& kin,
                                                RecoOutcome const& outcome) const {
-    const auto region = etaRegionOf(std::abs(kin.eta));
+    const auto region = etaRegionOf(kin.eta);
     fill_reco_row(h, kNEtaRegions * i, kin, outcome);
     if (region != EtaRegion::Inclusive) {
       fill_reco_row(h, kNEtaRegions * i + static_cast<std::size_t>(region), kin, outcome);

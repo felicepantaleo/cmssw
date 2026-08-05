@@ -13,7 +13,9 @@ from DQMServices.Core.DQMEDHarvester import DQMEDHarvester
 # Acceptance regions, mirroring truth::kEtaRegionFolders. Each num_* row is booked again
 # in a sub-folder of the same name, with the SAME ME names, so one string list harvests
 # the inclusive folder and every region.
-_etaRegions = ["", "etaLt15", "eta15to30", "eta30to45"]
+# The two endcaps are separate: a position plot pooling them shows two lobes with the
+# whole barrel gap between, and any asymmetry between +z and -z averages away.
+_etaRegions = ["", "etaLt15", "eta15to30Pos", "eta15to30Neg", "eta30to45Pos", "eta30to45Neg"]
 
 
 def _withRegions(folders):
@@ -54,9 +56,16 @@ _axes = {
     # Symlog to 1000 GeV: a parton jet reaches several hundred GeV in ttbar and the QCD
     # flat-pT sample goes to 3000, while caloBoundary is dominated by sub-GeV particles.
     "pt": (50, 0.0, 1000.0),
-    "eta": (50, -4.0, 4.0),
+    # +-5, not +-4: the forward acceptance region runs to |eta| 4.5, so an axis stopping
+    # at 4 put part of that region's own population off the end of the axis it is binned
+    # against. Truth branches reach beyond 5 (beam remnants) and still overflow, which is
+    # expected rather than a range error.
+    "eta": (50, -5.0, 5.0),
     "phi": (36, -3.2, 3.2),
-    "nhits": (40, 0.0, 40.0),
+    # Symlog: a branch footprint runs from one hit to thousands. Measured on no-PU ttbar,
+    # 7.1% of truth nhits was in the overflow at 40, and a partonJets subgraph holds 961
+    # to 3539 hits.
+    "nhits": (50, 0.0, 10000.0),
     # Symlog: a heavy-flavour decay length is sub-millimetre while a nuclear interaction
     # sits at tens of cm, so a uniform 1.5 cm bin put 93.4% of truth SVs in the first one.
     "vertpos": (40, 0.0, 60.0),
@@ -66,7 +75,10 @@ _axes = {
     # Graph-only axes: depth of the branch root in the graph, and the fraction of the
     # branch footprint that belongs to the root particle itself.
     "depth": (15, 0.0, 15.0),
-    "root_footprint_fraction": (20, 0.0, 1.0),
+    # Top edge past 1 on purpose. A branch whose root owns its ENTIRE footprint has a
+    # fraction of exactly 1.0, which ROOT puts in the OVERFLOW of a [0,1] axis: 36.6% of
+    # entries, the single largest category, vanished off the end of its own plot.
+    "root_footprint_fraction": (21, 0.0, 1.05),
     # The species that initiated the truth object, one bin each for other, d, u, s, c, b,
     # t, g. Only partonJets roots are partons, so every other level sits in bin 0 and the
     # axis reads as "which flavour of jet" on that level alone.
@@ -75,7 +87,10 @@ _axes = {
     # range as eta so the two are read side by side; a branch that never reached the
     # calorimeter is filled at kNoCaloEntry and lands in the underflow of both the
     # numerator and the denominator.
-    "caloeta": (50, -4.0, 4.0),
+    # Same +-5 as eta. The large UNDERFLOW here is by design and must not be "fixed":
+    # a branch that never reached the calorimeter is filled at kNoCaloEntry so it lands in
+    # the underflow of numerator and denominator alike.
+    "caloeta": (50, -5.0, 5.0),
 }
 # Axes whose quantity spans decades get SYMLOG binning: one linear bin up to the value
 # below, then a log ladder to the top. Plain log cannot hold 0, and both of these have a
@@ -86,6 +101,7 @@ _axes = {
 _linthresh = {
     "pt": 0.1,        # GeV
     "vertpos": 0.001,  # cm, that is 10 microns
+    "nhits": 1.0,      # one hit
 }
 
 _algoBlockArgs = {}
@@ -206,6 +222,11 @@ _domains = [
         # A trackster has a barycentre and a layer-cluster count; its pt is the raw
         # energy projected transversally along that barycentre.
         recoVariables=["pt", "eta", "phi", "nhits", "vertpos", "zpos"],
+        # HGCal, not the tracker. A trackster barycentre sits at |z| between about 320 and
+        # 520 cm and out to a transverse radius near 180 cm, so on the shared tracker
+        # ranges 100% of reco zpos and 54% of reco vertpos were in the under and overflow:
+        # the trackster z plot drew nothing at all. Measured on 200 no-PU ttbar.
+        recoAxisOverrides={"zpos": (60, -600.0, 600.0), "vertpos": (50, 0.0, 200.0)},
         thresholds=_caloThresholds,
     ),
 ]
@@ -229,8 +250,16 @@ for _d in _domains:
 _domains = _domains + [_d for _d in _hltDomains if recoLabels(_d["name"], "hlt")]
 
 
-def _algoBlock(recoVariables, truthVariables=None, sharedRange=None, axisOverrides=None):
+def _algoBlock(recoVariables, truthVariables=None, sharedRange=None, axisOverrides=None,
+               recoAxisOverrides=None):
     args = dict(_algoBlockArgs)
+    # Reco-side only. A trackster barycentre sits in HGCal while the truth branch's
+    # production vertex is in the tracker, so the two sides cannot share one range.
+    for _var, (_n, _lo, _hi) in (recoAxisOverrides or {}).items():
+        args["nint_reco_" + _var] = cms.int32(_n)
+        args["min_reco_" + _var] = cms.double(_lo)
+        args["max_reco_" + _var] = cms.double(_hi)
+        args["linthresh_reco_" + _var] = cms.double(0.0)
     for _var, (_n, _lo, _hi) in (axisOverrides or {}).items():
         args["nint_" + _var] = cms.int32(_n)
         args["min_" + _var] = cms.double(_lo)
@@ -369,7 +398,8 @@ for _d in _domains:
         # the shared-component ones two cuts on one.
         **{_k: cms.double(_v) for _k, _v in _d["thresholds"].items()},
         histoProducerAlgoBlock=_algoBlock(_d["recoVariables"], _d.get("truthVariables"),
-                                          _d.get("sharedRange"), _d.get("axisOverrides")),
+                                          _d.get("sharedRange"), _d.get("axisOverrides"),
+                                          _d.get("recoAxisOverrides")),
         **_truthArgs,
     )
     globals()[_d["label"]] = _analyzer
