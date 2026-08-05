@@ -390,6 +390,8 @@ AllRecoToTruthBranchAssociatorsProducer<RECO>::AllRecoToTruthBranchAssociatorsPr
       capitalized[0] = std::toupper(static_cast<unsigned char>(capitalized[0]));
       truthLevels_.emplace_back(truth::levelFromName(name), "truthToRecoTargets" + capitalized);
       produces<std::vector<unsigned int>>(truthLevels_.back().second);
+      // Parallel to the denominator: which plotted-axis cut each target fails.
+      produces<std::vector<unsigned int>>(truthLevels_.back().second + "Eligibility");
     }
   }
   if constexpr (ConstituentBasedDomain<RECO>) {
@@ -526,16 +528,32 @@ void AllRecoToTruthBranchAssociatorsProducer<RECO>::produce(edm::StreamID,
     // belong to just because its parent failed the pt cut.
     for (auto const& [level, instance] : truthLevels_) {
       auto targets = std::make_unique<std::vector<unsigned int>>();
+      // Parallel to targets: which plotted-axis cut each one FAILS, 0 for those passing
+      // both. An efficiency against pt must not have the pt cut applied to its own
+      // denominator, so a target failing only the pt cut is kept and enters the pt plot
+      // alone. Measured on no-PU ttbar, the caloBoundary denominator in the first pt bin
+      // is 10024 with the cut and 144529 without, a factor 14.4; the second bin moves by
+      // 1.05. The cut was deforming the turn-on it exists to show.
+      auto eligibility = std::make_unique<std::vector<unsigned int>>();
       for (uint32_t id : truth::levelAntichain(graph, level)) {
         if (truthToRecoSignalOnly_ && !isSignalParticle(id)) {
           continue;
         }
-        if (!branchSelector_(truth::Branch(&graph, id))) {
+        const truth::Branch branch(&graph, id);
+        if (!branchSelector_.passesNonKinematic(branch)) {
+          continue;
+        }
+        // No plot can suppress two cuts at once, so a branch failing more than one enters
+        // none of them and is dropped here rather than carried and filtered everywhere.
+        const uint32_t failed = branchSelector_.failedKinematicCuts(branch);
+        if ((failed & (failed - 1u)) != 0u) {
           continue;
         }
         targets->push_back(id);
+        eligibility->push_back(failed);
       }
       event.put(std::move(targets), instance);
+      event.put(std::move(eligibility), instance + "Eligibility");
     }
   }
 

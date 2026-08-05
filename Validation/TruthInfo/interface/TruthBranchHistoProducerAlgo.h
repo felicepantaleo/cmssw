@@ -28,6 +28,8 @@
 #include "DQMServices/Core/interface/DQMStore.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 
+#include "PhysicsTools/TruthInfo/interface/BranchSelector.h"
+
 namespace truth {
 
   // Acceptance regions. Every num_* row is booked once inclusively and once per region,
@@ -244,17 +246,27 @@ namespace truth {
     // whether by one reco object or by several together.
     // The two row-level fills, one region's row each. fill_simul and fill_reco call them
     // for the inclusive row and for the object's region row.
+    // failedCuts is a BranchSelector::CutBit mask of the plotted-axis cuts this object
+    // fails. A variable is filled only when the object fails nothing except the cut on
+    // that variable itself, so an efficiency against pt keeps the objects the pt cut
+    // would have removed and no other plot is polluted by them.
     void fill_simul_row(TruthBranchHistograms const& histograms,
                         std::size_t index,
                         Kinematics const& kin,
                         TruthOutcome outcome,
-                        bool cumulative) const;
+                        bool cumulative,
+                        uint32_t failedCuts) const;
 
     void fill_simul(TruthBranchHistograms const& histograms,
                     std::size_t index,
                     Kinematics const& kin,
                     TruthOutcome outcome,
-                    bool cumulative) const;
+                    bool cumulative,
+                    uint32_t failedCuts) const;
+
+    // The cut bit a truth variable is the axis of, or 0 for a variable no cut touches.
+    // Indexed like kVariableNames, so booking order and this table cannot drift.
+    [[nodiscard]] static uint32_t cutBitOfVariable(std::string const& name);
 
     // Truth purity of the leading reco object, filled once per truth object that has
     // any overlap at all.

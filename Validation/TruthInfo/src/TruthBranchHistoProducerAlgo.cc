@@ -6,6 +6,7 @@
 
 #include "FWCore/Utilities/interface/Exception.h"
 #include "SimDataFormats/TruthInfo/interface/VertexData.h"
+#include "PhysicsTools/TruthInfo/interface/BranchSelector.h"
 #include "Validation/TruthInfo/interface/TruthBranchHistoProducerAlgo.h"
 
 namespace {
@@ -214,25 +215,41 @@ namespace truth {
                                                 std::size_t i,
                                                 Kinematics const& kin,
                                                 TruthOutcome outcome,
-                                                bool cumulative) const {
+                                                bool cumulative,
+                                                uint32_t failedCuts) const {
     // Inclusive row always, plus the object's region row. The region variable is the one
     // that decides acceptance: where the branch ENTERS the calorimeter when the domain
     // records that, since a branch produced centrally can deposit in an endcap.
     const double regionEta = (kin.caloeta != kNoCaloEntry) ? kin.caloeta : kin.eta;
     const auto region = etaRegionOf(std::abs(regionEta));
-    fill_simul_row(h, kNEtaRegions * i, kin, outcome, cumulative);
+    fill_simul_row(h, kNEtaRegions * i, kin, outcome, cumulative, failedCuts);
     if (region != EtaRegion::Inclusive) {
-      fill_simul_row(h, kNEtaRegions * i + static_cast<std::size_t>(region), kin, outcome, cumulative);
+      fill_simul_row(h, kNEtaRegions * i + static_cast<std::size_t>(region), kin, outcome, cumulative, failedCuts);
     }
+  }
+
+  uint32_t TruthBranchHistoProducerAlgo::cutBitOfVariable(std::string const& name) {
+    if (name == "pt")
+      return static_cast<uint32_t>(BranchSelector::CutBit::Pt);
+    if (name == "eta")
+      return static_cast<uint32_t>(BranchSelector::CutBit::Eta);
+    return 0u;
   }
 
   void TruthBranchHistoProducerAlgo::fill_simul_row(TruthBranchHistograms const& h,
                                                     std::size_t i,
                                                     Kinematics const& kin,
                                                     TruthOutcome outcome,
-                                                    bool cumulative) const {
+                                                    bool cumulative,
+                                                    uint32_t failedCuts) const {
     const auto values = kin.asVector();
     for (std::size_t v = 0; v < truthVars_.size(); ++v) {
+      // Variable-blind: this object may enter the plot only if the cuts it fails are
+      // exactly the cut on THIS variable, so the axis never has its own cut applied and
+      // no other axis is polluted by an object a cut would have removed.
+      if ((failedCuts & ~cutBitOfVariable(truthVarNames_[v])) != 0u) {
+        continue;
+      }
       const double x = values[truthVars_[v]];
       h.h_simul[i][v]->Fill(x);
       // Individual and Duplicate both mean the truth object WAS reconstructed as one

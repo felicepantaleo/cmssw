@@ -180,6 +180,11 @@ private:
     std::string folder;
     // The level's denominator: the target set the efficiency is measured over.
     edm::EDGetTokenT<std::vector<unsigned int>> targetsToken;
+    // Parallel to targetsToken: which plotted-axis cut each target fails, so an efficiency
+    // against pt can keep the targets that fail only the pt cut. Not produced for the
+    // signal entries or for a composite domain, and then left unset.
+    edm::EDGetTokenT<std::vector<unsigned int>> eligibilityToken;
+    bool hasEligibility = false;
     // Truth-driven, one product per collection because the truth target is fixed a
     // priori: score is 1 - truth purity.
     edm::EDGetTokenT<MapType> truthToRecoToken;
@@ -299,6 +304,13 @@ TruthBranchRecoValidator<RECO>::TruthBranchRecoValidator(edm::ParameterSet const
       TruthEntry entry;
       entry.folder = key + "_" + suffix;
       entry.targetsToken = consumes<std::vector<unsigned int>>(edm::InputTag(associator, instance));
+      // Only the per-level denominators carry it: the signal entries are seed lists with
+      // no kinematic selection to suppress.
+      entry.hasEligibility = (instance.rfind(Traits::denominatorInstance, 0) == 0);
+      if (entry.hasEligibility) {
+        entry.eligibilityToken =
+            consumes<std::vector<unsigned int>>(edm::InputTag(associator, instance + "Eligibility"));
+      }
       entry.truthToRecoToken = consumes<MapType>(edm::InputTag(associator, key + "TruthToReco"));
       // The first working point (Fixed) is the WP-free hit-sharing measure, so its map
       // supplies the loose reco-purity gate for every level.
@@ -651,7 +663,19 @@ void TruthBranchRecoValidator<RECO>::dqmAnalyze(edm::Event const& event,
     using MatchList = std::decay_t<decltype(truthToReco[0])>;
     static const MatchList kNoMatches{};
 
-    for (unsigned int b : *targetsHandle) {
+    // Parallel to the target list; absent for the signal entries, where every target is
+    // eligible for every axis because no kinematic selection was applied to build it.
+    edm::Handle<std::vector<unsigned int>> eligibilityHandle;
+    if (entry.hasEligibility) {
+      event.getByToken(entry.eligibilityToken, eligibilityHandle);
+    }
+    const bool haveEligibility = eligibilityHandle.isValid() && eligibilityHandle->size() == targetsHandle->size();
+
+    for (std::size_t t = 0; t < targetsHandle->size(); ++t) {
+      const unsigned int b = (*targetsHandle)[t];
+      // Which plotted-axis cut this target fails. 0 means it passes them all and enters
+      // every axis, which is every target when no eligibility product is present.
+      const unsigned int failedCuts = haveEligibility ? (*eligibilityHandle)[t] : 0u;
       auto const& matches = (b < truthToReco.size()) ? truthToReco[b] : kNoMatches;
       Kinematics kin;
       auto reason = static_cast<unsigned int>(truth::VertexReason::Unknown);
@@ -781,7 +805,7 @@ void TruthBranchRecoValidator<RECO>::dqmAnalyze(edm::Event const& event,
       // object or by several together, so it is a superset of individual.
       const bool cumulative = nIndividual >= 1 || collective;
 
-      algo_.fill_simul(histograms, i, kin, outcome, cumulative);
+      algo_.fill_simul(histograms, i, kin, outcome, cumulative, failedCuts);
       algo_.fill_reason(histograms, i, reason, outcome);
       if (!matches.empty()) {
         algo_.fill_truth_purity(histograms, i, leadingTruthPurity);
