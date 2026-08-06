@@ -10,7 +10,11 @@ their folders are keyed by level and the working point never enters them.
 Collections, working points, levels and categories are DISCOVERED from the DQM folder
 names, so a new collection, working point or level needs no edit here.
 
+Several DQM files are overlaid as separate LEGS, one per file, and the ratio panel becomes
+the second leg over the first, so an A/B comparison of two releases is one command.
+
   makeTruthValidationPlots.py DQM_V0001_*.root --outputDir plots
+  makeTruthValidationPlots.py a.root b.root --label v5 --label v6 --outputDir plots
 """
 import argparse
 import json
@@ -22,6 +26,8 @@ import matplotlib
 
 matplotlib.use("Agg")  # batch backend, must precede pyplot
 import matplotlib.pyplot as plt  # noqa: E402
+from matplotlib.lines import Line2D  # noqa: E402
+from matplotlib.patches import Patch  # noqa: E402
 import mplhep as hep  # noqa: E402
 import numpy as np  # noqa: E402
 import ROOT  # noqa: E402
@@ -46,7 +52,8 @@ WP_ORDER = ["Fixed", "AdaptiveTight", "AdaptiveNominal", "AdaptiveLoose"]
 # Every entry here is an ANTICHAIN: no member is an ancestor of another, so no efficiency
 # counts one object twice. That is the entry requirement for a truth denominator.
 LEVEL_ORDER = ["stableLegsFromUpstream", "caloBoundary", "stableDecayProducts", "hardProcess",
-               "reconstructableFromSignal", "underlyingEvent", "signal", "signalNoSelection"]
+               "reconstructableFromSignal", "underlyingEvent", "partonJets", "bHadrons", "cHadrons",
+               "signal", "signalNoSelection"]
 # What each truth-driven series IS. These are the efficiency DENOMINATORS, and they are not
 # interchangeable, but every one of them is an ANTICHAIN: no member is an ancestor of
 # another, so no efficiency counts one object twice. Sizes quoted are ttbar PU200 D122 with
@@ -92,6 +99,17 @@ LEVEL_MEANING = {
         "the analysis asked for, what radiated into it, and what came along with it. An antichain: a leg is a "
         "particle that produced nothing further. Exists only when a selection preset ran, since the artificial "
         "vertices are what the preset builds, and is EMPTY rather than wrong otherwise.",
+    "partonJets":
+        "the PARTONS of the hard scatter: the hardProcess antichain reduced to quarks and gluons, so it is a jet "
+        "denominator defined without a clustering algorithm. The roots are an antichain but their subgraphs are "
+        "not disjoint, since two quarks colour-connected through one string share their hadrons; measured at "
+        "0.15 of the union of the hits on no-PU ttbar. EMPTY when the generator record carries no status flags.",
+    "bHadrons":
+        "every hadron carrying a b quark, reduced to the EARLIEST element of each chain, so a B* is kept and the "
+        "B below it dropped and one weakly decaying b hadron is counted once.",
+    "cHadrons":
+        "every hadron carrying a c quark, reduced the same way. A c hadron from a b decay is a member here: the "
+        "nesting that matters is within one flavour, and beauty and charm are deliberately separate levels.",
     "signal":
         "the preset's seed species among the selected roots, that is THE RESONANCE itself and not its decay "
         "products: two tops for the top preset, one Z for Drell-Yan, one Higgs for VBF and ggF, ten taus for "
@@ -283,6 +301,11 @@ RESIDUAL_UNIT = {"pt": "", "eta": "", "phi": " [rad]"}
 # partner keeps its series' colour and shape and is drawn open and dashed.
 SERIES_MARKERS = ["o", "s", "^", "v", "*", "P", "D"]
 SERIES_STYLES = ["-", "--", "-.", ":", (0, (3, 1, 1, 1)), (0, (1, 1)), (0, (5, 1))]
+# With more than one input file the series keeps its colour and shape and the INPUT LEG
+# takes the line style and the bar hatch, so a leg is read off the style and the entity
+# off the colour.
+LEG_STYLES = ["-", (0, (5, 2)), (0, (1, 1)), (0, (3, 1, 1, 1))]
+LEG_HATCHES = ["", "///", "...", "xxx"]
 # Typography. The CMS style is built for a single full-page pad, where a 26 pt axis
 # title is right; on a two-pad figure carrying a twelve-entry legend it dwarfs
 # everything around it and a long y title outgrows its own pad. The title is therefore
@@ -524,8 +547,12 @@ def _source_of(relpath, start_marker, end_marker=None, max_lines=80):
     return None, None
 
 
-def _configured_values():
-    """The thresholds and species actually configured, imported rather than transcribed."""
+def _configured_values(preset=None):
+    """The thresholds and species actually configured, imported rather than transcribed.
+
+    The seed species are shown only for the preset the caller names, since the preset that
+    produced a sample is not discoverable from its DQM file.
+    """
     rows = []
     try:
         import Validation.TruthInfo.truthBranchValidation_cff as _cff
@@ -535,31 +562,33 @@ def _configured_values():
     except Exception as exc:
         rows.append(("could not import the validation configuration", str(exc)))
     seeds = []
-    try:
-        from PhysicsTools.TruthInfo.truthGraphSelections import postProcessingPSet
-        ps = postProcessingPSet(name="TenTau_E_15_500_pythia8_cfi")
-        seeds.append(("seedPdgIds", list(ps.seedPdgIds)))
-        seeds.append(("reconstructablePdgIds", list(ps.reconstructablePdgIds)))
-    except Exception as exc:
-        seeds.append(("could not import the selection preset", str(exc)))
+    if preset:
+        try:
+            from PhysicsTools.TruthInfo.truthGraphSelections import postProcessingPSet
+            ps = postProcessingPSet(name=preset)
+            seeds.append(("seedPdgIds", list(ps.seedPdgIds)))
+            seeds.append(("reconstructablePdgIds", list(ps.reconstructablePdgIds)))
+        except Exception as exc:
+            seeds.append(("could not import the selection preset", str(exc)))
     return rows, seeds
 
 
-def definitions_html():
+def definitions_html(preset=None):
     """A section showing the real definitions: configured values and predicate source."""
     out = ["<h2>Definitions, as the code actually has them</h2>",
            "<p>Read at plot time from the release this file was made with, so nothing here can drift "
            "out of date against the numbers on these pages. No file-and-line citations: those go stale "
            "silently the moment a line is inserted above them.</p>"]
-    rows, seeds = _configured_values()
+    rows, seeds = _configured_values(preset)
     out.append("<h3>Thresholds each domain is judged by</h3><ul class='idx'>")
     for name, th in rows:
         out.append(f"<li><span class='f'>{name}</span> {th}</li>")
     out.append("</ul>")
-    out.append("<h3>Selection preset, TenTau shown as the example</h3><ul class='idx'>")
-    for k, v in seeds:
-        out.append(f"<li><span class='f'>{k}</span> {v}</li>")
-    out.append("</ul>")
+    if seeds:
+        out.append(f"<h3>Selection preset {preset}</h3><ul class='idx'>")
+        for k, v in seeds:
+            out.append(f"<li><span class='f'>{k}</span> {v}</li>")
+        out.append("</ul>")
     for title, relpath, marker, end in (
             ("Level membership, the per-particle predicate",
              "PhysicsTools/TruthInfo/interface/TruthLevels.h", "inline bool atLevel(", "  }"),
@@ -595,6 +624,37 @@ def region_label(category):
     }.get(region, "all |eta|")
 
 
+_DQM_PREFIX_RE = re.compile(r"^DQM_V\d+_(R\d+__)?")
+_DQM_STEPS = {"RECO", "DQM", "HARVESTING", "ALCARECO"}
+
+
+def default_label(path):
+    """The leg label derived from a DQM file name, used when --label is not given."""
+    stem = os.path.basename(path)
+    if stem.endswith(".root"):
+        stem = stem[:-len(".root")]
+    parts = [p for p in _DQM_PREFIX_RE.sub("", stem).split("__") if p]
+    if len(parts) > 1 and parts[-1] in _DQM_STEPS:
+        parts.pop()
+    return "_".join(parts) or stem
+
+
+def leg_labels(files, labels):
+    """One DISTINCT label per input file, so no file can overwrite another unnoticed."""
+    if labels:
+        if len(labels) != len(files):
+            sys.exit(f"--label given {len(labels)} times for {len(files)} input files; "
+                     "pass exactly one --label per file, in the same order")
+        legs = list(labels)
+    else:
+        legs = [default_label(f) for f in files]
+    clashes = sorted({l for l in legs if legs.count(l) > 1})
+    if clashes:
+        sys.exit(f"input files share the leg label(s) {', '.join(clashes)}; "
+                 "pass a distinct --label per file")
+    return legs
+
+
 def discover(tfile):
     """Yield (flavour, category, folder, TDirectory) for every directory with histograms.
 
@@ -626,10 +686,14 @@ def discover(tfile):
     yield from walk(tfile, [])
 
 
-def collect(files):
-    """{category: {collection: {metric: {var: {wp: (edges, values, errors)}}}}}"""
+def collect(files, legs):
+    """{category: {collection: {metric: {var: {leg: {wp: (edges, values, errors)}}}}}}
+
+    The leg is the input file the series came from, so two files overlay rather than the
+    second silently replacing the first.
+    """
     data = {}
-    for fname in files:
+    for fname, leg in zip(files, legs):
         tfile = ROOT.TFile.Open(fname)
         if not tfile or tfile.IsZombie():
             print(f"cannot open {fname}", file=sys.stderr)
@@ -654,7 +718,8 @@ def collect(files):
                             data.setdefault(category, {})
                             .setdefault(collection, {})
                             .setdefault("_denom", {})
-                            .setdefault(name, {})[wp]
+                            .setdefault(name, {})
+                            .setdefault(leg, {})[wp]
                         ) = counts
                 if key.GetName() == "num_simul_reason":
                     obj = key.ReadObj()
@@ -664,7 +729,8 @@ def collect(files):
                             data.setdefault(category, {})
                             .setdefault(collection, {})
                             .setdefault("_counts", {})
-                            .setdefault("reason", {})[wp]
+                            .setdefault("reason", {})
+                            .setdefault(leg, {})[wp]
                         ) = (counts, bin_labels(obj))
                     continue
                 if key.GetName() in RESOLUTION_SOURCES:
@@ -675,7 +741,8 @@ def collect(files):
                             data.setdefault(category, {})
                             .setdefault(collection, {})
                             .setdefault("_slices", {})
-                            .setdefault(key.GetName(), {})[wp]
+                            .setdefault(key.GetName(), {})
+                            .setdefault(leg, {})[wp]
                         ) = (
                             np.array([proj.GetBinContent(i) for i in range(1, proj.GetNbinsX() + 1)]),
                             0.5 * (obj.GetYaxis().GetXmax() - obj.GetYaxis().GetXmin()),
@@ -685,7 +752,8 @@ def collect(files):
                             data.setdefault(category, {})
                             .setdefault(collection, {})
                             .setdefault("_residual", {})
-                            .setdefault(key.GetName(), {})[wp]
+                            .setdefault(key.GetName(), {})
+                            .setdefault(leg, {})[wp]
                         ) = hist_arrays(obj.ProjectionY())
                     continue
                 res = _RES_RE.match(key.GetName())
@@ -696,7 +764,8 @@ def collect(files):
                             data.setdefault(category, {})
                             .setdefault(collection, {})
                             .setdefault("resolution", {})
-                            .setdefault(key.GetName(), {})[wp]
+                            .setdefault(key.GetName(), {})
+                            .setdefault(leg, {})[wp]
                         ) = hist_arrays(obj)
                     continue
                 match = _ME_RE.match(key.GetName())
@@ -711,14 +780,16 @@ def collect(files):
                         data.setdefault(category, {})
                         .setdefault(collection, {})
                         .setdefault(metric, {})
-                        .setdefault(var, {})[wp]
+                        .setdefault(var, {})
+                        .setdefault(leg, {})[wp]
                     ) = hist_arrays(obj) + (bin_labels(obj),)
                     continue
                 (
                     data.setdefault(category, {})
                     .setdefault(collection, {})
                     .setdefault(metric, {})
-                    .setdefault(var, {})[wp]
+                    .setdefault(var, {})
+                    .setdefault(leg, {})[wp]
                 ) = hist_arrays(obj)
         tfile.Close()
     return data
@@ -760,22 +831,56 @@ def broken(values, keep):
     return out
 
 
-def plot_metric(category, collection, metric, var, per_wp, outdir, index, slices=None, denom=None,
-                order=None, reference=None, paired=None, note=None):
-    """One overlay plot with a ratio panel against the reference series.
+def present_legs(per_leg, legs):
+    """The requested legs that this plot actually has data for, in the input order."""
+    if not legs:
+        return sorted(per_leg)
+    return [l for l in legs if per_leg.get(l)]
+
+
+def series_of(per_leg, legs, order):
+    """The series names present in any leg, the named order first and the rest sorted."""
+    known = [w for w in order if any(w in per_leg[l] for l in legs)]
+    return known + sorted({w for l in legs for w in per_leg[l]} - set(known))
+
+
+def leg_keys(legs, bars=False):
+    """Legend keys naming the input legs, drawn in the style that distinguishes them."""
+    if len(legs) < 2:
+        return [], []
+    if bars:
+        keys = [Patch(facecolor="0.75", edgecolor="0.3", hatch=LEG_HATCHES[j % len(LEG_HATCHES)])
+                for j in range(len(legs))]
+    else:
+        keys = [Line2D([], [], color="0.3", linestyle=LEG_STYLES[j % len(LEG_STYLES)], linewidth=1.6)
+                for j in range(len(legs))]
+    return keys, list(legs)
+
+
+def plot_metric(category, collection, metric, var, per_leg, outdir, index, slices=None, denom=None,
+                order=None, reference=None, paired=None, note=None, legs=None):
+    """One overlay plot with a ratio panel.
 
     The series are working points for the reco-driven metrics and graph levels for the
     truth-driven ones; order and reference name which comparison this plot makes.
     paired holds a second curve per series (the cumulative efficiency), drawn in the
     series colour with open markers and a dashed line; the ratio panel stays on the
     primary curves. note is the one-line match criterion drawn under the legend.
+
+    With one input file the ratio panel is the series ratio to reference. With several,
+    every input leg is overlaid and the ratio panel is leg over the first leg, per bin,
+    for the same series.
     """
     order = order or WP_ORDER
-    wps = [w for w in order if w in per_wp] + [w for w in sorted(per_wp) if w not in order]
+    legs = present_legs(per_leg, legs)
+    if not legs:
+        return None
+    wps = series_of(per_leg, legs, order)
     if not wps:
         return None
+    ab = len(legs) > 1
     reference = reference or REFERENCE_WP
-    if reference not in per_wp:
+    if reference not in per_leg[legs[0]]:
         reference = wps[0]
 
     is_sigma = var.endswith("_Sigma")
@@ -791,57 +896,65 @@ def plot_metric(category, collection, metric, var, per_wp, outdir, index, slices
 
     means = {}
     for i, wp in enumerate(wps):
-        edges, values, errors = per_wp[wp]
-        centers = 0.5 * (edges[:-1] + edges[1:])
-        filled = values > 0
-        filled = filled & _fit_ok(wp, values, slices, is_sigma, errors if metric == "resolution" else None)
-        if denom is not None and wp in denom and len(denom[wp]) == len(values):
-            filled = filled & (denom[wp] >= MIN_DENOM_ENTRIES)
-        means[wp] = float(values[filled].mean()) if filled.any() else 0.0
-        ax.errorbar(
-            centers,
-            broken(values, filled),
-            yerr=broken(errors, filled),
-            fmt=markers[i % len(markers)],
-            linestyle=styles[i % len(styles)] if paired is None else "-",
-            markersize=marker_size(markers[i % len(markers)]),
-            markerfacecolor="none" if (i and paired is None) else None,
-            linewidth=1.4,
-            alpha=0.85,
-            color=colors[i % len(colors)],
-            label=wp,
-        )
-        if paired is not None and wp in paired:
-            # The cumulative partner of this series: same colour and shape so the pair
-            # reads as one level, open marker and dashed line so the two are distinct.
-            p_edges, p_values, p_errors = paired[wp]
-            p_centers = 0.5 * (p_edges[:-1] + p_edges[1:])
-            p_filled = p_values > 0
-            if denom is not None and wp in denom and len(denom[wp]) == len(p_values):
-                p_filled = p_filled & (denom[wp] >= MIN_DENOM_ENTRIES)
+        for j, leg in enumerate(legs):
+            if wp not in per_leg[leg]:
+                continue
+            leg_slices = (slices or {}).get(leg)
+            leg_denom = (denom or {}).get(leg, {}).get(wp)
+            edges, values, errors = per_leg[leg][wp]
+            centers = 0.5 * (edges[:-1] + edges[1:])
+            filled = values > 0
+            filled = filled & _fit_ok(wp, values, leg_slices, is_sigma,
+                                      errors if metric == "resolution" else None)
+            if leg_denom is not None and len(leg_denom) == len(values):
+                filled = filled & (leg_denom >= MIN_DENOM_ENTRIES)
+            means[(leg, wp)] = float(values[filled].mean()) if filled.any() else 0.0
             ax.errorbar(
-                p_centers,
-                broken(p_values, p_filled),
-                yerr=broken(p_errors, p_filled),
+                centers,
+                broken(values, filled),
+                yerr=broken(errors, filled),
                 fmt=markers[i % len(markers)],
-                linestyle="--",
+                linestyle=(LEG_STYLES[j % len(LEG_STYLES)] if ab else
+                           (styles[i % len(styles)] if paired is None else "-")),
                 markersize=marker_size(markers[i % len(markers)]),
-                markerfacecolor="none",
-                linewidth=1.2,
-                alpha=0.7,
+                markerfacecolor=None if ab else ("none" if (i and paired is None) else None),
+                linewidth=1.4,
+                alpha=0.85,
                 color=colors[i % len(colors)],
-                label=f"{wp} cumulative",
+                label=wp if j == 0 else "_nolegend_",
             )
+            if paired is not None and wp in paired.get(leg, {}):
+                # The cumulative partner of this series: same colour and shape so the pair
+                # reads as one level, open marker so the two are distinct.
+                p_edges, p_values, p_errors = paired[leg][wp]
+                p_centers = 0.5 * (p_edges[:-1] + p_edges[1:])
+                p_filled = p_values > 0
+                if leg_denom is not None and len(leg_denom) == len(p_values):
+                    p_filled = p_filled & (leg_denom >= MIN_DENOM_ENTRIES)
+                ax.errorbar(
+                    p_centers,
+                    broken(p_values, p_filled),
+                    yerr=broken(p_errors, p_filled),
+                    fmt=markers[i % len(markers)],
+                    linestyle=LEG_STYLES[j % len(LEG_STYLES)] if ab else "--",
+                    markersize=marker_size(markers[i % len(markers)]),
+                    markerfacecolor="none",
+                    linewidth=1.2,
+                    alpha=0.7,
+                    color=colors[i % len(colors)],
+                    label=f"{wp} cumulative" if j == 0 else "_nolegend_",
+                )
 
     label, meaning, formula = METRICS[metric]
     if metric == "resolution":
         # Residuals are not bounded to [0, 1]; a fixed range would push every point off
         # the axis. Scale to the data, keeping zero visible so a bias is readable.
-        def _shown(w):
-            v = per_wp[w][1]
-            return v[(v != 0) & _fit_ok(w, v, slices, is_sigma)]
+        def _shown(leg, w):
+            v = per_leg[leg][w][1]
+            return v[(v != 0) & _fit_ok(w, v, (slices or {}).get(leg), is_sigma)]
 
-        allv = np.concatenate([_shown(w) for w in wps if _shown(w).size] or [np.zeros(1)])
+        allv = np.concatenate([_shown(l, w) for l in legs for w in wps
+                               if w in per_leg[l] and _shown(l, w).size] or [np.zeros(1)])
         span = float(np.abs(allv).max()) if allv.size else 1.0
         ax.set_ylim(min(0.0, float(allv.min()) * 1.3 if allv.size else 0.0), span * 1.35 if span else 1.0)
         # The momentum residual is relative and dimensionless, the angular ones are
@@ -851,15 +964,24 @@ def plot_metric(category, collection, metric, var, per_wp, outdir, index, slices
     # conclusion the plot has not earned, so the measured numbers go in the README
     # caption instead, where they can be qualified.
     title = f"{label} vs {var}" if metric != "resolution" else var.replace("_", " ")
-    ref = means.get(reference)
-    others = [means[w] for w in wps if w != reference]
-    if ref and others:
-        rest = sum(others) / len(others)
-        delta = (rest - ref) / ref * 100.0 if ref else 0.0
-        caption = (f"{title}, {region_label(category)}. Bin-averaged over filled bins: others {rest:.2f}, "
-                   f"{reference} {ref:.2f} ({delta:+.0f}%).")
+    caption = f"{title}, {region_label(category)}"
+    if ab:
+        # With several inputs the number that matters is the leg difference at the
+        # reference series, which is what the ratio panel shows.
+        base = means.get((legs[0], reference))
+        moved = [(l, means[(l, reference)]) for l in legs[1:] if (l, reference) in means]
+        if base and moved:
+            deltas = ", ".join(f"{l} {v:.2f} ({(v - base) / base * 100.0:+.0f}%)" for l, v in moved)
+            caption = (f"{title}, {region_label(category)}. Bin-averaged over filled bins at {reference}: "
+                       f"{legs[0]} {base:.2f}, {deltas}.")
     else:
-        caption = f"{title}, {region_label(category)}"
+        ref = means.get((legs[0], reference))
+        others = [means[(legs[0], w)] for w in wps if w != reference and (legs[0], w) in means]
+        if ref and others:
+            rest = sum(others) / len(others)
+            delta = (rest - ref) / ref * 100.0 if ref else 0.0
+            caption = (f"{title}, {region_label(category)}. Bin-averaged over filled bins: others {rest:.2f}, "
+                       f"{reference} {ref:.2f} ({delta:+.0f}%).")
 
     fig.suptitle(title, fontsize=16, y=0.965)
     # Centred on the MAIN pad: the CMS top location hangs the title from the top of the
@@ -870,6 +992,10 @@ def plot_metric(category, collection, metric, var, per_wp, outdir, index, slices
         ax.set_ylim(0.0, 1.15)
     ax.grid(alpha=0.3)
     handles, labels = ax.get_legend_handles_labels()
+    # The input legs get their own keys rather than a suffix on every series, which would
+    # multiply an already long legend by the number of files.
+    keys, names = leg_keys(legs)
+    handles, labels = handles + keys, labels + names
     # Paired pages carry twice the entries, so the legend wraps instead of overflowing
     # into the x label at the figure's right edge.
     # Three columns once the level pairs push past eight entries: a fourth column runs
@@ -887,22 +1013,67 @@ def plot_metric(category, collection, metric, var, per_wp, outdir, index, slices
     ax.tick_params(labelbottom=False)
     hep.cms.label(ax=ax, llabel="Private Work", rlabel=f"Phase-2 Simulation, {region_label(category)}", fontsize=15)
 
-    # Ratio panel: only where the reference has a value, so an empty reference bin does
-    # not manufacture a spike.
+    # Ratio panel: only where the denominator has a value, so an empty denominator bin
+    # does not manufacture a spike.
     ratio_values = []
-    if reference in per_wp:
+    if ab:
+        base = legs[0]
+        for i, wp in enumerate(wps):
+            if wp not in per_leg[base]:
+                continue
+            ref_edges, ref_values, ref_errors = per_leg[base][wp]
+            ref_centers = 0.5 * (ref_edges[:-1] + ref_edges[1:])
+            for j, leg in enumerate(legs[1:], start=1):
+                if wp not in per_leg[leg]:
+                    continue
+                _, values, errors = per_leg[leg][wp]
+                if len(values) != len(ref_values):
+                    continue
+                ok = (ref_values > 0) & (values > 0)
+                ok = (ok & _fit_ok(wp, ref_values, (slices or {}).get(base), is_sigma)
+                      & _fit_ok(wp, values, (slices or {}).get(leg), is_sigma))
+                for l in (base, leg):
+                    d = (denom or {}).get(l, {}).get(wp)
+                    if d is not None and len(d) == len(values):
+                        ok = ok & (d >= MIN_DENOM_ENTRIES)
+                if not ok.any():
+                    continue
+                ratio = np.full(len(values), np.nan)
+                ratio[ok] = values[ok] / ref_values[ok]
+                # Both legs are independent samples, so the relative errors add in
+                # quadrature.
+                rerr = np.full(len(values), np.nan)
+                with np.errstate(divide="ignore", invalid="ignore"):
+                    rerr[ok] = ratio[ok] * np.sqrt((errors[ok] / values[ok]) ** 2
+                                                   + (ref_errors[ok] / ref_values[ok]) ** 2)
+                ratio_values.extend(ratio[ok].tolist())
+                rax.errorbar(
+                    ref_centers,
+                    ratio,
+                    yerr=rerr,
+                    marker=markers[i % len(markers)],
+                    linestyle=LEG_STYLES[j % len(LEG_STYLES)],
+                    markersize=marker_size(markers[i % len(markers)]),
+                    linewidth=1.4,
+                    alpha=0.85,
+                    color=colors[i % len(colors)],
+                )
+    elif reference in per_leg[legs[0]]:
+        per_wp = per_leg[legs[0]]
+        leg_slices = (slices or {}).get(legs[0])
+        leg_denom = (denom or {}).get(legs[0], {})
         ref_edges, ref_values, _ = per_wp[reference]
         ref_centers = 0.5 * (ref_edges[:-1] + ref_edges[1:])
         for i, wp in enumerate(wps):
-            if wp == reference:
+            if wp == reference or wp not in per_wp:
                 continue
             _, values, _ = per_wp[wp]
             ok = (ref_values > 0) & (values > 0)
-            ok = ok & _fit_ok(reference, ref_values, slices, is_sigma) & _fit_ok(wp, values, slices, is_sigma)
-            if denom is not None:
-                for w in (reference, wp):
-                    if w in denom and len(denom[w]) == len(values):
-                        ok = ok & (denom[w] >= MIN_DENOM_ENTRIES)
+            ok = (ok & _fit_ok(reference, ref_values, leg_slices, is_sigma)
+                  & _fit_ok(wp, values, leg_slices, is_sigma))
+            for w in (reference, wp):
+                if w in leg_denom and len(leg_denom[w]) == len(values):
+                    ok = ok & (leg_denom[w] >= MIN_DENOM_ENTRIES)
             if ok.any():
                 ratio = np.full(len(values), np.nan)
                 ratio[ok] = values[ok] / ref_values[ok]
@@ -927,8 +1098,18 @@ def plot_metric(category, collection, metric, var, per_wp, outdir, index, slices
         if hi > 2.0:
             rax.set_ylim(0.0, hi * 1.15)
     rax.axhline(1.0, linestyle="--", color="gray", linewidth=1.2)
-    rax.set_ylabel(f"ratio to {reference}", fontsize=RATIO_TITLE_SIZE)
+    if ab:
+        rax.set_ylabel(f"{legs[1]} / {legs[0]}" if len(legs) == 2 else f"ratio to {legs[0]}",
+                       fontsize=RATIO_TITLE_SIZE)
+    else:
+        rax.set_ylabel(f"ratio to {reference}", fontsize=RATIO_TITLE_SIZE)
     rax.set_ylim(0.0, 2.0)
+    if ab and ratio_values:
+        # An A/B ratio sits near one, so the window follows the spread; the fixed band
+        # would flatten every difference the comparison is about.
+        lo, hi = min(ratio_values), max(ratio_values)
+        pad = max(0.05, 0.15 * max(1.0 - min(lo, 1.0), max(hi, 1.0) - 1.0))
+        rax.set_ylim(max(0.0, min(lo, 1.0) - pad), max(hi, 1.0) + pad)
     rax.tick_params(labelsize=TICK_LABEL_SIZE)
     xvar = var.rsplit("_vs_", 1)[-1].split("_")[0] if "_vs_" in var else var
     # The two pads share the x axis, so the title is written once, under the ratio.
@@ -946,27 +1127,33 @@ def plot_metric(category, collection, metric, var, per_wp, outdir, index, slices
     return name, caption
 
 
-def plot_categorical(category, collection, metric, var, per_wp, counts, outdir, index,
-                     order=None, reference=None):
-    """Grouped horizontal bars, one group per named category, one bar per series.
+def plot_categorical(category, collection, metric, var, per_leg, counts, outdir, index,
+                     order=None, reference=None, legs=None):
+    """Grouped horizontal bars, one group per named category, one bar per series and leg.
 
     Categories the sample does not populate are dropped rather than drawn at zero: a
     process that never happened is not an inefficiency.
     """
     order = order or WP_ORDER
-    wps = [w for w in order if w in per_wp] + [w for w in sorted(per_wp) if w not in order]
+    legs = present_legs(per_leg, legs)
+    if not legs:
+        return None
+    wps = series_of(per_leg, legs, order)
     if not wps:
         return None
     reference = reference or REFERENCE_WP
-    labels = next((per_wp[w][3] for w in wps if per_wp[w][3]), None)
+    labels = next((per_leg[l][w][3] for l in legs for w in wps
+                   if w in per_leg[l] and per_leg[l][w][3]), None)
     if labels is None:
         return None
 
     population = None
     if counts:
-        population = counts.get(reference, next(iter(counts.values())))[0]
+        leg_counts = counts.get(legs[0]) or next(iter(counts.values()))
+        population = leg_counts.get(reference, next(iter(leg_counts.values())))[0]
     keep = [i for i in range(len(labels))
-            if (population is None and any(per_wp[w][1][i] > 0 for w in wps)) or
+            if (population is None and any(per_leg[l][w][1][i] > 0 for l in legs for w in wps
+                                           if w in per_leg[l])) or
                (population is not None and population[i] > 0)]
     if not keep:
         return None
@@ -983,13 +1170,19 @@ def plot_categorical(category, collection, metric, var, per_wp, counts, outdir, 
     fig.subplots_adjust(left=0.30, right=0.97, top=1 - 0.9 / height, bottom=1.6 / height)
 
     y = np.arange(len(keep))
-    barh = 0.8 / len(wps)
+    barh = 0.8 / (len(wps) * len(legs))
     for i, wp in enumerate(wps):
-        _, values, errors, _ = per_wp[wp]
-        offset = (i - (len(wps) - 1) / 2.0) * barh
-        ax.barh(y + offset, [values[k] for k in keep], height=barh * 0.92,
-                xerr=[errors[k] for k in keep], color=colors[i % len(colors)],
-                edgecolor="none", alpha=0.9, label=wp, error_kw=dict(lw=1, ecolor="0.3"))
+        for j, leg in enumerate(legs):
+            if wp not in per_leg[leg]:
+                continue
+            _, values, errors, _ = per_leg[leg][wp]
+            offset = (i * len(legs) + j - (len(wps) * len(legs) - 1) / 2.0) * barh
+            ax.barh(y + offset, [values[k] for k in keep], height=barh * 0.92,
+                    xerr=[errors[k] for k in keep], color=colors[i % len(colors)],
+                    edgecolor="none" if len(legs) == 1 else "0.3",
+                    hatch=LEG_HATCHES[j % len(LEG_HATCHES)] or None,
+                    alpha=0.9, label=wp if j == 0 else "_nolegend_",
+                    error_kw=dict(lw=1, ecolor="0.3"))
 
     label, meaning, formula = METRICS[metric]
     title = f"{label} vs {var}"
@@ -1012,13 +1205,17 @@ def plot_categorical(category, collection, metric, var, per_wp, counts, outdir, 
     # Below everything: a legend inside the axes covers the least populated rows, which
     # are still real measurements, so it goes under the x label in the reserved margin.
     handles, lbls = ax.get_legend_handles_labels()
+    keys, names = leg_keys(legs, bars=True)
+    handles, lbls = handles + keys, lbls + names
     fig.legend(handles, lbls, fontsize=13, loc="lower center", ncol=len(lbls), frameon=False,
                bbox_to_anchor=(0.5, 0.15 / height))
     hep.cms.label(ax=ax, llabel="Private Work", rlabel=f"Phase-2 Simulation, {region_label(category)}", fontsize=15)
 
     top = max(keep, key=lambda k: population[k]) if population is not None else keep[0]
+    lead = next((l for l in legs if wps[0] in per_leg[l]), legs[0])
     caption = (f"{title}. Most populated process: {labels[top]} "
-               f"(N={int(population[top])}) at {per_wp[wps[0]][1][top]:.2f} for {wps[0]}."
+               f"(N={int(population[top])}) at {per_leg[lead][wps[0]][1][top]:.2f} for {wps[0]}"
+               f"{'' if len(legs) == 1 else ' (' + lead + ')'}."
                if population is not None else title)
 
     name = f"{index:02d}_{category.split('/')[-1]}_{collection}_{metric}_vs_{var}.png"
@@ -1027,13 +1224,16 @@ def plot_categorical(category, collection, metric, var, per_wp, counts, outdir, 
     return name, caption
 
 
-def plot_residual(category, collection, source, per_wp, outdir, index):
-    """The residual distribution itself, overlaid across working points.
+def plot_residual(category, collection, source, per_leg, outdir, index, legs=None):
+    """The residual distribution itself, overlaid across working points and input legs.
 
     The Gaussian slice fit summarises this distribution; when the distribution is not
     Gaussian the fit says nothing and only the distribution does.
     """
-    wps = [w for w in WP_ORDER if w in per_wp] + [w for w in sorted(per_wp) if w not in WP_ORDER]
+    legs = present_legs(per_leg, legs)
+    if not legs:
+        return None
+    wps = series_of(per_leg, legs, WP_ORDER)
     if not wps:
         return None
     colors = plt.rcParams["axes.prop_cycle"].by_key()["color"]
@@ -1043,42 +1243,57 @@ def plot_residual(category, collection, source, per_wp, outdir, index):
 
     cores = {}
     for i, wp in enumerate(wps):
-        edges, values, _ = per_wp[wp]
-        total = values.sum()
-        if total <= 0:
-            continue
-        centers = 0.5 * (edges[:-1] + edges[1:])
-        # Fraction inside +-10%, a scale-free statement about how peaked it is that does
-        # not depend on a fit converging.
-        cores[wp] = float(values[np.abs(centers) <= 0.1].sum() / total)
-        hep.histplot(broken(values / total, values > 0), edges, ax=ax, label=wp, yerr=False,
-                     color=colors[i % len(colors)], linestyle=styles[i % len(styles)], linewidth=1.6)
+        for j, leg in enumerate(legs):
+            if wp not in per_leg[leg]:
+                continue
+            edges, values, _ = per_leg[leg][wp]
+            total = values.sum()
+            if total <= 0:
+                continue
+            centers = 0.5 * (edges[:-1] + edges[1:])
+            # Fraction inside +-10%, a scale-free statement about how peaked it is that
+            # does not depend on a fit converging.
+            cores[(leg, wp)] = float(values[np.abs(centers) <= 0.1].sum() / total)
+            hep.histplot(broken(values / total, values > 0), edges, ax=ax, yerr=False,
+                         label=wp if j == 0 else "_nolegend_", color=colors[i % len(colors)],
+                         linestyle=styles[i % len(styles)] if len(legs) == 1
+                         else LEG_STYLES[j % len(LEG_STYLES)], linewidth=1.6)
 
     ax.set_yscale("log")
     ax.set_xlabel(RESIDUAL_TITLE.get(source.split("res_vs_", 1)[0], "reco - truth"), fontsize=AXIS_TITLE_SIZE)
     ax.set_ylabel("fraction of matched pairs per bin", fontsize=AXIS_TITLE_SIZE, loc="center")
     ax.tick_params(labelsize=TICK_LABEL_SIZE)
     ax.grid(alpha=0.3)
-    ax.legend(fontsize=13, frameon=False)
+    handles, lbls = ax.get_legend_handles_labels()
+    keys, names = leg_keys(legs)
+    if handles or keys:
+        ax.legend(handles + keys, lbls + names, fontsize=13, frameon=False)
     fig.suptitle(f"{source} residual distribution", fontsize=16, y=0.965)
     hep.cms.label(ax=ax, llabel="Private Work", rlabel=f"Phase-2 Simulation, {region_label(category)}", fontsize=15)
 
-    ref = cores.get(REFERENCE_WP)
     caption = (f"{source} residual distribution, area normalised. Fraction within 10%: "
-               + ", ".join(f"{w} {cores[w]:.2f}" for w in wps if w in cores) + ".") if cores else source
+               + ", ".join(f"{w} {cores[(l, w)]:.2f}" + ("" if len(legs) == 1 else f" ({l})")
+                           for w in wps for l in legs if (l, w) in cores) + ".") if cores else source
     name = f"{index:02d}_{category.split('/')[-1]}_{collection}_{source}_distribution.png"
     fig.savefig(os.path.join(outdir, category.split("/", 1)[0], "resolution", name), dpi=150)
     plt.close(fig)
     return name, caption
 
 
-def plot_composition(category, collection, counts, outdir, index, reference=None):
-    """What the selected truth branches ARE, by the process that created them."""
-    entry = counts.get(reference or REFERENCE_LEVEL) or next(iter(counts.values()))
-    values, labels = entry
+def plot_composition(category, collection, counts, outdir, index, reference=None, legs=None):
+    """What the selected truth branches ARE, by the process that created them.
+
+    One bar per input leg, so two files are compared on the same set of processes.
+    """
+    legs = present_legs(counts, legs)
+    if not legs:
+        return None
+    level = reference or REFERENCE_LEVEL
+    per_leg = {l: (counts[l].get(level) or next(iter(counts[l].values()))) for l in legs}
+    values, labels = per_leg[legs[0]]
     if labels is None or values.sum() <= 0:
         return None
-    keep = [i for i in range(len(labels)) if values[i] > 0]
+    keep = [i for i in range(len(labels)) if any(per_leg[l][0][i] > 0 for l in legs)]
     order = sorted(keep, key=lambda k: values[k], reverse=True)
 
     colors = plt.rcParams["axes.prop_cycle"].by_key()["color"]
@@ -1086,9 +1301,21 @@ def plot_composition(category, collection, counts, outdir, index, reference=None
     fig.subplots_adjust(left=0.30, right=0.97, top=1 - 0.9 / fig.get_figheight(),
                         bottom=0.9 / fig.get_figheight())
     frac = np.array([values[k] for k in order]) / values.sum()
-    ax.barh(np.arange(len(order)), frac, color=colors[0], alpha=0.9)
+    if len(legs) == 1:
+        ax.barh(np.arange(len(order)), frac, color=colors[0], alpha=0.9)
+        ticks = [f"{labels[k]}  (N={int(values[k])})" for k in order]
+    else:
+        barh = 0.8 / len(legs)
+        for j, leg in enumerate(legs):
+            v = per_leg[leg][0]
+            total = v.sum() or 1.0
+            ax.barh(np.arange(len(order)) + (j - (len(legs) - 1) / 2.0) * barh,
+                    np.array([v[k] for k in order]) / total, height=barh * 0.92,
+                    color=colors[j % len(colors)], alpha=0.9, label=leg)
+        ticks = [f"{labels[k]}  (N={'/'.join(str(int(per_leg[l][0][k])) for l in legs)})" for k in order]
+        ax.legend(fontsize=13, frameon=False, loc="lower right")
     ax.set_yticks(np.arange(len(order)))
-    ax.set_yticklabels([f"{labels[k]}  (N={int(values[k])})" for k in order], fontsize=13)
+    ax.set_yticklabels(ticks, fontsize=13)
     ax.invert_yaxis()
     ax.set_xlabel("fraction of selected truth branches", fontsize=AXIS_TITLE_SIZE)
     ax.tick_params(axis="x", labelsize=TICK_LABEL_SIZE)
@@ -1097,7 +1324,8 @@ def plot_composition(category, collection, counts, outdir, index, reference=None
     hep.cms.label(ax=ax, llabel="Private Work", rlabel=f"Phase-2 Simulation, {region_label(category)}", fontsize=15)
 
     caption = ("Composition of the truth-branch denominator by the Geant4 process that created each branch root. "
-               f"Leading process {labels[order[0]]} at {frac[0]*100:.0f}% of {int(values.sum())} branches.")
+               f"Leading process {labels[order[0]]} at {frac[0]*100:.0f}% of {int(values.sum())} branches"
+               f"{'' if len(legs) == 1 else ' in ' + legs[0]}.")
     name = f"{index:02d}_{category.split('/')[-1]}_{collection}_composition_by_reason.png"
     fig.savefig(os.path.join(outdir, category.split("/", 1)[0], "composition", name), dpi=150)
     plt.close(fig)
@@ -1108,7 +1336,14 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("files", nargs="+")
     ap.add_argument("--outputDir", default="plots")
+    ap.add_argument("--label", action="append",
+                    help="Leg label of the corresponding input file, given once per file and in the "
+                         "same order. Derived from the file name when absent; the labels must differ.")
     ap.add_argument("--sample", default="ttbar, no pileup, D122")
+    ap.add_argument("--preset", default=None,
+                    help="Selection preset the sample was produced with, for example "
+                         "TenTau_E_15_500_pythia8_cfi. Its seed species are listed on the index page; "
+                         "without it the page makes no claim about the preset.")
     ap.add_argument("--title", default="MC-truth graph validation")
     ap.add_argument("--jobs", default=0, type=int,
                     help="Processes for drawing plots. 0 (default) uses every core; 1 draws in the main "
@@ -1116,6 +1351,7 @@ def main():
     ap.add_argument("--gallery", default="truth-validation",
                     help="orbit gallery name; also the .orbit target, so two samples can be published side by side")
     args = ap.parse_args()
+    legs = leg_labels(args.files, args.label)
 
     os.makedirs(args.outputDir, exist_ok=True)
     # One real directory per metric, so the gallery browses as folders and not as one
@@ -1123,7 +1359,7 @@ def main():
     for flavour in FLAVOURS:
         for metric in METRIC_ORDER:
             os.makedirs(os.path.join(args.outputDir, flavour, metric), exist_ok=True)
-    data = collect(args.files)
+    data = collect(args.files, legs)
     if not data:
         print("no populated monitor elements found", file=sys.stderr)
         return 1
@@ -1138,7 +1374,8 @@ def main():
             all_denom = data[category][collection].get("_denom", {})
             all_residual = data[category][collection].get("_residual", {})
             if "reason" in all_counts:
-                result = plot_composition(category, collection, all_counts["reason"], args.outputDir, index)
+                result = plot_composition(category, collection, all_counts["reason"], args.outputDir, index,
+                                          legs=legs)
                 if result:
                     name, caption = result
                     written.append({"_ord": index, "category": category, "collection": collection, "metric": "composition",
@@ -1170,7 +1407,7 @@ def main():
                          None,
                          all_denom.get(f"{DENOMINATOR.get(metric, '')}_{var}"),
                          series_order, series_ref, cumulative.get(var),
-                         _criterion[0] if _criterion else None),
+                         _criterion[0] if _criterion else None, legs),
                         {"_ord": index, "category": category, "collection": collection, "metric": metric, "var": var},
                     ))
                     # Unconditional now: the index only has to be unique per plot, and the
@@ -1181,7 +1418,8 @@ def main():
                         if source not in all_residual:
                             continue
                         result = plot_residual(
-                            category, collection, source, all_residual[source], args.outputDir, index
+                            category, collection, source, all_residual[source], args.outputDir, index,
+                            legs=legs
                         )
                         if result:
                             name, caption = result
@@ -1194,7 +1432,7 @@ def main():
                         base = var.rsplit("_", 1)[0]
                         result = plot_metric(
                             category, collection, metric, var, per_metric[var], args.outputDir, index,
-                            slices=all_slices.get(base),
+                            slices=all_slices.get(base), legs=legs,
                         )
                         if result:
                             name, caption = result
@@ -1208,7 +1446,7 @@ def main():
                     result = plot_categorical(
                         category, collection, metric, var, per_metric[var],
                         all_counts.get(var), args.outputDir, index,
-                        order=series_order, reference=series_ref,
+                        order=series_order, reference=series_ref, legs=legs,
                     )
                     if result:
                         name, caption = result
@@ -1244,11 +1482,17 @@ def main():
     # What the curves of one plot are, per metric family. The truth-driven metrics
     # overlay graph levels, the reco-driven ones working points.
     def overlay_note(metric):
+        if len(legs) > 1:
+            ab_note = (f" Every curve is drawn once per input: {', '.join(legs)}, the entity keeping its "
+                       f"colour and the input taking the line style. The lower panel is {legs[1]} over "
+                       f"{legs[0]} per bin for the same series.")
+        else:
+            ab_note = ""
         if metric in TRUTH_METRICS:
             return ("Each plot overlays the branch LEVELS of the truth graph, the a priori definitions of what "
                     "one truth object is (stableLegsFromUpstream, caloBoundary, stableDecayProducts, "
-                    "hardProcess, reconstructableFromSignal), plus three more series: signal, whose denominator "
-                    "is the preset SEED objects "
+                    "hardProcess, reconstructableFromSignal, underlyingEvent, partonJets, bHadrons, cHadrons), "
+                    "plus three more series: signal, whose denominator is the preset SEED objects "
                     "among the selected roots, so with a selection preset it is the signal object's own "
                     "efficiency (the tau, not its decay legs), signalNoSelection, the same seed objects with "
                     "no branch-selector cut at all, so the efficiency is quoted against every seed in the "
@@ -1259,11 +1503,11 @@ def main():
                     "page each series is a pair: individual (filled, solid) means a single reco object covers "
                     "the truth object, cumulative (open, dashed, same colour) means all reco objects of the "
                     "collection together do; a multi-prong decay separates the two. The "
-                    f"lower panel is the ratio to {REFERENCE_LEVEL}.")
+                    + (f"lower panel is the ratio to {REFERENCE_LEVEL}." if not ab_note else "") + ab_note)
         return ("Each plot overlays the four branch-association working points. Fixed keeps every matching "
                 "branch; the Adaptive points keep the single graph level that best matches the reco object, "
-                "differing only in how much branch spread they tolerate. The lower panel is the ratio to "
-                f"{REFERENCE_WP}.")
+                "differing only in how much branch spread they tolerate. "
+                + (f"The lower panel is the ratio to {REFERENCE_WP}." if not ab_note else "") + ab_note)
 
     # One page per metric, each opening with the definition of the quantity it shows.
     for (flavour, metric), entries in by_page.items():
@@ -1334,6 +1578,11 @@ def main():
     with open(os.path.join(args.outputDir, "index.html"), "w") as idx:
         idx.write(f"<!doctype html><meta charset='utf-8'><title>{args.title}</title><style>{STYLE}</style>")
         idx.write(f"<h1>{args.title}</h1><p>Sample: {args.sample}.</p>")
+        if len(legs) > 1:
+            # The overlay is only a comparison if the reader can see which file each leg is.
+            idx.write("<div class='def'><b>Inputs compared.</b><ul>"
+                      + "".join(f"<li><span class='f'>{l}</span> {f}</li>" for l, f in zip(legs, args.files))
+                      + f"</ul>The ratio panel is {legs[1]} over {legs[0]}.</div>")
         if os.path.exists(os.path.join(args.outputDir, "resource_cost.md")):
             idx.write("<p><a href='resource_cost.md'>Measured computing cost of the graph against the legacy "
                       "frozen truth objects</a></p>")
@@ -1364,7 +1613,7 @@ def main():
             idx.write(f"<li><span class='f'>{var}</span> {VARIABLE_MEANING[var]}</li>")
         for var in CATEGORICAL:
             idx.write(f"<li><span class='f'>{var}</span> {CATEGORICAL_MEANING[var]}</li>")
-        idx.write(definitions_html())
+        idx.write(definitions_html(args.preset))
         idx.write("<h2>Truth levels: what each series is the efficiency OF</h2>"
                   "<p>The truth-driven pages overlay these. They are different DENOMINATORS over the same "
                   "event, not different measurements of one quantity, so a series sitting lower than another "
@@ -1390,6 +1639,11 @@ def main():
 
     with open(os.path.join(args.outputDir, "README.md"), "w") as readme:
         readme.write(f"# {args.title}\n\nSample: {args.sample}.\n")
+        if len(legs) > 1:
+            readme.write("\nInputs compared, the ratio panel being "
+                         f"{legs[1]} over {legs[0]}:\n\n")
+            for l, f in zip(legs, args.files):
+                readme.write(f"- `{l}`: {f}\n")
         for flavour in FLAVOURS:
             if not any(f == flavour for f, _ in by_page):
                 continue

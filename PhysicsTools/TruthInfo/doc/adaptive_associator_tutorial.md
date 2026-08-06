@@ -271,7 +271,8 @@ the same cff and saves with `dqmSaver.workflow = "/TruthInfo/Validation/RECO"`. 
 cmsRun dqmA.py    # about 25 seconds
 cmsRun dqmB.py    # about 3 seconds
 makeTruthValidationPlots.py DQM_V0001_R000000001__TruthInfo__Validation__RECO.root \
-  --outputDir plots --sample "TenTau E 15-500 GeV, no pileup, D122, 200 events"
+  --outputDir plots --sample "TenTau E 15-500 GeV, no pileup, D122, 200 events" \
+  --preset TenTau_E_15_500_pythia8_cfi
 ```
 
 About 690 plots in 16 pages, with an `index.html`.
