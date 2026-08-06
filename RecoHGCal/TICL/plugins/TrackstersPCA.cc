@@ -3,6 +3,8 @@
 #include "RecoLocalCalo/HGCalRecProducers/interface/ComputeClusterTime.h"
 #include "TrackstersPCA.h"
 
+#include <Eigen/Geometry>  // Vector3f::cross
+
 #include <iostream>
 #include <set>
 
@@ -143,6 +145,66 @@ void ticl::assignPCAtoTracksters(std::vector<Trackster> &tracksters,
     LogDebug("TrackstersPCA") << "Means:          " << barycenter[0] << ", " << barycenter[1] << ", " << barycenter[2]
                               << std::endl;
     LogDebug("TrackstersPCA") << "Time:          " << trackster.time() << " +/- " << trackster.timeError() << std::endl;
+
+    if (N <= 2) {
+      // A trackster of one or two layer clusters has a degenerate covariance, so the PCA was
+      // skipped and the axes stayed at their default: measured on PU200, 100% of one-cluster
+      // tracksters carried eigenvectors_[0] = (0,0,0), i.e. cos(pointing) = 0. An axis
+      // orthogonal to the flight direction is worse than a missing one, because consumers read
+      // it as a real direction.
+      //
+      // Give them the frame the geometry defines, with HONEST widths rather than zeros:
+      //   e0 radially outward from the interaction point, the direction a shower travels;
+      //   e1 azimuthal; e2 = e0 x e1.
+      // The object is not point like: it occupies one CELL, and that cell size is measured
+      // geometry, not an invention. The transverse extents follow from the sensor: a
+      // scintillator tile spans R*dEta by R*dPhi (since dEta = dTheta/sinTheta and the arc at
+      // distance D is D*dTheta = R*dEta), a silicon cell spans twice its radius to side.
+      // Longitudinally a single layer spans the sensor thickness. Widths are quoted as the
+      // standard deviation of a uniform distribution over that width, w/sqrt(12), so a
+      // consumer can turn them into a direction uncertainty of roughly sigma_T / |position|:
+      // these objects then say "pointing, but with a large angular error" instead of claiming
+      // an impossible zero extent.
+      const Eigen::Vector3f pos = barycenter;
+      const float norm = pos.norm();
+      if (norm > 0.f) {
+        const float rT = std::sqrt(pos.x() * pos.x() + pos.y() * pos.y());
+        const Eigen::Vector3f e0 = pos / norm;
+        // Azimuthal direction; exactly on the beamline any transverse direction is equivalent,
+        // so pick one deterministically rather than dividing by zero.
+        const Eigen::Vector3f e1 =
+            (rT > 0.f) ? Eigen::Vector3f(-pos.y() / rT, pos.x() / rT, 0.f) : Eigen::Vector3f(1.f, 0.f, 0.f);
+        const Eigen::Vector3f e2 = e0.cross(e1).normalized();
+        Eigen::Matrix3f evecs;
+        evecs.col(0) = e0;
+        evecs.col(1) = e1;
+        evecs.col(2) = e2;
+
+        // Cell extent of the seed layer cluster, in cm.
+        float wPhi = 0.f, wEta = 0.f, wLong = 0.f;
+        const auto seed = layerClusters[trackster.vertices(0)].seed();
+        if (seed.rawId() != 0) {
+          if (rhtools.isScintillator(seed)) {
+            const auto dEtaDPhi = rhtools.getScintDEtaDPhi(seed);
+            wEta = rT * dEtaDPhi.first;
+            wPhi = rT * dEtaDPhi.second;
+          } else {
+            const float side = rhtools.getRadiusToSide(seed);
+            wEta = wPhi = 2.f * side;
+            wLong = 1e-4f * rhtools.getSiThickness(seed);  // um -> cm
+          }
+        }
+        constexpr float kUniform = 1.f / 12.f;  // variance of a uniform distribution of width w
+        Eigen::Vector3f sigmasEigen;
+        sigmasEigen << wLong * wLong * kUniform, wPhi * wPhi * kUniform, wEta * wEta * kUniform;
+        // Lab-frame sigmas: the transverse cell scale carries x and y, the thickness carries z.
+        const float wT = std::max(wEta, wPhi);
+        Eigen::Vector3f sigmasLab;
+        sigmasLab << wT * wT * kUniform, wT * wT * kUniform, wLong * wLong * kUniform;
+        trackster.fillPCAVariables(
+            Eigen::Vector3f::Zero(), evecs, sigmasLab, sigmasEigen, 3, ticl::Trackster::PCAOrdering::descending);
+      }
+    }
 
     if (N > 2) {
       Eigen::Vector3f sigmas;
