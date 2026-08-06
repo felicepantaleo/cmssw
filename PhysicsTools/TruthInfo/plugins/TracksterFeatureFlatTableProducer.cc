@@ -181,12 +181,20 @@ public:
           }
       r.shared = ae;
       r.score = ascore;
-      if (ae >= minShared && aidx >= 0 && aidx < static_cast<int>(nP)) {
+      // Resolve the matched branch IDENTITY whenever the index is valid; the shared-energy
+      // cut gates only the LABEL. Both used to sit behind `ae >= minShared`, and because the
+      // associator reports sim-DEPOSITED energy (median 0.0012 GeV, max 1.02 over a PU200
+      // sample) against an absolute 0.5 GeV threshold, identity resolved for 6 of 55364
+      // tracksters and every other row fell through to kFake. shared and score are dumped as
+      // columns, so an energy selection belongs at training-selection time, not here.
+      if (aidx >= 0 && aidx < static_cast<int>(nP)) {
         r.node = aidx;  // unique matched branch node (for grouping true siblings)
         const auto ap = graph.particle(static_cast<uint32_t>(aidx));
         r.pdg = ap.pdgId();
         r.prim = isPrimary(ap) ? 1 : 0;
-        if (caloCrossing(ap) && singleClass(r.pdg) != kFake) {
+        if (ae < minShared) {
+          // identity resolved, match too weak to assign a class
+        } else if (caloCrossing(ap) && singleClass(r.pdg) != kFake) {
           r.lab = singleClass(r.pdg);
         } else {
           bool anyHad = false, anyEM = false, anyMIP = false;
@@ -304,10 +312,13 @@ public:
         }
       }
       const float signal_frac = totE > 0.f ? sigE / totE : 0.f;
+      // Same split as the adaptive path above: identity on a valid index, class only when
+      // the match also clears the shared-energy cut.
       int lab = kFake, pdg = 0;
-      if (be >= minSharedEnergy_ && bidx >= 0 && bidx < static_cast<int>(nP)) {
+      if (bidx >= 0 && bidx < static_cast<int>(nP)) {
         pdg = graph.particles()[bidx].pdgId;
-        lab = singleClass(pdg);
+        if (be >= minSharedEnergy_)
+          lab = singleClass(pdg);
       }
 
       // Adaptive-level label: the branch the adaptive search picked (the graph level
