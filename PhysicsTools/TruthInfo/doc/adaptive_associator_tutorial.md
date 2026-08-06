@@ -54,15 +54,16 @@ their job is to define the **secondary-vertex** truth instead (section 5b):
 | `bHadrons` | the first b hadron along each chain. A B\* radiates down to a B and both are b hadrons, so the antichain keeps the B\*: one member per physical decay, not one per generator copy |
 | `cHadrons` | the same for charm. Beauty and charm are SEPARATE levels on purpose: a B decays to a D, so a single combined level would keep the B and silently drop every charm vertex |
 
-A sample with NO resonance has no `signal` level at all. Both `signal` and
-`signalNoSelection` are simply **not booked** when the configuration names no seed
-species, rather than booked empty: the question has no meaning there, and an empty folder
-reads as an efficiency of zero. QCD is the sample in the set where this shows. It used to
-fall back to every selected root, which is not an antichain and is exactly the denominator
-that was removed for that reason.
+On top of the levels come `signal` (the preset's seed objects, so the RESONANCE itself:
+two tops, one Z, one Higgs, ten taus) and `signalNoSelection` (the same with no kinematic
+cut).
 
-plus `signal` (the preset's seed objects, so the RESONANCE itself: two tops, one Z, one
-Higgs, ten taus) and `signalNoSelection` (the same with no kinematic cut).
+A sample with NO resonance has no `signal` level at all. Both folders are simply **not
+booked** when the configuration names no seed species, rather than booked empty: the
+question has no meaning there, and an empty folder reads as an efficiency of zero. QCD is
+the sample in the set where this shows. The old behaviour fell back to every selected
+root, which is not an antichain and is exactly the denominator that was removed for that
+reason.
 
 **Every one of these is an ANTICHAIN**: no member is an ancestor of another, so no
 efficiency counts one object twice. That is the entry requirement: a denominator holding
@@ -96,7 +97,7 @@ scram b -j 16
 Check the unit tests before trusting anything you produce:
 
 ```bash
-cd PhysicsTools/TruthInfo && scram b runtests   # expect 8 passes
+cd PhysicsTools/TruthInfo && scram b runtests   # expect 9 passes
 cd ../..
 ```
 
@@ -133,7 +134,7 @@ cmsDriver.py step2 \
 cmsRun digi.py                                      # about 2.5 minutes
 
 # 2c. RECO, with the associators attached by a customise
-cmsDriver.py step3 -s RAW2DIGI,L1Reco,RECO,RECOSIM,PAT -n 200 \
+cmsDriver.py step3 -s RAW2DIGI,L1Reco,RECO -n 200 \
   --conditions auto:phase2_realistic_T35 --datatier GEN-SIM-RECO \
   --eventcontent FEVTDEBUGHLT --geometry ExtendedRun4D122 --era Phase2C26I13M9 \
   --customise SimGeneral/TruthGraphAssociatorProducers/customiseTruthGraphAssociators.customiseTruthGraphAssociators \
@@ -150,11 +151,13 @@ edmDumpEventContent step2.root | grep -iE "truthLogicalGraph|TruthGraph"
 
 You should see the logical graph, the unresolved hit index and the raw `TruthGraph_mix`.
 
-!!! warning "Consume, do not rebuild"
+!!! warning "Consume, do not rebuild: the GRAPH, not the associators"
     `truthLogicalGraphProducer` and `truthLogicalGraphHitIndexProducer` must **not** be
-    scheduled at RECO. Their products come from the DIGI file. If you see them as modules
-    in the RECO config, something is rebuilding the truth and your association will be
-    signal-only, silently.
+    scheduled at RECO or later. Their products come from the DIGI file, where the merged
+    signal-plus-pileup simHits were live; rebuilding them later silently loses pileup.
+    The ASSOCIATORS are the opposite case: they are cheap, stateless consumers of the
+    graph, and section 4 re-runs them in the DQM step on purpose, so the maps always
+    come from the code being tested.
 
 ### 2d. The focused selection, optional but recommended
 
@@ -198,7 +201,10 @@ For every reco collection you get, per **working point**, one map in each direct
 | `<collection>TruthToReco` | truth to reco | sim-normalised fraction, truth-normalised score |
 
 plus the denominator lists `truthToRecoTargets<Level>`, `signalSeeds` and
-`signalSeedsNoSelection`.
+`signalSeedsNoSelection`, and beside every level denominator a parallel
+`truthToRecoTargets<Level>Eligibility` mask saying which plotted-axis cut each target
+fails, so an efficiency against pt keeps the objects the pt cut would have removed
+(section 7 relies on it).
 
 The truth-to-reco map is written **once**, not per working point, on purpose: the truth
 target is fixed a priori by the level, so a reco-driven working point has no business
@@ -256,10 +262,46 @@ from SimGeneral.TruthGraphAssociatorProducers.truthGraphAssociationLabels_cff im
     setTracksterLabelsFromProcess)
 setTracksterLabelsFromProcess(process)
 
+# Re-run the ASSOCIATORS here, rather than consuming the copies step3 wrote. They cost
+# 4.3 ms/event, and it buys two things: the maps are made by the code you are running
+# now rather than by whatever built the RECO file, and this is the one place the signal
+# seeds are set. Skipping this and consuming the RECO-era products is measured below in
+# section 8c: it read signal = 107 per event where the answer is exactly 10.
+from SimGeneral.TruthGraphAssociatorProducers.truthGraphAssociators_cff import (
+    allTrackToTruthBranchAssociators, allVertexToTruthBranchAssociators,
+    allSecondaryVertexToTruthBranchAssociators, truthBranchTracksterAssociators,
+    hltTrackToTruthBranchAssociators, hltVertexToTruthBranchAssociators,
+    hltTruthBranchTracksterAssociators)
+for _label in ("allTrackToTruthBranchAssociators", "allVertexToTruthBranchAssociators",
+               "allSecondaryVertexToTruthBranchAssociators", "truthBranchTracksterAssociators",
+               "hltTrackToTruthBranchAssociators", "hltVertexToTruthBranchAssociators",
+               "hltTruthBranchTracksterAssociators"):
+    setattr(process, _label, globals()[_label])
+
+# The preset's seed species, to the associators AND the hit-based validators: the
+# associators fill the signalSeeds denominator from it, and the validators book the
+# signal folders only when it names a resonance. hasattr guards the composite
+# validators, which do not declare the parameter.
+from PhysicsTools.TruthInfo.truthGraphSelections import seedPdgIdsForPreset
+_signalSeeds = seedPdgIdsForPreset(name="TenTau_E_15_500_pythia8_cfi")
+for _label in ("allTrackToTruthBranchAssociators", "allVertexToTruthBranchAssociators",
+               "allSecondaryVertexToTruthBranchAssociators", "truthBranchTracksterAssociators",
+               "hltTrackToTruthBranchAssociators", "hltVertexToTruthBranchAssociators",
+               "hltTruthBranchTracksterAssociators"):
+    getattr(process, _label).signalSeedPdgIds = _signalSeeds
+
+# EVERY validator the sequence contains must be attached, the HLT ones included, or
+# configuration fails with "An entry in sequence truthBranchValidationSequence has no
+# label". The sequence is built from the domain list, not from what you attach.
 import Validation.TruthInfo.truthBranchValidation_cff as _tv
 for _label in ("truthBranchTrackValidator", "truthBranchVertexValidator",
-               "truthBranchSecondaryVertexValidator", "truthBranchTracksterValidator"):
+               "truthBranchSecondaryVertexValidator", "truthBranchTracksterValidator",
+               "hltTruthBranchTrackValidator", "hltTruthBranchVertexValidator",
+               "hltTruthBranchTracksterValidator"):
     setattr(process, _label, getattr(_tv, _label))
+    _v = getattr(process, _label)
+    if hasattr(_v, "signalSeedPdgIds"):
+        _v.signalSeedPdgIds = _signalSeeds
 process.truthBranchValidationSequence = _tv.truthBranchValidationSequence
 
 process.DQMoutput = cms.OutputModule(
@@ -267,7 +309,14 @@ process.DQMoutput = cms.OutputModule(
     fileName=cms.untracked.string("file:dqmio.root"),
     outputCommands=cms.untracked.vstring("drop *", "keep *_MEtoEDMConverter_*_*"),
     splitLevel=cms.untracked.int32(0))
-process.p = cms.Path(process.truthBranchValidationSequence)
+process.p = cms.Path(process.allTrackToTruthBranchAssociators
+                     + process.allVertexToTruthBranchAssociators
+                     + process.allSecondaryVertexToTruthBranchAssociators
+                     + process.truthBranchTracksterAssociators
+                     + process.hltTrackToTruthBranchAssociators
+                     + process.hltVertexToTruthBranchAssociators
+                     + process.hltTruthBranchTracksterAssociators
+                     + process.truthBranchValidationSequence)
 process.e = cms.EndPath(process.DQMoutput)
 ```
 
@@ -275,13 +324,13 @@ Step B reads that with `DQMRootSource`, runs `process.truthBranchHarvestingSeque
 the same cff and saves with `dqmSaver.workflow = "/TruthInfo/Validation/RECO"`. Then:
 
 ```bash
-cmsRun dqmA.py    # about 25 seconds
-cmsRun dqmB.py    # about 3 seconds
+cmsRun dqmA.py    # about a minute: the associators run here too
+cmsRun dqmB.py    # about 5 seconds
 makeTruthValidationPlots.py DQM_V0001_R000000001__TruthInfo__Validation__RECO.root \
   --outputDir plots --sample "TenTau E 15-500 GeV, no pileup, D122, 200 events"
 ```
 
-About 690 plots in 16 pages, with an `index.html`.
+About 2700 plots behind one `index.html`, organised by metric and acceptance region.
 
 ### The folder layout
 
@@ -318,8 +367,8 @@ All from the chain above, 200 events.
 | reco tracks | 13.8 / event | same |
 | trackster fake rate | 0.0484 | identical at every working point, by construction |
 | tracking fake rate | 0.2904 | at every working point. Almost all of it is "no single owner", not "matched nothing", which is 0.0000 |
-| mean reco purity, tracks | 0.583 Fixed to **0.994** AdaptiveNominal | where the adaptive climb pays |
-| mean reco purity, tracksters | 0.347 Fixed to **0.972** AdaptiveNominal | the same effect in the calorimeter |
+| mean of `reco_purity`, tracks | 0.337 Fixed to **0.862** AdaptiveNominal | where the adaptive climb pays |
+| mean of `reco_purity`, tracksters | 0.054 Fixed to **0.939** AdaptiveNominal | the same effect, stronger in the calorimeter |
 
 If `hardProcess` is empty, that is the expected answer here, and a good illustration that
 the level means what it says: on ttbar, DY and VBF it gives 5.73, 1.51 and 6.00 per event.
@@ -614,6 +663,14 @@ Not academic. Three PU200 samples were once compared where two carried a graph b
 before a pruning fix and one after. It showed as `stableDecayProducts` reading 175 per
 event in one and 7640 in the others, and tracking efficiency 0.690 against 0.008. Always
 put your samples side by side before believing any single one.
+
+The same rule covers the ASSOCIATION products inside a RECO file: they are as old as the
+RECO that wrote them. Measured on this very sample, harvesting the RECO-era maps instead
+of re-running the associators read `signal` = **107.00 per event** where the answer is
+exactly 10.00, because the file predated a fix to how empty seed lists are treated, while
+every other level agreed to the last digit. A wrong number that arrives surrounded by
+right ones is the expensive kind, and it is why section 4 re-runs the associators in the
+DQM step.
 
 ---
 
