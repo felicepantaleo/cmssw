@@ -62,7 +62,8 @@ TracksterLinkingbySuperClusteringDNN::TracksterLinkingbySuperClusteringDNN(const
       explVarRatioMinimum_highEnergy_(ps.getParameter<double>("explVarRatioMinimum_highEnergy")),
       filterByTracksterPID_(ps.getParameter<bool>("filterByTracksterPID")),
       tracksterPIDCategoriesToFilter_(ps.getParameter<std::vector<int>>("tracksterPIDCategoriesToFilter")),
-      PIDThreshold_(ps.getParameter<double>("PIDThreshold")) {
+      PIDThreshold_(ps.getParameter<double>("PIDThreshold")),
+      emissionPIDThreshold_(ps.getParameter<double>("emissionPIDThreshold")) {
   const auto model = ps.getParameter<std::string>("onnxModelPath");
   if (model.empty()) {
     throw cms::Exception("Configuration")
@@ -96,13 +97,24 @@ bool TracksterLinkingbySuperClusteringDNN::checkExplainedVarianceRatioCut(ticl::
     return false;
 }
 
+float TracksterLinkingbySuperClusteringDNN::emProbability(const Trackster& tst) const {
+  float probTotal = 0.0f;
+  for (int cat : tracksterPIDCategoriesToFilter_) {
+    probTotal += tst.id_probabilities(cat);
+  }
+  return probTotal;
+}
+
 bool TracksterLinkingbySuperClusteringDNN::trackstersPassesPIDCut(const Trackster& tst) const {
   if (filterByTracksterPID_) {
-    float probTotal = 0.0f;
-    for (int cat : tracksterPIDCategoriesToFilter_) {
-      probTotal += tst.id_probabilities(cat);
-    }
-    return probTotal >= PIDThreshold_;
+    return emProbability(tst) >= PIDThreshold_;
+  } else
+    return true;
+}
+
+bool TracksterLinkingbySuperClusteringDNN::passesEmissionPIDCut(const Trackster& tst) const {
+  if (filterByTracksterPID_) {
+    return emProbability(tst) >= emissionPIDThreshold_;
   } else
     return true;
 }
@@ -309,8 +321,13 @@ void TracksterLinkingbySuperClusteringDNN::linkTracksters(
   flushBatch();
   onCandidateTransition(previousCand);
 
+  // A single trackster is a legitimate supercluster (an unconverted photon, an electron
+  // that did not radiate), so it is emitted on its own. It must still be identified as
+  // electromagnetic, or the collection is every trackster above the seed pt instead of a
+  // set of e/gamma objects.
   for (unsigned int ts_id = 0; ts_id < tracksterCount; ++ts_id) {
-    if (!tracksterMask[ts_id] && inputTracksters[ts_id].raw_pt() >= seedPtThreshold_) {
+    if (!tracksterMask[ts_id] && inputTracksters[ts_id].raw_pt() >= seedPtThreshold_ &&
+        passesEmissionPIDCut(inputTracksters[ts_id])) {
       outputSuperclusters.emplace_back(std::initializer_list<unsigned int>{ts_id});
       resultTracksters.emplace_back(inputTracksters[ts_id]);
       linkedTracksterIdToInputTracksterId.emplace_back(std::initializer_list<unsigned int>{ts_id});
@@ -369,5 +386,10 @@ void TracksterLinkingbySuperClusteringDNN::fillPSetDescription(edm::ParameterSet
           "tracksterPIDCategoriesToFilter",
           {static_cast<int>(Trackster::ParticleType::photon), static_cast<int>(Trackster::ParticleType::electron)})
       ->setComment("List of PID particle types (ticl::Trackster::ParticleType enum) to consider for PID filtering");
-  desc.add<double>("PIDThreshold", 0.8)->setComment("PID score threshold");
+  desc.add<double>("PIDThreshold", 0.8)
+      ->setComment("Minimum summed PID score for a trackster to SEED a supercluster, i.e. to absorb others.");
+  desc.add<double>("emissionPIDThreshold", 0.0)
+      ->setComment(
+          "Minimum summed PID score for a trackster to be emitted as a standalone single-trackster supercluster. "
+          "0 reproduces the previous behaviour, where that path applied no PID at all.");
 }
