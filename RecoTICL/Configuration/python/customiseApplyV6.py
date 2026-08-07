@@ -94,3 +94,21 @@ def customiseApplyV6(process):
         process.reconstruction_step.associate(process.iterTICLTask)
     _retargetValidation(process, cfg)
     return process
+
+
+def customiseSeedGsfFromTiclSuperclusters(process):
+    """Seed endcap electrons from the TICL superclusters instead of the PF ones.
+
+    Offline seeds from ``particleFlowSuperClusterHGCal``, which is Mustache over PF
+    clusters built from the FINAL tracksters. That puts GSF downstream of the candidate
+    stage, so the arbitration cannot use it and the GSF match can only relabel a candidate
+    after the fact. ``ticlEGammaSuperClusterProducer`` depends only on CLUE3DHigh and the
+    superclustering linker, both of which already run before the interpretation stage, so
+    seeding from it closes the loop upstream and leaves the schedule acyclic.
+
+    Deliberately NOT applied by customiseApplyV6: it changes which superclusters seed
+    electrons, so it needs its own A/B before it is adopted.
+    """
+    if hasattr(process, "ecalDrivenElectronSeeds") and hasattr(process, "ticlEGammaSuperClusterProducer"):
+        process.ecalDrivenElectronSeeds.endcapSuperClusters = cms.InputTag("ticlEGammaSuperClusterProducer")
+    return process
