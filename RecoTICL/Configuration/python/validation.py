@@ -21,17 +21,23 @@ SIM_COLLECTIONS = ["ticlSimTracksters", "ticlSimTrackstersfromCPs"]
 # --------------------------------------------------------------------------- #
 
 def default_validation_labels(cfg):
-    """The collections worth validating/dumping, derived from the config:
-    the primary (first) iteration trackster + links + candidate + superclustering.
-    For the v5 default this is exactly ``ticlIterLabelsPSet.labels``."""
+    """The TRACKSTER collections worth validating/dumping, derived from the config.
+
+    Every entry must be a ``vector<ticl::Trackster>``, because this list feeds
+    ``label_tst`` and the trackster-to-simTrackster associator instances. The candidate
+    label belongs to ``TICLCandidateArbitrationProducer``, which emits only
+    ``vector<TICLCandidate>``, so it is deliberately absent: naming it here books a full
+    set of monitor elements that can never be filled, and nothing throws. The final
+    tracksters come from the interpretations stage instead.
+    """
     t = cfg.target
     labels = []
     if cfg.iterations:
         labels.append(t.trackster_label(cfg.iterations[0].name))
     if cfg.links_spec:
         labels.append(t.links_label)
-    if cfg.include_candidate:
-        labels.append(t.candidate_label)
+    if cfg.interpretations_spec:
+        labels.append(t.interpretations_label)
     if cfg.superclustering_spec:
         labels.append(t.supercluster_dnn_label)
     return labels
@@ -110,7 +116,13 @@ def build_ticl_dumper(labels):
 
 
 def build_hgcal_validator(labels, primary_trackster="ticlTrackstersCLUE3DHigh",
-                          merge_label="ticlCandidate"):
+                          candidate_label="ticlCandidate",
+                          merge_trackster_label="ticlTracksterInterpretations"):
+    """``ticlTrackstersMerge`` is read as ``vector<TICLCandidate>`` by
+    TICLCandidateValidator, while the merge associator instances are named after a
+    TRACKSTER collection. They are two different collections in the two-stage chain, so
+    they are two arguments here.
+    """
     from Validation.HGCalValidation.hgcalValidator_cfi import hgcalValidator as base
     inst = associator_instances(labels)
     return base.clone(
@@ -125,11 +137,11 @@ def build_hgcal_validator(labels, primary_trackster="ticlTrackstersCLUE3DHigh",
             cms.InputTag(primary_trackster),
             cms.InputTag("ticlSimTracksters", "fromCPs"),
             cms.InputTag("ticlSimTracksters")),
-        ticlTrackstersMerge=cms.InputTag(merge_label),
+        ticlTrackstersMerge=cms.InputTag(candidate_label),
         mergeSimToRecoAssociator=cms.InputTag(
-            "allTrackstersToSimTrackstersAssociationsByLCs:ticlSimTrackstersfromCPsTo" + merge_label),
+            "allTrackstersToSimTrackstersAssociationsByLCs:ticlSimTrackstersfromCPsTo" + merge_trackster_label),
         mergeRecoToSimAssociator=cms.InputTag(
-            "allTrackstersToSimTrackstersAssociationsByLCs:" + merge_label + "ToticlSimTrackstersfromCPs"),
+            "allTrackstersToSimTrackstersAssociationsByLCs:" + merge_trackster_label + "ToticlSimTrackstersfromCPs"),
     )
 
 
@@ -151,7 +163,8 @@ def build_validation(cfg):
         "allTrackstersToSimTrackstersAssociationsByHits": build_associators_by_hits(labels),
     }
     primary = t.trackster_label(cfg.iterations[0].name) if cfg.iterations else "ticlTrackstersCLUE3DHigh"
-    modules["hgcalValidator"] = build_hgcal_validator(labels, primary, t.candidate_label)
+    merge_trackster = t.interpretations_label if cfg.interpretations_spec else t.links_label
+    modules["hgcalValidator"] = build_hgcal_validator(labels, primary, t.candidate_label, merge_trackster)
     if spec.get("dumper"):
         modules["ticlDumper"] = build_ticl_dumper(labels)
 
