@@ -105,7 +105,8 @@ public:
       for (auto const& h : truth::recoHits(reco[t], lcs))
         cellToReco[h.detId].emplace_back(t, h.fraction);
 
-    std::vector<float> deposit(n), gen_energy(n), eta(n), pt(n), shared_frac(n), reco_energy(n), reco_regressed(n);
+    std::vector<float> deposit(n), gen_energy(n), eta(n), pt(n), shared_frac(n), shared_frac_all(n), reco_energy(n),
+        reco_regressed(n);
     std::vector<int> pdgId(n), level(n), is_primary(n), is_found(n), n_contrib(n);
 
     std::unordered_map<uint32_t, double> sharedByReco;  // reused per branch
@@ -126,7 +127,7 @@ public:
       // rechit energy (cells with no rechit are absent from rechitEnergy). Shared
       // energy per reco = that rechit energy on the cells the reco reconstructs,
       // cell-fraction weighted.
-      double dep = 0., max_shared = 0.;
+      double dep = 0., max_shared = 0., tot_shared = 0.;
       float re = 0.f, rreg = 0.f;
       int nc = 0;
       sharedByReco.clear();
@@ -144,6 +145,7 @@ public:
         }
         uint32_t best = std::numeric_limits<uint32_t>::max();
         for (auto const& [recoIdx, sh] : sharedByReco) {
+          tot_shared += sh;
           if (dep > 0. && sh >= minContribFraction_ * dep)
             ++nc;
           // strict-greater with a lowest-index tie-break, so the choice does not
@@ -160,6 +162,7 @@ public:
       }
       deposit[i] = dep;
       shared_frac[i] = (dep > 0.) ? static_cast<float>(max_shared / dep) : 0.f;
+      shared_frac_all[i] = (dep > 0.) ? static_cast<float>(tot_shared / dep) : 0.f;
       is_found[i] = (dep > 0. && max_shared >= minSharedFraction_ * dep) ? 1 : 0;
       n_contrib[i] = nc;
       reco_energy[i] = re;
@@ -178,6 +181,11 @@ public:
                         "1 if a single reco trackster shares >= minSharedFraction of the branch deposited energy");
     tab->addColumn<float>("shared_frac", shared_frac,
                           "fraction of branch deposited energy captured by the dominant reco trackster");
+    // With shared_frac this separates the two ways a branch loses energy: what the
+    // dominant trackster missed but another trackster took (splitting) and what no
+    // trackster took at all (1 - shared_frac_all).
+    tab->addColumn<float>("shared_frac_all", shared_frac_all,
+                          "fraction of branch deposited energy captured by ALL reco tracksters together");
     tab->addColumn<int>("n_contrib", n_contrib,
                         "reco tracksters each sharing >= minContribFraction of the branch deposited energy");
     tab->addColumn<float>("reco_energy_best", reco_energy, "raw energy of the dominant reco trackster (GeV)");
