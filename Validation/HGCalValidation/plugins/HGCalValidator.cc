@@ -135,8 +135,10 @@ HGCalValidator::HGCalValidator(const edm::ParameterSet& pset)
         consumes<std::vector<TICLCandidate>>(pset.getParameter<edm::InputTag>("simTiclCandidates"));
     edm::EDGetTokenT<std::vector<reco::Track>> recoTracksToken =
         consumes<std::vector<reco::Track>>(pset.getParameter<edm::InputTag>("recoTracks"));
+    // The merged tracksters and the candidates are one collection in the single-producer
+    // chain and two in the two-stage one, so they are named separately.
     edm::EDGetTokenT<std::vector<ticl::Trackster>> trackstersToken =
-        consumes<std::vector<ticl::Trackster>>(pset.getParameter<edm::InputTag>("ticlTrackstersMerge"));
+        consumes<std::vector<ticl::Trackster>>(pset.getParameter<edm::InputTag>("mergedTracksters"));
     edm::EDGetTokenT<ticl::TracksterToTracksterMap> associatorMapRtSToken =
         consumes<ticl::TracksterToTracksterMap>(pset.getParameter<edm::InputTag>("mergeRecoToSimAssociator"));
     edm::EDGetTokenT<ticl::TracksterToTracksterMap> associatorMapStRToken =
@@ -877,6 +879,11 @@ void HGCalValidator::fillDescriptions(edm::ConfigurationDescriptions& descriptio
   desc.addUntracked<bool>("doCandidatesPlots", true);
   desc.add<std::string>("ticlCandidates", "ticlCandidates");
   desc.add<edm::InputTag>("ticlTrackstersMerge", edm::InputTag("ticlCandidate"));
+  desc.add<edm::InputTag>("mergedTracksters", edm::InputTag("ticlCandidate"))
+      ->setComment(
+          "Merged trackster collection. Same label as ticlTrackstersMerge in the "
+          "single-producer chain, a separate one where candidates and tracksters come "
+          "from two producers.");
   desc.add<edm::InputTag>("simTiclCandidates", edm::InputTag("ticlSimTracksters"));
   desc.add<edm::InputTag>("recoTracks", edm::InputTag("generalTracks"));
   desc.add<edm::InputTag>(

@@ -138,6 +138,7 @@ def build_hgcal_validator(labels, primary_trackster="ticlTrackstersCLUE3DHigh",
             cms.InputTag("ticlSimTracksters", "fromCPs"),
             cms.InputTag("ticlSimTracksters")),
         ticlTrackstersMerge=cms.InputTag(candidate_label),
+        mergedTracksters=cms.InputTag(merge_trackster_label),
         mergeSimToRecoAssociator=cms.InputTag(
             "allTrackstersToSimTrackstersAssociationsByLCs:ticlSimTrackstersfromCPsTo" + merge_trackster_label),
         mergeRecoToSimAssociator=cms.InputTag(
