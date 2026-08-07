@@ -247,14 +247,27 @@ def cornetto_links_defaults():
     return d
 
 
-def supercluster_dnn_defaults():
-    """Standard ``ticlTracksterLinksSuperclusteringDNN`` overrides."""
+def supercluster_dnn_defaults(pid_threshold=0.8, emission_pid_threshold=0.0):
+    """Standard ``ticlTracksterLinksSuperclusteringDNN`` overrides.
+
+    Both PID thresholds are named explicitly. An explicit ``linkingPSet`` freezes the
+    parameter list, so a threshold left to the plugin default is injected only at
+    validation time and does not appear in the dumped configuration.
+
+    ``pid_threshold`` gates SEEDING, i.e. whether a trackster may absorb others, so it
+    must stay loose or bremsstrahlung is never recovered. ``emission_pid_threshold``
+    gates emission of a standalone single-trackster supercluster, i.e. it is what asserts
+    that the object is electromagnetic. The defaults here reproduce the v5 behaviour.
+    """
     return dict(
         linkingPSet=cms.PSet(
             type=cms.string("SuperClusteringDNN"),
             algo_verbosity=cms.int32(0),
             onnxModelPath=cms.string("RecoHGCal/TICL/data/superclustering/supercls_v3.onnx"),
             nnWorkingPoint=cms.double(0.57247),
+            filterByTracksterPID=cms.bool(True),
+            PIDThreshold=cms.double(pid_threshold),
+            emissionPIDThreshold=cms.double(emission_pid_threshold),
         ),
     )
 
@@ -332,7 +345,8 @@ def v6(name="v6"):
            .iteration("CLUE3DHigh").preset()
            .iteration("Recovery").preset()
            .links(["CLUE3DHigh", "Recovery"], **cornetto_links_defaults())
-           .superclustering_dnn(source="CLUE3DHigh", **supercluster_dnn_defaults())
+           .superclustering_dnn(source="CLUE3DHigh",
+                                **supercluster_dnn_defaults(pid_threshold=0.1, emission_pid_threshold=0.3))
            .interpretations(**interp)
            .candidate(**cand)
            .pf(**pf_defaults()))
