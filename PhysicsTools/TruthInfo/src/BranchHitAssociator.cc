@@ -219,8 +219,6 @@ namespace truth {
     }
     std::sort(candidates.begin(), candidates.end());
     candidates.erase(std::unique(candidates.begin(), candidates.end()), candidates.end());
-    if (denominator <= 0.0)
-      denominator = 1.0;
 
     for (const uint32_t root : candidates) {
       auto branchHits = rootHits(root);  // sorted by detId (LogicalGraphHitIndexBuilder guarantee)

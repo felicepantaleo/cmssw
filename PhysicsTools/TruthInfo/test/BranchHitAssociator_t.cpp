@@ -91,6 +91,7 @@ class TestBranchHitAssociator : public CppUnit::TestFixture {
   CPPUNIT_TEST(testReverseScoreIsBranchNormalized);
   CPPUNIT_TEST(testTiclScoreArithmetic);
   CPPUNIT_TEST(testSharedEnergyFractionCountsOnlyTheRequestedDetectors);
+  CPPUNIT_TEST(testZeroFractionObjectScoresWorst);
   CPPUNIT_TEST_SUITE_END();
 
 public:
@@ -102,6 +103,7 @@ public:
   void testReverseScoreIsBranchNormalized();
   void testTiclScoreArithmetic();
   void testSharedEnergyFractionCountsOnlyTheRequestedDetectors();
+  void testZeroFractionObjectScoresWorst();
 };
 
 CPPUNIT_TEST_SUITE_REGISTRATION(TestBranchHitAssociator);
@@ -310,4 +312,20 @@ void TestBranchHitAssociator::testSharedEnergyFractionCountsOnlyTheRequestedDete
   CPPUNIT_ASSERT_DOUBLES_EQUAL(wholeMatches.front().score, endcapMatches.front().score, 1e-6);
   CPPUNIT_ASSERT_DOUBLES_EQUAL(64.0 / 68.0, endcapMatches.front().reverseScore, 1e-6);
   CPPUNIT_ASSERT_DOUBLES_EQUAL(wholeMatches.front().reverseScore, endcapMatches.front().reverseScore, 1e-6);
+}
+
+void TestBranchHitAssociator::testZeroFractionObjectScoresWorst() {
+  auto index = buildIndex();
+  truth::BranchHitAssociator assoc(index);  // SharedEnergy, all roots
+
+  // Every hit of the object carries fraction 0, so its self-energy denominator is
+  // 0. Such an object must score 1 (worst) on every candidate, never 0 (best).
+  std::vector<truth::RecoHit> reco{{10, 1.0f, 0.0f}, {11, 2.0f, 0.0f}, {12, 2.0f, 0.0f}};
+  auto matches = assoc.bestBranches(reco);
+
+  CPPUNIT_ASSERT(!matches.empty());
+  for (auto const& m : matches) {
+    CPPUNIT_ASSERT_DOUBLES_EQUAL(1.0, m.score, 1e-6);
+    CPPUNIT_ASSERT_DOUBLES_EQUAL(0.0, m.sharedEnergy, 1e-6);
+  }
 }

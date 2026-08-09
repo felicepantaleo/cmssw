@@ -1396,9 +1396,17 @@ namespace truth {
     // the rewrite renumbers every particle and a flag on the struct survives that for
     // free. Runs after the collapse and pile-up steps so it sees the same indexing the
     // selection will.
-    if (!config_.seedPdgIds.empty() || !config_.seedHadronFlavors.empty()) {
+    if (seedsNameAResonance(config_.seedPdgIds, config_.seedHadronFlavors)) {
       std::vector<uint32_t> matches;
       for (uint32_t particleId = 0; particleId < input.nParticles(); ++particleId) {
+        // The Signal flag belongs to the signal interaction alone: only its GEN
+        // particles can carry it, never a same-species pileup or SIM-only
+        // particle. The seed SELECTION below stays per-interaction; pileup
+        // removal is the bunch-crossing filter's job.
+        auto const& particle = input.particles()[particleId];
+        if (!particle.hasGen() || particle.eventId != 0) {
+          continue;
+        }
         if (matchesSeed(input, particleId, config_)) {
           matches.push_back(particleId);
         }

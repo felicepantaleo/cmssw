@@ -14,7 +14,9 @@
 // (interestingPdgIds, empty = all) that carry hits in the relevant channel and pass
 // a kinematic selection; the harvester (DQMGenericClient) forms the ratios.
 
+#include <algorithm>
 #include <cstdint>
+#include <cstdlib>
 #include <span>
 #include <string>
 #include <unordered_map>
@@ -164,11 +166,22 @@ private:
   MonitorElement* purity_ = nullptr;
 };
 
+namespace {
+  // Particle selection is by |pdgId|, so one entry covers particle and antiparticle.
+  std::vector<int> absPdgIds(std::vector<int> ids) {
+    for (int& id : ids)
+      id = std::abs(id);
+    std::sort(ids.begin(), ids.end());
+    ids.erase(std::unique(ids.begin(), ids.end()), ids.end());
+    return ids;
+  }
+}  // namespace
+
 template <class Traits>
 BranchRecoValidatorT<Traits>::BranchRecoValidatorT(edm::ParameterSet const& cfg)
     : graphToken_(consumes<truth::Graph>(cfg.getParameter<edm::InputTag>("src"))),
       hitIndexToken_(consumes<truth::LogicalGraphHitIndex>(cfg.getParameter<edm::InputTag>("hitIndex"))),
-      interestingPdgIds_(cfg.getParameter<std::vector<int>>("interestingPdgIds")),
+      interestingPdgIds_(absPdgIds(cfg.getParameter<std::vector<int>>("interestingPdgIds"))),
       folder_(cfg.getParameter<std::string>("folder")),
       xName_(cfg.getParameter<std::string>("xName")),
       xTitle_(cfg.getParameter<std::string>("xTitle")),
@@ -219,8 +232,8 @@ void BranchRecoValidatorT<Traits>::analyze(edm::Event const& event, edm::EventSe
   std::vector<uint32_t> roots;
   if (!interestingPdgIds_.empty()) {
     for (uint32_t i = 0; i < graph.nParticles(); ++i) {
-      const int pdgId = graph.particles()[i].pdgId;
-      if (std::find(interestingPdgIds_.begin(), interestingPdgIds_.end(), pdgId) != interestingPdgIds_.end())
+      const int pdgId = std::abs(graph.particles()[i].pdgId);
+      if (std::binary_search(interestingPdgIds_.begin(), interestingPdgIds_.end(), pdgId))
         roots.push_back(i);
     }
   }
@@ -263,8 +276,8 @@ void BranchRecoValidatorT<Traits>::analyze(edm::Event const& event, edm::EventSe
   auto considerRoot = [&](uint32_t r) {
     if (interestingPdgIds_.empty())
       return true;
-    return std::find(interestingPdgIds_.begin(), interestingPdgIds_.end(), graph.particles()[r].pdgId) !=
-           interestingPdgIds_.end();
+    return std::binary_search(
+        interestingPdgIds_.begin(), interestingPdgIds_.end(), std::abs(graph.particles()[r].pdgId));
   };
   for (uint32_t r = 0; r < nP; ++r) {
     if (!considerRoot(r) || channelHits(subgraphView, r).empty())
@@ -295,7 +308,7 @@ void BranchRecoValidatorT<Traits>::fillDescriptions(edm::ConfigurationDescriptio
   desc.add<edm::InputTag>("src", edm::InputTag("truthLogicalGraphProducer"));
   desc.add<edm::InputTag>("hitIndex", edm::InputTag("truthLogicalGraphHitIndexProducer"));
   desc.add<std::vector<int>>("interestingPdgIds", {})
-      ->setComment("Restrict the branch side to these PDG ids (empty = all branches).");
+      ->setComment("Restrict the branch side to these |PDG ids| (empty = all branches).");
   desc.add<std::string>("folder", "BranchValidator/Reco");
   desc.add<std::string>("xName", "pt")->setComment("Second-axis ME name suffix (e.g. pt or energy).");
   desc.add<std::string>("xTitle", "p_{T} [GeV]");

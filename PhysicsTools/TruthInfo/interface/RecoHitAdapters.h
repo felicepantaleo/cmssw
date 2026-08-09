@@ -67,17 +67,23 @@ namespace truth {
   }
 
   // ticl::Trackster -> the (DetId, fraction) of its layer clusters (unit energy; the
-  // calo shared-energy metric then compares cell fractions). Duplicate cells across
-  // the trackster's layer clusters are coalesced (fractions summed) so the
-  // merge-join in BranchHitAssociator sees each cell once.
+  // calo shared-energy metric then compares cell fractions). A layer cluster shared
+  // by several tracksters contributes 1/multiplicity of its fraction, as in the TICL
+  // trackster associations. Duplicate cells across the trackster's layer clusters
+  // are coalesced (fractions summed) so the merge-join in BranchHitAssociator sees
+  // each cell once.
   inline std::vector<RecoHit> recoHits(ticl::Trackster const& trackster,
                                        std::vector<reco::CaloCluster> const& layerClusters) {
     std::vector<RecoHit> hits;
-    for (unsigned int lc : trackster.vertices()) {
+    auto const& vertices = trackster.vertices();
+    auto const& multiplicities = trackster.vertex_multiplicity();
+    for (std::size_t v = 0; v < vertices.size(); ++v) {
+      const unsigned int lc = vertices[v];
       if (lc >= layerClusters.size())
         continue;
+      const float multiplicity = v < multiplicities.size() && multiplicities[v] > 0.f ? multiplicities[v] : 1.f;
       for (auto const& [detId, fraction] : layerClusters[lc].hitsAndFractions())
-        hits.push_back(RecoHit{detId.rawId(), 1.f, fraction});
+        hits.push_back(RecoHit{detId.rawId(), 1.f, fraction / multiplicity});
     }
     std::sort(hits.begin(), hits.end(), [](RecoHit const& a, RecoHit const& b) { return a.detId < b.detId; });
     std::vector<RecoHit> coalesced;

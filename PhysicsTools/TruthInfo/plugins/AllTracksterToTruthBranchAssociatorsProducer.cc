@@ -146,15 +146,31 @@ void AllTracksterToTruthBranchAssociatorsProducer::produce(edm::StreamID,
   std::sort(antichain.begin(), antichain.end());
   antichain.erase(std::unique(antichain.begin(), antichain.end()), antichain.end());
 
+  // Multi-source climb over parents with a visited mask: each ancestor is walked
+  // once however many leaves share it, O(particles + edges) overall. Non-labelable
+  // ancestors (partons, strings, bosons) are climbed through but stay out of the
+  // closure, so the adaptive match only ever lands on a real calo object.
   std::vector<uint32_t> closure = antichain;
+  std::vector<uint8_t> visited(graph.nParticles(), 0);
+  std::vector<uint32_t> frontier;
   for (const uint32_t r : antichain) {
-    if (r >= graph.nParticles())
-      continue;
-    // Climb only through labelable particle levels; the hadronization ceiling drops
-    // partons/strings/bosons so the adaptive match stays on a real calo object.
-    for (auto const& a : graph.particle(r).ancestors())
-      if (isLabelableTruthType(a.pdgId()))
-        closure.push_back(a.id());
+    if (r < graph.nParticles()) {
+      visited[r] = 1;
+      frontier.push_back(r);
+    }
+  }
+  while (!frontier.empty()) {
+    const uint32_t id = frontier.back();
+    frontier.pop_back();
+    for (auto const& parent : graph.particle(id).parents()) {
+      const uint32_t parentId = parent.id();
+      if (parentId >= visited.size() || visited[parentId])
+        continue;
+      visited[parentId] = 1;
+      frontier.push_back(parentId);
+      if (isLabelableTruthType(parent.pdgId()))
+        closure.push_back(parentId);
+    }
   }
   std::sort(closure.begin(), closure.end());
   closure.erase(std::unique(closure.begin(), closure.end()), closure.end());

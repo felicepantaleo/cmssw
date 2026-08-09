@@ -92,7 +92,7 @@ branchTrackRecoValidator = DQMEDAnalyzer(
     src=cms.InputTag("truthLogicalGraphProducer"),
     hitIndex=cms.InputTag("truthLogicalGraphHitIndexProducer"),
     recoCollection=cms.InputTag("generalTracks"),
-    interestingPdgIds=cms.vint32(13, -13),  # muons: a near-antichain (do not shower)
+    interestingPdgIds=cms.vint32(13),  # |pdgId|; muons: a near-antichain (do not shower)
     folder=cms.string("Tracking/BranchValidator/recoTrack"),
     xName=cms.string("pt"),
     xTitle=cms.string("p_{T} [GeV]"),
@@ -111,7 +111,8 @@ branchTracksterRecoValidator = DQMEDAnalyzer(
     recoCollection=cms.InputTag("ticlTrackstersCLUE3DHigh"),
     layerClusters=cms.InputTag("hgcalMergeLayerClusters"),
     # Placeholder; needs the BranchSelector calo antichain to be non-degenerate.
-    interestingPdgIds=cms.vint32(22, 11, -11, 211, -211, 321, -321, 2212, -2212, 2112),
+    # |pdgId| values: one entry covers particle and antiparticle.
+    interestingPdgIds=cms.vint32(22, 11, 211, 321, 2212, 2112),
     folder=cms.string("HGCAL/BranchValidator/Trackster"),
     xName=cms.string("energy"),
     xTitle=cms.string("E [GeV]"),
