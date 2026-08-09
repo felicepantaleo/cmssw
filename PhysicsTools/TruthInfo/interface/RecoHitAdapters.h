@@ -1,6 +1,4 @@
 // Original author: Felice Pantaleo (CERN) <felice.pantaleo@cern.ch>
-// Part of the MC-truth-graph prototype - under heavy development, not yet open
-// to external contributions (see PhysicsTools/TruthInfo/README.md).
 
 #ifndef PhysicsTools_TruthInfo_interface_RecoHitAdapters_h
 #define PhysicsTools_TruthInfo_interface_RecoHitAdapters_h
@@ -44,6 +42,28 @@ namespace truth {
         hits.push_back(RecoHit{hit->geographicalId().rawId(), 1.f, 1.f});
     }
     return hits;
+  }
+
+  // reco::CaloCluster (a single layer cluster) -> its (DetId, fraction) hits (unit
+  // energy; the calo shared-energy metric compares cell fractions). Sorted by detId,
+  // and coalesced (fractions summed) so a repeated cell is seen once by the merge-join
+  // in BranchHitAssociator. HGCAL layer clusters list each cell once, but the overload
+  // is generic over reco::CaloCluster, so the dedup keeps it correct for any input.
+  inline std::vector<RecoHit> recoHits(reco::CaloCluster const& layerCluster) {
+    std::vector<RecoHit> hits;
+    hits.reserve(layerCluster.hitsAndFractions().size());
+    for (auto const& [detId, fraction] : layerCluster.hitsAndFractions())
+      hits.push_back(RecoHit{detId.rawId(), 1.f, fraction});
+    std::sort(hits.begin(), hits.end(), [](RecoHit const& a, RecoHit const& b) { return a.detId < b.detId; });
+    std::vector<RecoHit> coalesced;
+    coalesced.reserve(hits.size());
+    for (auto const& h : hits) {
+      if (!coalesced.empty() && coalesced.back().detId == h.detId)
+        coalesced.back().fraction += h.fraction;
+      else
+        coalesced.push_back(h);
+    }
+    return coalesced;
   }
 
   // ticl::Trackster -> the (DetId, fraction) of its layer clusters (unit energy; the

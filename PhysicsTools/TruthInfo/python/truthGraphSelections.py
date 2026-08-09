@@ -1,6 +1,4 @@
 # Original author: Felice Pantaleo (CERN) <felice.pantaleo@cern.ch>
-# Part of the MC-truth-graph prototype - under heavy development, not yet open
-# to external contributions (see PhysicsTools/TruthInfo/README.md).
 
 """Per-process logical-graph selection presets for the enableTruth relval samples.
 
@@ -186,6 +184,18 @@ def selectionForFragment(name=None, template=None, **overrides):
     return selection
 
 
+def seedPdgIdsForPreset(name=None, template=None, **overrides):
+    """The preset's seed pdgIds as a plain list, for the associators' signalSeedPdgIds.
+
+    Feeding the associators the SAME values the preset seeds with makes the signalSeeds
+    product (the _signal efficiency denominator) exactly the preset's signal objects.
+    [0] is the full-graph escape hatch, not a species: it maps to an empty list, which
+    the associators read as "this sample names no resonance" and publish empty signal
+    seed products for."""
+    s = selectionForFragment(name=name, template=template, **overrides)
+    return [p for p in s["seedPdgIds"] if p != 0]
+
+
 def postProcessingPSet(name=None, template=None, **overrides):
     """``selectionForFragment`` wrapped as a complete ``cms.PSet`` (build-side
     defaults included), ready to drop into a producer's ``postProcessing``."""
@@ -195,6 +205,9 @@ def postProcessingPSet(name=None, template=None, **overrides):
     return cms.PSet(
         collapseIntermediateGenParticles=cms.bool(overrides.get("collapseIntermediateGenParticles", True)),
         seedPdgIds=cms.vint32(*s["seedPdgIds"]),
+        # Terminates the walk from the signal to its reconstructable products. pi0 by
+        # default: it decays at once to two photons but is what the analysis reconstructs.
+        reconstructablePdgIds=cms.vint32(*overrides.get("reconstructablePdgIds", [111])),
         seedHadronFlavors=cms.vint32(*s["seedHadronFlavors"]),
         seedParentDepth=cms.uint32(s["seedParentDepth"]),
         keepStableSpectators=cms.bool(s["keepStableSpectators"]),

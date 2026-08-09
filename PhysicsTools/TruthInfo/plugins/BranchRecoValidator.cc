@@ -1,6 +1,4 @@
 // Original author: Felice Pantaleo (CERN) <felice.pantaleo@cern.ch>
-// Part of the MC-truth-graph prototype - under heavy development, not yet open
-// to external contributions (see PhysicsTools/TruthInfo/README.md).
 
 // Generic reco-side DQM validator: matches any reco collection to the truth Branch
 // graph through shared detector hits and books MultiTrackValidator / HGCalValidator
@@ -145,8 +143,8 @@ private:
   const double minX_;
   const double minAbsEta_;
   const double maxAbsEta_;
-  const double matchThreshold_;
-  const double mergeThreshold_;
+  const float matchThreshold_;
+  const float mergeThreshold_;
   Traits traits_;
 
   // Truth (sim) side, vs eta and vs x.
@@ -178,8 +176,8 @@ BranchRecoValidatorT<Traits>::BranchRecoValidatorT(edm::ParameterSet const& cfg)
       minX_(cfg.getParameter<double>("minX")),
       minAbsEta_(cfg.getParameter<double>("minAbsEta")),
       maxAbsEta_(cfg.getParameter<double>("maxAbsEta")),
-      matchThreshold_(cfg.getParameter<double>("matchThreshold")),
-      mergeThreshold_(cfg.getParameter<double>("mergeThreshold")),
+      matchThreshold_(cfg.getParameter<float>("matchThreshold")),
+      mergeThreshold_(cfg.getParameter<float>("mergeThreshold")),
       traits_(cfg, consumesCollector()) {}
 
 template <class Traits>
@@ -236,19 +234,16 @@ void BranchRecoValidatorT<Traits>::analyze(edm::Event const& event, edm::EventSe
     recoDenomEta_->Fill(obj.eta);
     recoDenomX_->Fill(obj.x);
 
-    double objWeight = 0.;
-    for (auto const& h : obj.hits)
-      objWeight += static_cast<double>(h.fraction) * h.energy;
-    if (objWeight <= 0.)
-      objWeight = 1.;
-
     auto matches = assoc.bestBranches(std::span<const truth::RecoHit>(obj.hits));
-    const double bestPurity = matches.empty() ? 0. : matches.front().sharedEnergy / objWeight;
+    // Reco purity is one minus the RECO-normalised score, whatever the metric: the
+    // shared quantity itself is a cell count for the tracker and an energy for the
+    // calorimeter, so it carries no common denominator this validator could apply.
+    const float bestPurity = matches.empty() ? 0.f : 1.f - matches.front().score;
     purity_->Fill(bestPurity);
 
     int sharedBranches = 0;
     for (auto const& m : matches)
-      if (m.sharedEnergy / objWeight >= mergeThreshold_)
+      if (1.f - m.score >= mergeThreshold_)
         ++sharedBranches;
     if (sharedBranches >= 2) {
       mergeNumEta_->Fill(obj.eta);
@@ -308,8 +303,8 @@ void BranchRecoValidatorT<Traits>::fillDescriptions(edm::ConfigurationDescriptio
   desc.add<double>("minX", 0.);
   desc.add<double>("minAbsEta", 0.);
   desc.add<double>("maxAbsEta", 3.0);
-  desc.add<double>("matchThreshold", 0.5)->setComment("Min best-branch purity for a reco object to count as matched.");
-  desc.add<double>("mergeThreshold", 0.3)
+  desc.add<float>("matchThreshold", 0.5f)->setComment("Min best-branch purity for a reco object to count as matched.");
+  desc.add<float>("mergeThreshold", 0.3f)
       ->setComment("Min shared fraction for a branch to count toward a merge (>=2 -> merged reco object).");
   Traits::fillDescriptions(desc);
   descriptions.addWithDefaultLabel(desc);

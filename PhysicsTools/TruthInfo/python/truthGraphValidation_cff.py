@@ -1,6 +1,4 @@
 # Original author: Felice Pantaleo (CERN) <felice.pantaleo@cern.ch>
-# Part of the MC-truth-graph prototype - under heavy development, not yet open
-# to external contributions (see PhysicsTools/TruthInfo/README.md).
 
 # Branch performance-plot validation: the truth-graph producers, the Branch<->reco
 # association maps, and the DQM analyzers that turn them into plots comparing the
@@ -102,8 +100,8 @@ branchTrackRecoValidator = DQMEDAnalyzer(
     minX=cms.double(0.9),
     minAbsEta=cms.double(0.0),
     maxAbsEta=cms.double(3.0),
-    matchThreshold=cms.double(0.5),
-    mergeThreshold=cms.double(0.3),
+    matchThreshold=cms.float(0.5),
+    mergeThreshold=cms.float(0.3),
 )
 
 branchTracksterRecoValidator = DQMEDAnalyzer(
@@ -121,8 +119,8 @@ branchTracksterRecoValidator = DQMEDAnalyzer(
     minX=cms.double(1.0),
     minAbsEta=cms.double(1.5),
     maxAbsEta=cms.double(3.0),
-    matchThreshold=cms.double(0.5),
-    mergeThreshold=cms.double(0.3),
+    matchThreshold=cms.float(0.5),
+    mergeThreshold=cms.float(0.3),
 )
 
 # Producers (truth graph + hit index + association maps) followed by the DQM
