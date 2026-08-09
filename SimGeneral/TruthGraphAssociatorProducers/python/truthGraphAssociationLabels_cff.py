@@ -209,9 +209,15 @@ def associatorInstances(domain):
     return instances
 
 
+# Domains with an association producer in truthGraphAssociators_cff. The label PSets
+# above also carry pfCandidates and jets for forward compatibility; enumerating those
+# here would advertise product instances nothing produces.
+producedDomains = ("tracks", "vertices", "secondaryVertices", "tracksters")
+
+
 def allAssociatorInstances():
-    """The union over every configured domain, for a consumer that takes them flat."""
+    """The union over every produced domain, for a consumer that takes them flat."""
     instances = []
-    for domain in truthGraphRecoLabelsPSet.parameterNames_():
+    for domain in producedDomains:
         instances.extend(associatorInstances(domain))
     return instances

@@ -4,6 +4,7 @@
 // reports rows, non-empty rows and total entries per map, which is what distinguishes
 // a working associator from one that quietly wrote empty maps on every event.
 
+#include <limits>
 #include <string>
 #include <vector>
 

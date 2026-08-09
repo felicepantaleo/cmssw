@@ -369,6 +369,11 @@ AllRecoToTruthBranchAssociatorsProducer<RECO>::AllRecoToTruthBranchAssociatorsPr
     throw cms::Exception("Configuration")
         << "workingPointNames, adaptiveReverseWeight and adaptiveMaxReverseScore must have the same length";
   }
+  if (names.empty()) {
+    throw cms::Exception("Configuration")
+        << "workingPointNames is empty: the truth-driven maps are filled inside the working-point loop, so an empty "
+           "list would silently produce empty TruthToReco products";
+  }
   for (std::size_t i = 0; i < names.size(); ++i) {
     // "Fixed" means the plain per-root match; every other point drives the climb.
     workingPoints_.push_back(
@@ -709,17 +714,26 @@ void AllRecoToTruthBranchAssociatorsProducer<RECO>::produce(edm::StreamID,
     // showered in the barrel has a channel-wide energy no endcap trackster can cover
     // half of. Measured on 200 no-PU ttbar events: 0.5% to 10% of a top branch's
     // channel energy is in HGCAL, so the fraction was zero for every top.
+    // Hit-based domains: each object's hit adaptation is independent of the working
+    // point, so it is built ONCE per collection and shared by the detector scan and
+    // every working point below.
+    std::vector<std::vector<truth::RecoHit>> recoHitsPerObject;
+    if constexpr (!ConstituentBasedDomain<RECO>) {
+      recoHitsPerObject.resize(nReco);
+      for (unsigned int i = 0; i < nReco; ++i) {
+        if constexpr (LayerClusterBackedRecoHits<RECO>) {
+          recoHitsPerObject[i] = truth::recoHits((*handle)[i], *layerClusters);
+        } else {
+          recoHitsPerObject[i] = truth::recoHits((*handle)[i]);
+        }
+      }
+    }
+
     uint32_t denominatorDetectors = truth::BranchHitAssociator::kAllDetectors;
     if constexpr (!ConstituentBasedDomain<RECO>) {
       if constexpr (Traits::metric == truth::BranchHitAssociator::Metric::SharedEnergy) {
         uint32_t seen = 0;
-        for (unsigned int i = 0; i < nReco; ++i) {
-          std::vector<truth::RecoHit> hits;
-          if constexpr (LayerClusterBackedRecoHits<RECO>) {
-            hits = truth::recoHits((*handle)[i], *layerClusters);
-          } else {
-            hits = truth::recoHits((*handle)[i]);
-          }
+        for (auto const& hits : recoHitsPerObject) {
           for (auto const& hit : hits) {
             seen |= truth::BranchHitAssociator::detectorBit(hit.detId);
           }
@@ -738,11 +752,10 @@ void AllRecoToTruthBranchAssociatorsProducer<RECO>::produce(edm::StreamID,
     std::unordered_map<unsigned int, std::vector<std::pair<unsigned int, float>>> sharedWeightPerTruthVertex;
     std::unordered_map<unsigned int, float> truthWeightTotal;
 
-    // Hit-based domains: the inverted DetId index, the per-cell denominators and each
-    // object's hit adaptation are all independent of the working point, so they are
-    // built ONCE per collection and shared by every working point below.
+    // Hit-based domains: the inverted DetId index and the per-cell denominators are
+    // independent of the working point, so the associator is built ONCE per
+    // collection and shared by every working point below.
     std::optional<truth::BranchHitAssociator> hitAssociator;
-    std::vector<std::vector<truth::RecoHit>> recoHitsPerObject;
     if constexpr (!ConstituentBasedDomain<RECO>) {
       hitAssociator.emplace(hitIndex,
                             selectedRoots,
@@ -750,14 +763,6 @@ void AllRecoToTruthBranchAssociatorsProducer<RECO>::produce(edm::StreamID,
                             Traits::channel,
                             /*emptyRootsMeansAll=*/false,
                             denominatorDetectors);
-      recoHitsPerObject.resize(nReco);
-      for (unsigned int i = 0; i < nReco; ++i) {
-        if constexpr (LayerClusterBackedRecoHits<RECO>) {
-          recoHitsPerObject[i] = truth::recoHits((*handle)[i], *layerClusters);
-        } else {
-          recoHitsPerObject[i] = truth::recoHits((*handle)[i]);
-        }
-      }
     }
 
     for (std::size_t wpIndex = 0; wpIndex < workingPoints_.size(); ++wpIndex) {
@@ -820,6 +825,13 @@ void AllRecoToTruthBranchAssociatorsProducer<RECO>::produce(edm::StreamID,
           }
           const std::span<const truth::RecoHit> span(recoHitsPerObject[i]);
 
+          // One candidate list serves both the fixed working point and the
+          // truth-driven fill below.
+          std::vector<truth::BranchMatch> matches;
+          if (!wp.adaptive || wpIndex == 0) {
+            matches = associator.bestBranches(span);
+          }
+
           // RECO to TRUTH: the working point drives the search, and the score is
           // reco-normalised, so 1 - score is the RECO purity.
           if (wp.adaptive) {
@@ -828,7 +840,7 @@ void AllRecoToTruthBranchAssociatorsProducer<RECO>::produce(edm::StreamID,
               recoToTruth->insert(i, match.rootParticleId, match.sharedEnergy, match.score);
             }
           } else {
-            for (auto const& match : associator.bestBranches(span)) {
+            for (auto const& match : matches) {
               recoToTruth->insert(i, match.rootParticleId, match.sharedEnergy, match.score);
             }
           }
@@ -842,7 +854,7 @@ void AllRecoToTruthBranchAssociatorsProducer<RECO>::produce(edm::StreamID,
           // keeps reporting the shared hit count.
           if (wpIndex == 0) {
             constexpr bool sharedEnergyMetric = Traits::metric == truth::BranchHitAssociator::Metric::SharedEnergy;
-            for (auto const& match : associator.bestBranches(span)) {
+            for (auto const& match : matches) {
               const float truthValue = sharedEnergyMetric ? match.sharedEnergyFraction : match.sharedEnergy;
               truthToReco->insert(match.rootParticleId, i, truthValue, match.reverseScore);
             }
