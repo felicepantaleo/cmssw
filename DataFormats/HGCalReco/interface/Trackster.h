@@ -91,7 +91,7 @@ namespace ticl {
 
         //remove duplicates
         removeDuplicates();
-        zeroProbabilities();
+        setProbabilitiesUnknown();
         calculateRawPt();
         calculateRawEmPt();
       }
@@ -103,7 +103,7 @@ namespace ticl {
 
         //remove duplicates
         removeDuplicates();
-        zeroProbabilities();
+        setProbabilitiesUnknown();
         calculateRawPt();
         calculateRawEmPt();
       }
@@ -115,7 +115,7 @@ namespace ticl {
 
         //remove duplicates
         removeDuplicates();
-        zeroProbabilities();
+        setProbabilitiesUnknown();
         calculateRawPt();
         calculateRawEmPt();
       }
@@ -127,7 +127,7 @@ namespace ticl {
 
         //remove duplicates
         removeDuplicates();
-        zeroProbabilities();
+        setProbabilitiesUnknown();
         calculateRawPt();
         calculateRawEmPt();
       }
@@ -167,6 +167,12 @@ namespace ticl {
         for (auto &p : id_probabilities_) {
           p = 0.f;
         }
+      }
+      // A merged trackster is unclassified: the PID was inferred on the fragments, not on the
+      // merged shower. unknown=1 keeps the array a probability distribution; all-zero is not one.
+      void setProbabilitiesUnknown() {
+        zeroProbabilities();
+        id_probabilities_[static_cast<int>(ParticleType::unknown)] = 1.f;
       }
       inline void setProbabilities(float *probs) {
         for (float &p : id_probabilities_) {
