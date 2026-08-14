@@ -1,3 +1,4 @@
+#include <cmath>
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
 #include "DataFormats/Common/interface/ValueMap.h"
 #include "RecoLocalCalo/HGCalRecProducers/interface/ComputeClusterTime.h"
@@ -147,24 +148,14 @@ void ticl::assignPCAtoTracksters(std::vector<Trackster> &tracksters,
     LogDebug("TrackstersPCA") << "Time:          " << trackster.time() << " +/- " << trackster.timeError() << std::endl;
 
     if (N <= 2) {
-      // A trackster of one or two layer clusters has a degenerate covariance, so the PCA was
-      // skipped and the axes stayed at their default: measured on PU200, 100% of one-cluster
-      // tracksters carried eigenvectors_[0] = (0,0,0), i.e. cos(pointing) = 0. An axis
-      // orthogonal to the flight direction is worse than a missing one, because consumers read
-      // it as a real direction.
-      //
-      // Give them the frame the geometry defines, with HONEST widths rather than zeros:
-      //   e0 radially outward from the interaction point, the direction a shower travels;
-      //   e1 azimuthal; e2 = e0 x e1.
-      // The object is not point like: it occupies one CELL, and that cell size is measured
-      // geometry, not an invention. The transverse extents follow from the sensor: a
-      // scintillator tile spans R*dEta by R*dPhi (since dEta = dTheta/sinTheta and the arc at
-      // distance D is D*dTheta = R*dEta), a silicon cell spans twice its radius to side.
-      // Longitudinally a single layer spans the sensor thickness. Widths are quoted as the
-      // standard deviation of a uniform distribution over that width, w/sqrt(12), so a
-      // consumer can turn them into a direction uncertainty of roughly sigma_T / |position|:
-      // these objects then say "pointing, but with a large angular error" instead of claiming
-      // an impossible zero extent.
+      // A one or two layer cluster trackster has a degenerate covariance, so the PCA leaves
+      // eigenvectors_[0] = (0,0,0), which consumers read as a real direction orthogonal to
+      // the flight direction (measured PU200: 100% of one-cluster tracksters).
+      // Give them the geometric frame instead: e0 radially outward, the direction a shower
+      // travels, e1 azimuthal, e2 = e0 x e1. Widths are the extent of the one CELL the
+      // object occupies, quoted as the standard deviation of a uniform distribution over
+      // that width, w/sqrt(12), so a consumer reads a direction uncertainty of roughly
+      // sigma_T / |position| rather than an impossible zero extent.
       const Eigen::Vector3f pos = barycenter;
       const float norm = pos.norm();
       if (norm > 0.f) {
@@ -180,18 +171,31 @@ void ticl::assignPCAtoTracksters(std::vector<Trackster> &tracksters,
         evecs.col(1) = e1;
         evecs.col(2) = e2;
 
-        // Cell extent of the seed layer cluster, in cm.
+        // Cell extent of the seed layer cluster [cm]. Each branch MUST be guarded on the
+        // detector it handles: getRadiusToSide does not throw on a foreign DetId, it logs
+        // and returns numeric_limits<float>::max(), and twice that is inf, which would be
+        // persisted as the trackster width. Anything else, the barrel included, keeps
+        // zero widths.
+        constexpr float kScintThicknessCm = 0.3f;  // CE-H scintillator tile
         float wPhi = 0.f, wEta = 0.f, wLong = 0.f;
         const auto seed = layerClusters[trackster.vertices(0)].seed();
-        if (seed.rawId() != 0) {
-          if (rhtools.isScintillator(seed)) {
-            const auto dEtaDPhi = rhtools.getScintDEtaDPhi(seed);
-            wEta = rT * dEtaDPhi.first;
-            wPhi = rT * dEtaDPhi.second;
-          } else {
-            const float side = rhtools.getRadiusToSide(seed);
-            wEta = wPhi = 2.f * side;
-            wLong = 1e-4f * rhtools.getSiThickness(seed);  // um -> cm
+        if (rhtools.isScintillator(seed)) {
+          // Tile segmentation is angular, so its arc length at transverse radius rT is
+          // rT*dEta by rT*dPhi.
+          const auto dEtaDPhi = rhtools.getScintDEtaDPhi(seed);
+          wEta = rT * dEtaDPhi.first;
+          wPhi = rT * dEtaDPhi.second;
+          wLong = kScintThicknessCm;
+        } else if (rhtools.isSilicon(seed)) {
+          // Test the VALUE, not the detector class: getRadiusToSide returns its
+          // numeric_limits<float>::max() sentinel both for a non-silicon id AND for a
+          // silicon cell absent from the configured geometry, and twice that is an inf
+          // width in a persisted product.
+          const float rToSide = rhtools.getRadiusToSide(seed);
+          const float siThickness = rhtools.getSiThickness(seed);
+          if (std::isfinite(rToSide) and std::isfinite(siThickness)) {
+            wEta = wPhi = 2.f * rToSide;
+            wLong = 1e-4f * siThickness;  // um -> cm
           }
         }
         constexpr float kUniform = 1.f / 12.f;  // variance of a uniform distribution of width w
