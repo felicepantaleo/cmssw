@@ -244,3 +244,10 @@ This class allows N tasks from the queue to be run at any given time where N in 
   group.wait();
 }
 ```
+
+## `edm::ElasticTaskQueue`, `edm::ModulePoolPolicy`, `edm::ElasticGate`
+A prototype that bounds how many streams run a given `edm::stream` module at once,
+at a limit the module derives from its own observed load. Not proposed for merge as
+it stands; see [doc/elastic-gate.md](doc/elastic-gate.md) for the design, the
+measured behaviour and the constraints, in particular that it is an ABI break for
+prebuilt stream-module plugins.
