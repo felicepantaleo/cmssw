@@ -27,11 +27,17 @@ namespace edmtest {
   class ElasticGateTestAcquirer : public edm::stream::EDProducer<edm::ExternalWork> {
   public:
     explicit ElasticGateTestAcquirer(edm::ParameterSet const& pset)
-        : asyncMicros_{pset.getParameter<unsigned int>("asyncMicros")} {
+        : asyncMicros_{pset.getParameter<unsigned int>("asyncMicros")},
+          throwEvery_{pset.getParameter<unsigned int>("throwEvery")} {
       produces<unsigned int>();
     }
 
     void acquire(edm::Event const&, edm::EventSetup const&, edm::WaitingTaskWithArenaHolder holder) override {
+      // Fails before the slot could ever be given back by produce, which is the
+      // path that used to leak the reservation for the rest of the job.
+      if (throwEvery_ != 0 and ++seen_ % throwEvery_ == 0) {
+        throw cms::Exception("ElasticGateTestFailure") << "deliberate acquire failure";
+      }
       if (inUse_.exchange(true)) {
         throw cms::Exception("ElasticGateOverlap")
             << "two events entered the same instance of ElasticGateTestAcquirer at once";
@@ -55,11 +61,14 @@ namespace edmtest {
     static void fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
       edm::ParameterSetDescription desc;
       desc.add<unsigned int>("asyncMicros", 2000);
+      desc.add<unsigned int>("throwEvery", 0);
       descriptions.addDefault(desc);
     }
 
   private:
     const unsigned int asyncMicros_;
+    const unsigned int throwEvery_;
+    unsigned int seen_ = 0;
     std::atomic<bool> inUse_{false};
     unsigned int buffer_ = 0;
   };

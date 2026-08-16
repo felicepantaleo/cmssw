@@ -96,8 +96,6 @@ namespace edm {
     }
 
   private:
-    friend struct SlotReleaser;
-
     using Action = std::function<void(Slot&&)>;
     struct Pending {
       std::shared_ptr<Action> action;

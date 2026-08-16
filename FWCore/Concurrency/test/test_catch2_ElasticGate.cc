@@ -79,3 +79,48 @@ TEST_CASE("ElasticGate never runs more at once than its own limit", "[ElasticGat
   REQUIRE(result.peak <= 4u);
   REQUIRE(result.limit <= 4u);
 }
+
+TEST_CASE("ElasticGate returns every reservation", "[ElasticGate]") {
+  constexpr unsigned int kStreams = 4;
+
+  SECTION("releasing a stream that never reserved is a no-op") {
+    // Reached when the prefetch fails before acquire runs, so produce has to be
+    // able to release unconditionally without inventing an invocation.
+    edm::ElasticGate gate{kStreams};
+    gate.releaseSlot(2);
+    REQUIRE(gate.policy().invocations() == 0u);
+    REQUIRE(gate.concurrencyLimit() >= 1u);
+  }
+
+  SECTION("a reservation survives its call and is given back once released") {
+    edm::ElasticGate gate{kStreams};
+    oneapi::tbb::task_group group;
+    gate.pushAndHold(group, 1, []() {});
+    group.wait();
+    // Still held: the point of pushAndHold is that the claim outlives the call.
+    REQUIRE(gate.policy().invocations() == 0u);
+    gate.releaseSlot(1);
+    REQUIRE(gate.policy().invocations() == 1u);
+    // Releasing again must not charge the policy a second time.
+    gate.releaseSlot(1);
+    REQUIRE(gate.policy().invocations() == 1u);
+  }
+
+  SECTION("reservations on many streams are all returned") {
+    edm::ElasticGate gate{kStreams};
+    oneapi::tbb::task_group group;
+    for (unsigned int s = 0; s < kStreams; ++s) {
+      gate.pushAndHold(group, s, []() {});
+    }
+    group.wait();
+    for (unsigned int s = 0; s < kStreams; ++s) {
+      gate.releaseSlot(s);
+    }
+    REQUIRE(gate.policy().invocations() == kStreams);
+    // Every slot back, so a fresh reservation still succeeds immediately.
+    gate.pushAndHold(group, 0, []() {});
+    group.wait();
+    gate.releaseSlot(0);
+    REQUIRE(gate.policy().invocations() == kStreams + 1);
+  }
+}

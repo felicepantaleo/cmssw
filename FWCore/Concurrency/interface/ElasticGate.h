@@ -100,6 +100,12 @@ namespace edm {
 
   inline void ElasticGate::releaseSlot(unsigned int streamID) {
     auto& reservation = reservations_[streamID];
+    // Nothing to give back if the stream never reserved, which happens when the
+    // prefetch failed before acquire ran. Charging the policy here would feed it
+    // the default-constructed timestamps.
+    if (not reservation.slot) {
+      return;
+    }
     const auto finished = std::chrono::steady_clock::now();
     const unsigned int limit =
         policy_.recordCompletion(finished - reservation.started, reservation.started - reservation.pushed);

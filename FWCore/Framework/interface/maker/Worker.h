@@ -432,20 +432,24 @@ namespace edm {
           m_worker->emitPostModuleGlobalPrefetchingSignal();
         }
 
+        if constexpr (T::isEvent_) {
+          // With an acquire the slot was reserved there, so produce runs on it
+          // directly rather than queueing again. This is reached even when excptr is
+          // already set, because the reservation has to be given back on every path
+          // out of produce, including the one where acquire failed.
+          if (auto queue = m_worker->serializeRunModule(); m_worker->hasAcquire()) {
+            if (auto* gate = queue.elastic()) {
+              const unsigned int streamID = m_streamID.value();
+              m_worker->template runModuleAfterAsyncPrefetch<T>(
+                  excptr, m_transitionInfo, m_streamID, m_parentContext, m_context);
+              gate->releaseSlot(streamID);
+              return;
+            }
+          }
+        }
+
         if (not excptr) {
           if (auto queue = m_worker->serializeRunModule()) {
-            if constexpr (T::isEvent_) {
-              // With an acquire, the slot was reserved there and is still ours, so
-              // run produce on it directly and end the reservation afterwards
-              // instead of queueing a second time.
-              if (auto* gate = queue.elastic(); gate != nullptr and m_worker->hasAcquire()) {
-                const unsigned int streamID = m_streamID.value();
-                m_worker->template runModuleAfterAsyncPrefetch<T>(
-                    excptr, m_transitionInfo, m_streamID, m_parentContext, m_context);
-                gate->releaseSlot(streamID);
-                return;
-              }
-            }
             auto f = [worker = m_worker,
                       info = m_transitionInfo,
                       streamID = m_streamID,

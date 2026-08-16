@@ -100,6 +100,15 @@ pointer without running the deleter. Calling it where `reset()` is meant compile
 does nothing, and leaks the claim until the pool wedges. The
 "gives every slot back" test asserts `running() == 0` and catches it.
 
+**A reservation must be given back on every path out of produce, including the
+failing one.** `runAcquireAfterAsyncPrefetch` and `runModuleAfterAsyncPrefetch` are
+both `noexcept`, so a failure in acquire or in the device work arrives as a set
+`excptr` rather than as a thrown exception. Releasing only on the success path leaks
+the slot for the rest of the job: with a floor of one, the first failed event wedges
+the module. `FWCore/Framework/test/elastic_gate_throw_cfg.py` reproduces it, and
+`releaseSlot` is a no-op when the stream holds nothing, which is the case when the
+prefetch failed before acquire ran.
+
 **This is an ABI break for every prebuilt stream-module plugin.** The gate adds a
 member to `ProducingModuleAdaptorBase<T>`, a template that every plugin defining an
 `edm::stream` module instantiates, and a pointer to `Worker::TaskQueueAdaptor`, which
