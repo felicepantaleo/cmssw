@@ -10,61 +10,20 @@
  Description: Decides how many interchangeable instances of one module a workload needs
 
  Usage:
-    A pool of interchangeable module instances reports each completed invocation to
- this policy, which returns the number of instances the pool should hold. The size
- never exceeds the maximum given at construction (the stream count, since at most
- that many invocations can be in flight at once).
+    A pool reports each completed invocation and is told how many instances to hold.
+ The estimate is Little's law over the LAST window: demand is (holding + waiting) /
+ elapsed, so it measures what was asked for rather than what the current limit let
+ through. The size moves one slot per window in either direction, growing at once
+ and shrinking only after shrinkPatience windows agree, and stays within
+ [minInstances, maxInstances].
 
-    The estimate is Little's law, applied to the whole system rather than to the
- servers alone. For a module invoked at rate lambda, held for a mean time t and
- waiting a mean time w for a free instance, the mean number of invocations in the
- system is lambda * (t + w), which equals the total of holding and waiting time
- divided by the elapsed wall time. Neither the rate nor the two means have to be
- tracked separately. A headroom multiplier covers estimation error and burstiness.
+    Holding time is WALL CLOCK from checkout to release, never CPU. A module that
+ parallelises internally finishes sooner and so needs fewer instances, which is
+ correct; charging it CPU time would multiply its estimate by its own thread count.
+ An ExternalWork module holds its instance across acquire, the device work and
+ produce, and checkout to release spans exactly that.
 
-    Counting the wait, and not only the holding time, matters once a limit is being
- enforced: invocations in service are capped by that limit, so lambda * t saturates
- there and could never ask for more than is already allowed.
-
-    The estimate is taken over the LAST WINDOW alone, never over the job so far. A
- lifetime average would carry the startup queue forever and keep asking for more;
- measured on the Phase-2 HLT menu that pinned 22 modules to the stream count on a
- median true demand of 0.011.
-
-    The size moves by ONE slot per window in either direction. Growth is paced so
- that a window reading far too high, which is what the first windows read while the
- limit is still too low and the gate is itself the cause of the queue it measures,
- cannot open the pool to its cap in a single step. Shrinking waits for
- shrinkPatience consecutive windows that justify fewer slots, so a brief lull does
- not close a pool that is about to be busy again.
-
-    Shrinking here means a slot stops being handed out, not that anything is
- destroyed. That is why it is cheap and why no module needs protecting from it: a
- pool that shrinks too far only loses throughput, and the next busy window grows it
- back. Nothing is reconstructed, so an expensive constructor costs nothing.
-
-    There is no absolute time constant anywhere in the policy, so it behaves the
- same for modules spanning microseconds to hundreds of milliseconds and adapts by
- itself when a module moves between a host and a device backend.
-
-    Holding time is WALL CLOCK, from checkout to release, and never CPU time. Two
- cases make the distinction load bearing:
-
-    - A module that parallelises internally (tbb::parallel_for) consumes several
-      threads at once but finishes sooner. Its wall holding time is short, so it
-      needs few instances, which is correct: it is already coping with the load.
-      Sizing on CPU time instead would multiply the estimate by the internal thread
-      count and inflate the pool for exactly the modules that need it least. It
-      also means a module has two ways out of being a bottleneck, more instances or
-      more internal parallelism, and the second costs no memory. This policy
-      rewards the second automatically.
-    - An ExternalWork module holds its instance across acquire, the asynchronous
-      device work, and produce, because the device is writing into per-instance
-      buffers. Measuring checkout to release captures that gap; summing the CPU
-      spent in acquire and in produce would not.
-
- Thread safety:
-    recordCompletion may be called concurrently from any thread. Exactly one thread
+ Thread safety: recordCompletion may be called concurrently. Exactly one thread
  performs each window evaluation.
 
 */
@@ -129,7 +88,7 @@ namespace edm {
     std::uint64_t invocations() const noexcept { return invocations_.load(std::memory_order_relaxed); }
 
   private:
-    void evaluate(std::uint64_t invocations) noexcept;
+    void evaluate() noexcept;
 
     const unsigned int maxInstances_;
     const Config config_;

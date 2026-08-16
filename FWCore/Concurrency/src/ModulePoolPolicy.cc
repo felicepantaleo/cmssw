@@ -48,13 +48,13 @@ namespace edm {
     if (seen - windowStart >= config_.evaluationInterval) {
       // Whichever thread wins the exchange owns this window evaluation.
       if (invocationsAtWindowStart_.compare_exchange_strong(windowStart, seen, std::memory_order_acq_rel)) {
-        evaluate(seen);
+        evaluate();
       }
     }
     return targetSize();
   }
 
-  void ModulePoolPolicy::evaluate(std::uint64_t) noexcept {
+  void ModulePoolPolicy::evaluate() noexcept {
     const std::uint64_t now = nowNanos();
     const std::uint64_t windowStart = windowStartNanos_.exchange(now, std::memory_order_acq_rel);
     const std::uint64_t hold = windowHoldNanos_.exchange(0, std::memory_order_acq_rel);

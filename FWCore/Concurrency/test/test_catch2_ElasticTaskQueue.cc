@@ -123,7 +123,7 @@ TEST_CASE("ElasticTaskQueue reserves a slot across an asynchronous gap", "[Elast
         std::this_thread::sleep_for(200us);
         --inFlight;
         ++done;
-        held->release();
+        held->reset();
       });
     });
   }
