@@ -109,6 +109,13 @@ the module. `FWCore/Framework/test/elastic_gate_throw_cfg.py` reproduces it, and
 `releaseSlot` is a no-op when the stream holds nothing, which is the case when the
 prefetch failed before acquire ran.
 
+**A freed slot is given back before it is offered to a waiting action.** Handing it
+straight to the next waiter is the obvious implementation and it is wrong: with a
+continuous backlog the running count never falls, so lowering the limit has no effect
+until the queue empties. Measured at 6 concurrent against a limit of 1 before the
+fix. Note the test needs several pushing threads to show it, because with one pusher
+the inline fast path runs each action to completion and no backlog ever forms.
+
 **This is an ABI break for every prebuilt stream-module plugin.** The gate adds a
 member to `ProducingModuleAdaptorBase<T>`, a template that every plugin defining an
 `edm::stream` module instantiates, and a pointer to `Worker::TaskQueueAdaptor`, which

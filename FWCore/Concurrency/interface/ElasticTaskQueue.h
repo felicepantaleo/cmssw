@@ -114,8 +114,20 @@ namespace edm {
       return false;
     }
 
-    // Hands the slot to a waiting action if there is one, otherwise gives it back.
+    // Gives the slot back, then admits a waiting action if the limit still allows
+    // one. The claim is dropped and retaken rather than handed straight over, so a
+    // lowered limit takes effect even while a backlog keeps arriving; passing it on
+    // directly would pin the count at the old limit for as long as work queues up.
     void releaseOne() noexcept {
+      running_.fetch_sub(1, std::memory_order_acq_rel);
+      admitOne();
+    }
+
+    // Starts one waiting action if a slot can be claimed for it.
+    void admitOne() noexcept {
+      if (not tryClaim()) {
+        return;
+      }
       Pending next;
       if (pending_.try_pop(next)) {
         next.group->run([queue = this, action = next.action]() { (*action)(Slot{queue}); });
@@ -128,9 +140,7 @@ namespace edm {
       pending_.push(Pending{std::make_shared<Action>(std::move(iAction)), &iGroup});
       // A slot may have come free between the failed claim and the push above, so
       // retry once; otherwise this action could sit waiting with the queue idle.
-      if (tryClaim()) {
-        releaseOne();
-      }
+      admitOne();
     }
 
     const unsigned int max_;
