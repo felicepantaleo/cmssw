@@ -21,3 +21,7 @@
 <library file="TruthBranchTargetsProducer.cc" name="TruthBranchTargetsProducerPlugins">
   <flags EDM_PLUGIN="1"/>
 </library>
+
+<library file="TruthBranchTracksterAssociationJsonDumper.cc" name="TruthBranchTracksterAssociationJsonDumperPlugins">
+  <flags EDM_PLUGIN="1"/>
+</library>
