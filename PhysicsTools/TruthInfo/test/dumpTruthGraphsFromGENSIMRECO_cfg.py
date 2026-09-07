@@ -49,6 +49,11 @@ parser.add_argument("--bunch-crossings", dest='bunchCrossings', default=None,
 parser.add_argument("--geometry", default="ExtendedRun4D122",
                     help="geometry key of the sample, e.g. ExtendedRun4D122; it must match the one that "
                          "produced the input file, default=%(default)r" )
+parser.add_argument("--associations", action="store_true",
+                    help="also run the truth-branch trackster associators and dump the reco to truth "
+                         "matches as JSON, for the interactive viewer" )
+parser.add_argument("--assocCollections", default="ticlTrackstersCLUE3DHigh,ticlCandidate",
+                    help="comma-separated trackster collections to associate, default=%(default)r" )
 parser.add_argument("--layout", default="dot",
                     help="DOT layout for the logical-graph dump: 'dot' (default, hierarchical L->R ranks) "
                          "or a force-directed engine ('sfdp'/'fdp'/'neato') for node repulsion + spring edges" )
@@ -338,5 +343,56 @@ process.truthGraph_step = cms.Path(
     + process.pfRecHitTable
     + process.trackerSimHitTable
 )
+
+# Trackster to truth-branch association, in the SAME job as the graph dump. A match
+# names its branch by a truth::Graph particle index, which is the index the logical
+# dumper writes its nodes under, so the two outputs only join if one job builds both.
+if args.associations:
+    from SimGeneral.TruthGraphAssociatorProducers.truthGraphAssociationLabels_cff import (
+        truthBranchWorkingPointsPSet,
+    )
+    from SimGeneral.TruthGraphAssociatorProducers.truthGraphAssociators_cff import (
+        truthBranchSelectorBlock,
+    )
+
+    assocCollections = [name for name in args.assocCollections.split(',') if name]
+
+    process.truthBranchTargets = cms.EDProducer(
+        "TruthBranchTargetsProducer",
+        src=cms.InputTag("truthLogicalGraphProducer"),
+        branchSelector=truthBranchSelectorBlock,
+        truthLevels=cms.vstring("caloBoundary", "reconstructableFromSignal", "stableDecayProducts"),
+        signalSeedPdgIds=cms.vint32(),
+        signalSeedHadronFlavors=cms.vint32(),
+        truthToRecoSignalOnly=cms.bool(False),
+    )
+
+    process.truthBranchTracksterAssociators = cms.EDProducer(
+        "TruthBranchTracksterAssociatorsProducer",
+        recoCollections=cms.VInputTag(*[cms.InputTag(name) for name in assocCollections]),
+        targetsSrc=cms.InputTag("truthBranchTargets", "selectedRoots"),
+        layerClusters=cms.InputTag("hgcalMergeLayerClusters"),
+        denominatorDetectors=cms.vstring("HGCalEE", "HGCalHSi", "HGCalHSc"),
+        src=cms.InputTag("truthLogicalGraphProducer"),
+        hitIndex=cms.InputTag("truthLogicalGraphHitIndexProducer"),
+        workingPointNames=cms.vstring(*truthBranchWorkingPointsPSet.names),
+        adaptiveReverseWeight=cms.vfloat(*truthBranchWorkingPointsPSet.adaptiveReverseWeight),
+        adaptiveMaxReverseScore=cms.vfloat(*truthBranchWorkingPointsPSet.adaptiveMaxReverseScore),
+    )
+
+    process.truthBranchTracksterAssociationJson = cms.EDAnalyzer(
+        "TruthBranchTracksterAssociationJsonDumper",
+        jsonFile=cms.string(os.path.join(args.outdir, f"trackster_associations{args.tag}.json")),
+        recoCollections=cms.VInputTag(*[cms.InputTag(name) for name in assocCollections]),
+        associator=cms.string("truthBranchTracksterAssociators"),
+        workingPointNames=cms.vstring(*truthBranchWorkingPointsPSet.names),
+        maxMatches=cms.uint32(5),
+    )
+
+    process.truthGraph_step += (
+        process.truthBranchTargets
+        + process.truthBranchTracksterAssociators
+        + process.truthBranchTracksterAssociationJson
+    )
 
 process.nano_step = cms.EndPath(process.NANOAODSIMoutput)
