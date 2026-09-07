@@ -388,7 +388,7 @@ if args.associations:
         recoCollections=cms.VInputTag(*[cms.InputTag(name) for name in assocCollections]),
         associator=cms.string("truthBranchTracksterAssociators"),
         workingPointNames=cms.vstring(*truthBranchWorkingPointsPSet.names),
-        maxMatches=cms.uint32(5),
+        maxMatches=cms.uint32(40),
     )
 
     process.truthGraph_step += (
