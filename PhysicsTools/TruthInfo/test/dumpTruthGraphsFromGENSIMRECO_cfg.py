@@ -49,6 +49,10 @@ parser.add_argument("--associations", action="store_true",
                          "matches as JSON, for the interactive viewer" )
 parser.add_argument("--assocCollections", default="ticlTrackstersCLUE3DHigh,ticlCandidate",
                     help="comma-separated trackster collections to associate, default=%(default)r" )
+parser.add_argument("--hit-ids", dest='hitIds', action=BooleanOptionalAction, default=None,
+                    help="write the direct hit DetIds and energies of every particle into the logical DOT, "
+                         "which the interactive viewer needs to draw hits; default: on with --associations, "
+                         "off otherwise" )
 parser.add_argument("--geometry", default="ExtendedRun4D120",
                     help="geometry key of the sample, e.g. ExtendedRun4D122; it must match the one that "
                          "produced the input file, default=%(default)r" )
@@ -244,6 +248,9 @@ process.truthLogicalGraphDumper = cms.EDAnalyzer(
     dotFile=cms.string(os.path.join(args.outdir,f"truthlogicalgraph{args.tag}.dot")), # output file
 
     layout=cms.string(args.layout),
+
+    # The viewer joins each node to its rechits by DetId, so the viewer job writes them.
+    dumpSimHits=cms.bool(args.associations if args.hitIds is None else args.hitIds),
 )
 
 
