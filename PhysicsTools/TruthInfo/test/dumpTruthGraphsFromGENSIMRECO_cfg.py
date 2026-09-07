@@ -49,6 +49,9 @@ parser.add_argument("--associations", action="store_true",
                          "matches as JSON, for the interactive viewer" )
 parser.add_argument("--assocCollections", default="ticlTrackstersCLUE3DHigh,ticlCandidate",
                     help="comma-separated trackster collections to associate, default=%(default)r" )
+parser.add_argument("--geometry", default="ExtendedRun4D120",
+                    help="geometry key of the sample, e.g. ExtendedRun4D122; it must match the one that "
+                         "produced the input file, default=%(default)r" )
 parser.add_argument("--layout", default="dot",
                     help="DOT layout for the logical-graph dump: 'dot' (default, hierarchical L->R ranks) "
                          "or a force-directed engine ('sfdp'/'fdp'/'neato') for node repulsion + spring edges" )
@@ -71,9 +74,9 @@ process = cms.Process("TRUTHGRAPH")
 
 process.load("FWCore.MessageService.MessageLogger_cfi")
 
-# Needed if TruthLogicalGraphHitIndexProducer does HGCal simId -> reco DetId relabelling.
-# Keep this consistent with the geometry used to produce step3.root.
-process.load("Configuration.Geometry.GeometryExtendedRun4D120Reco_cff")
+# The rechit and tracker sim-hit tables read positions from the geometry, so it must be
+# the one that produced the input file.
+process.load(f"Configuration.Geometry.Geometry{args.geometry}Reco_cff")
 
 # Use the ideal tracker geometry so the tracker simhit table needs no alignment
 # conditions (GlobalPositionRcd) when running standalone without a GlobalTag.
@@ -245,7 +248,9 @@ process.truthLogicalGraphDumper = cms.EDAnalyzer(
 
 
 process.load("PhysicsTools.TruthInfo.recHitTable_cfi")
-# recHitTable reads the TICL geometry SoAs from the EventSetup
+# recHitTable reads the TICL geometry SoAs from the EventSetup. Their producer is an
+# alpaka module, so the process needs the accelerator configuration to resolve it.
+process.load("Configuration.StandardSequences.Accelerators_cff")
 process.load("RecoHGCal.TICL.TICLGeom_cff")
 
 # Barrel/forward calorimeter PFRecHits as a separate NanoAOD collection.
