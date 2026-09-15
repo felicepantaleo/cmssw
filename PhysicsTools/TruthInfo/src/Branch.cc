@@ -68,7 +68,7 @@ namespace truth {
     return out;
   }
 
-  std::vector<uint32_t> Branch::traverse() const {
+  std::vector<uint32_t> Branch::traverse(std::vector<uint32_t>* stopIds) const {
     if (!valid())
       return {};
 
@@ -89,30 +89,39 @@ namespace truth {
       queue.pop();
       order.push_back(id);
 
-      bool expand = true;
+      bool stop = false;  // the closure condition fired on this particle
       switch (spec_.kind) {
         case ClosureKind::DepthN:
-          expand = depth < spec_.maxDepth;
+          stop = depth >= spec_.maxDepth;
           break;
         case ClosureKind::UntilPdgId:
           // Stop at (but include) a particle whose id is in the stop list,
           // unless it is itself a root.
-          expand = depth == 0 ||
-                   std::find(spec_.stopPdgIds.begin(), spec_.stopPdgIds.end(), graph_->particles()[id].pdgId) ==
-                       spec_.stopPdgIds.end();
+          stop =
+              depth > 0 && std::find(spec_.stopPdgIds.begin(), spec_.stopPdgIds.end(), graph_->particles()[id].pdgId) !=
+                               spec_.stopPdgIds.end();
+          break;
+        case ClosureKind::UntilLevels:
+          // Stop at (but include) a particle that is at any of the selected truth levels
+          stop = depth > 0 && (graph_->particles()[id].levelFlags & spec_.levelFlags) != 0;
           break;
         case ClosureKind::Predicate:
-          expand = depth == 0 || !(spec_.stopAt && spec_.stopAt(graph_->particle(id)));
+          stop = depth > 0 && spec_.stopAt && spec_.stopAt(graph_->particle(id));
           break;
         case ClosureKind::Subtree:
         case ClosureKind::StableLeaves:
-          expand = true;
+          stop = graph_->particle(id).isLeaf();  // no decayVertices/children
           break;
       }
 
-      if (!expand)
+      // Stop this chain if the closure condition was met
+      if (stop) {
+        if (stopIds != nullptr)
+          stopIds->push_back(id);
         continue;
+      }
 
+      // Add children to queue
       for (const uint32_t vertexId : graph_->decayVertices(id)) {
         if (vertexId >= graph_->nVertices())
           continue;
@@ -141,6 +150,18 @@ namespace truth {
   std::vector<Particle> Branch::members() const {
     std::vector<Particle> out;
     for (uint32_t id : traverse())
+      out.push_back(graph_->particle(id));
+    return out;
+  }
+
+  std::vector<Particle> Branch::closureLeaves() const {
+    std::vector<Particle> out;
+    if (!valid())
+      return out;
+    std::vector<uint32_t> stopIds;
+    static_cast<void>(traverse(&stopIds));
+    out.reserve(stopIds.size());
+    for (uint32_t id : stopIds)
       out.push_back(graph_->particle(id));
     return out;
   }
