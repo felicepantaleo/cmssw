@@ -101,6 +101,10 @@ namespace truth {
               depth > 0 && std::find(spec_.stopPdgIds.begin(), spec_.stopPdgIds.end(), graph_->particles()[id].pdgId) !=
                                spec_.stopPdgIds.end();
           break;
+        case ClosureKind::UntilLevels:
+          // Stop at (but include) a particle that is at any of the selected truth levels
+          stop = depth > 0 && (graph_->particles()[id].levelFlags & spec_.levelFlags) != 0;
+          break;
         case ClosureKind::Predicate:
           stop = depth > 0 && spec_.stopAt && spec_.stopAt(graph_->particle(id));
           break;

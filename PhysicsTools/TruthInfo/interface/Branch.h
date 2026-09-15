@@ -6,29 +6,43 @@
 #include <cstdint>
 #include <functional>
 #include <optional>
+#include <utility>  // for std::move
 #include <vector>
 
 #include "DataFormats/Math/interface/LorentzVector.h"
 #include "SimDataFormats/TruthInfo/interface/Graph.h"
 #include "SimDataFormats/TruthInfo/interface/Particle.h"
+#include "SimDataFormats/TruthInfo/interface/ParticleData.h"  // for truth::LevelFlag
 
 namespace truth {
 
   // How far below the root(s) a Branch extends.
-  enum class ClosureKind : uint8_t { Subtree, StableLeaves, DepthN, UntilPdgId, Predicate };
+  enum class ClosureKind : uint8_t { Subtree, StableLeaves, DepthN, UntilPdgId, UntilLevels, Predicate };
 
   struct ClosureSpec {
     ClosureKind kind = ClosureKind::Subtree;
     uint32_t maxDepth = 0;                 // DepthN: generations kept below each root (0 = roots only)
+    uint32_t levelFlags = 0;               // UntilLevels: stop at (and include) particles at any of these levels
     std::vector<int32_t> stopPdgIds;       // UntilPdgId: stop at (and include) particles with these ids
     std::function<bool(Particle)> stopAt;  // Predicate: stop at (and include) particles where true
 
     static ClosureSpec subtree() { return {}; }
-    static ClosureSpec stableLeaves() { return {ClosureKind::StableLeaves, 0, {}, {}}; }
-    static ClosureSpec depth(uint32_t n) { return {ClosureKind::DepthN, n, {}, {}}; }
-    static ClosureSpec untilPdgId(std::vector<int32_t> ids) { return {ClosureKind::UntilPdgId, 0, std::move(ids), {}}; }
+    static ClosureSpec stableLeaves() { return {ClosureKind::StableLeaves, 0, {}, {}, {}}; }
+    static ClosureSpec depth(uint32_t n) { return {ClosureKind::DepthN, n, {}, {}, {}}; }
+    static ClosureSpec untilPdgId(std::vector<int32_t> ids) {
+      return {ClosureKind::UntilPdgId, 0, {}, std::move(ids), {}};
+    }
+    static ClosureSpec untilLevel(LevelFlag level) {
+      return {ClosureKind::UntilLevels, 0, static_cast<uint32_t>(level), {}, {}};
+    }
+    static ClosureSpec untilLevels(std::vector<LevelFlag> const& levels) {
+      uint32_t flag = 0;
+      for (auto level : levels)
+        flag |= static_cast<uint32_t>(level);
+      return {ClosureKind::UntilLevels, 0, flag, {}, {}};
+    }
     static ClosureSpec predicate(std::function<bool(Particle)> p) {
-      return {ClosureKind::Predicate, 0, {}, std::move(p)};
+      return {ClosureKind::Predicate, 0, {}, {}, std::move(p)};
     }
   };
 
