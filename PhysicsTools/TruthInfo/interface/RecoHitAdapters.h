@@ -24,9 +24,11 @@
 #include <vector>
 
 #include "DataFormats/CaloRecHit/interface/CaloCluster.h"
+#include "DataFormats/Phase2TrackerCluster/interface/Phase2TrackerCluster1D.h"
 #include "DataFormats/HGCalReco/interface/Trackster.h"
 #include "DataFormats/TrackReco/interface/Track.h"
 #include "DataFormats/TrackerRecHit2D/interface/TrackerSingleRecHit.h"
+#include "DataFormats/TrackerRecHit2D/interface/trackerHitRTTI.h"
 #include "DataFormats/TrackingRecHit/interface/TrackingRecHit.h"
 
 #include "PhysicsTools/TruthInfo/interface/BranchHitAssociator.h"
@@ -34,9 +36,14 @@
 
 namespace truth {
 
-  // reco::Track -> its valid rechits (unit weight; tracker shared-hit metric). On a
-  // module whose truth is keyed by cell, one entry per cell of the hit's cluster, so the
-  // two sides compare the same objects; elsewhere one entry for the module.
+  // reco::Track -> its valid rechits (unit weight; tracker shared-hit metric). One entry
+  // per cell of the hit's cluster, so the two sides compare the same objects. A hit that
+  // carries no cluster names no cell, cannot match the cell-keyed tracker truth, and is
+  // not emitted.
+  //
+  // The cluster type chooses the packing. A pixel cluster is a set of (row, column)
+  // pixels; an outer-tracker cluster is a run of `size()` consecutive strips in one
+  // column, starting at `firstRow()`.
   inline std::vector<RecoHit> recoHits(reco::Track const& track) {
     std::vector<RecoHit> hits;
     hits.reserve(track.recHitsSize());
@@ -45,29 +52,30 @@ namespace truth {
       if (!hit->isValid()) {
         continue;
       }
-      const uint32_t detId = hit->geographicalId().rawId();
-      bool expanded = false;
-      if (isCellKeyedSubdetector(detId)) {
-        // A stub or a matched hit is not a single hit and carries no pixel cluster; it
-        // stays at module granularity, which the merge-join accepts.
-        auto const* single = dynamic_cast<TrackerSingleRecHit const*>(hit);
-        if (single != nullptr && single->cluster_pixel().isNonnull()) {
-          for (auto const& pixel : single->cluster_pixel()->pixels()) {
-            hits.push_back(RecoHit{detId, 1.f, 1.f, pixelCell(pixel.x, pixel.y)});
-          }
-          expanded = true;
-        }
+      // A stub or a matched hit is not a single hit and carries no cluster of its own.
+      // The RTTI tag is an int compare, where a dynamic_cast on every hit of every track
+      // shows up in a PU200 profile.
+      if (!trackerHitRTTI::isSingle(*hit)) {
+        continue;
       }
-      if (!expanded) {
-        hits.push_back(RecoHit{detId, 1.f, 1.f});
+      const uint32_t detId = hit->geographicalId().rawId();
+      auto const* single = static_cast<TrackerSingleRecHit const*>(hit);
+      if (single->cluster_pixel().isNonnull()) {
+        for (auto const& pixel : single->cluster_pixel()->pixels()) {
+          hits.push_back(RecoHit{detId, 1.f, 1.f, pixelCell(pixel.x, pixel.y)});
+        }
+      } else if (single->cluster_phase2OT().isNonnull()) {
+        auto const& cluster = *single->cluster_phase2OT();
+        const unsigned int column = cluster.column();
+        const unsigned int firstRow = cluster.firstRow();
+        for (unsigned int i = 0; i < cluster.size(); ++i) {
+          hits.push_back(RecoHit{detId, 1.f, 1.f, outerTrackerCell(firstRow + i, column)});
+        }
       }
     }
     // One entry per (DetId, cell), ascending, which is what the merge-join in
-    // BranchHitAssociator requires. Two valid rechits can carry one geographicalId, and
-    // a repeated cell would be counted twice: that drives the shared-cell count above
-    // the branch's own cell count, which makes the reverse score negative and the shared
-    // fraction larger than one. The count is what this metric measures, so a duplicate
-    // is dropped rather than summed.
+    // BranchHitAssociator requires. Two valid rechits can carry one geographicalId, and a
+    // cell is one object however many rechits name it.
     const auto byCell = [](RecoHit const& a, RecoHit const& b) {
       if (a.detId != b.detId)
         return a.detId < b.detId;

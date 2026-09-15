@@ -42,6 +42,7 @@ namespace truth {
     [[nodiscard]] bool backscattered() const;
     [[nodiscard]] const math::XYZTLorentzVectorD& momentum() const;
     [[nodiscard]] const math::XYZTLorentzVectorD& p4() const { return momentum(); }  // alias
+    [[nodiscard]] const int charge() const;
 
     [[nodiscard]] std::span<const Checkpoint> checkpoints() const;
     [[nodiscard]] bool hasCheckpoints() const;

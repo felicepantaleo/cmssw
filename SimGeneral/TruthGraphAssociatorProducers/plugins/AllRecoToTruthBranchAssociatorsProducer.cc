@@ -38,8 +38,6 @@
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
 #include "FWCore/Utilities/interface/Exception.h"
 
-#include "HepPDT/ParticleID.hh"
-
 #include "DataFormats/CaloRecHit/interface/CaloCluster.h"
 #include "DataFormats/HGCRecHit/interface/HGCRecHitCollections.h"
 #include "DataFormats/ParticleFlowReco/interface/PFRecHit.h"
@@ -48,6 +46,7 @@
 #include "DataFormats/HGCalReco/interface/Trackster.h"
 #include "DataFormats/TrackReco/interface/Track.h"
 #include "DataFormats/VertexReco/interface/Vertex.h"
+#include "DataFormats/ParticleFlowReco/interface/PFCluster.h"
 #include "SimDataFormats/Associations/interface/TICLAssociationMap.h"
 
 #include "PhysicsTools/TruthInfo/interface/Branch.h"
@@ -55,6 +54,7 @@
 #include "PhysicsTools/TruthInfo/interface/BranchHitAssociator.h"
 #include "PhysicsTools/TruthInfo/interface/BranchSelector.h"
 #include "PhysicsTools/TruthInfo/interface/RecoHitAdapters.h"
+#include "PhysicsTools/TruthInfo/interface/TrackerCells.h"
 #include "PhysicsTools/TruthInfo/interface/TruthLevels.h"
 #include "SimDataFormats/TruthInfo/interface/Graph.h"
 #include "SimDataFormats/TruthInfo/interface/LogicalGraphHitIndex.h"
@@ -177,6 +177,25 @@ namespace {
       forEachConstituent(vertex, [&total](unsigned int, float w) { total += w; });
       return total;
     }
+  };
+
+  // A particle-flow cluster owns its calorimeter cells directly: reco::PFCluster derives
+  // from reco::CaloCluster and addRecHitFraction fills the base hitsAndFractions, so the
+  // reco::CaloCluster adapter in RecoHitAdapters.h applies unchanged and the cluster is
+  // matched on shared energy like a trackster. One PFCluster type serves every block
+  // element flavour (ECAL, HCAL, HO, HF, PS, HGCAL): the importer picks the enum from
+  // the cluster's layer, the object is the same. Which detector the shared-energy
+  // denominator covers is configuration (denominatorDetectors), one module per
+  // subdetector, because the efficiency gate is the branch energy fraction there and a
+  // hadron branch scored against a joint ECAL+HCAL denominator can never reach the
+  // individual threshold with an ECAL cluster alone.
+  template <>
+  struct TruthAssociationTraits<reco::PFCluster> {
+    static constexpr auto strategy = AssociationStrategy::HitBased;
+    using MapType = ticl::TICLAssociationMap<ticl::mapWithSharedEnergyAndScore>;
+    static constexpr truth::HitChannel channel = truth::HitChannel::Calo;
+    static constexpr auto metric = truth::BranchHitAssociator::Metric::SharedEnergy;
+    static constexpr const char* cfiName = "truthBranchPFClusterAssociators";
   };
 
   // A trackster owns calorimeter energy through its layer clusters, so it is matched
@@ -318,6 +337,7 @@ private:
   // One warning per job when no rechit collection is present, because the metric
   // then falls back to sim-energy weights and its scores are not the TICL ones.
   mutable std::once_flag recHitsWarned_;
+  mutable std::once_flag moduleKeyedWarned_;
   mutable std::once_flag rowOutOfRangeWarned_;
 
   std::vector<std::pair<std::string, edm::EDGetTokenT<std::vector<RECO>>>> recoTokens_;
@@ -475,6 +495,15 @@ void AllRecoToTruthBranchAssociatorsProducer<RECO>::produce(edm::StreamID,
                                                             edm::EventSetup const&) const {
   auto const& graph = event.get(graphToken_);
   auto const& hitIndex = event.get(hitIndexToken_);
+  if constexpr (!ConstituentBasedDomain<RECO>) {
+    if (Traits::channel == truth::HitChannel::Tracker && truth::isModuleKeyedTracker(hitIndex)) {
+      std::call_once(moduleKeyedWarned_, [] {
+        edm::LogWarning("AllRecoToTruthBranchAssociatorsProducer")
+            << "the tracker truth of the input carries no cells, so no track matches it. The input was "
+               "digitised before the tracker truth was keyed by cell; reprocess it from the DIGI step.";
+      });
+    }
+  }
 
   std::vector<reco::CaloCluster> const* layerClusters = nullptr;
   // The rechit energy of every cell, the weight of the shared-energy metric. Absent
@@ -588,7 +617,7 @@ void AllRecoToTruthBranchAssociatorsProducer<RECO>::produce(edm::StreamID,
         if (!truth::Branch(&graph, root).isInTime()) {
           continue;
         }
-        if (HepPDT::ParticleID(graph.particles()[root].pdgId).threeCharge() == 0) {
+        if (graph.particle(root).charge() == 0) {
           continue;
         }
         // Same resolution the numerator uses. A denominator counted at a different set
@@ -1010,3 +1039,5 @@ DEFINE_FWK_MODULE(AllVertexToTruthBranchAssociatorsProducer);
 // one of the two at random in an area that carries both.
 using TruthBranchTracksterAssociatorsProducer = AllRecoToTruthBranchAssociatorsProducer<ticl::Trackster>;
 DEFINE_FWK_MODULE(TruthBranchTracksterAssociatorsProducer);
+using TruthBranchPFClusterAssociatorsProducer = AllRecoToTruthBranchAssociatorsProducer<reco::PFCluster>;
+DEFINE_FWK_MODULE(TruthBranchPFClusterAssociatorsProducer);
