@@ -174,6 +174,30 @@ void TestBranch::testClosures() {
                    return id > 100 && ((id / 100) % 10 == 5 || (id / 1000) % 10 == 5);
                  })).members();
   CPPUNIT_ASSERT_EQUAL(std::size_t(0), countPdg(untilHF, -411));
+
+  // closureLeaves: Subtree stops at the graph leaves: mu+, nu_mu, D-, pi+.
+  auto subLeaves = truth::Branch(&g, 0).closureLeaves();
+  CPPUNIT_ASSERT_EQUAL(std::size_t(4), subLeaves.size());
+  CPPUNIT_ASSERT_EQUAL(std::size_t(1), countPdg(subLeaves, -13));
+  CPPUNIT_ASSERT_EQUAL(std::size_t(1), countPdg(subLeaves, 211));
+
+  // closureLeaves: StableLeaves stops at the same graph leaves (the root is not a leaf).
+  auto stableLeaves = truth::Branch(&g, 0, truth::ClosureSpec::stableLeaves()).closureLeaves();
+  CPPUNIT_ASSERT_EQUAL(std::size_t(4), stableLeaves.size());
+
+  // closureLeaves: DepthN(1) stops at the W+ and the b.
+  auto depthLeaves = truth::Branch(&g, 0, truth::ClosureSpec::depth(1)).closureLeaves();
+  CPPUNIT_ASSERT_EQUAL(std::size_t(2), depthLeaves.size());
+  CPPUNIT_ASSERT_EQUAL(std::size_t(1), countPdg(depthLeaves, 24));
+  CPPUNIT_ASSERT_EQUAL(std::size_t(1), countPdg(depthLeaves, 5));
+
+  // closureLeaves: UntilPdgId({511}) stops at the B0 only.
+  auto untilBLeaves = truth::Branch(&g, 0, truth::ClosureSpec::untilPdgId({511})).closureLeaves();
+  CPPUNIT_ASSERT_EQUAL(std::size_t(1), untilBLeaves.size());
+  CPPUNIT_ASSERT_EQUAL(int32_t(511), untilBLeaves.front().pdgId());
+
+  // closureLeaves: A root that itself matches the stop id is not a closure leaf (depth 0 never stops).
+  CPPUNIT_ASSERT(truth::Branch(&g, 3, truth::ClosureSpec::untilPdgId({511})).closureLeaves().empty());
 }
 
 void TestBranch::testKinematics() {

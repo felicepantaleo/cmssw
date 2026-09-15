@@ -51,13 +51,18 @@ namespace truth {
     [[nodiscard]] std::vector<uint32_t> rootIds() const { return roots_; }
     [[nodiscard]] ClosureSpec const& closure() const { return spec_; }
 
-    // Closure members (roots + selected descendants), ascending particle id.
+    // Members up to and including closure (roots + selected descendants), ascending particle id.
     [[nodiscard]] std::vector<uint32_t> memberIds() const;
     [[nodiscard]] std::vector<Particle> members() const;
+
+    // Only the members that meet the closure condition, ascending particle id.
+    [[nodiscard]] std::vector<Particle> closureLeaves() const;
+
+    // Members that are stable leaves (up to and including the closure), ascending particle id.
     [[nodiscard]] std::vector<Particle> stableLeaves() const;
 
-    // The members no other member covers: the final-state leaves of a full subtree, or
-    // the particles the closure stopped at when it truncates.
+    // The members no other member covers: the final-state leaves of a full subtree,
+    // or the particles the closure stopped at when it truncates.
     [[nodiscard]] std::vector<uint32_t> frontier() const;
 
     // Kinematics, summed over the frontier, so a truncated closure counts the particle
@@ -90,7 +95,8 @@ namespace truth {
 
   private:
     void validate();
-    [[nodiscard]] std::vector<uint32_t> traverse() const;
+    // Collect particles for which the closure condition were met if stopIds is non-null
+    [[nodiscard]] std::vector<uint32_t> traverse(std::vector<uint32_t>* stopIds = nullptr) const;
 
     Graph const* graph_ = nullptr;
     std::vector<uint32_t> roots_;
