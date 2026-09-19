@@ -23,7 +23,7 @@ from RecoTICL.Configuration.model import TICLConfig, Global
 _CLUE3DHIGH_CNN = cms.PSet(
     algo_verbosity=cms.int32(0),
     type=cms.string("TracksterInferenceByCNN"),
-    onnxModelPath=cms.string("RecoHGCal/TICL/data/ticlv5/onnx_models/CNN/patternrecognition/id_v0.onnx"),
+    onnxModelPath=cms.string("RecoTICL/Inference/data/CNN/patternrecognition/id_v0.onnx"),
     inputNames=cms.vstring("input"),
     outputNames=cms.vstring("pid_output"),
     eid_min_cluster_energy=cms.float(1.0),
@@ -35,7 +35,7 @@ _CLUE3DHIGH_CNN = cms.PSet(
 
 _PR_DNN = cms.PSet(
     algo_verbosity=cms.int32(0),
-    onnxPIDModelPath=cms.string("RecoHGCal/TICL/data/ticlv5/onnx_models/DNN/patternrecognition/id_v0.onnx"),
+    onnxPIDModelPath=cms.string("RecoTICL/Inference/data/DNN/patternrecognition/id_v0.onnx"),
     onnxEnergyModelPath=cms.string(""),
     inputNames=cms.vstring("input"),
     output_en=cms.vstring("enreg_output"),
@@ -50,7 +50,7 @@ _PR_DNN = cms.PSet(
 
 _PR_PFN = cms.PSet(
     algo_verbosity=cms.int32(0),
-    onnxPIDModelPath=cms.string("RecoHGCal/TICL/data/ticlv5/onnx_models/PFN/patternrecognition/id_v0.onnx"),
+    onnxPIDModelPath=cms.string("RecoTICL/Inference/data/PFN/patternrecognition/id_v0.onnx"),
     onnxEnergyModelPath=cms.string(""),
     inputNames=cms.vstring("input", "input_tr_features"),
     output_en=cms.vstring("enreg_output"),
@@ -65,8 +65,8 @@ _PR_PFN = cms.PSet(
 
 _RECOVERY_PFN = cms.PSet(
     algo_verbosity=cms.int32(0),
-    onnxPIDModelPath=cms.string("RecoHGCal/TICL/data/ticlv5/onnx_models/PFN/patternrecognition/id_v0.onnx"),
-    onnxEnergyModelPath=cms.string("RecoHGCal/TICL/data/ticlv5/onnx_models/PFN/patternrecognition/energy_v0.onnx"),
+    onnxPIDModelPath=cms.string("RecoTICL/Inference/data/PFN/patternrecognition/id_v0.onnx"),
+    onnxEnergyModelPath=cms.string("RecoTICL/Inference/data/PFN/patternrecognition/energy_v0.onnx"),
     inputNames=cms.vstring("input", "input_tr_features"),
     output_en=cms.vstring("enreg_output"),
     output_id=cms.vstring("pid_output"),
@@ -194,8 +194,8 @@ def links_defaults():
             eid_min_cluster_energy=cms.float(1),
             eid_n_clusters=cms.int32(10),
             eid_n_layers=cms.int32(50),
-            onnxEnergyModelPath=cms.string("RecoHGCal/TICL/data/ticlv5/onnx_models/DNN/linking/energy_v0.onnx"),
-            onnxPIDModelPath=cms.string("RecoHGCal/TICL/data/ticlv5/onnx_models/DNN/linking/id_v0.onnx"),
+            onnxEnergyModelPath=cms.string("RecoTICL/Inference/data/DNN/linking/energy_v0.onnx"),
+            onnxPIDModelPath=cms.string("RecoTICL/Inference/data/DNN/linking/id_v0.onnx"),
             type=cms.string("TracksterInferenceByDNN"),
         ),
         pluginInferenceAlgoTracksterInferenceByPFN=cms.PSet(
@@ -208,8 +208,8 @@ def links_defaults():
             eid_min_cluster_energy=cms.float(2.5),
             eid_n_clusters=cms.int32(10),
             eid_n_layers=cms.int32(50),
-            onnxEnergyModelPath=cms.string("RecoHGCal/TICL/data/ticlv5/onnx_models/PFN/linking/energy_v1.onnx"),
-            onnxPIDModelPath=cms.string("RecoHGCal/TICL/data/ticlv5/onnx_models/CNN/linking/id_v0.onnx"),
+            onnxEnergyModelPath=cms.string("RecoTICL/Inference/data/PFN/linking/energy_v1.onnx"),
+            onnxPIDModelPath=cms.string("RecoTICL/Inference/data/CNN/linking/id_v0.onnx"),
             type=cms.string("TracksterInferenceByPFN"),
         ),
     )
@@ -221,7 +221,7 @@ def supercluster_dnn_defaults():
         linkingPSet=cms.PSet(
             type=cms.string("SuperClusteringDNN"),
             algo_verbosity=cms.int32(0),
-            onnxModelPath=cms.string("RecoHGCal/TICL/data/superclustering/supercls_v3.onnx"),
+            onnxModelPath=cms.string("RecoTICL/Superclustering/data/supercls_v3.onnx"),
             nnWorkingPoint=cms.float(0.57247),
         ),
     )
@@ -234,8 +234,8 @@ def candidate_defaults():
         regressionAndPid=cms.bool(True),
         pluginInferenceAlgoTracksterInferenceByPFN=cms.PSet(
             algo_verbosity=cms.int32(0),
-            onnxPIDModelPath=cms.string("RecoHGCal/TICL/data/ticlv5/onnx_models/CNN/linking/id_v0.onnx"),
-            onnxEnergyModelPath=cms.string("RecoHGCal/TICL/data/ticlv5/onnx_models/PFN/linking/energy_v1.onnx"),
+            onnxPIDModelPath=cms.string("RecoTICL/Inference/data/CNN/linking/id_v0.onnx"),
+            onnxEnergyModelPath=cms.string("RecoTICL/Inference/data/PFN/linking/energy_v1.onnx"),
             inputNames=cms.vstring("input", "input_tr_features"),
             output_en=cms.vstring("enreg_output"),
             output_id=cms.vstring("pid_output"),

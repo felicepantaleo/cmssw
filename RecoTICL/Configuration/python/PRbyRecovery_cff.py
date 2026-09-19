@@ -28,8 +28,8 @@ ticlTrackstersRecovery = _trackstersProducer.clone(
     ),
     pluginInferenceAlgoTracksterInferenceByPFN = cms.PSet(
       algo_verbosity = cms.int32(0),
-      onnxPIDModelPath = cms.string('RecoHGCal/TICL/data/ticlv5/onnx_models/PFN/patternrecognition/id_v0.onnx'),
-      onnxEnergyModelPath = cms.string('RecoHGCal/TICL/data/ticlv5/onnx_models/PFN/patternrecognition/energy_v0.onnx'),
+      onnxPIDModelPath = cms.string('RecoTICL/Inference/data/PFN/patternrecognition/id_v0.onnx'),
+      onnxEnergyModelPath = cms.string('RecoTICL/Inference/data/PFN/patternrecognition/energy_v0.onnx'),
       inputNames = cms.vstring(
         'input',
         'input_tr_features'

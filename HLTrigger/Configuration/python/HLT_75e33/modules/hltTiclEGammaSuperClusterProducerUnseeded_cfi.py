@@ -7,7 +7,7 @@ hltTiclEGammaSuperClusterProducerUnseeded = cms.EDProducer('EGammaSuperclusterPr
     layerClusters = cms.InputTag('hltMergeLayerClusters'),
     superclusterEtThreshold = cms.float(4),
     enableRegression = cms.bool(True),
-    regressionModelPath = cms.FileInPath('RecoHGCal/TICL/data/superclustering/regression_v1.onnx'),
+    regressionModelPath = cms.FileInPath('RecoTICL/Superclustering/data/regression_v1.onnx'),
     mightGet = cms.optional.untracked.vstring
 )
 

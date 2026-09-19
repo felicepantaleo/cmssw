@@ -246,8 +246,7 @@ void EGammaSuperclusterProducer::fillDescriptions(edm::ConfigurationDescriptions
       ->setComment("The layer cluster collection that goes with ticlTrackstersEM");
   desc.add<float>("superclusterEtThreshold", 4.)->setComment("Minimum supercluster transverse energy.");
   desc.add<bool>("enableRegression", true)->setComment("Enable supercluster energy regression");
-  desc.add<edm::FileInPath>("regressionModelPath",
-                            edm::FileInPath("RecoHGCal/TICL/data/superclustering/regression_v1.onnx"))
+  desc.add<edm::FileInPath>("regressionModelPath", edm::FileInPath("RecoTICL/Superclustering/data/regression_v1.onnx"))
       ->setComment("Path to regression network (as ONNX model)");
 
   descriptions.add("ticlEGammaSuperClusterProducer", desc);
