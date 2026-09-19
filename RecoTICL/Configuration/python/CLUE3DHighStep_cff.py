@@ -31,7 +31,7 @@ ticlTrackstersCLUE3DHigh = _trackstersProducer.clone(
     pluginInferenceAlgoTracksterInferenceByCNN = cms.PSet(
         algo_verbosity = cms.int32(0),
         type = cms.string("TracksterInferenceByCNN"),
-        onnxModelPath = cms.string("RecoHGCal/TICL/data/ticlv5/onnx_models/CNN/patternrecognition/id_v0.onnx"),
+        onnxModelPath = cms.string("RecoTICL/Inference/data/CNN/patternrecognition/id_v0.onnx"),
         inputNames = cms.vstring("input"),
         outputNames = cms.vstring("pid_output"),
         eid_min_cluster_energy = cms.float(1.0),
@@ -42,7 +42,7 @@ ticlTrackstersCLUE3DHigh = _trackstersProducer.clone(
     ),
     pluginInferenceAlgoTracksterInferenceByDNN = cms.PSet(
         algo_verbosity = cms.int32(0),
-        onnxPIDModelPath = cms.string('RecoHGCal/TICL/data/ticlv5/onnx_models/DNN/patternrecognition/id_v0.onnx'),
+        onnxPIDModelPath = cms.string('RecoTICL/Inference/data/DNN/patternrecognition/id_v0.onnx'),
         onnxEnergyModelPath = cms.string(''),
         inputNames  = cms.vstring('input'),
         output_en   = cms.vstring('enreg_output'),
@@ -57,7 +57,7 @@ ticlTrackstersCLUE3DHigh = _trackstersProducer.clone(
 
     pluginInferenceAlgoTracksterInferenceByPFN = cms.PSet(
         algo_verbosity = cms.int32(0),
-        onnxPIDModelPath = cms.string('RecoHGCal/TICL/data/ticlv5/onnx_models/PFN/patternrecognition/id_v0.onnx'),
+        onnxPIDModelPath = cms.string('RecoTICL/Inference/data/PFN/patternrecognition/id_v0.onnx'),
         onnxEnergyModelPath = cms.string(''),
         inputNames  = cms.vstring('input','input_tr_features'),
         output_en   = cms.vstring('enreg_output'),

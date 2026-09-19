@@ -135,7 +135,7 @@ namespace ticl {
   void TracksterInferenceByCNN::fillPSetDescription(edm::ParameterSetDescription& iDesc) {
     TracksterInferenceAlgoBase::fillPSetDescription(iDesc);
 
-    iDesc.add<std::string>("onnxModelPath", "RecoHGCal/TICL/data/ticlv5/onnx_models/CNN/patternrecognition/id_v0.onnx")
+    iDesc.add<std::string>("onnxModelPath", "RecoTICL/Inference/data/CNN/patternrecognition/id_v0.onnx")
         ->setComment("Path to ONNX PID model. If empty, PID is skipped.");
 
     iDesc.add<std::vector<std::string>>("inputNames", {"input"});

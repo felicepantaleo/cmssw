@@ -560,13 +560,12 @@ void GNNInterpretationAlgo::makeCandidates(const Inputs& input,
 }
 
 void GNNInterpretationAlgo::fillPSetDescription(edm::ParameterSetDescription& desc) {
-  desc.add<edm::FileInPath>(
-          "onnxTrkLinkingModelFirstDisk",
-          edm::FileInPath("RecoHGCal/TICL/data/ticlv5/onnx_models/TrackLinking_GNN/FirstDiskPropGNN_v0.onnx"))
+  desc.add<edm::FileInPath>("onnxTrkLinkingModelFirstDisk",
+                            edm::FileInPath("RecoTICL/Interpretation/data/TrackLinking_GNN/FirstDiskPropGNN_v0.onnx"))
       ->setComment("Path to ONNX tracks tracksters linking model at first disk ");
   desc.add<edm::FileInPath>(
           "onnxTrkLinkingModelInterfaceDisk",
-          edm::FileInPath("RecoHGCal/TICL/data/ticlv5/onnx_models/TrackLinking_GNN/InterfaceDiskPropGNN_v0.onnx"))
+          edm::FileInPath("RecoTICL/Interpretation/data/TrackLinking_GNN/InterfaceDiskPropGNN_v0.onnx"))
       ->setComment("Path to ONNX tracks tracksters linking model at interface disk ");
   desc.add<std::vector<std::string>>("inputNames", {"x", "edge_index", "edge_attr"});
   desc.add<std::vector<std::string>>("output", {"output"});
