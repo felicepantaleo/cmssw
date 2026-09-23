@@ -34,8 +34,11 @@ namespace truth {
       static constexpr uint32_t kNoCell = kInvalidRecHitIndex;
 
       uint32_t detId = 0;
-      // Calo and MTD: the global recHit index from the DetId map. Tracker: the digi
-      // channel of the cell. Muon: always kNoCell.
+      // Calo: the global recHit index from the DetId map. Tracker: the digi channel of
+      // the cell. MTD, when the channel is cell keyed: the cell as
+      // category << 24 | row << 16 | col, with the category a SimHitCategory
+      // prodTypeMTD value and detId the sensor module; mask the category before a
+      // comparison with a reco pixel. Muon: always kNoCell.
       uint32_t recHitIndex = kInvalidRecHitIndex;
       float energy = 0.f;
 
@@ -68,6 +71,12 @@ namespace truth {
       std::vector<uint32_t> subgraphOffsets;
       std::vector<Hit> subgraphHits;
       std::vector<uint32_t> dfsOffsets;
+      // The time of each direct hit in ns, the earliest one of its cell, in the order of
+      // directHits. Empty on a channel that carries no time.
+      std::vector<float> directHitTimes;
+      // Whether recHitIndex holds a cell, so that two hits on one detId are two cells.
+      // The Tracker channel is cell keyed also where this flag was not written.
+      bool cellKeyed = false;
     };
 
     // A run of consecutive DFS slots. Particles that carry hits own exactly one, their
@@ -142,6 +151,25 @@ namespace truth {
       const auto begin = channelData->directOffsets[particleId];
       const auto end = channelData->directOffsets[particleId + 1];
       return std::span<const Hit>(channelData->directHits.data() + begin, end - begin);
+    }
+
+    // The times of directHits(channel, particleId), one per hit. Empty when the channel
+    // carries no time.
+    [[nodiscard]] std::span<const float> directHitTimes(HitChannel channel, uint32_t particleId) const {
+      Channel const* channelData = channelOrNull(channel);
+      if (channelData == nullptr || channelData->directHitTimes.size() != channelData->directHits.size())
+        return {};
+      const auto hits = directHits(channel, particleId);
+      if (hits.empty())
+        return {};
+      const auto begin = static_cast<std::size_t>(hits.data() - channelData->directHits.data());
+      return std::span<const float>(channelData->directHitTimes.data() + begin, hits.size());
+    }
+
+    // Whether the hits of a channel are keyed by (detId, cell), the cell in recHitIndex.
+    [[nodiscard]] bool isCellKeyed(HitChannel channel) const {
+      Channel const* channelData = channelOrNull(channel);
+      return channel == HitChannel::Tracker || (channelData != nullptr && channelData->cellKeyed);
     }
 
     // A particle's own hits plus those of every descendant, as one span. Coalesced and

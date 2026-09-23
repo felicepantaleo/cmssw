@@ -199,8 +199,8 @@ namespace truth {
     Metric metric_;
     HitChannel channel_;
     // Whether a DetId of this channel names a module, so that two hits match only on
-    // the same cell. True for the tracker; on the other channels a DetId already names
-    // a cell and the field holds a recHit index instead.
+    // the same cell. True for a cell-keyed channel, the tracker and the MTD; on the
+    // other channels a DetId already names a cell and the field holds a recHit index.
     bool cellAware_ = false;
     uint32_t denominatorDetectors_;
     std::vector<uint32_t> roots_;

@@ -743,15 +743,21 @@ public:
 
       // MTD (BTL/ETL) simhits from the MtdSimLayerCluster channel.
       const bool hasMtdInfo = hasHitInfo && hitIndex->hasChannel(truth::HitChannel::MTD);
+      // A cell-keyed MTD channel holds a cell in recHitIndex, not a rechit, so it is
+      // summarised without the rechit table, like the tracker.
+      const bool mtdCellKeyed = hasMtdInfo && hitIndex->isCellKeyed(truth::HitChannel::MTD);
+      const std::vector<float> noRecHitEnergies;
+      auto const& mtdRecHitEnergies = mtdCellKeyed ? noRecHitEnergies : recHitEnergies;
       const HitSummary mtdDirectSummary =
-          hasMtdInfo ? summarizeHits(hitIndex->directHits(truth::HitChannel::MTD, i), recHitEnergies) : HitSummary();
+          hasMtdInfo ? summarizeHits(hitIndex->directHits(truth::HitChannel::MTD, i), mtdRecHitEnergies) : HitSummary();
       const HitSummary mtdSubgraphSummary =
-          hasMtdInfo ? summarizeHits(hitIndex->subgraphHits(truth::HitChannel::MTD, i), recHitEnergies) : HitSummary();
+          hasMtdInfo ? summarizeHits(hitIndex->subgraphHits(truth::HitChannel::MTD, i), mtdRecHitEnergies)
+                     : HitSummary();
 
-      // MTD recHitIndex points into the FTLCluster ordering (channel-relative, not
-      // the HGCal recHit ordering), so count the FTLCluster-linked hits directly.
+      // An MTD channel that is not cell keyed holds an FTLCluster index in recHitIndex;
+      // count the hits that carry one.
       uint32_t mtdSubgraphRecHitLinked = 0;
-      if (hasMtdInfo)
+      if (hasMtdInfo && !mtdCellKeyed)
         for (auto const& h : hitIndex->subgraphHits(truth::HitChannel::MTD, i))
           mtdSubgraphRecHitLinked += static_cast<uint32_t>(h.hasRecHit());
 

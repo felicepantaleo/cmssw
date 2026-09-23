@@ -54,7 +54,7 @@ namespace truth {
         recHitEnergies_(recHitEnergies != nullptr && !recHitEnergies->empty() ? recHitEnergies : nullptr),
         metric_(metric),
         channel_(channel),
-        cellAware_(channel == HitChannel::Tracker),
+        cellAware_(hitIndex.isCellKeyed(channel)),
         denominatorDetectors_(denominatorDetectors),
         roots_(std::move(candidateRoots)),
         generations_(std::move(generations)) {
