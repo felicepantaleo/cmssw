@@ -146,6 +146,7 @@ def buildCompactTruthAtDigi(process, includeTrackingHits=True):
         src=cms.InputTag("mix"),
         simTracks=cms.InputTag("mix", "mergedSimTracks"),
         simVertices=cms.InputTag("mix", "mergedSimVertices"),
+        rawGenPayload=cms.InputTag("mix", "genPayload"),
         simHitCollections=caloSimHits,
         trackerSimHitCollections=trackerSimHits,
         muonSimHitCollections=muonSimHits,

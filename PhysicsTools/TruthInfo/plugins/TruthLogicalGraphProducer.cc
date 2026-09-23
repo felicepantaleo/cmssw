@@ -354,6 +354,8 @@ public:
         simVertexToken_(mayConsume<edm::SimVertexContainer>(cfg.getParameter<edm::InputTag>("simVertices"))),
         hepmc3Token_(mayConsume<edm::HepMC3Product>(cfg.getParameter<edm::InputTag>("genEventHepMC3"))),
         hepmc2Token_(mayConsume<edm::HepMCProduct>(cfg.getParameter<edm::InputTag>("genEventHepMC"))),
+        rawGenPayloadToken_(
+            mayConsume<std::vector<math::XYZTLorentzVectorD>>(cfg.getParameter<edm::InputTag>("rawGenPayload"))),
         mergeGenSimVertices_(cfg.getParameter<bool>("mergeGenSimVertices")),
         verbosity_(cfg.getUntrackedParameter<unsigned>("verbosity")),
         dropHitlessSimSubgraphs_(
@@ -383,6 +385,11 @@ public:
     desc.add<edm::InputTag>("simVertices", edm::InputTag("g4SimHits"));
     desc.add<edm::InputTag>("genEventHepMC3", edm::InputTag("generatorSmeared"));
     desc.add<edm::InputTag>("genEventHepMC", edm::InputTag("generatorSmeared"));
+    desc.add<edm::InputTag>("rawGenPayload", edm::InputTag(""))
+        ->setComment(
+            "Node-parallel GEN payload of the raw graph (TruthGraphAccumulator genPayload): the momentum of a "
+            "GenParticle and the position of a GenVertex from the sub-event's own record. It fills the GEN nodes "
+            "the signal HepMC does not cover, the pile-up ones.");
 
     desc.addUntracked<unsigned>("verbosity", 0)
         ->setComment(
@@ -513,6 +520,16 @@ public:
         fillGenPayloadFromHepMC2(*h2->GetEvent(), genParticlePayload, genVertexPayload);
         haveGenPayload = true;
       }
+    }
+
+    // The raw graph's own GEN payload, one entry per raw node, when the graph was built
+    // during mixing. A size that differs from the graph means another producer made it.
+    std::vector<math::XYZTLorentzVectorD> const* rawGenPayload = nullptr;
+    {
+      edm::Handle<std::vector<math::XYZTLorentzVectorD>> hPayload;
+      evt.getByToken(rawGenPayloadToken_, hPayload);
+      if (validHandle(hPayload) && hPayload->size() == raw.nNodes())
+        rawGenPayload = hPayload.product();
     }
 
     const auto keepRawNode = buildKeepMaskForAllRawNodes(raw);
@@ -764,7 +781,7 @@ public:
             p.statusFlags = raw.nodeStatusFlags(nodeId);
 
           // The HepMC payload is the signal interaction's. A pileup GEN node with the
-          // same barcode is a different particle and takes its SimTrack momentum below.
+          // same barcode is a different particle and takes its own record's momentum.
           if (haveGenPayload && raw.nodeEventId(nodeId) == 0) {
             const int barcode = static_cast<int>(ref.key);
             auto it = genParticlePayload.find(barcode);
@@ -780,6 +797,13 @@ public:
               p.momentum = it->second.momentum;
               genMomentumApplied[static_cast<uint32_t>(rawToParticle[nodeId])] = 1;
             }
+          }
+
+          // Any other GEN particle, a pile-up one, takes the momentum of its own record.
+          if (!genMomentumApplied[static_cast<uint32_t>(rawToParticle[nodeId])] && rawGenPayload != nullptr &&
+              (*rawGenPayload)[nodeId].E() > 0.) {
+            p.momentum = (*rawGenPayload)[nodeId];
+            genMomentumApplied[static_cast<uint32_t>(rawToParticle[nodeId])] = 1;
           }
 
         } else if (ref.kind == TruthGraph::NodeKind::SimTrack) {
@@ -856,6 +880,12 @@ public:
               v.position = it->second.position;
               genPositionApplied[static_cast<uint32_t>(rawToVertex[nodeId])] = 1;
             }
+          }
+
+          // Any other GEN vertex, a pile-up one, takes the position of its own record.
+          if (!genPositionApplied[static_cast<uint32_t>(rawToVertex[nodeId])] && rawGenPayload != nullptr) {
+            v.position = (*rawGenPayload)[nodeId];
+            genPositionApplied[static_cast<uint32_t>(rawToVertex[nodeId])] = 1;
           }
 
         } else if (ref.kind == TruthGraph::NodeKind::SimVertex) {
@@ -1117,6 +1147,7 @@ private:
   edm::EDGetTokenT<edm::SimVertexContainer> simVertexToken_;
   edm::EDGetTokenT<edm::HepMC3Product> hepmc3Token_;
   edm::EDGetTokenT<edm::HepMCProduct> hepmc2Token_;
+  edm::EDGetTokenT<std::vector<math::XYZTLorentzVectorD>> rawGenPayloadToken_;
   std::vector<edm::EDGetTokenT<std::vector<PCaloHit>>> caloSimHitTokens_;
   std::vector<edm::EDGetTokenT<edm::PSimHitContainer>> trackerSimHitTokens_;
 

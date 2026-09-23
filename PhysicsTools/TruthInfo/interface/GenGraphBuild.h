@@ -17,6 +17,8 @@
 #include <utility>
 #include <vector>
 
+#include "DataFormats/Math/interface/LorentzVector.h"
+
 namespace HepMC {
   class GenEvent;
 }
@@ -50,6 +52,13 @@ namespace truth {
     // HepMC3 specialization.
     std::unordered_map<int, uint16_t> particleStatusFlagsByBarcode;
 
+    // The payload of the record: the four-momentum of each particle in GeV, the position
+    // of each vertex in (cm, ns), and the position of the interaction, the vertex where
+    // the beam particles end (the first vertex of the record when none carries them).
+    std::unordered_map<int, math::XYZTLorentzVectorD> particleMomentumByBarcode;
+    std::unordered_map<int, math::XYZTLorentzVectorD> vertexPositionByBarcode;
+    math::XYZTLorentzVectorD interactionPosition;
+
     [[nodiscard]] bool empty() const { return partBarcodes.empty() && vtxBarcodes.empty(); }
   };
 
@@ -68,6 +77,9 @@ namespace truth {
     int parent;
     // The vertex this particle decays at, 0 when it is stable.
     int decayVertex;
+    // Four-momentum in GeV, and the position of decayVertex in (cm, ns).
+    math::XYZTLorentzVectorD momentum;
+    math::XYZTLorentzVectorD decayPosition;
   };
 
   // The compact GEN record of an interaction: its status 1 particles and the decaying

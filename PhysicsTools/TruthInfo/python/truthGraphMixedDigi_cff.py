@@ -82,6 +82,9 @@ truthLogicalGraphProducer = _truthLogicalGraphProducer.clone(
     # pileup particle takes its own momentum and position.
     simTracks=cms.InputTag("mix", "mergedSimTracks"),
     simVertices=cms.InputTag("mix", "mergedSimVertices"),
+    # The GEN payload of every sub-event, which the pile-up nodes need: after mixing the
+    # event holds only the signal HepMC.
+    rawGenPayload=cms.InputTag("mix", "genPayload"),
     simHitCollections=cms.VInputTag(
         cms.InputTag("mix", "mergedHGCHits"),
         cms.InputTag("mix", "mergedEcalHits"),
