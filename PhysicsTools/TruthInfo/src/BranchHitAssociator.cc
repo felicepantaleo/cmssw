@@ -49,7 +49,7 @@ namespace truth {
                                            bool emptyRootsMeansAll,
                                            uint32_t denominatorDetectors,
                                            CellEnergyTable const* recHitEnergies,
-                                           std::vector<uint32_t> generations)
+                                           std::span<const uint32_t> generations)
       : hitIndex_(&hitIndex),
         recHitEnergies_(recHitEnergies != nullptr && !recHitEnergies->empty() ? recHitEnergies : nullptr),
         metric_(metric),
@@ -57,7 +57,7 @@ namespace truth {
         cellAware_(hitIndex.isCellKeyed(channel)),
         denominatorDetectors_(denominatorDetectors),
         roots_(std::move(candidateRoots)),
-        generations_(std::move(generations)) {
+        generations_(generations) {
     if (roots_.empty() && emptyRootsMeansAll) {
       roots_.resize(hitIndex_->nParticles());
       std::iota(roots_.begin(), roots_.end(), 0u);

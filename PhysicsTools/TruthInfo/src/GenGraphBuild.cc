@@ -26,15 +26,11 @@ namespace {
   // case for the incoming beam particles.
   constexpr int kNoVertex = std::numeric_limits<int>::min();
 
-  // HepMC lengths are in mm and times in mm/c; the graph uses cm and ns.
-  constexpr double kMmToCm = 0.1;
-  constexpr double kMmOverCToNs = 1.0 / 299.792458;
   constexpr int kBeamStatus = 4;
 
   template <typename P>
-  [[nodiscard]] math::XYZTLorentzVectorD graphPosition(P const& position) {
-    return math::XYZTLorentzVectorD(
-        position.x() * kMmToCm, position.y() * kMmToCm, position.z() * kMmToCm, position.t() * kMmOverCToNs);
+  [[nodiscard]] math::XYZTLorentzVectorD hepmcPosition(P const& position) {
+    return truth::graphPosition(position.x(), position.y(), position.z(), position.t());
   }
 
   template <typename V>
@@ -89,9 +85,7 @@ namespace truth {
 
       if (seenV.insert(vbc).second) {
         gb.vtxBarcodes.push_back(vbc);
-        gb.vertexPositionByBarcode.emplace(vbc, graphPosition((*v)->position()));
-        if (gb.vtxBarcodes.size() == 1)
-          gb.interactionPosition = gb.vertexPositionByBarcode.at(vbc);
+        gb.vertexPositionByBarcode.emplace(vbc, hepmcPosition((*v)->position()));
       }
 
       for (auto po = (*v)->particles_out_const_begin(); po != (*v)->particles_out_const_end(); ++po) {
@@ -165,9 +159,7 @@ namespace truth {
 
       if (seenV.insert(vbc).second) {
         gb.vtxBarcodes.push_back(vbc);
-        gb.vertexPositionByBarcode.emplace(vbc, graphPosition(vptr->position()));
-        if (gb.vtxBarcodes.size() == 1)
-          gb.interactionPosition = gb.vertexPositionByBarcode.at(vbc);
+        gb.vertexPositionByBarcode.emplace(vbc, hepmcPosition(vptr->position()));
       }
 
       for (auto const& po : vptr->particles_out()) {

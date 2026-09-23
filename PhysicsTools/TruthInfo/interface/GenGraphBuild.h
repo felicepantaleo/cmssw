@@ -12,6 +12,7 @@
 #define PhysicsTools_TruthInfo_GenGraphBuild_h
 
 #include <cstdint>
+#include <optional>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -32,6 +33,14 @@ namespace truth {
   // barcode, so the low bit separates them.
   [[nodiscard]] inline int64_t genKeyVertex(int barcode) { return (static_cast<int64_t>(barcode) << 1) | 1LL; }
   [[nodiscard]] inline int64_t genKeyParticle(int barcode) { return static_cast<int64_t>(barcode) << 1; }
+
+  // A HepMC vertex position, lengths in mm and time as c*t in mm, in the (cm, ns) of the
+  // graph. The one conversion every reader of a HepMC record uses.
+  [[nodiscard]] inline math::XYZTLorentzVectorD graphPosition(double xMm, double yMm, double zMm, double ctMm) {
+    constexpr double kMmToCm = 0.1;
+    constexpr double kMmOverCToNs = 1.0 / 299.792458;
+    return math::XYZTLorentzVectorD(xMm * kMmToCm, yMm * kMmToCm, zMm * kMmToCm, ctMm * kMmOverCToNs);
+  }
 
   struct GenBuild {
     std::vector<int> vtxBarcodes;
@@ -54,10 +63,11 @@ namespace truth {
 
     // The payload of the record: the four-momentum of each particle in GeV, the position
     // of each vertex in (cm, ns), and the position of the interaction, the vertex where
-    // the beam particles end (the first vertex of the record when none carries them).
+    // the beam particles (status 4) end. A record with no beam particle, a particle gun
+    // for example, has no interaction position.
     std::unordered_map<int, math::XYZTLorentzVectorD> particleMomentumByBarcode;
     std::unordered_map<int, math::XYZTLorentzVectorD> vertexPositionByBarcode;
-    math::XYZTLorentzVectorD interactionPosition;
+    std::optional<math::XYZTLorentzVectorD> interactionPosition;
 
     [[nodiscard]] bool empty() const { return partBarcodes.empty() && vtxBarcodes.empty(); }
   };

@@ -128,10 +128,10 @@ namespace truth {
     // recHitEnergies, when given, weights every cell of the SharedEnergy metric by its
     // reconstructed energy instead of its total sim energy; it must outlive the
     // associator.
-    // generations, when given, is particleGenerations of the graph. It orders two
-    // candidates that tie on both scores, which happens when a particle and its
-    // ancestor own the same cells: the particle, with the larger generation, comes
-    // first. Without it, the lower particle id comes first.
+    // generations, when given, is particleGenerations of the graph and must outlive the
+    // associator. It orders two candidates that tie on both scores, which happens when
+    // a particle and its ancestor own the same cells: the particle, with the larger
+    // generation, comes first. Without it, the lower particle id comes first.
     explicit BranchHitAssociator(LogicalGraphHitIndex const& hitIndex,
                                  std::vector<uint32_t> candidateRoots = {},
                                  Metric metric = Metric::SharedEnergy,
@@ -139,7 +139,7 @@ namespace truth {
                                  bool emptyRootsMeansAll = true,
                                  uint32_t denominatorDetectors = kAllDetectors,
                                  CellEnergyTable const* recHitEnergies = nullptr,
-                                 std::vector<uint32_t> generations = {});
+                                 std::span<const uint32_t> generations = {});
 
     // Best branches for a reco object's hits, sorted by score ascending. If
     // maxResults > 0, only the best maxResults are returned.
@@ -205,7 +205,7 @@ namespace truth {
     uint32_t denominatorDetectors_;
     std::vector<uint32_t> roots_;
     // particleGenerations of the graph, or empty.
-    std::vector<uint32_t> generations_;
+    std::span<const uint32_t> generations_;
 
     // Inverted index detId -> candidate roots, stored CSR-style: cellRootsKeys_
     // holds the distinct cell detIds (ascending); cellRootsOffsets_ indexes

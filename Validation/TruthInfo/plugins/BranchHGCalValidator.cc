@@ -484,6 +484,7 @@ void BranchHGCalValidator::analyze(edm::Event const& event, edm::EventSetup cons
   truth::SubgraphHitView hitIndex(hitIndexProduct);
 
   const auto tidToParticle = buildTrackIdToParticle(graph, raw);
+  const auto generations = truth::particleGenerations(graph);
   truth::BranchHitAssociator assoc(hitIndexProduct,
                                    {},
                                    truth::BranchHitAssociator::Metric::SharedHits,
@@ -491,7 +492,7 @@ void BranchHGCalValidator::analyze(edm::Event const& event, edm::EventSetup cons
                                    /*emptyRootsMeansAll=*/true,
                                    truth::BranchHitAssociator::kAllDetectors,
                                    /*recHitEnergies=*/nullptr,
-                                   truth::particleGenerations(graph));
+                                   generations);
 
   // Per-cell deposited (sim) energy = sum of every particle's direct Calo hits
   // in that cell (each PCaloHit belongs to exactly one SimTrack), and per-cell

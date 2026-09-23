@@ -432,6 +432,7 @@ void TestBranchHitAssociator::testAnExactTieRanksTheDescendantFirst() {
   // first, and the adaptive search picks it.
   auto index = buildSameCellsIndex();
   std::vector<truth::RecoHit> reco{{11, 0.f, 1.0f}, {12, 0.f, 1.0f}};
+  const std::vector<uint32_t> generations{0, 1};
   truth::BranchHitAssociator assoc(index,
                                    {},
                                    truth::BranchHitAssociator::Metric::SharedHits,
@@ -439,7 +440,7 @@ void TestBranchHitAssociator::testAnExactTieRanksTheDescendantFirst() {
                                    true,
                                    truth::BranchHitAssociator::kAllDetectors,
                                    nullptr,
-                                   {0, 1});
+                                   generations);
   auto matches = assoc.bestBranches(reco);
   CPPUNIT_ASSERT_EQUAL(std::size_t(2), matches.size());
   CPPUNIT_ASSERT_DOUBLES_EQUAL(matches[0].score, matches[1].score, 1e-6);

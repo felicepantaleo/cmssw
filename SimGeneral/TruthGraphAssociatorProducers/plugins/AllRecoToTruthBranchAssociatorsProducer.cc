@@ -642,13 +642,14 @@ void AllRecoToTruthBranchAssociatorsProducer<RECO>::produce(edm::StreamID,
     event.put(std::move(targets), "truthToRecoTargets");
   }
 
-  // Associator cache shared by all collections of this domain, keyed by mask.
-  std::vector<std::pair<uint32_t, std::unique_ptr<truth::BranchHitAssociator>>> associatorPerMask;
   // Orders a particle before an ancestor that owns the same cells. Built once per event,
-  // and only where a hit associator runs.
+  // and only where a hit associator runs; declared first, so it outlives the associators
+  // that read it.
   std::vector<uint32_t> generations;
   if constexpr (!ConstituentBasedDomain<RECO>)
     generations = truth::particleGenerations(graph);
+  // Associator cache shared by all collections of this domain, keyed by mask.
+  std::vector<std::pair<uint32_t, std::unique_ptr<truth::BranchHitAssociator>>> associatorPerMask;
 
   for (std::size_t collectionIndex = 0; collectionIndex < recoTokens_.size(); ++collectionIndex) {
     auto const& [key, token] = recoTokens_[collectionIndex];
