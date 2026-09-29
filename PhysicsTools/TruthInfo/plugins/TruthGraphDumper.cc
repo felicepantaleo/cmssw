@@ -32,98 +32,12 @@
 #include "HepMC3/GenParticle.h"
 #include "HepMC3/GenVertex.h"
 
+#include "PhysicsTools/TruthInfo/plugins/TruthGraphDumpFormat.h"
 #include "SimDataFormats/TruthInfo/interface/TruthGraph.h"
 
 namespace {
 
   // --- PDG naming (UTF-8)
-  std::string pdgNameUtf8(int pdgId) {
-    const int ap = std::abs(pdgId);
-
-    if (pdgId == 11)
-      return "e⁻";
-    if (pdgId == -11)
-      return "e⁺";
-    if (pdgId == 13)
-      return "μ⁻";
-    if (pdgId == -13)
-      return "μ⁺";
-    if (pdgId == 15)
-      return "τ⁻";
-    if (pdgId == -15)
-      return "τ⁺";
-
-    if (pdgId == 12)
-      return "νₑ";
-    if (pdgId == -12)
-      return "ν̄ₑ";
-    if (pdgId == 14)
-      return "ν_μ";
-    if (pdgId == -14)
-      return "ν̄_μ";
-    if (pdgId == 16)
-      return "ν_τ";
-    if (pdgId == -16)
-      return "ν̄_τ";
-
-    if (pdgId == 22)
-      return "γ";
-    if (pdgId == 21)
-      return "g";
-    if (pdgId == 23)
-      return "Z⁰";
-    if (pdgId == 24)
-      return "W⁺";
-    if (pdgId == -24)
-      return "W⁻";
-    if (pdgId == 25)
-      return "H";
-
-    if (pdgId == 2212)
-      return "p";
-    if (pdgId == -2212)
-      return "p̄";
-    if (pdgId == 2112)
-      return "n";
-    if (pdgId == -2112)
-      return "n̄";
-
-    if (pdgId == 111)
-      return "π⁰";
-    if (pdgId == 211)
-      return "π⁺";
-    if (pdgId == -211)
-      return "π⁻";
-    if (pdgId == 321)
-      return "K⁺";
-    if (pdgId == -321)
-      return "K⁻";
-    if (pdgId == 130)
-      return "K⁰_L";
-    if (pdgId == 310)
-      return "K⁰_S";
-
-    if (ap >= 1 && ap <= 6) {
-      static const char* qname[7] = {"", "d", "u", "s", "c", "b", "t"};
-      std::string s = qname[ap];
-      if (pdgId < 0)
-        s = "anti-" + s;
-      return s;
-    }
-
-    return "pdg";
-  }
-
-  std::string pdgLabel(int pdgId) {
-    std::ostringstream ss;
-    const std::string name = pdgNameUtf8(pdgId);
-    if (name == "pdg")
-      ss << "pdg(" << pdgId << ")";
-    else
-      ss << name << " (" << pdgId << ")";
-    return ss.str();
-  }
-
   template <typename P4T>
   std::string fmtP4(const P4T& p4) {
     std::ostringstream ss;
@@ -202,49 +116,6 @@ namespace {
     return " [style=solid, edgeType=\"Unknown\"]";
   }
 
-  std::string statusFlagsLabel(uint16_t flags) {
-    struct FlagInfo {
-      uint16_t bit;
-      const char* name;
-    };
-
-    static constexpr FlagInfo flagInfos[] = {
-        {1u << 0, "isPrompt"},
-        {1u << 1, "isDecayedLeptonHadron"},
-        {1u << 2, "isTauDecayProduct"},
-        {1u << 3, "isPromptTauDecayProduct"},
-        {1u << 4, "isDirectTauDecayProduct"},
-        {1u << 5, "isDirectPromptTauDecayProduct"},
-        {1u << 6, "isDirectHadronDecayProduct"},
-        {1u << 7, "isHardProcess"},
-        {1u << 8, "fromHardProcess"},
-        {1u << 9, "isHardProcessTauDecayProduct"},
-        {1u << 10, "isDirectHardProcessTauDecayProduct"},
-        {1u << 11, "fromHardProcessBeforeFSR"},
-        {1u << 12, "isFirstCopy"},
-        {1u << 13, "isLastCopy"},
-        {1u << 14, "isLastCopyBeforeFSR"},
-    };
-
-    std::ostringstream ss;
-    bool first = true;
-
-    for (auto const& flag : flagInfos) {
-      if ((flags & flag.bit) == 0)
-        continue;
-
-      if (!first)
-        ss << ", ";
-      ss << flag.name;
-      first = false;
-    }
-
-    if (first)
-      return "none";
-
-    return ss.str();
-  }
-
   std::string dotQuote(std::string const& input) {
     std::string out;
     out.reserve(input.size() + 2);
@@ -271,26 +142,6 @@ namespace {
     return out;
   }
 
-  std::string appendEventIdToFilename(std::string const& filename, edm::EventID const& id) {
-    const auto dotPos = filename.rfind('.');
-
-    std::ostringstream ss;
-    if (dotPos == std::string::npos) {
-      ss << filename;
-      ss << "_run" << id.run();
-      ss << "_lumi" << id.luminosityBlock();
-      ss << "_event" << id.event();
-      return ss.str();
-    }
-
-    ss << filename.substr(0, dotPos);
-    ss << "_run" << id.run();
-    ss << "_lumi" << id.luminosityBlock();
-    ss << "_event" << id.event();
-    ss << filename.substr(dotPos);
-
-    return ss.str();
-  }
 }  // anonymous namespace
 
 class TruthGraphDumper : public edm::one::EDAnalyzer<> {
@@ -391,7 +242,7 @@ public:
       }
     }
 
-    const std::string eventDotFile = appendEventIdToFilename(dotFile_, evt.id());
+    const std::string eventDotFile = truth::dump::appendEventIdToFilename(dotFile_, evt.id());
     std::ofstream os(eventDotFile);
     os << "digraph TruthGraph {\n";
     os << "  rankdir=LR;\n";
@@ -409,7 +260,7 @@ public:
       // in every pileup interaction, so only a signal node may be enriched from them.
       const bool signalNode = (eid == 0);
       const auto flags = g.nodeStatusFlags(i);
-      const std::string flagsLabel = statusFlagsLabel(flags);
+      const std::string flagsLabel = truth::dump::statusFlagsLabel(flags);
 
       // SimTrack enrichment
       bool crossedBoundary = false;
@@ -517,7 +368,7 @@ public:
       os << "      <TR><TD><B>" << i << " " << kindName(r.kind) << "</B> key=" << r.key << "</TD></TR>\n";
 
       if (pdg != 0)
-        os << "      <TR><TD>pid: " << pdgLabel(pdg) << "</TD></TR>\n";
+        os << "      <TR><TD>pid: " << truth::dump::pdgLabel(pdg, /*unicode=*/true) << "</TD></TR>\n";
       if (st != 0)
         os << "      <TR><TD>status: " << st << "</TD></TR>\n";
       if (flags != 0) {
@@ -541,7 +392,7 @@ public:
           auto it = bc2p.find(bc);
           if (it != bc2p.end()) {
             auto const* p = it->second;
-            os << "      <TR><TD>pid: " << pdgLabel(p->pdg_id()) << "</TD></TR>\n";
+            os << "      <TR><TD>pid: " << truth::dump::pdgLabel(p->pdg_id(), /*unicode=*/true) << "</TD></TR>\n";
             os << "      <TR><TD>status: " << p->status() << "</TD></TR>\n";
             os << "      <TR><TD>p4: " << fmtP4(p->momentum()) << "</TD></TR>\n";
             os << "      <TR><TD>m: " << std::fixed << std::setprecision(3) << p->generated_mass() << "</TD></TR>\n";
@@ -553,7 +404,7 @@ public:
           auto it = id3p.find(bc);
           if (it != id3p.end() && it->second) {
             auto const& p = it->second;
-            os << "      <TR><TD>pid: " << pdgLabel(p->pid()) << "</TD></TR>\n";
+            os << "      <TR><TD>pid: " << truth::dump::pdgLabel(p->pid(), /*unicode=*/true) << "</TD></TR>\n";
             os << "      <TR><TD>status: " << p->status() << "</TD></TR>\n";
             os << "      <TR><TD>p4: " << fmtP4(p->momentum()) << "</TD></TR>\n";
             const int prod = p->production_vertex() ? p->production_vertex()->id() : 0;

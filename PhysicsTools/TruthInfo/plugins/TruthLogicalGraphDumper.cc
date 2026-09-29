@@ -25,6 +25,7 @@
 
 #include "SimDataFormats/TruthInfo/interface/Graph.h"
 #include "SimDataFormats/TruthInfo/interface/LogicalGraphHitIndex.h"
+#include "PhysicsTools/TruthInfo/plugins/TruthGraphDumpFormat.h"
 #include "PhysicsTools/TruthInfo/interface/SubgraphHitView.h"
 #include "PhysicsTools/TruthInfo/interface/TruthLevels.h"
 #include "SimDataFormats/TruthInfo/interface/TruthGraph.h"
@@ -66,93 +67,6 @@ namespace {
         return "#e9d8c9";
     }
     return "#ffffff";
-  }
-
-  std::string pdgNameUtf8(int pdgId) {
-    const int ap = std::abs(pdgId);
-
-    if (pdgId == 11)
-      return "e-";
-    if (pdgId == -11)
-      return "e+";
-    if (pdgId == 13)
-      return "mu-";
-    if (pdgId == -13)
-      return "mu+";
-    if (pdgId == 15)
-      return "tau-";
-    if (pdgId == -15)
-      return "tau+";
-
-    if (pdgId == 12)
-      return "nu_e";
-    if (pdgId == -12)
-      return "anti-nu_e";
-    if (pdgId == 14)
-      return "nu_mu";
-    if (pdgId == -14)
-      return "anti-nu_mu";
-    if (pdgId == 16)
-      return "nu_tau";
-    if (pdgId == -16)
-      return "anti-nu_tau";
-
-    if (pdgId == 22)
-      return "gamma";
-    if (pdgId == 21)
-      return "g";
-    if (pdgId == 23)
-      return "Z0";
-    if (pdgId == 24)
-      return "W+";
-    if (pdgId == -24)
-      return "W-";
-    if (pdgId == 25)
-      return "H";
-
-    if (pdgId == 2212)
-      return "p";
-    if (pdgId == -2212)
-      return "anti-p";
-    if (pdgId == 2112)
-      return "n";
-    if (pdgId == -2112)
-      return "anti-n";
-
-    if (pdgId == 111)
-      return "pi0";
-    if (pdgId == 211)
-      return "pi+";
-    if (pdgId == -211)
-      return "pi-";
-    if (pdgId == 321)
-      return "K+";
-    if (pdgId == -321)
-      return "K-";
-    if (pdgId == 130)
-      return "K0_L";
-    if (pdgId == 310)
-      return "K0_S";
-
-    if (ap >= 1 && ap <= 6) {
-      static const char* qname[7] = {"", "d", "u", "s", "c", "b", "t"};
-      std::string s = qname[ap];
-      if (pdgId < 0)
-        s = "anti-" + s;
-      return s;
-    }
-
-    return "pdg";
-  }
-
-  std::string pdgLabel(int pdgId) {
-    std::ostringstream ss;
-    const std::string name = pdgNameUtf8(pdgId);
-    if (name == "pdg")
-      ss << "pdg(" << pdgId << ")";
-    else
-      ss << name << " (" << pdgId << ")";
-    return ss.str();
   }
 
   const char* rawKindName(TruthGraph::NodeKind k) {
@@ -212,49 +126,6 @@ namespace {
     if (d.hasGen() && d.hasSim())
       return "GEN+SIM";
     return "UNKNOWN";
-  }
-
-  std::string statusFlagsLabel(uint16_t flags) {
-    struct FlagInfo {
-      uint16_t bit;
-      const char* name;
-    };
-
-    static constexpr FlagInfo flagInfos[] = {
-        {1u << 0, "isPrompt"},
-        {1u << 1, "isDecayedLeptonHadron"},
-        {1u << 2, "isTauDecayProduct"},
-        {1u << 3, "isPromptTauDecayProduct"},
-        {1u << 4, "isDirectTauDecayProduct"},
-        {1u << 5, "isDirectPromptTauDecayProduct"},
-        {1u << 6, "isDirectHadronDecayProduct"},
-        {1u << 7, "isHardProcess"},
-        {1u << 8, "fromHardProcess"},
-        {1u << 9, "isHardProcessTauDecayProduct"},
-        {1u << 10, "isDirectHardProcessTauDecayProduct"},
-        {1u << 11, "fromHardProcessBeforeFSR"},
-        {1u << 12, "isFirstCopy"},
-        {1u << 13, "isLastCopy"},
-        {1u << 14, "isLastCopyBeforeFSR"},
-    };
-
-    std::ostringstream ss;
-    bool first = true;
-
-    for (auto const& flag : flagInfos) {
-      if ((flags & flag.bit) == 0)
-        continue;
-
-      if (!first)
-        ss << ", ";
-      ss << flag.name;
-      first = false;
-    }
-
-    if (first)
-      return "none";
-
-    return ss.str();
   }
 
   std::string fmtEnergy(float energy) {
@@ -435,28 +306,6 @@ namespace {
     os << "  ]\n}\n";
   }
 
-  std::string appendEventIdToFilename(std::string const& filename, edm::EventID const& id) {
-    const auto dotPos = filename.rfind('.');
-
-    std::ostringstream ss;
-
-    if (dotPos == std::string::npos) {
-      ss << filename;
-      ss << "_run" << id.run();
-      ss << "_lumi" << id.luminosityBlock();
-      ss << "_event" << id.event();
-      return ss.str();
-    }
-
-    ss << filename.substr(0, dotPos);
-    ss << "_run" << id.run();
-    ss << "_lumi" << id.luminosityBlock();
-    ss << "_event" << id.event();
-    ss << filename.substr(dotPos);
-
-    return ss.str();
-  }
-
 }  // namespace
 
 class TruthLogicalGraphDumper : public edm::one::EDAnalyzer<> {
@@ -549,9 +398,9 @@ public:
 
     const std::vector<float> recHitEnergies = collectRecHitEnergies(evt);
 
-    const std::string eventDotFile = appendEventIdToFilename(dotFile_, evt.id());
+    const std::string eventDotFile = truth::dump::appendEventIdToFilename(dotFile_, evt.id());
     if (!jsonFile_.empty()) {
-      writeJson(appendEventIdToFilename(jsonFile_, evt.id()), evt.id(), g, hitIndex);
+      writeJson(truth::dump::appendEventIdToFilename(jsonFile_, evt.id()), evt.id(), g, hitIndex);
     }
 
     std::ofstream os(eventDotFile);
@@ -765,7 +614,7 @@ public:
       }
 
       os << ", pid=" << d.pdgId << ", status=" << d.status << ", statusFlags=" << d.statusFlags << ", flags=<"
-         << statusFlagsLabel(d.statusFlags) << ">"
+         << truth::dump::statusFlagsLabel(d.statusFlags) << ">"
          << ", eid=" << d.eventId << ", genEvent=" << d.genEvent << ", isRoot=" << p.isRoot()
          << ", isLeaf=" << p.isLeaf() << ", p4=\"" << fmtP4(d.momentum)
          << "\", nProdVtx=" << p.productionVertices().size() << ", nDecayVtx=" << p.decayVertices().size()
@@ -824,7 +673,7 @@ public:
                                   : (d.particleRole() == truth::ParticleRole::SignalStandIn)
                                       ? std::string("signal stand-in")
                                   : (!p.hasGen() && !d.hasSim()) ? std::string("connector")
-                                                                 : pdgLabel(d.pdgId);
+                                                                 : truth::dump::pdgLabel(d.pdgId, /*unicode=*/false);
       os << ", label=<\n";
       os << "    <TABLE BORDER=\"0\" CELLBORDER=\"1\" CELLSPACING=\"0\" CELLPADDING=\"4\">\n";
       os << "      <TR><TD><FONT POINT-SIZE=\"22\"><B>" << bigName << "</B></FONT></TD></TR>\n";
@@ -842,14 +691,14 @@ public:
       }
 
       if (d.pdgId != 0)
-        os << "      <TR><TD>pid: " << pdgLabel(d.pdgId) << "</TD></TR>\n";
+        os << "      <TR><TD>pid: " << truth::dump::pdgLabel(d.pdgId, /*unicode=*/false) << "</TD></TR>\n";
 
       if (d.status != 0)
         os << "      <TR><TD>status: " << d.status << "</TD></TR>\n";
 
       if (d.statusFlags != 0) {
         os << "      <TR><TD>statusFlags: " << d.statusFlags << "</TD></TR>\n";
-        os << "      <TR><TD>flags: " << statusFlagsLabel(d.statusFlags) << "</TD></TR>\n";
+        os << "      <TR><TD>flags: " << truth::dump::statusFlagsLabel(d.statusFlags) << "</TD></TR>\n";
       }
 
       if (d.backscattered)
