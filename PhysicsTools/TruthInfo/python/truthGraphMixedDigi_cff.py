@@ -64,7 +64,6 @@ truthGraphAccumulator = cms.PSet(
                                               # that feed the hard-scatter strings from the beam
                                               # side are there for the BeamSideInput vertex
 
-    computeCellEnergyBudget=cms.bool(False),  # prototype energy-budget map, off by default
 )
 
 # The post-mixing build: logical graph + unresolved hit index from the mixed raw
