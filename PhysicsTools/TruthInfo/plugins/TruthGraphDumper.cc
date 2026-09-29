@@ -312,11 +312,10 @@ public:
     desc.add<edm::InputTag>("simTracks", edm::InputTag("g4SimHits"))
         ->setComment("SimTrackContainer (optional, used to enrich SimTrack nodes)");
     desc.add<edm::InputTag>("simVertices", edm::InputTag("g4SimHits"))
-        ->setComment("SimVertexContainer (optional, used for future enrichment)");
+        ->setComment("SimVertexContainer (optional): positions and creation processes of the SIM vertex nodes");
 
     // GEN record (for enriching GenParticle/GenVertex nodes)
-    desc.add<edm::InputTag>("genEventHepMC", edm::InputTag("generatorSmeared"))
-        ->setComment("edm::HepMCProduct label (your step1.root shows this is present)");
+    desc.add<edm::InputTag>("genEventHepMC", edm::InputTag("generatorSmeared"))->setComment("edm::HepMCProduct label");
     desc.add<edm::InputTag>("genEventHepMC3", edm::InputTag("generatorSmeared"))
         ->setComment("edm::HepMC3Product label (optional)");
 

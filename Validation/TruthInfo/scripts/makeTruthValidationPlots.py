@@ -296,12 +296,10 @@ def marker_size(marker):
 # The Individual-match criterion per category: (legend line, full statement). The legend
 # line goes on every truth-driven plot, the full statement into the definitions text.
 _VERTEX_CRITERION = (
-    "Individual: any positive shared p$_{T}^{2}$ track fraction (vertex validation standard)",
-    "Individual: any positive shared pt^2 track fraction. The reference vertex association gates on "
-    "POSITION and ships its shared-track-fraction cut disabled, sharedTrackFraction = -1.0 "
-    "(SimTracker/VertexAssociation/plugins/VertexAssociatorByPositionAndTracksProducer.cc:72, the "
-    "fraction branch at src/VertexAssociatorByPositionAndTracks.cc:129), so on the shared-components "
-    "axis used here the reference criterion is any positive shared fraction.",
+    "Individual: shared p$_{T}^{2}$ track fraction >= 0.5",
+    "Individual: the vertex holds at least half of the pt^2 of the truth vertex's tracks "
+    "(minTruthPurityForIndividual = 0.5 in truthBranchValidation_cff). The reference vertex "
+    "association gates on position instead and ships its shared-track-fraction cut disabled.",
 )
 MATCH_CRITERIA = {
     "Tracking": (
@@ -387,9 +385,6 @@ PROPOSED = [
     ("Two-channel candidate matching",
      "A TICLCandidate should be matched on calo shared energy AND tracker shared hits at once; the payload for "
      "that is the natural next extension of the shared-hits type."),
-    ("Interaction-vertex association for primary vertices",
-     "A vertex should be associated to the graph Interaction vertex rather than to particle branches. The present "
-     "PV numbers are mechanically correct but aimed at the wrong truth object."),
 ]
 # The page order: efficiency before its failure modes.
 METRIC_ORDER = ["composition", "efficiency", "duplicate", "splitrate", "recopurity", "fakerate",
@@ -1039,7 +1034,8 @@ def plot_composition(category, collection, counts, outdir, index, reference=None
     ax.grid(axis="x", alpha=0.3)
     hep.cms.label(ax=ax, llabel="Private Work", rlabel=f"Phase-2 Simulation, {region_label(category)}", fontsize=15)
 
-    caption = ("Composition of the truth-branch denominator by the Geant4 process that created each branch root. "
+    caption = ("Composition of the truth-branch denominator by the reason that created each branch root, the "
+               "Geant4 process or the generator reason. "
                f"Leading process {labels[order[0]]} at {frac[0]*100:.0f}% of {int(values.sum())} branches.")
     name = f"{index:02d}_{category.split('/')[-1]}_{collection}_composition_by_reason.png"
     fig.savefig(os.path.join(outdir, category.split("/", 1)[0], "composition", name), dpi=150)
@@ -1180,7 +1176,7 @@ def main():
         if metric in TRUTH_METRICS:
             return ("Each plot overlays the branch LEVELS of the truth graph, the a priori definitions of what "
                     "one truth object is (stableLegsFromInitialState, caloBoundary, stableDecayProducts, "
-                    "hardProcess, reconstructableFromSignal), plus three more series: signal, whose denominator "
+                    "hardProcess, reconstructableFromSignal), plus two more series: signal, whose denominator "
                     "is the preset SEED objects "
                     "among the selected roots, so with a selection preset it is the signal object's own "
                     "efficiency (the tau, not its decay legs), signalNoSelection, the same seed objects with "

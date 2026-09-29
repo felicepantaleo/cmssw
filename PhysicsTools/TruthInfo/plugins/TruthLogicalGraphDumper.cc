@@ -345,7 +345,6 @@ namespace {
   bool shouldHideVertexAfterParticleFiltering(truth::Graph const& g,
                                               uint32_t vertexId,
                                               std::vector<uint8_t> const& hideParticle) {
-    const bool hasIncoming = !g.incomingParticles(vertexId).empty();
     const bool hasOutgoing = !g.outgoingParticles(vertexId).empty();
 
     const bool hasVisibleIncoming = hasVisibleIncomingParticle(g, vertexId, hideParticle);
@@ -356,14 +355,7 @@ namespace {
       return true;
 
     // Hide a vertex whose outgoing particles are all hidden.
-    if (hasOutgoing && !hasVisibleOutgoing)
-      return true;
-
-    // Hide a source vertex whose outgoing particles are all hidden. The check above covers this case.
-    if (!hasIncoming && hasOutgoing && !hasVisibleOutgoing)
-      return true;
-
-    return false;
+    return hasOutgoing && !hasVisibleOutgoing;
   }
 
   // Formats a number for the JSON dump at full precision.
