@@ -133,14 +133,11 @@ namespace {
     }
   }
 
-  // Rebuild the four CSR adjacency arrays of `output` from the edges of
-  // `input`, remapping particle and vertex ids and dropping edges with an
-  // unmapped endpoint. `extraProductionEdges` are additional
-  // (newVertex, newParticle) production-side edges and `extraDecayEdges` are
-  // additional (newParticle, newVertex) decay-side edges - e.g. those wiring the
-  // artificial Interaction/InitialState/UnderlyingEvent vertices and their connector
-  // particles. buildCSR sorts and deduplicates, so the collection order here does
-  // not affect the result.
+  // Rebuild the four CSR adjacency arrays of `output` from the edges of `input`,
+  // remapping the ids and dropping edges with an unmapped endpoint. extraProductionEdges
+  // (newVertex, newParticle) and extraDecayEdges (newParticle, newVertex) are added, for
+  // example for the artificial vertices and their connectors. buildCSR sorts and
+  // deduplicates, so the order of the edges does not matter.
   void rebuildAdjacency(truth::Graph const& input,
                         std::vector<int32_t> const& oldParticleToNew,
                         std::vector<int32_t> const& oldVertexToNew,
@@ -301,12 +298,9 @@ namespace {
       skipVertex[decayVertexId] = 1;
     }
 
-    // Representative of a particle = end of its directChild collapse chain.
-    // Resolve with path compression so each node is visited once overall
-    // (amortized O(nParticles)) instead of re-walking the chain per particle
-    // (O(nParticles^2) for a long chain). state: 0 unvisited, 1 on the current
-    // walk, 2 resolved; the on-walk marker also makes a (graph is a DAG, so this
-    // cannot happen) cycle terminate deterministically rather than spin.
+    // The representative of a particle is the end of its directChild chain. Path
+    // compression visits each particle once. state: 0 unvisited, 1 on the current walk,
+    // 2 resolved. The on-walk state also stops the walk on a cycle.
     std::vector<uint32_t> particleRepresentative(nParticles, 0);
     std::vector<uint8_t> state(nParticles, 0);
     std::vector<uint32_t> path;
@@ -360,9 +354,8 @@ namespace {
     }
 
     // A status flag describes the particle, not the copy, so the flags of the collapsed
-    // copies travel to the survivor. isHardProcess sits on the first copy of a
-    // hard-scatter leg and the chain collapses to the last one: without this, a leg that
-    // radiates leaves the hardProcess level, and partonJets with it.
+    // copies go to the survivor. isHardProcess is on the first copy of a hard-scatter leg,
+    // and the chain collapses to the last copy.
     for (uint32_t oldParticle = 0; oldParticle < nParticles; ++oldParticle) {
       const int32_t newParticle = oldParticleToNew[oldParticle];
       if (newParticle < 0)
@@ -713,13 +706,8 @@ namespace {
     }
   }
 
-  // attachRole[i] is 0 for particles that are not attached to an artificial
-  // source, or the uint8_t value of the InitialState/UnderlyingEvent/BeamSideInput
-  // VertexRole otherwise. Per interaction (keyed by genEvent) a single Interaction source
-  // vertex is created and fans out, through connector particles, to the InitialState
-  // and UnderlyingEvent sub-vertices the attached particles hang off; all three
-  // carry the genEvent/eventId of the activity they summarize so overlaid
-  // pile-up interactions stay distinguishable.
+  // attachRole[i] is 0 for a particle that is not attached to an artificial source,
+  // else the InitialState, UnderlyingEvent or BeamSideInput VertexRole value.
   truth::Graph rebuildFilteredGraph(truth::Graph const& input,
                                     std::vector<uint8_t> const& keepParticle,
                                     std::vector<uint8_t> const& keepVertex,
@@ -751,9 +739,7 @@ namespace {
       output.vertices().push_back(input.vertices()[oldVertex]);
     }
 
-    // Artificial source structure, one per interaction (keyed by the packed
-    // EncodedEventId, i.e. one node per pp collision: signal is bx 0 / event 0,
-    // each pile-up interaction its own):
+    // Artificial source structure, one per interaction, keyed by the packed eventId:
     //
     //   (Interaction vertex, source)
     //      --connector particle--> (InitialState vertex)    --> initial-state roots
@@ -761,11 +747,8 @@ namespace {
     //      --connector particle--> (BeamSideInput vertex)    --> the dropped GEN parents
     //                                                            of a kept vertex
     //
-    // so the whole interaction descends from a single Interaction vertex: the
-    // signal is everything reachable from the signal Interaction vertex, and each
-    // overlaid pile-up interaction gets its own. Keying by eventId (not genEvent)
-    // keeps an interaction whose GEN history splits into several components under
-    // one Interaction vertex. The connector particles are artificial
+    // Keying by eventId, not genEvent, keeps an interaction whose GEN history has several
+    // components under one Interaction vertex. The connectors are artificial
     // (genNode = simNode = -1) and carry the interaction provenance.
     struct InteractionNodes {
       int32_t interactionVertex = -1;
@@ -808,12 +791,9 @@ namespace {
       return id;
     };
 
-    // The real production vertex of an attached particle is the primary
-    // interaction point of its pp collision: the InitialState roots and the
-    // UnderlyingEvent spectators are all produced there. That vertex was dropped
-    // from the output (which is why the particle needs an artificial source), but
-    // it still carries its 4-position in `input`, so the artificial source nodes
-    // inherit the correct interaction-point 4-position instead of the origin.
+    // The 4-position of the dropped input production vertex of an attached particle, or
+    // the origin when it has none. Each artificial vertex takes the position of the first
+    // particle that creates it.
     auto productionPosition = [&input](uint32_t oldParticle) -> math::XYZTLorentzVectorD {
       const auto prodVertices = input.productionVertices(oldParticle);
       if (!prodVertices.empty())
@@ -849,9 +829,8 @@ namespace {
       if (subVertex < 0) {
         subVertex = static_cast<int32_t>(makeArtificialVertex(role, genEvent, eventId, interactionPoint));
 
-        // Connector particle: produced at the Interaction vertex, decays at this
-        // sub-vertex, so the sub-vertex (and everything below it) descends from the
-        // single Interaction vertex.
+        // The connector is produced at the Interaction vertex and decays at this
+        // sub-vertex.
         const uint32_t connectorId = makeConnector(genEvent, eventId);
 
         extraProductionEdges.emplace_back(static_cast<uint32_t>(nodes.interactionVertex), connectorId);
@@ -879,16 +858,12 @@ namespace {
     return sortedGroups;
   }
 
-  // The roots a selection names: the most upstream seed matches, narrowed to those whose
-  // effective decay matches a configured group, or the direct decay-pattern search when
-  // the generator wrote no explicit resonance. ONE computation, so the Signal flag and
-  // the selection cannot disagree about what the signal of the event is.
-  // signalInteractionOnly keeps only roots that are GEN particles of the signal
-  // interaction, which is what the Signal flag means. The selection keeps every
-  // interaction, and the bunch-crossing filter removes pile-up.
-  // usePatternFallback allows the decay-pattern search. That search returns the particles
-  // of a matching decay, not the resonance above them. The selection wants those as
-  // roots. The Signal flag does not, because the flag marks the resonance.
+  // The roots a selection names: the most upstream seed matches whose effective decay
+  // matches a configured group, or the direct decay-pattern search when no seed matches.
+  // The Signal flag and the selection both use it, so they agree.
+  // signalInteractionOnly keeps only GEN roots of the signal interaction (the Signal flag).
+  // usePatternFallback allows the decay-pattern search, which returns decay products and
+  // not the resonance. The selection uses it; the Signal flag does not.
   std::vector<uint32_t> selectionRoots(truth::Graph const& input,
                                        truth::LogicalGraphPostProcessingConfig const& config,
                                        std::vector<std::vector<int32_t>> const& sortedGroups,
@@ -1085,12 +1060,9 @@ namespace {
     return rebuildFilteredGraph(input, keepParticle, keepVertex, attachRole);
   }
 
-  // Stand-alone pile-up filter. The bunch-crossing pass must run independently of
-  // the seed/decay selection (which short-circuits when no seeds are configured),
-  // so a "keep the full graph but drop pile-up" configuration (signalOnly and/or
-  // keepBunchCrossings, no seeds) actually removes the out-of-time / pile-up
-  // particles. Keeps every in-time particle and the topology connecting them;
-  // no-op unless a pile-up filter is configured.
+  // Pile-up filter, independent of the seed selection, so it also acts when no seed is
+  // configured. Keeps the particles that pass signalOnly and keepBunchCrossings, and the
+  // vertices that connect them. A no-op unless a pile-up filter is configured.
   truth::Graph filterGraphByBunchCrossing(truth::Graph const& input,
                                           truth::LogicalGraphPostProcessingConfig const& config) {
     if (input.empty() || (!config.signalOnly && config.keepBunchCrossings.empty()))
@@ -1205,12 +1177,8 @@ namespace {
     return output;
   }
 
-  // Remove every SIM particle whose calo+tracker sim-hit subgraph is empty,
-  // together with its whole downstream subtree. particleDirectHit[i] flags the
-  // particles that carry a sim-hit on their own SimTrack (supplied by the
-  // producer, aligned to input ids). subgraphHasHit[p] = "p or some logical
-  // descendant of p carries a hit"; it is computed by propagating the direct-hit
-  // flag UP the production edges (an ancestor inherits a hit from any descendant).
+  // Remove every SIM particle whose calo+tracker sim-hit subgraph is empty, with its
+  // whole downstream subtree. particleDirectHit is aligned to the input ids.
   truth::Graph dropHitlessSimSubgraphs(truth::Graph const& input, std::vector<uint8_t> const& particleDirectHit) {
     const uint32_t nParticles = input.nParticles();
     const uint32_t nVertices = input.nVertices();
@@ -1218,8 +1186,8 @@ namespace {
     if (nParticles == 0 || particleDirectHit.size() != nParticles)
       return input;
 
-    // Upward closure of the direct-hit set: a particle has a non-empty subgraph
-    // iff it is an ancestor-or-self of some particle that carries a hit.
+    // Upward closure of the direct-hit set: a particle has a non-empty subgraph if and
+    // only if it is a particle with a hit or an ancestor of one.
     std::vector<uint8_t> subgraphHasHit(nParticles, 0);
     std::vector<uint32_t> worklist;
     worklist.reserve(nParticles);
@@ -1279,11 +1247,8 @@ namespace {
     for (uint32_t particleId = 0; particleId < nParticles; ++particleId)
       keepParticle[particleId] = removeParticle[particleId] ? 0 : 1;
 
-    // Keep a vertex iff it still has at least one kept outgoing particle: this
-    // preserves the production vertex of every kept particle (and, since a kept
-    // particle never has a removed parent, its incoming side stays valid) while
-    // dropping decay vertices whose products were all pruned, so the parent
-    // simply becomes a leaf.
+    // Keep a vertex if it has a kept outgoing particle. A decay vertex whose products are
+    // all removed goes, and its parent becomes a leaf.
     std::vector<uint8_t> keepVertex(nVertices, 0);
     for (uint32_t vertexId = 0; vertexId < nVertices; ++vertexId) {
       for (const uint32_t particleId : input.outgoingParticles(vertexId)) {
@@ -1507,16 +1472,10 @@ namespace truth {
     // post-collapse indexing.
     input = filterGraphByBunchCrossing(input, config_);
 
-    // Mark the resonance BEFORE the selection rewrite. The members are the most upstream
-    // particles matching the preset's seed species, so the two tops rather than their
-    // decay products. The flag sits on the ParticleData, not on an index list, because
-    // the rewrite renumbers every particle and a flag on the struct survives that. This
-    // runs after the collapse and the pile-up steps, so it sees the indexing the
-    // selection sees.
-    // The same root computation the selection uses, so the flag and the selection agree
-    // on what the signal is. It applies the decay groups: a Z to mu+ mu- preset does not
-    // stamp a Z that decayed to e+ e-. It keeps only the signal interaction. It does not
-    // take the decay-pattern fallback, which returns decay products, not the resonance.
+    // Flag the resonance before the selection renumbers the particles: the most upstream
+    // seed matches (the two tops), of the signal interaction, with the decay groups
+    // applied (a Z to mu+ mu- preset does not flag a Z to e+ e-). The flag is on the
+    // ParticleData, so it survives the renumbering.
     if (seedsNameAResonance(config_.seedPdgIds, config_.seedHadronFlavors)) {
       const auto sortedGroups = sortedDecayGroups(config_);
       std::vector<uint32_t> patternVertices;

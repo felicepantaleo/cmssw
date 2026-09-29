@@ -1,19 +1,13 @@
 // Original author: Felice Pantaleo (CERN) <felice.pantaleo@cern.ch>
 //
-// Truth-branch validation, one plugin template covering every reco domain, booking
-// only num/denom so all harvesting stays DQMGenericClient string config. Two folder
-// families: the reco-driven metrics get one folder per (collection, working point),
-// the truth-driven ones one folder per (collection, graph level), because the truth
-// target is fixed a priori by the level and the working point never enters it.
+// Truth-branch validation, one plugin template for every reco domain. It books only
+// num/denom histograms; DQMGenericClient forms the ratios. Reco-driven metrics have one
+// folder per (collection, working point). Truth-driven metrics have one folder per
+// (collection, graph level), because the level fixes the truth target and the working
+// point does not change it.
 //
-// DQMGlobalEDAnalyzer, not DQMEDAnalyzer: booking and filling are both const and the
-// MonitorElements live in a per-run cache, which is the modern convention shared by
-// MultiTrackValidator and HGCalValidator.
-//
-// What differs between domains is only (a) which association map type the associator
-// wrote and (b) how to read kinematics off a reco object. Both are bound to the reco
-// type by RecoValidationTraits, mirroring TruthAssociationTraits on the producer side,
-// so the declared product type and the consumed one cannot drift apart.
+// RecoValidationTraits binds the association map type and the kinematics of a reco
+// object to the reco type.
 
 #include <algorithm>
 #include <cctype>
@@ -87,17 +81,15 @@ namespace {
     }
     static bool hasDirection(reco::Track const&) { return true; }
     // The truth side of a hit-based domain iterates branch roots, which are particles.
-    // The denominator instance is a PREFIX: the capitalized level name is appended, one
-    // product per configured level.
     static constexpr bool truthIsVertex = false;
-    // A domain matched on shared ENERGY in the calorimeter channel, which is judged by
-    // the HGCal validation criteria; everything else is judged on shared components.
+    // A calorimetric domain is judged by the HGCalValidator criteria on shared energy.
+    // Other domains are judged on shared components.
     static constexpr bool calorimetric = false;
+    // A prefix: the capitalized level name is appended, one product per level.
     static constexpr const char* denominatorInstance = "truthToRecoTargets";
   };
 
-  // A vertex has no momentum, so only its position and its track multiplicity are
-  // meaningful; the configuration books exactly those and nothing else.
+  // A vertex has no momentum, so only its position and its track multiplicity are defined.
   template <>
   struct RecoValidationTraits<reco::Vertex> {
     using MapType = ticl::TICLAssociationMap<ticl::mapWithFractionAndScore>;
@@ -109,8 +101,7 @@ namespace {
 
     static Kinematics kinematics(reco::Vertex const& vertex) {
       Kinematics kin;
-      // The number of tracks the vertex was built from, which is the vertex analogue of
-      // a track's hit count: the constituents its truth was aggregated from.
+      // The number of tracks of the vertex, the vertex analogue of a track hit count.
       kin.nhits = vertex.tracksSize();
       kin.vertpos = std::sqrt(vertex.x() * vertex.x() + vertex.y() * vertex.y());
       kin.zpos = vertex.z();
@@ -139,8 +130,8 @@ namespace {
       auto const& bary = trackster.barycenter();
       const double rho = std::sqrt(bary.x() * bary.x() + bary.y() * bary.y());
       const double mag = std::sqrt(rho * rho + bary.z() * bary.z());
-      // Energy shared out along the barycentre direction: a trackster has no track, so
-      // its transverse momentum is the raw energy projected transversally.
+      // A trackster has no track: its pt is the raw energy projected on the transverse
+      // plane along the barycentre direction.
       kin.pt = (mag > 0.) ? trackster.raw_energy() * rho / mag : 0.;
       kin.eta = bary.eta();
       kin.phi = bary.phi();
@@ -170,8 +161,8 @@ namespace {
       auto const& pos = cluster.position();
       const double rho = std::sqrt(pos.x() * pos.x() + pos.y() * pos.y());
       const double mag = std::sqrt(rho * rho + pos.z() * pos.z());
-      // A cluster has no track, so its transverse momentum is the energy projected
-      // transversally along the cluster position.
+      // A cluster has no track: its pt is the energy projected on the transverse plane
+      // along the cluster position.
       kin.pt = (mag > 0.) ? cluster.energy() * rho / mag : 0.;
       kin.eta = pos.eta();
       kin.phi = pos.phi();
@@ -208,62 +199,55 @@ private:
     edm::EDGetTokenT<std::vector<RECO>> recoToken;
     // Reco-driven, one per working point: score is 1 - reco purity.
     edm::EDGetTokenT<MapType> recoToTruthToken;
-    // The FIRST working point's map, which is the WP-free hit-sharing measure and the
-    // only one carrying every candidate branch: an adaptive point inserts just the one
-    // branch it climbed to, so a leading-versus-runner-up comparison is impossible on
-    // it. Dominance is therefore always read from this map, for every working point.
+    // The map of the first working point, the WP-free hit-sharing measure. It is the only
+    // map that carries every candidate branch: an adaptive working point inserts only the
+    // branch it climbs to. Dominance is read from this map for every working point.
     edm::EDGetTokenT<MapType> allCandidatesToken;
   };
 
-  // The antichain the dominance measure is computed over. The full set of selected roots
-  // is NOT one: it is every particle passing the selector, so a tau, its daughter pion and
-  // that pion's descendants are all candidates at once and their subgraphs are NESTED,
-  // each contributing nearly the same shared energy. Comparing a parent against its own
-  // child is meaningless, and it showed: on no-PU TenTau, 99.9% of tracksters had a
-  // leading-to-runner-up ratio of about one, where ten isolated taus should give a
-  // single overwhelming winner. Restricting the candidates to one level makes them
-  // distinct physical particles, which is what "different generated particles" means.
+  // The antichain of the dominance measure: the targets of one level, so the candidates
+  // are distinct particles. The full set of selected roots is not an antichain: a tau and
+  // its daughter pion have nested subgraphs with nearly the same shared energy. With that
+  // set, 99.9% of tracksters on no-PU TenTau have a leading-to-runner-up ratio near one.
   edm::EDGetTokenT<std::vector<unsigned int>> dominanceTargetsToken_;
   bool hasDominanceTargets_ = false;
 
-  // One entry per (collection, graph level) for a hit-based domain, per collection for
-  // a composite one, in booking order: the truth-driven monitor elements.
+  // The truth-driven entries, in booking order. A hit-based domain has one entry per
+  // (collection, graph level) plus the signal entries. A composite domain has one per
+  // collection.
   struct TruthEntry {
     std::string folder;
     // The level's denominator: the target set the efficiency is measured over.
     edm::EDGetTokenT<std::vector<unsigned int>> targetsToken;
-    // Parallel to targetsToken: which plotted-axis cut each target fails, so an efficiency
-    // against pt can keep the targets that fail only the pt cut. Not produced for the
-    // signal entries or for a composite domain, and then left unset.
+    // Parallel to the targets: the mask of plotted-axis cuts that each target fails, so
+    // the efficiency against pt keeps the targets that fail only the pt cut. Not consumed
+    // for the signal entries.
     edm::EDGetTokenT<std::vector<unsigned int>> eligibilityToken;
     bool hasEligibility = false;
-    // Truth-driven, one product per collection because the truth target is fixed a
-    // priori: score is 1 - truth purity.
+    // Truth-driven, one product per collection: score is 1 - truth purity.
     edm::EDGetTokenT<MapType> truthToRecoToken;
-    // The FIRST working point's reco-driven map (Fixed), which is the WP-free
-    // hit-sharing measure, read only for the loose reco-purity gate on Individual.
+    // The reco-driven map of the first working point (Fixed), the WP-free hit-sharing
+    // measure. Read only for the loose reco-purity gate on Individual.
     edm::EDGetTokenT<MapType> firstWpRecoToTruthToken;
   };
 
   const edm::EDGetTokenT<truth::Graph> graphToken_;
   const edm::EDGetTokenT<truth::LogicalGraphHitIndex> hitIndexToken_;
   const std::string dirName_;
-  // A truth object counts as reconstructed by one reco object when that object covers
-  // enough of it AND is not mostly something else. The second is the loose cut in the
-  // other direction that both QuickTrackAssociatorByHits and HGVHistoProducerAlgo use.
-  // Shared-component domains (tracks, vertices) are judged on these two.
+  // Shared-component domains (tracks, vertices): one reco object reconstructs a truth
+  // object when it covers enough of it and is not mostly something else. The second is
+  // the loose reco-purity cut of QuickTrackAssociatorByHits and HGVHistoProducerAlgo.
   const double minTruthPurityForIndividual_;
   const double minRecoPurityLoose_;
-  // Calorimetric domains are judged on the three HGCalValidator quantities instead,
-  // which are NOT the same axis: efficiency is a shared-energy-fraction cut, purity and
-  // duplicate are simToReco score cuts, fake and merge recoToSim score cuts
-  // (Validation/HGCalValidation/src/HGVHistoProducerAlgo.cc:2819-2820 and 2897-2899).
+  // Calorimetric domains use the three HGCalValidator cuts: efficiency on the shared
+  // energy fraction, duplicate on the simToReco score, strict match on the recoToSim
+  // score (Validation/HGCalValidation/src/HGVHistoProducerAlgo.cc:2819-2820, 2897-2899).
   const double minSharedEnergyFractionForIndividual_;
   const double maxSimToRecoScoreForDuplicate_;
   const double maxRecoToSimScore_;
   const double minCollectiveCoverage_;
-  // The fake criterion: a reco object is NOT a fake when one branch of the dominance
-  // antichain owns at least this share of the shared quantity all of them contribute.
+  // A reco object is not a fake when one branch of the dominance antichain owns at least
+  // this share of the shared quantity that all the antichain members contribute.
   const double minLeadingTruthShare_;
   std::vector<WpEntry> wpEntries_;
   // Working points per collection; wpEntries_ is collection-major with this stride.
@@ -310,25 +294,18 @@ TruthBranchRecoValidator<RECO>::TruthBranchRecoValidator(edm::ParameterSet const
       capitalized[0] = std::toupper(static_cast<unsigned char>(capitalized[0]));
       truthTargets.emplace_back(level, std::string(Traits::denominatorInstance) + capitalized);
     }
-    // The overall signal entry: its denominator is the preset SEED objects among the
-    // selected roots (the tau, not its decay legs), so the folder measures the signal
-    // object's own efficiency.
-    //
-    // NOT BOOKED AT ALL on a sample with no resonance, rather than booked empty: the
-    // question "how well is the signal reconstructed" has no meaning where the
-    // configuration names no signal, and an empty folder invites the reading that the
-    // efficiency is zero.
+    // The signal entry: its denominator is the preset seed objects among the selected
+    // roots (the tau, not its decay legs). Not booked when the seeds name no resonance,
+    // because an empty folder reads as an efficiency of zero.
     if (truth::seedsNameAResonance(cfg.getParameter<std::vector<int>>("signalSeedPdgIds"),
                                    cfg.getParameter<std::vector<int>>("signalSeedHadronFlavors"))) {
       truthTargets.emplace_back("signal", "signalSeeds");
-      // The same seed objects with NO selector cut, so the efficiency is quoted against
-      // every seed in the event rather than against the ones the kinematic selection
-      // kept. The gap to the signal folder is what the selection removed.
+      // The same seed objects with no selector cut. The difference to the signal folder
+      // is what the selection removes.
       truthTargets.emplace_back("signalNoSelection", "signalSeedsNoSelection");
     }
-    // Every denominator above is an ANTICHAIN. A set of all selected roots is not one,
-    // since it can contain a particle together with its own ancestor and an efficiency
-    // over it would count the same object twice, so no such denominator is offered.
+    // Every denominator is an antichain. The set of all selected roots is not offered: it
+    // can contain a particle and its ancestor, which counts the same object twice.
   }
 
   // Dominance is measured against ONE level, so the candidates are distinct particles.
@@ -345,8 +322,7 @@ TruthBranchRecoValidator<RECO>::TruthBranchRecoValidator(edm::ParameterSet const
   }
 
   for (auto const& tag : cfg.getParameter<std::vector<edm::InputTag>>("recoCollections")) {
-    // The one key rule of this package: label and instance joined by an underscore,
-    // used for the product instance labels AND for the folder name.
+    // "label_instance" is the key of the product instance labels and of the folder name.
     std::string key = tag.label();
     if (!tag.instance().empty()) {
       key += "_" + tag.instance();
@@ -363,8 +339,8 @@ TruthBranchRecoValidator<RECO>::TruthBranchRecoValidator(edm::ParameterSet const
     for (auto const& [suffix, instance] : truthTargets) {
       TruthEntry entry;
       entry.folder = key + "_" + suffix;
-      // The level denominators and the signal seeds come from the shared targets
-      // producer; the association maps below come from this domain's associator.
+      // A hit-based domain reads its targets from the targets producer, a composite domain
+      // from its associator. The association maps come from the associator.
       const std::string targetsLabel = Traits::truthIsVertex ? associator : targetsProducer;
       entry.targetsToken = consumes<std::vector<unsigned int>>(edm::InputTag(targetsLabel, instance));
       // Only the per-level denominators carry it: the signal entries are seed lists with
@@ -399,9 +375,7 @@ void TruthBranchRecoValidator<RECO>::bookHistograms(DQMStore::IBooker& booker,
   }
   for (auto const& entry : truthEntries_) {
     booker.setCurrentFolder(dirName_ + entry.folder);
-    // The shared energy fraction is the axis the calorimetric efficiency cut acts on,
-    // so it is booked exactly where that cut is applied and nowhere else, and the
-    // duplicate outcome a calorimetric domain cannot produce is not booked at all.
+    // A calorimetric domain books the shared energy fraction and no duplicate histograms.
     algo_.bookTruthHistos(booker, histograms, Traits::calorimetric);
   }
 }
@@ -414,16 +388,11 @@ void TruthBranchRecoValidator<RECO>::dqmAnalyze(edm::Event const& event,
   auto const& hitIndexProduct = event.get(hitIndexToken_);
   truth::SubgraphHitView hitIndex(hitIndexProduct);
 
-  // Where the branch ENTERS the calorimeter, as opposed to where its root was produced.
-  // The root of a branch is a generator particle that decayed long before any
-  // calorimeter, so its own eta says nothing about which part of the detector saw the
-  // branch: a top at eta 0 sprays into both endcaps, and a forward top deposits where no
-  // endcap object can be reconstructed. The calorimeter-entrance eta is taken from the
-  // boundary crossing (checkpoint 0) of the branch's most energetic particle to reach
-  // the calorimeter, and propagated UP the production edges so a root inherits it from
-  // its descendants. Computed once per event over the whole graph rather than per branch:
-  // per-branch descendant walks are quadratic at PU200, where there are thousands of
-  // roots and the branches overlap heavily.
+  // The eta where the branch enters the calorimeter. The eta of the root does not tell
+  // which detector saw the branch: a top at eta 0 deposits in both endcaps. The value is
+  // the boundary crossing (checkpoint 0) of the most energetic branch particle that reaches
+  // the calorimeter, propagated up to every ancestor. It is computed once per event,
+  // because per-branch descendant walks are quadratic at PU200.
   std::vector<double> caloEntryEta(graph.nParticles(), truth::kNoCaloEntry);
   if constexpr (!Traits::truthIsVertex) {
     const uint32_t nParticles = graph.nParticles();
@@ -466,22 +435,12 @@ void TruthBranchRecoValidator<RECO>::dqmAnalyze(edm::Event const& event,
     }
   }
 
-  // PROJECTION onto the dominance antichain: for each particle, the member of the
-  // antichain it descends from, or itself if it is one. Built once per event by a
-  // downward walk, the same shape as the calorimeter-entrance propagation above.
-  //
-  // Projecting, rather than keeping only candidates that ARE members, makes a branch and
-  // its own descendants add up as the ONE contributor they are instead of competing.
-  // MEASURED EFFECT ON THE FIVE SAMPLES: none, to four decimals on every rate. The
-  // associators insert branch roots that are either members of the level already or
-  // unrelated to it, so nothing projects. It is kept as the correct definition and as a
-  // guard for a collection whose associator does insert ancestor roots, not because it
-  // changes any number quoted here.
-  //
-  // Empty means the criterion cannot be applied, either because the domain configures no
-  // antichain or because the product was missing, and the fake rate falls back to
-  // "matched to nothing". Gating on this rather than on hasDominanceTargets_ keeps a
-  // missing product from silently computing dominance over an unprojected candidate list.
+  // Projection onto the dominance antichain: for each particle, the antichain member it
+  // descends from, or itself if it is a member. A branch and its descendants then add up
+  // as one contributor. On the five validation samples no rate changes at four decimals,
+  // because the associators insert no ancestor roots of the level.
+  // Empty means the criterion does not apply: the domain configures no antichain or the
+  // product is missing. The fake rate is then "matched to nothing".
   constexpr uint32_t kNoDominanceRoot = std::numeric_limits<uint32_t>::max();
   std::vector<uint32_t> dominanceRoot;
   if (hasDominanceTargets_) {
@@ -560,21 +519,16 @@ void TruthBranchRecoValidator<RECO>::dqmAnalyze(edm::Event const& event,
         auto& cached = perObject[r];
         cached.kin = Traits::kinematics((*recoHandle)[r]);
 
-        // DOMINANCE: a reco object is attributable when ONE truth branch stands out
-        // among its contributors, and is a fake when the contributions are all
-        // comparably small and no winner exists. Measured on the shared ENERGY each
-        // candidate contributes, not on the score, because the score penalises every
-        // contamination quadratically and so condemns an object that one branch
-        // plainly dominates. The row is not sorted by shared energy, so the leader is
-        // taken by scan.
+        // Dominance uses the shared quantity of each candidate, not the score. The score
+        // penalises every contamination quadratically, so it rejects an object that one
+        // branch dominates. The row is not sorted by shared quantity.
         if (allCandidates == nullptr) {
           continue;
         }
         auto const& row = allCandidates->getMap()[r];
-        // Shared energy per antichain member. A candidate ABOVE the antichain projects
-        // nowhere and is dropped: its subgraph already contains the members it would
-        // project onto, so counting both would count the same energy twice. Few
-        // candidates per object, so a linear scan beats a map.
+        // Shared quantity per antichain member. A candidate above the antichain projects
+        // nowhere and is dropped: its subgraph contains the members, so counting it counts
+        // the same energy twice.
         contributions.clear();
         double total = 0.;
         for (auto const& cand : row) {
@@ -612,16 +566,11 @@ void TruthBranchRecoValidator<RECO>::dqmAnalyze(edm::Event const& event,
       cachedCollection = collection;
     }
 
-    // Reco side: every object, whether it found a branch, and whether that branch came
-    // from a pileup interaction rather than the signal one.
+    // Reco side: every object, whether it is matched, and whether the match is pileup.
     for (std::size_t r = 0; r < recoHandle->size(); ++r) {
-      // [0] is the best match: the best detector particle when one matches. "Associated" means the
-      // object corresponds to something in the truth graph, and it is published on its
-      // own as the no-candidate rate. The calorimetric recoToSim score is not folded in
-      // here, because it is reco-normalised against the cell's total truth energy and at
-      // PU200 a cell shared with overlaid interactions drives it towards 1 for a matched
-      // object too. That score is the strict numerator instead, which is HGCalValidator's
-      // non-fake criterion.
+      // [0] is the best match. The calorimetric recoToSim score does not enter
+      // "associated": it is normalised to the total truth energy of the cell, so at PU200
+      // it is near 1 also for a matched object. It enters strictMatch only.
       const bool associated = r < recoToTruth.size() && !recoToTruth[r].empty();
       bool strictMatch = associated;
       if constexpr (Traits::calorimetric) {
@@ -631,9 +580,8 @@ void TruthBranchRecoValidator<RECO>::dqmAnalyze(edm::Event const& event,
 
       bool pileup = false;
       if (associated) {
-        // eventId 0 is the signal interaction; anything else is overlaid pileup. The
-        // row index means a truth vertex for a composite domain and a particle for a
-        // hit-based one, so the lookup follows the same split.
+        // The match index is a truth vertex for a composite domain and a particle for a
+        // hit-based domain.
         const unsigned int matched = recoToTruth[r][0].index();
         if constexpr (Traits::truthIsVertex) {
           if (matched < graph.nVertices()) {
@@ -645,33 +593,22 @@ void TruthBranchRecoValidator<RECO>::dqmAnalyze(edm::Event const& event,
           }
         }
       }
-      // For a composite object the association always finds something, so counting the
-      // match tells nothing; what it is worth is the leading truth vertex's share of the
-      // object's constituents. Constituents whose particles were produced at an
-      // unrelated vertex are the remainder.
-      // Reco purity, the reco-normalised quantity this direction exists to measure.
+      // Reco purity. For a composite object it is the pt^2 share of the constituents
+      // from the leading truth vertex.
       const double recoPurity = associated ? 1. - static_cast<double>(recoToTruth[r][0].score()) : 0.;
 
       const double leadingShare = perObject[r].leadingShare;
       const double dominanceRatio = perObject[r].dominanceRatio;
       algo_.fill_dominance(histograms, i, leadingShare, dominanceRatio);
 
-      // THE FAKE CRITERION: an object matched to nothing, or one whose contributions come
-      // from several different generated particles with none dominating, which is a pile
-      // of contaminations nothing can be attributed to.
-      //
-      // An object with no candidate at the dominance level is NOT a fake. The question is
-      // undefined for it rather than answered negatively, and counting it as a fake
-      // measures how much of the event that level covers instead of how well the
-      // collection reconstructs: on no-PU ttbar it is 32.5% of tracksters and 36.8% of
-      // tracks, where only 0.3% of tracks match nothing at all. Choosing a
-      // tracker-appropriate level does not rescue it either, measured by a config-only
-      // probe moving the tracking level to stableDecayProducts: 36.8% to 27.7%. It is
-      // published as its own page instead.
-      //
-      // Read from the first working point's map, so this is IDENTICAL at every working
-      // point by construction: the adaptive climb changes which branch an object is
-      // attributed to, never whether one dominates.
+      // A fake is an object matched to nothing, or one where no antichain member owns
+      // minLeadingTruthShare of the contributions.
+      // An object with no candidate at the dominance level is not a fake: that measures
+      // level coverage, not reconstruction. On no-PU ttbar it is 32.5% of tracksters and
+      // 36.8% of tracks, against 0.3% of tracks matched to nothing. With the tracking level
+      // at stableDecayProducts, it is 27.7% of tracks.
+      // The dominance measure comes from the first working point, so it is the same at
+      // every working point.
       const bool hasLevelCandidate = leadingShare >= 0.;
       const bool dominated = dominanceRoot.empty()
                                  ? associated
@@ -687,9 +624,8 @@ void TruthBranchRecoValidator<RECO>::dqmAnalyze(edm::Event const& event,
                        .matchQuality = recoPurity});
       if (associated) {
         algo_.fill_match(histograms, i, recoToTruth[r][0].score(), payloadValue(recoToTruth[r][0]), recoPurity);
-        // Resolution against the truth object THIS working point matched, so the
-        // residuals follow the working point like every other reco-driven metric. A
-        // composite truth object is a vertex with no direction, so no residual there.
+        // Resolution against the truth object that this working point matches. A
+        // composite truth object is a vertex with no direction, so it has no residual.
         if constexpr (!Traits::truthIsVertex) {
           const unsigned int matched = recoToTruth[r][0].index();
           if (matched < graph.nParticles() && Traits::hasDirection((*recoHandle)[r])) {
@@ -707,9 +643,8 @@ void TruthBranchRecoValidator<RECO>::dqmAnalyze(edm::Event const& event,
     }
   }
 
-  // Truth-driven side, one pass per (collection, level). The denominator is the
-  // level's target set: iterating every particle instead would put objects outside the
-  // level in the denominator as guaranteed misses.
+  // Truth-driven side, one pass per (collection, level). The denominator is the target
+  // set of the level.
   for (std::size_t i = 0; i < truthEntries_.size(); ++i) {
     auto const& entry = truthEntries_[i];
 
@@ -730,10 +665,8 @@ void TruthBranchRecoValidator<RECO>::dqmAnalyze(edm::Event const& event,
     auto const& truthToReco = truthToRecoHandle->getMap();
     auto const& recoToTruth = firstWpHandle->getMap();
 
-    // Reco-normalised score of a (truth, reco) pair, read from the FIRST working point's
-    // reco-driven product, the WP-free hit-sharing measure. This is the loose cut in
-    // the other direction, so it is looked up rather than recomputed. A pair that is
-    // absent scores the worst possible value.
+    // Reco-normalised score of a (truth, reco) pair, from the reco-driven map of the first
+    // working point. An absent pair scores 1, the worst value.
     auto recoScoreOf = [&recoToTruth](unsigned int recoIndex, unsigned int truthIndex) {
       if (recoIndex >= recoToTruth.size()) {
         return 1.;
@@ -746,16 +679,13 @@ void TruthBranchRecoValidator<RECO>::dqmAnalyze(edm::Event const& event,
       return 1.;
     };
 
-    // The association map is sized by how far the associator had entries to write, NOT
-    // by the number of particles in the graph, so a target that matched nothing can sit
-    // beyond its end. Such a target is an object with NO matches, which is a LOST entry
-    // in the denominator, not an object to skip: skipping it dropped the object from the
-    // denominator and the numerator alike and silently shrank the efficiency base.
+    // The association map can be shorter than the number of particles. A target beyond
+    // its end has no matches and counts as lost; it stays in the denominator.
     using MatchList = std::decay_t<decltype(truthToReco[0])>;
     static const MatchList kNoMatches{};
 
-    // Parallel to the target list; absent for the signal entries, where every target is
-    // eligible for every axis because no kinematic selection was applied to build it.
+    // Parallel to the target list. Absent for the signal entries, which have no kinematic
+    // selection.
     edm::Handle<std::vector<unsigned int>> eligibilityHandle;
     if (entry.hasEligibility) {
       event.getByToken(entry.eligibilityToken, eligibilityHandle);
@@ -764,17 +694,16 @@ void TruthBranchRecoValidator<RECO>::dqmAnalyze(edm::Event const& event,
 
     for (std::size_t t = 0; t < targetsHandle->size(); ++t) {
       const unsigned int b = (*targetsHandle)[t];
-      // Which plotted-axis cut this target fails. 0 means it passes them all and enters
-      // every axis, which is every target when no eligibility product is present.
+      // Mask of the plotted-axis cuts that this target fails. 0 when no eligibility
+      // product is present.
       const unsigned int failedCuts = haveEligibility ? (*eligibilityHandle)[t] : 0u;
       auto const& matches = (b < truthToReco.size()) ? truthToReco[b] : kNoMatches;
       Kinematics kin;
       auto reason = static_cast<unsigned int>(truth::VertexReason::Unknown);
 
       if constexpr (Traits::truthIsVertex) {
-        // The truth object IS a vertex: its position, how many selected particles were
-        // produced there, and the Geant4 process that made it. depth and root_footprint_fraction are
-        // properties of a particle branch and are not booked for this domain.
+        // The truth object is a vertex: its position, its number of outgoing particles and
+        // its creation process.
         if (b >= graph.nVertices()) {
           continue;
         }
@@ -791,29 +720,23 @@ void TruthBranchRecoValidator<RECO>::dqmAnalyze(edm::Event const& event,
         }
         auto const& particle = graph.particles()[b];
         const auto& p4 = particle.momentum;
-        // A resonance in its pre-ISR copy carries exactly zero transverse momentum, so it
-        // has no direction. The object stays in the denominator and only the quantities
-        // that have no value go to the underflow.
+        // A resonance in its pre-ISR copy has pt exactly 0 and no direction. It stays in
+        // the denominator; only the undefined quantities go to the underflow.
         const bool hasDirection = p4.pt() > 0.;
         kin.pt = p4.pt();
         kin.eta = hasDirection ? p4.eta() : truth::kNoCaloEntry;
         kin.phi = hasDirection ? p4.phi() : truth::kNoCaloEntry;
         kin.caloeta = caloEntryEta[b];
-        // The branch's own detector footprint, which is the truth analogue of a track's
-        // hit count.
+        // The branch footprint, the truth analogue of a track hit count.
         const auto subgraph = hitIndex.subgraphHits(Traits::hitChannel, b);
         kin.nhits = subgraph.size();
         const truth::Particle branchRoot(&graph, b);
-        // How deep in the graph the branch root sits. A frozen truth object has one
-        // fixed level and no such axis.
+        // The number of ancestors of the branch root.
         kin.depth = branchRoot.ancestorCount();
-        // How much of the branch footprint is the root particle's own hits rather than
-        // its descendants'. Near 1 is a clean single particle, near 0 a branch whose
-        // hits all come from what it produced.
+        // The fraction of the branch footprint that the root particle deposits itself.
         const auto direct = hitIndex.directHits(Traits::hitChannel, b);
         kin.root_footprint_fraction = subgraph.empty() ? 0. : static_cast<double>(direct.size()) / subgraph.size();
-        // What species the object came from. Only partonJets roots are partons; every
-        // other level sits in the Other bin.
+        // A root that is not a quark or a gluon fills the Other bin.
         kin.flavour = truth::flavourBin(particle.pdgId);
 
         const auto vertices = branchRoot.productionVertices();
@@ -823,9 +746,8 @@ void TruthBranchRecoValidator<RECO>::dqmAnalyze(edm::Event const& event,
           const auto& pos = vertices.front().position();
           kin.vertpos = std::sqrt(pos.x() * pos.x() + pos.y() * pos.y());
           kin.zpos = pos.z();
-          // Transverse and longitudinal impact parameter of the branch direction with
-          // respect to the origin, the truth counterpart of the track dxy and dz.
-          // Both are transverse-momentum normalised, so they are meaningless at pt 0.
+          // Transverse and longitudinal impact parameters with respect to the origin, the
+          // truth counterpart of the track dxy and dz. Undefined at pt 0.
           if (hasDirection) {
             kin.dxy = (-pos.x() * p4.py() + pos.y() * p4.px()) / p4.pt();
             kin.dz = pos.z() - (pos.x() * p4.px() + pos.y() * p4.py()) / p4.pt() * (p4.pz() / p4.pt());
@@ -834,9 +756,8 @@ void TruthBranchRecoValidator<RECO>::dqmAnalyze(edm::Event const& event,
             kin.dz = truth::kNoCaloEntry;
           }
         } else {
-          // No production vertex, so no position and no impact parameter. Left at 0 these
-          // would pile up in the first bin of both numerator and denominator and read as
-          // a real feature at the origin.
+          // No production vertex: position and impact parameters go to the underflow, not
+          // to a false peak at 0.
           kin.vertpos = truth::kNoCaloEntry;
           kin.zpos = truth::kNoCaloEntry;
           kin.dxy = truth::kNoCaloEntry;
@@ -844,9 +765,8 @@ void TruthBranchRecoValidator<RECO>::dqmAnalyze(edm::Event const& event,
         }
       }
 
-      // Classify how this truth object was reconstructed, from the TRUTH-driven
-      // product. Individual means one reco object covered it; duplicate means more than
-      // one did; split means none did alone but together they cover it.
+      // Classify the truth object from the truth-driven map. Individual: one reco object
+      // covers it. Duplicate: more than one does. Split: only several together cover it.
       using Outcome = truth::TruthBranchHistoProducerAlgo::TruthOutcome;
       unsigned int nIndividual = 0;
       unsigned int nPure = 0;
@@ -857,10 +777,8 @@ void TruthBranchRecoValidator<RECO>::dqmAnalyze(edm::Event const& event,
         const double truthPurity = 1. - static_cast<double>(match.score());
         leadingTruthPurity = std::max(leadingTruthPurity, truthPurity);
         if constexpr (Traits::calorimetric) {
-          // The truth-to-reco payload of a calorimetric domain is sim-normalised: the
-          // value is the shared energy over the branch energy in the detectors this
-          // collection reconstructs, the score the simToReco one. Efficiency gates on
-          // the fraction, duplicate on the score.
+          // Calorimetric payload: the shared energy over the branch energy in the
+          // detectors of this collection. The score is the simToReco score.
           const double sharedEnergyFraction = payloadValue(match);
           leadingSharedEnergyFraction = std::max(leadingSharedEnergyFraction, sharedEnergyFraction);
           collectiveCoverage += sharedEnergyFraction;
@@ -882,9 +800,8 @@ void TruthBranchRecoValidator<RECO>::dqmAnalyze(edm::Event const& event,
       const bool collective = collectiveCoverage >= minCollectiveCoverage_ && !matches.empty();
       Outcome outcome = Outcome::Lost;
       if constexpr (Traits::calorimetric) {
-        // Duplicate refines Individual rather than competing with it, so the four
-        // outcomes stay mutually exclusive and efficiency stays exactly the shared
-        // energy fraction cut.
+        // Duplicate is a subset of Individual, so efficiency is exactly the shared energy
+        // fraction cut.
         outcome = (nIndividual >= 1) ? (nPure > 1 ? Outcome::Duplicate : Outcome::Individual)
                   : collective       ? Outcome::Split
                                      : Outcome::Lost;
@@ -894,8 +811,7 @@ void TruthBranchRecoValidator<RECO>::dqmAnalyze(edm::Event const& event,
                   : collective        ? Outcome::Split
                                       : Outcome::Lost;
       }
-      // Cumulative: the collection as a whole covers the truth object, by one reco
-      // object or by several together, so it is a superset of individual.
+      // Cumulative: one reco object or several together cover the truth object.
       const bool cumulative = nIndividual >= 1 || collective;
 
       algo_.fill_simul(histograms, i, kin, outcome, cumulative, failedCuts);
@@ -979,8 +895,7 @@ void TruthBranchRecoValidator<RECO>::fillDescriptions(edm::ConfigurationDescript
       ->setComment("Several objects together must cover at least this much of the truth object to count as split");
 
   edm::ParameterSetDescription algo;
-  // Every axis is declared here; which of them a domain books is chosen by the two
-  // variable lists, so adding a domain needs no new axis parameter.
+  // Every axis is declared here. The two variable lists select the axes a domain books.
   const std::vector<std::tuple<std::string, int, double, double>> axes = {{"pt", 50, 0., 100.},
                                                                           {"eta", 50, -4., 4.},
                                                                           {"phi", 36, -3.2, 3.2},
@@ -997,21 +912,18 @@ void TruthBranchRecoValidator<RECO>::fillDescriptions(edm::ConfigurationDescript
     algo.add<int>("nint_" + name, nbins);
     algo.add<double>("min_" + name, lo);
     algo.add<double>("max_" + name, hi);
-    // 0 keeps the axis uniform. A positive value asks for symlog binning: one linear bin
-    // up to it, then a log ladder, so a quantity spanning decades is readable without
-    // losing the entries that sit at exactly 0.
+    // 0 keeps the axis uniform. A positive value selects symlog binning: one linear bin up
+    // to the value, then log-spaced bins. The linear bin keeps the entries at exactly 0.
     algo.add<double>("linthresh_" + name, 0.);
-    // Optional reco-side override of the same axis, for a domain whose reco object lives
-    // somewhere the truth branch does not. Declared for every axis so a domain can
-    // override any of them; unset means the reco side uses the shared range.
+    // Optional reco-side override of the axis. When unset, the reco side uses the shared
+    // range.
     algo.addOptional<int>("nint_reco_" + name);
     algo.addOptional<double>("min_reco_" + name);
     algo.addOptional<double>("max_reco_" + name);
     algo.addOptional<double>("linthresh_reco_" + name);
   }
-  // Which absolute-pseudorapidity bands to book a folder for, on top of the inclusive
-  // one. A band a domain's objects cannot reach only duplicates the inclusive folder and
-  // costs the same monitor elements, so each domain lists the bands its detector covers.
+  // The absolute-pseudorapidity bands that have a folder, in addition to the inclusive
+  // folder. Each domain lists only the bands that its detector covers.
   algo.add<std::vector<std::string>>("etaRegions", {"etaLt15", "eta15to30", "eta30to45"});
   algo.add<std::vector<std::string>>("truthVariables", {"pt", "eta", "phi"});
   algo.add<std::vector<std::string>>("recoVariables", {"pt", "eta", "phi"});

@@ -1,9 +1,7 @@
-// The truth-side target products every associator and validator consumes: the
-// selector-passing candidate roots, the subset of them a reco object may be assigned to,
-// the signal-seed denominators, and one TruthToReco denominator per graph level with its
-// eligibility mask. They depend only on the graph
-// and on the selection configuration, never on a reco collection. One producer computes
-// them once per event, so every consumer sees the same targets and the same cuts.
+// The truth-side targets that every associator and validator consumes: the candidate
+// roots, the subset that a reco object may be assigned to, the signal-seed denominators,
+// and one TruthToReco denominator per graph level with its eligibility mask. They depend
+// only on the graph and the selection configuration, so all consumers share one copy.
 
 #include <cctype>
 #include <cstdlib>
@@ -50,10 +48,8 @@ TruthBranchTargetsProducer::TruthBranchTargetsProducer(edm::ParameterSet const& 
       signalSeedHadronFlavors_(cfg.getParameter<std::vector<int>>("signalSeedHadronFlavors")),
       truthToRecoSignalOnly_(cfg.getParameter<bool>("truthToRecoSignalOnly")) {
   {
-    // Restrict which branches are candidates at all. Without this the maps and the
-    // efficiency denominators are dominated by soft particles that no reconstruction
-    // was ever going to find, exactly as CaloParticleSelector and the TrackingParticle
-    // selectors guard their own denominators.
+    // Restrict the candidate branches, as CaloParticleSelector and the TrackingParticle
+    // selectors do, so soft particles that no reconstruction finds do not dominate.
     auto const& sel = cfg.getParameter<edm::ParameterSet>("branchSelector");
     truth::BranchSelector::Config selectorConfig;
     selectorConfig.ptMin = sel.getParameter<float>("ptMin");
@@ -83,19 +79,16 @@ TruthBranchTargetsProducer::TruthBranchTargetsProducer(edm::ParameterSet const& 
   // The associators' candidate roots. NOT an efficiency denominator: the set can hold a
   // particle together with its own ancestor, so it is not an antichain.
   produces<std::vector<unsigned int>>("selectedRoots");
-  // The candidate roots a reco object may be ASSIGNED to: the subset of selectedRoots
-  // that are detector particles. The barred ones stay candidates, because they are the
-  // members of the hard-process and parton-jet denominators and a truth object that is
-  // not a candidate can never be matched.
+  // The subset of selectedRoots that a reco object may be assigned to: the detector
+  // particles. The barred roots stay candidates, because they are members of the
+  // hard-process and parton-jet denominators.
   produces<std::vector<unsigned int>>("assignableRoots");
   produces<std::vector<unsigned int>>("signalSeeds");
-  // The same seed species without any selector cut, so an efficiency can be quoted
-  // against EVERY seed in the event and not only against those the kinematic selection
-  // kept. The two denominators together separate "not reconstructed" from "never
-  // offered": on 200 no-PU ttbar events the selector keeps 390 of the 400 tops.
+  // The signal seeds without the selector cuts. The two denominators separate "not
+  // reconstructed" from "not selected": on 200 no-PU ttbar events the selector keeps 390
+  // of the 400 tops.
   produces<std::vector<unsigned int>>("signalSeedsNoSelection");
-  // One denominator product per configured level, labelled
-  // "truthToRecoTargets" + the level name with its first letter capitalized.
+  // One denominator per level, "truthToRecoTargets" + the capitalized level name.
   for (auto const& name : cfg.getParameter<std::vector<std::string>>("truthLevels")) {
     if (name.empty()) {
       throw cms::Exception("Configuration") << "empty entry in truthLevels";
@@ -104,7 +97,7 @@ TruthBranchTargetsProducer::TruthBranchTargetsProducer(edm::ParameterSet const& 
     capitalized[0] = std::toupper(static_cast<unsigned char>(capitalized[0]));
     truthLevels_.emplace_back(truth::levelFromName(name), "truthToRecoTargets" + capitalized);
     produces<std::vector<unsigned int>>(truthLevels_.back().second);
-    // Parallel to the denominator: which plotted-axis cut each target fails.
+    // Parallel to the denominator: the mask of plotted-axis cuts that each target fails.
     produces<std::vector<unsigned int>>(truthLevels_.back().second + "Eligibility");
   }
 }
@@ -113,18 +106,14 @@ void TruthBranchTargetsProducer::produce(edm::StreamID, edm::Event& event, edm::
   auto const& graph = event.get(graphToken_);
   const unsigned int nBranches = graph.nParticles();
 
-  // Selected candidate roots. If the selection accepts nothing the answer is "no
-  // candidates", not "every particle", which would silently undo the selection.
+  // Selected candidate roots. When the selection accepts nothing, there is no candidate.
   auto selectedRoots = std::make_unique<std::vector<unsigned int>>();
   selectedRoots->reserve(nBranches);
   std::vector<bool> isCandidate(nBranches, false);
   for (uint32_t id = 0; id < nBranches; ++id) {
-    // A parton, a diquark or a string is shower bookkeeping, not an object a reco
-    // collection can be asked about, and the main event carries its whole shower: on one
-    // ttbar event that is 176 partons and 2 diquarks. The levels that do ask about a
-    // parton, partonJets and hardProcess, add their own members to the candidates below.
-    // The top decays before it hadronizes, so it stays a candidate: the top presets seed
-    // on it.
+    // Skip shower bookkeeping (partons, diquarks, strings): on one ttbar event that is
+    // 176 partons and 2 diquarks. partonJets and hardProcess add their own members below.
+    // The top decays before it hadronizes, so it stays a candidate.
     if (truth::hadronizes(graph.particles()[id].pdgId)) {
       continue;
     }
@@ -134,14 +123,11 @@ void TruthBranchTargetsProducer::produce(edm::StreamID, edm::Event& event, edm::
     }
   }
 
-  // The preset seed objects: with a tau preset the tau roots alone, so the signal
-  // efficiency is the tau's own, not its decay legs'.
+  // The preset seed objects: with a tau preset, the taus and not their decay legs.
   {
-    // The species alone is not the signal object: the same species appears in the pile-up
-    // interactions, among the Geant4 secondaries of a gun, and repeatedly along a heavy
-    // flavour chain, where B**, B* and B all carry the quark. LevelFlag::Signal is the
-    // graph's own answer: the post-processing stamps it on the most upstream seed-species
-    // particle of the signal interaction only, with the decay groups applied.
+    // The species alone is not enough: it also occurs in pileup, among Geant4
+    // secondaries, and along a heavy-flavour chain (B**, B*, B). LevelFlag::Signal marks
+    // the most upstream seed-species particle of the signal interaction.
     auto const isSignalSeed = [this, &graph](uint32_t id) {
       if (!graph.particles()[id].isAtLevel(truth::LevelFlag::Signal)) {
         return false;
@@ -159,11 +145,9 @@ void TruthBranchTargetsProducer::produce(edm::StreamID, edm::Event& event, edm::
     };
     auto signalSeeds = std::make_unique<std::vector<unsigned int>>();
     auto signalSeedsNoSelection = std::make_unique<std::vector<unsigned int>>();
-    // NoSelection drops the kinematic selector, not the signal requirement.
-    // With no seed species there is no resonance in this sample, so BOTH products stay
-    // EMPTY. A graph built with no preset carries no Signal flag, so they stay empty too. Every selected root is not a substitute: that set holds particles together
-    // with their own ancestors, so it is not an antichain and an efficiency over it
-    // counts the same energy twice (on QCD it is 518.89 per event against 164
+    // NoSelection drops the selector, not the signal requirement. Without seed species,
+    // or without a Signal flag, both products are empty. The selected roots are not a
+    // substitute: they are not an antichain (on QCD, 518.89 per event against 164
     // generator-stable particles).
     if (truth::seedsNameAResonance(signalSeedPdgIds_, signalSeedHadronFlavors_)) {
       for (uint32_t id : *selectedRoots) {
@@ -181,25 +165,21 @@ void TruthBranchTargetsProducer::produce(edm::StreamID, edm::Event& event, edm::
     event.put(std::move(signalSeedsNoSelection), "signalSeedsNoSelection");
   }
 
-  // One denominator per level. The level antichain, then the signal restriction, then
-  // the kinematic selector. Order matters: taking the antichain of an already
-  // kinematically-selected set would promote a soft particle to a level it does not
-  // belong to just because its parent failed the pt cut.
+  // One denominator per level: the level antichain, then the selector, then the signal
+  // restriction. The antichain comes first: an antichain of a selected set promotes a
+  // soft particle whose parent fails the pt cut.
   std::vector<unsigned int> extraCandidates;
   for (auto const& [level, instance] : truthLevels_) {
     auto targets = std::make_unique<std::vector<unsigned int>>();
-    // Parallel to targets: which plotted-axis cut each one FAILS, 0 for those passing
-    // both. An efficiency against pt must not have the pt cut applied to its own
-    // denominator, so a target failing only the pt cut is kept and enters the pt plot
-    // alone.
+    // Parallel to targets: the mask of plotted-axis cuts that each target fails. A target
+    // that fails only the pt cut is kept and enters the pt plot only.
     auto eligibility = std::make_unique<std::vector<unsigned int>>();
     for (uint32_t id : truth::levelAntichain(graph, level)) {
       const truth::Branch branch(&graph, id);
       if (!branchSelector_.passesNonKinematic(branch)) {
         continue;
       }
-      // No plot can suppress two cuts at once, so a branch failing more than one enters
-      // none of them and is dropped here rather than carried and filtered everywhere.
+      // A branch that fails more than one kinematic cut enters no plot, so drop it here.
       const uint32_t failed = branchSelector_.failedKinematicCuts(branch);
       if ((failed & (failed - 1u)) != 0u) {
         continue;
@@ -218,12 +198,9 @@ void TruthBranchTargetsProducer::produce(edm::StreamID, edm::Event& event, edm::
     event.put(std::move(eligibility), instance + "Eligibility");
   }
 
-  // Everything a denominator can ask about must be matchable, or its row is empty for
-  // every reco collection and the plot that suppresses its own cut reads a structural
-  // zero in the first bin. Exactly the targets emitted above join the candidates, and
-  // not every particle that fails one cut: that would carry the soft tail of all 200
-  // pileup interactions for no denominator, at 128% more time per PU200 ttbar event in
-  // the track associator alone.
+  // Every target must be a candidate, or it can never be matched. Only the emitted
+  // targets join, not every particle that fails one cut: that costs 128% more time per
+  // PU200 ttbar event in the track associator alone.
   selectedRoots->insert(selectedRoots->end(), extraCandidates.begin(), extraCandidates.end());
   std::sort(selectedRoots->begin(), selectedRoots->end());
 
@@ -260,9 +237,8 @@ void TruthBranchTargetsProducer::fillDescriptions(edm::ConfigurationDescriptions
           "unbounded, so a track-shaped cut rejects it while its decay products fill the calorimeter.");
   desc.add<edm::ParameterSetDescription>("branchSelector", selector);
 
-  // Which candidate roots a reco object may be assigned to. Every clause bars one class
-  // of particle that no detector sees, so a reco object is never labelled with a
-  // bookkeeping node that merely covers it.
+  // Which candidate roots a reco object may be assigned to. Each clause bars one class of
+  // particle that no detector sees.
   edm::ParameterSetDescription assignable;
   assignable.add<bool>("excludeSynthetic", true)->setComment("Bar the connector and signal stand-in nodes");
   assignable.add<bool>("excludeBeamParticles", true)->setComment("Bar a particle with no production vertex");

@@ -1,17 +1,15 @@
 // Original author: Felice Pantaleo (CERN) <felice.pantaleo@cern.ch>
 //
-// Levels of the truth graph: the a-priori definition of WHAT a truth object is, for the
+// Levels of the truth graph: the a-priori definition of a truth object, for the
 // truth-driven direction of the association.
 //
-// A level must be an ANTICHAIN: no member may be an ancestor of another. A nested pair
-// makes the denominator ask for a tau AND its decay products as separate objects, out of
-// the same hits, so the efficiency stops meaning anything. A kinematic cut alone does not
-// give an antichain.
+// A level must be an antichain: no member is an ancestor of another. A nested pair asks
+// for a tau and its decay products as separate objects made of the same hits. A
+// kinematic cut alone does not give an antichain.
 //
-// HardProcess is the OUTGOING LEGS of the hard scatter, not the resonance: the
-// deepest-element rule keeps b, b~ and the W decay products on ttbar rather than the
-// tops. The resonance itself is the SIGNAL selection, seeded on its PDG ids. Each
-// level answers a different question about the same event; none is more correct.
+// HardProcess is the outgoing legs of the hard scatter, not the resonance: on ttbar it
+// keeps b, b~ and the W decay products, not the tops. The resonance is the signal
+// selection, seeded on its PDG ids.
 
 #ifndef PhysicsTools_TruthInfo_interface_TruthLevels_h
 #define PhysicsTools_TruthInfo_interface_TruthLevels_h
@@ -47,12 +45,9 @@ namespace truth {
     TauVisibleLeptonic
   };
 
-  // One row per level: the enum value, the bit it stamps on the graph, and the name a
-  // configuration selects it by. THE place a level is declared: the name and flag
-  // lookups, kAllLevels and the mask fillLevelFlags clears are all derived from it, so
-  // adding a level is one row instead of five edits that have to agree. LevelFlag::Signal
-  // is deliberately not a row: the selection post-processing owns that bit, not the
-  // level machinery.
+  // One row per level: the enum value, the bit it stamps on the graph, and its
+  // configuration name. The name and flag lookups, kAllLevels and kOwnedLevelFlags derive
+  // from this table. LevelFlag::Signal is not a row: the selection post-processing owns it.
   struct LevelRow {
     Level level;
     LevelFlag flag;
@@ -81,8 +76,7 @@ namespace truth {
     return levels;
   }();
 
-  // Every bit the level machinery stamps, so fillLevelFlags clears exactly what it owns
-  // and a new row cannot leave a stale bit behind.
+  // Every bit that the level machinery stamps. fillLevelFlags clears exactly these bits.
   inline constexpr uint32_t kOwnedLevelFlags = [] {
     uint32_t mask = 0;
     for (auto const& row : kLevelTable) {
@@ -115,8 +109,7 @@ namespace truth {
     return "unknown";
   }
 
-  // LevelFlag::Signal is not a level row, so it has no name in kLevelTable. It is what a
-  // reader calls that flag, in a dump, a folder name or a log line.
+  // The name of LevelFlag::Signal, which has no row in kLevelTable.
   inline constexpr char const* kSignalLevelName = "signal";
 
   // The names of the levels a particle belongs to, in kLevelTable order, signal last.
@@ -275,25 +268,16 @@ namespace truth {
     return nq1 == flavor || nq2 == flavor || nq3 == flavor;
   }
 
-  // Whether a seed pdgId list names a RESONANCE to look for.
-  //
-  // Two spellings mean "no selection" and both must be read that way: an EMPTY list, which
-  // is what a production with no preset configures, and {0}, the full-graph escape hatch,
-  // since no real particle carries pdgId 0. Neither may be read as "the resonance is
-  // missing", and neither may be read as "everything is signal": on such a sample the
-  // signal level is NOT ANSWERABLE, so it is not offered at all.
-  //
-  // Templated because the seed list is std::vector<int> in the module parameters and
-  // std::vector<int32_t> on the Graph. One definition, so every consumer decides
-  // whether a sample has a resonance by the same rule.
+  // Whether a seed pdgId list names a resonance. An empty list (no preset) and {0} (the
+  // full-graph selection) both mean "no selection": the signal level is not offered.
+  // Templated for std::vector<int> (module parameters) and std::vector<int32_t> (Graph).
   template <typename Seeds>
   [[nodiscard]] inline bool seedsNameAResonance(Seeds const& seeds) {
     return !seeds.empty() && std::find(seeds.begin(), seeds.end(), 0) == seeds.end();
   }
 
-  // A selection also names a signal when it seeds on heavy-flavour hadron content
-  // rather than on pdg ids: the heavyflavor preset carries an empty pdg id list and a
-  // flavour list instead, and both spellings must be read the same way everywhere.
+  // A selection also names a signal when it seeds on heavy-flavour hadron content: the
+  // heavyflavor preset has an empty pdgId list and a flavour list.
   template <typename Seeds, typename Flavors>
   [[nodiscard]] inline bool seedsNameAResonance(Seeds const& seeds, Flavors const& flavors) {
     return seedsNameAResonance(seeds) || !flavors.empty();
@@ -303,12 +287,10 @@ namespace truth {
   enum class TauDecay : uint8_t { None, Hadronic, Leptonic };
 
   // The decay mode of one physical tau. None when the particle is not a tau, is
-  // synthetic, has no GEN decay record, or is a radiative copy, which is a tau with a
-  // tau child. Leptonic when an electron or a muon is among the children, Hadronic
-  // otherwise, the rule TauGenJetProducer applies. Taking the LAST tau of each
-  // radiative chain counts a tau that radiates a photon once, the same last-copy rule
-  // the b and c hadron levels use, and it makes each tau level an antichain on its own:
-  // no member can be an ancestor of another through the only chain taus form.
+  // synthetic, has no GEN decay record, or has a tau child (a radiative copy). Leptonic
+  // when an electron or a muon is among the children, else Hadronic, as in
+  // TauGenJetProducer. Only the last tau of a radiative chain has a mode, so each tau
+  // level is an antichain.
   [[nodiscard]] inline TauDecay tauDecay(Graph const& graph, uint32_t id) {
     auto const& data = graph.particles()[id];
     if (std::abs(static_cast<int64_t>(data.pdgId)) != 15 || data.isSynthetic()) {
@@ -406,12 +388,9 @@ namespace truth {
     return false;
   }
 
-  // Stable legs hanging off every artificial vertex of one role. The InitialState vertex
-  // replaces the production context of the selected roots, so its legs are the stable
-  // descendants of those roots. The UnderlyingEvent vertex takes every stable particle
-  // outside them, initial-state radiation included. The walk is identical, so it is
-  // written once. A leg is a particle that produced nothing further,
-  // which makes the result an antichain by construction.
+  // The stable GEN descendants of every artificial vertex of one role. InitialState
+  // gives the stable descendants of the selected roots. UnderlyingEvent gives the other
+  // stable particles, initial-state radiation included. A leg has no GEN children.
   [[nodiscard]] inline std::vector<uint32_t> stableLegsFromRole(Graph const& graph, VertexRole role) {
     std::vector<uint32_t> legs;
     std::vector<bool> seen(graph.nParticles(), false);
@@ -423,11 +402,9 @@ namespace truth {
       if (vertexData.vertexRole() != role) {
         continue;
       }
-      // Depth-first from each outgoing particle over the raw CSR spans; a particle
-      // the GENERATOR gave nothing further is a leg. Only GEN decay vertices count
-      // and are descended: a SIM continuation is transport, so a stable ISR photon
-      // that converts in the tracker stays the leg instead of dissolving into its
-      // conversion products.
+      // Depth-first from each outgoing particle. Only GEN decay vertices are descended:
+      // a SIM continuation is transport, so a stable ISR photon that converts in the
+      // tracker stays the leg.
       for (const uint32_t outgoing : graph.outgoingParticles(v)) {
         stack.push_back(outgoing);
       }
@@ -470,17 +447,14 @@ namespace truth {
     return stableLegsFromRole(graph, VertexRole::UnderlyingEvent);
   }
 
-  // Species a detector cannot reconstruct at all, so they are not part of the visible
-  // final state. Only the neutrinos today; anything else invisible would belong here.
+  // Species that a detector cannot reconstruct: the neutrinos.
   [[nodiscard]] inline bool isInvisible(int32_t pdgId) {
     const int64_t a = std::abs(static_cast<int64_t>(pdgId));
     return a == 12 || a == 14 || a == 16;
   }
 
   namespace detail {
-    // The reconstructable-final-state walk from a caller-chosen seed set. The seed
-    // predicate is the ONLY difference between the signal-seeded level and the
-    // event-wide one, so the walk and its termination rules live here once.
+    // The reconstructable-final-state walk from the seeds that isSeed selects.
     template <typename SeedPredicate>
     [[nodiscard]] inline std::vector<uint32_t> reconstructableLegsFrom(Graph const& graph, SeedPredicate isSeed) {
       const uint32_t nParticles = graph.nParticles();
@@ -501,15 +475,11 @@ namespace truth {
         stack.pop_back();
         auto const& data = graph.particles()[p];
 
-        // Terminal three ways: the detector reconstructs this species as an object even
-        // though it decays (pi0), the generator called it stable, or the generator wrote
-        // nothing below it. Anything else is an intermediate the detector never sees as
-        // an object, an a1 or a rho, and the walk goes through it without labelling it.
-        // The walk descends through GEN decay vertices ONLY: this level is the visible
-        // final state of the GENERATOR, and a SIM continuation is transport, not decay.
-        // A K0S the generator decayed but Geant4 also interacted in material must yield
-        // its GEN pions, never the nuclear secondaries of the SIM vertex.
-        // The seen mask makes this terminate on a graph with a cycle.
+        // A particle is terminal when its species is reconstructable (pi0), it is GEN
+        // stable, or it has no GEN decay. The walk goes through other particles (a1, rho).
+        // It descends through GEN decay vertices only: a K0S that the generator decays
+        // gives its GEN pions, not the nuclear secondaries of its SIM vertex.
+        // The seen mask makes the walk terminate on a graph with a cycle.
         const bool reconstructableSpecies =
             std::find(terminating.begin(), terminating.end(), data.pdgId) != terminating.end();
         const bool genStable = data.hasGen() && data.status == 1;
@@ -521,9 +491,8 @@ namespace truth {
           }
         }
         if (reconstructableSpecies || genStable || !hasGenDecay) {
-          // A synthetic particle is an accounting object with no hits, so it can never be
-          // reconstructed and must not become a leg: the signal stand-in is Signal-flagged
-          // and vertex-less, and both terminals above are true for it.
+          // A synthetic particle has no hits and is not a leg. The signal stand-in is
+          // synthetic and has no vertex.
           if (!isInvisible(data.pdgId) && !data.isSynthetic()) {
             legs.push_back(p);
           }
@@ -548,30 +517,17 @@ namespace truth {
     }
   }  // namespace detail
 
-  // The first stable, reconstructable particles the signal produced.
-  //
-  // Walk down from every Signal root and stop at the first generator-stable descendant,
-  // which is where the decay chain ends and the detector's job begins. GEN-stable
-  // terminates the walk on purpose: a stable pion still has a SIM continuation as it
-  // showers, and descending into that would return shower fragments instead of the
-  // particle the resonance actually produced.
-  //
-  // Neutrinos are dropped rather than walked through, so the result is the VISIBLE final
-  // state of the resonance. A signal root that is itself stable, a gun electron say, is
-  // its own leg.
-  //
-  // An antichain by construction: the walk stops at each leg, so no leg can be an
-  // ancestor of another. Empty when nothing carries the Signal flag.
+  // The first reconstructable particles that the signal produces: the walk from every
+  // Signal root stops at the first terminal descendant, not at shower fragments.
+  // Neutrinos are dropped, so the result is the visible final state. A stable signal
+  // root (a gun electron) is its own leg. Empty when no particle has the Signal flag.
   [[nodiscard]] inline std::vector<uint32_t> reconstructableFromSignal(Graph const& graph) {
     return detail::reconstructableLegsFrom(
         graph, [&graph](uint32_t p) { return graph.particles()[p].isAtLevel(LevelFlag::Signal); });
   }
 
-  // The same walk seeded from every GEN root, the particles with a GEN record and no GEN
-  // parent, so the level exists on every sample: a pi0 is one object inside a QCD jet,
-  // the underlying event and each pileup interaction, none of which has a resonance to
-  // seed from. reconstructableFromSignal answers "what did the resonance produce"; this
-  // level answers "what could the detector see", event-wide.
+  // The same walk seeded from every GEN root (a GEN particle with no GEN parent). The
+  // level exists on every sample, also where no resonance is selected.
   [[nodiscard]] inline std::vector<uint32_t> reconstructableFinalState(Graph const& graph) {
     auto const isGenRoot = [&graph](uint32_t p) {
       if (!graph.particles()[p].hasGen()) {
@@ -592,23 +548,15 @@ namespace truth {
     return detail::reconstructableLegsFrom(graph, isGenRoot);
   }
 
-  // PartonJets is defined in terms of the HardProcess antichain and levelAntichain
-  // dispatches back to it, so one of the two has to be declared ahead of the other.
+  // Forward declaration: partonJets and levelAntichain call each other.
   [[nodiscard]] inline std::vector<uint32_t> levelAntichain(Graph const& graph, Level level);
 
-  // One root per parton-initiated jet: the hard-scatter legs that are partons, each
-  // standing for its descendant subgraph. No clustering and no cone; the flavour is the
-  // parton's own PDG id. The deepest-element rule of HardProcess keeps a top's b rather
-  // than the top and keeps the incoming beam partons out. EMPTY, not wrong, when
-  // statusFlags are unavailable, which is the HepMC3 path. The flag-driven levels are
-  // NOT restricted to the signal interaction: they hold whatever carries isHardProcess,
-  // and a consumer that needs a signal-only set filters on eventId as the denominator
-  // producer does. Measured on 10 PU200 ttbar events with the standard pile-up library,
-  // no overlaid interaction carries the flag, so the level is signal-only in practice.
-  // The ROOTS are an
-  // antichain but the SUBGRAPHS may overlap: two colour-connected quarks fragment
-  // through one string, and assigning each hadron to exactly one jet is what a
-  // clustering algorithm is for.
+  // One root per parton-initiated jet: the HardProcess members that are partons. No
+  // clustering; the flavour is the PDG id of the parton. Empty when statusFlags are not
+  // available (the HepMC3 path). Not restricted to the signal interaction, but on 10 PU200
+  // ttbar events no overlaid interaction has the isHardProcess flag. The roots are an
+  // antichain, but the subgraphs can overlap: two colour-connected quarks fragment
+  // through one string.
   [[nodiscard]] inline std::vector<uint32_t> partonJets(Graph const& graph) {
     std::vector<uint32_t> roots = levelAntichain(graph, Level::HardProcess);
     roots.erase(
@@ -618,24 +566,17 @@ namespace truth {
     return roots;
   }
 
-  // The level as an antichain. Candidates that have another candidate as an ancestor are
-  // dropped, so what remains is one entry per physical object at that level. The
-  // membership rules above are already antichains in a well-formed graph; the check is
-  // kept because a denominator that silently contains a particle and its own parent is
-  // the failure this class exists to prevent.
-  // Drop every member that another member covers. With keepDeepest false a member that
-  // has a member ANCESTOR goes, which leaves the earliest of each chain; keepDeepest
-  // reverses the direction. THIS is what makes a level an antichain, so every level runs
-  // it. A membership rule that looks like an antichain is not enough: on a re-convergent
-  // history a walk that stops at a pi0 on one path still reaches that pi0's photon on
-  // another, and the level ends up holding both.
+  // Drop every member that another member covers. With keepDeepest false, a member with
+  // a member ancestor is dropped, which keeps the earliest of each chain. keepDeepest
+  // reverses the direction. Every level runs it: on a re-convergent history, a walk that
+  // stops at a pi0 on one path reaches the photon of that pi0 on another path.
   inline void dropCoveredMembers(Graph const& graph, std::vector<uint32_t>& members, bool keepDeepest) {
     const uint32_t nParticles = graph.nParticles();
     std::vector<uint8_t> covered(nParticles, 0);
     std::vector<uint32_t> stack;
     stack.reserve(members.size());
-    // Seed with the members' immediate neighbours in the chosen direction, so a
-    // member itself is only marked when REACHED from another member.
+    // Seed with the direct neighbours of the members, so a member is marked only when
+    // another member reaches it.
     auto pushNeighbours = [&](uint32_t id) {
       if (keepDeepest) {
         for (const uint32_t vertexId : graph.productionVertices(id)) {
@@ -643,8 +584,7 @@ namespace truth {
             continue;
           }
           for (const uint32_t parent : graph.incomingParticles(vertexId)) {
-            // A particle that is its own neighbour would cover itself and drop out of
-            // its own level; the graph navigation guards self-loops the same way.
+            // Skip self-loops, so a particle does not cover itself.
             if (parent != id && parent < nParticles && covered[parent] == 0) {
               covered[parent] = 1;
               stack.push_back(parent);
@@ -677,6 +617,7 @@ namespace truth {
     std::erase_if(members, [&covered](uint32_t id) { return covered[id] != 0; });
   }
 
+  // The members of a level, reduced to an antichain.
   [[nodiscard]] inline std::vector<uint32_t> levelAntichain(Graph const& graph, Level level) {
     if (level == Level::StableLegsFromInitialState) {
       std::vector<uint32_t> legs = stableLegsFromInitialState(graph);
@@ -709,31 +650,20 @@ namespace truth {
         candidates.push_back(id);
       }
     }
-    // Which end of a chain of candidates to keep, per level.
-    //
-    // Earliest, the default: the members are final states, and a candidate with a
-    // candidate ANCESTOR is a duplicate of it.
-    //
-    // Deepest for HardProcess: the incoming partons and the outgoing particles both carry
-    // the flag, the incoming ones are ancestors of the outgoing ones, and it is the
-    // outgoing ones that the level is about. Keeping the earliest there would return the
-    // beam partons, which sit at pt 0 and enormous eta and are then dropped by any
-    // kinematic selector, leaving the level empty.
-    //
-    // Deepest for BHadrons and CHadrons: the object is the hadron that DECAYS WEAKLY, so
-    // the level names the same particle CMS names. A B* radiating to a B is not a
-    // duplicate of it: the two carry different momenta and, decisively, different decay
-    // vertices, because the B* decays electromagnetically at the production point while
-    // the B travels. Measured on 200 ttbar and 300 QCD generator events: the count is the
-    // same either way, 68.9% and 61.8% of chains hold a different particle, and the
-    // median decay displacement goes from 0.000 cm to 0.46 cm.
+    // Which end of a chain of candidates to keep. Earliest by default: a candidate with a
+    // candidate ancestor is a duplicate of it.
+    // Deepest for HardProcess: the incoming partons also have the flag, and the level is
+    // the outgoing particles.
+    // Deepest for BHadrons and CHadrons: the member is the weakly decaying hadron, not the
+    // B* above it, which decays at its production point. On 200 ttbar and 300 QCD
+    // generator events the count is the same, 68.9% and 61.8% of chains keep a different
+    // particle, and the median decay displacement is 0.46 cm instead of 0.000 cm.
     const bool keepDeepest = level == Level::HardProcess || level == Level::BHadrons || level == Level::CHadrons;
     dropCoveredMembers(graph, candidates, keepDeepest);
     return candidates;
   }
 
-  // The persisted bit for a level. Kept next to the Level enum so adding a level forces
-  // the author past this switch, which has no default for that reason.
+  // The persisted bit for a level, from kLevelTable. Throws for a level with no row.
   [[nodiscard]] inline LevelFlag levelFlagOf(Level level) {
     for (auto const& row : kLevelTable) {
       if (row.level == level) {
@@ -743,16 +673,10 @@ namespace truth {
     throw cms::Exception("TruthLevels") << "level " << static_cast<int>(level) << " has no row in kLevelTable";
   }
 
-  // The particles that lie on a directed cycle, walking particle to child. Empty on a
-  // well-formed graph.
-  //
-  // A cycle is not a shape the levels can describe. dropCoveredMembers marks the closure
-  // of a level's members and then erases every member the closure reached; on a cycle a
-  // member reaches ITSELF, so the level erases its own members and comes out empty or
-  // thinned. The count is what a consumer sees, and an empty level is indistinguishable
-  // from "the event has none of these", so the condition has to be reported rather than
-  // inferred. One pass, O(nParticles + nEdges), iterative because a shower chain is deep
-  // enough to overflow the stack.
+  // The particles on a directed cycle, walking particle to child. Empty on a well-formed
+  // graph. On a cycle, dropCoveredMembers lets a member reach itself, so the level loses
+  // members. O(nParticles + nEdges), iterative because a shower chain can overflow the
+  // call stack.
   [[nodiscard]] inline std::vector<uint32_t> particlesOnCycles(Graph const& graph) {
     enum : uint8_t { kUnseen = 0, kOnStack = 1, kDone = 2 };
     const uint32_t nParticles = graph.nParticles();
@@ -794,8 +718,7 @@ namespace truth {
           continue;
         }
         if (state[child] == kOnStack) {
-          // Back edge: the child reaches itself through the particles above it on the
-          // stack, so the whole loop is named, not only the point the walk re-entered.
+          // Back edge: every particle on the stack from the child up is on the cycle.
           for (auto it = stack.rbegin(); it != stack.rend(); ++it) {
             onCycle.push_back(it->first);
             if (it->first == child) {
@@ -813,17 +736,11 @@ namespace truth {
     return onCycle;
   }
 
-  // Stamp every particle with the levels it belongs to. Call once, on the COMPLETE graph:
-  // levelAntichain walks ancestors and descendants, so a graph still being assembled
-  // gives an antichain of whatever existed at the time.
-  //
-  // Clears first, so calling it twice is the same as calling it once. That matters
-  // because a stale flag is indistinguishable from a fresh one by inspection, and the
-  // only defence is that the operation is reproducible and idempotent.
+  // Stamp every particle with the levels it belongs to. Call it on the complete graph.
+  // It clears the owned bits first, so it is idempotent.
   inline void fillLevelFlags(Graph& graph) {
-    // Preconditions, because the walks below index the CSR arrays directly: the graph
-    // must be shaped (Graph::isConsistent) and acyclic. A short offset array aborts the
-    // job with a bare std::out_of_range and no module context.
+    // The walks index the CSR arrays directly, so the particle offset arrays must have
+    // nParticles + 1 entries.
     if (graph.nParticles() == 0) {
       return;
     }
@@ -833,18 +750,15 @@ namespace truth {
           << "fillLevelFlags needs CSR offsets of size nParticles + 1 (" << graph.nParticles() + 1 << "), found "
           << graph.particleToDecayVertexOffsets().size() << " and " << graph.particleToProductionVertexOffsets().size();
     }
-    // A cycle thins or empties the levels it touches, and the result reads as a normal
-    // event, so it is announced. The stamping continues: the levels a cycle does not
-    // reach stay correct, and dropping every level would lose more than it protects.
+    // A cycle thins or empties the levels it touches, so it is reported. The stamping
+    // continues, because the levels that no cycle reaches stay correct.
     if (const std::vector<uint32_t> cyclic = particlesOnCycles(graph); !cyclic.empty()) {
       edm::LogWarning("TruthLevels") << cyclic.size() << " particles lie on a directed cycle, first at id "
                                      << cyclic.front() << " (pdgId " << graph.particles()[cyclic.front()].pdgId
                                      << "). A level whose members a cycle reaches erases them and comes out "
                                         "empty or thinned, so treat the level counts of this event as unreliable.";
     }
-    // Clear only the bits this function owns. LevelFlag::Signal is set upstream, by the
-    // selection post-processing that knows the seed species, and clearing it here would
-    // silently erase the resonance.
+    // Clear only the owned bits. The selection post-processing sets LevelFlag::Signal.
     for (auto& particle : graph.particles()) {
       particle.levelFlags &= ~kOwnedLevelFlags;
     }
@@ -875,15 +789,9 @@ namespace truth {
   // Whether a particle has to be at one of the levels asked for, or at every one.
   enum class LevelMatch : uint8_t { Any, All };
 
-  // The particles several levels name together, as views, in id order and each once.
-  //
-  // Any is the union of the per-level members and is NOT reduced to an antichain again.
-  // Levels nest: a hard-process b quark is an ancestor of the B hadron, which is an
-  // ancestor of the D hadron, and each is the member of its own level. Reducing the union
-  // would keep the topmost and silently drop the very members the caller asked for.
-  //
-  // All is the intersection, for a particle that is a member of every level named. A level
-  // repeated in the list is asked for once.
+  // The members of several levels, as views, in id order and each once. Any is the
+  // union, not reduced to an antichain: levels nest (b quark, B hadron, D hadron). All is
+  // the intersection. A repeated level counts once.
   [[nodiscard]] inline std::vector<Particle> particlesAtLevels(Graph const& graph,
                                                                std::vector<Level> const& levels,
                                                                LevelMatch match = LevelMatch::Any) {
@@ -913,8 +821,7 @@ namespace truth {
     return out;
   }
 
-  // The particles a level names, as views. This is levelAntichain with the ids resolved,
-  // and the counterpart of branchesAtLevel where only the particle itself is asked about.
+  // The members of a level, as particle views.
   [[nodiscard]] inline std::vector<Particle> particlesAtLevel(Graph const& graph, Level level) {
     std::vector<Particle> members;
     for (const uint32_t id : levelAntichain(graph, level)) {

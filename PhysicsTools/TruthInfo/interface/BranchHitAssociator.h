@@ -28,11 +28,10 @@ namespace truth {
     uint32_t cell = LogicalGraphHitIndex::Hit::kNoCell;
   };
 
-  // Reconstructed energy per cell, detId ascending after finalize(). Given to the
-  // associator, it makes the shared-energy arithmetic the TICL one: every cell is
-  // weighted by its rechit energy, the reco object owns fraction * energy of it and
-  // the branch owns its sim fraction * energy. A cell absent from the table has no
-  // rechit and weighs nothing.
+  // Reconstructed energy per cell, detId ascending after finalize(). With it, the
+  // associator uses the TICL arithmetic: each cell is weighted by its rechit energy, the
+  // reco object owns fraction * energy and the branch owns its sim fraction * energy. A
+  // cell absent from the table weighs nothing.
   class CellEnergyTable {
   public:
     void reserve(std::size_t n) {
@@ -56,9 +55,8 @@ namespace truth {
     std::vector<float> values_;
   };
 
-  // Customization point: a reco object R is matchable if it exposes its hits via
-  // a member R::truthHits() returning a range of RecoHit. A user wanting to match
-  // their own reco object to the truth graph only needs to add this one method.
+  // Customization point: a reco object R is matchable if R::truthHits() returns a range
+  // of RecoHit-like elements.
   template <class R>
   concept HasTruthHits = requires(const R& r) {
     { r.truthHits() } -> std::ranges::range;
@@ -76,16 +74,13 @@ namespace truth {
     // (denominator = the branch subgraph self-energy, or its cell count for
     // SharedHits). Use for the branch->reco direction. Lower is better.
     float reverseScore = 0.f;
-    // Sim-normalized shared quantity: sharedEnergy over the branch's own energy IN
-    // THE DETECTORS the caller asked the denominator to cover (its cell count for
-    // SharedHits). This is the axis HGCalValidator gates efficiency on, and it is NOT
-    // one minus reverseScore: the score is a squared, energy-weighted quantity, this
-    // one is linear.
+    // Sim-normalized shared quantity: sharedEnergy over the branch energy in the
+    // denominator detectors (its cell count for SharedHits). The HGCalValidator
+    // efficiency axis. It is linear, so it is not 1 - reverseScore, which is squared.
     float sharedEnergyFraction = 0.f;
   };
 
-  // Lower score is better in every association map this package sorts. One shared
-  // comparator so the [0]-is-best contract cannot drift between producers.
+  // Ascending score, then ascending index, so [0] is the best match.
   inline constexpr auto byAscendingScore = [](const auto& a, const auto& b) {
     if (a.score() != b.score())
       return a.score() < b.score();
@@ -93,38 +88,30 @@ namespace truth {
   };
 
   // Associates reco objects to truth branches (subtrees) by shared detector hits.
-  // Built once per event over a set of candidate branch roots (default: every
-  // particle); caches the inverted detId -> roots index and per-cell total sim
-  // energy as flat, sorted arrays (binary-searched, no per-event hashing).
-  // bestBranches() then answers any reco object via a merge-join of the object's
-  // (sorted) hits with each candidate's sorted subgraph-hit span.
+  // Built once per event over a set of candidate branch roots. Holds the inverted
+  // detId -> roots index and the per-cell total sim energy as sorted flat arrays.
+  // bestBranches() merge-joins the sorted hits of the object with the sorted subgraph
+  // hits of each candidate.
   class BranchHitAssociator {
   public:
-    // SharedEnergy reproduces the TICL trackster-to-simTrackster arithmetic of
-    // AllTracksterToSimTracksterAssociatorsByHitsProducer, in both directions: per cell
-    // the score is the squared uncovered energy over the squared self energy, and the
-    // shared energy is the minimum of the two sides.
-    // SharedHits ignores energy and counts objects, which is what the tracker needs: on
-    // the reco side one rechit, so a pixel cluster counts once however many cells it
-    // spans; on the branch side one cell, so an ancestor spanning more of a module keeps
-    // the higher reverse score.
+    // SharedEnergy is the arithmetic of AllTracksterToSimTracksterAssociatorsByHitsProducer
+    // in both directions: the score is the squared uncovered energy over the squared self
+    // energy, and the shared energy per cell is the minimum of the two sides.
+    // SharedHits counts objects, not energy: one rechit on the reco side, so a pixel
+    // cluster counts once, and one cell on the branch side.
     enum class Metric { SharedEnergy, SharedHits };
 
-    // Detectors the sharedEnergyFraction denominator covers, as a bit per DetId::det()
-    // value. One hit channel spans several detectors: HitChannel::Calo carries the
-    // barrel ECAL and HCAL PCaloHits next to the HGCAL ones, and their sampling
-    // fractions differ by orders of magnitude, so a branch that showered in the barrel
-    // has a channel-wide energy no endcap reco object can ever reach a half of. The
-    // caller passes the detectors its reco collection reconstructs and the fraction is
-    // normalized to the branch energy there. kAllDetectors keeps the whole channel.
+    // Detectors that the sharedEnergyFraction denominator covers, one bit per
+    // DetId::det() value. HitChannel::Calo holds barrel ECAL and HCAL PCaloHits next to
+    // the HGCAL ones, with sampling fractions that differ by orders of magnitude. The
+    // caller passes the detectors that its reco collection reconstructs. kAllDetectors
+    // keeps the whole channel.
     static constexpr uint32_t kAllDetectors = 0xFFFFu;
     [[nodiscard]] static uint32_t detectorBit(uint32_t detId);
 
-    // candidateRoots restricts the branch roots considered. By default an empty
-    // list means "every particle" (the common unrestricted case). Pass
-    // emptyRootsMeansAll = false to instead treat an empty list as "no candidates"
-    // (match nothing) - needed when a caller asked for a restriction that happened
-    // to select no particle in this event, which must not silently fall back to all.
+    // candidateRoots restricts the branch roots. An empty list means every particle,
+    // or no candidate when emptyRootsMeansAll is false. Use false when the list is a
+    // restriction that can select no particle in an event.
     // recHitEnergies, when given, weights every cell of the SharedEnergy metric by its
     // reconstructed energy instead of its total sim energy; it must outlive the
     // associator.
@@ -141,8 +128,8 @@ namespace truth {
                                  CellEnergyTable const* recHitEnergies = nullptr,
                                  std::span<const uint32_t> generations = {});
 
-    // Best branches for a reco object's hits, sorted by score ascending. If
-    // maxResults > 0, only the best maxResults are returned.
+    // Best branches for the hits of a reco object, by ascending score, then ascending
+    // reverse score. If maxResults > 0, only the best maxResults are returned.
     [[nodiscard]] std::vector<BranchMatch> bestBranches(std::span<const RecoHit> recoHits,
                                                         std::size_t maxResults = 0) const;
 
@@ -154,23 +141,17 @@ namespace truth {
       return bestBranches(std::span<const RecoHit>(hits), maxResults);
     }
 
-    // Adaptive-level match. The candidates are every root that shares hits with the reco
-    // object: the leaves and their ancestors, when the candidate set is the ancestor
-    // closure. This returns the one candidate that minimises
+    // Adaptive-level match: the candidate that minimises
     //     score + reverseWeight * reverseScore
-    // As a branch climbs, score falls, because the branch covers more of the reco object.
-    // At the same time reverseScore rises, because the branch spreads to energy the reco
-    // object does not have. The minimum is the level that best matches the object.
-    // Candidates whose reverseScore exceeds maxReverseScore (the branch-spread /
-    // contamination ceiling) are rejected; if that empties the set, the ceiling is
-    // ignored and the global minimum is returned. rootParticleId is
-    // BranchMatch::kInvalidRoot if the reco object shares no hits with any root.
+    // As a branch climbs, score falls and reverseScore rises. Candidates with reverseScore
+    // above maxReverseScore are rejected. If no candidate is left, the ceiling is ignored.
+    // rootParticleId is BranchMatch::kInvalidRoot when no root shares a hit.
     [[nodiscard]] BranchMatch bestAdaptiveBranch(std::span<const RecoHit> recoHits,
                                                  float reverseWeight = 1.f,
                                                  float maxReverseScore = 1.f) const;
 
-    // The same argmin over an already-computed bestBranches() list, so a caller
-    // evaluating several working points on one object pays the merge-join once.
+    // The same argmin over a bestBranches() list, so several working points share one
+    // merge-join.
     [[nodiscard]] static BranchMatch bestAdaptiveBranch(std::span<const BranchMatch> matches,
                                                         float reverseWeight,
                                                         float maxReverseScore);
@@ -218,20 +199,16 @@ namespace truth {
     std::vector<uint32_t> cellEnergyKeys_;
     std::vector<float> cellEnergyValues_;
 
-    // Per-root branch self-energy (sum of subgraph-hit energy^2 on channel_),
-    // indexed by particle id; the denominator for the branch-normalized reverse
-    // score. Computed once with the inverted index so bestBranches() needs no
-    // full branch-hit scan.
+    // Per-root branch self-energy (sum of subgraph-hit energy^2 on channel_), indexed by
+    // particle id. The denominator of the reverse score.
     std::vector<double> rootSelfEnergySq_;
     // Per-root branch total energy (LINEAR sum of the same hits, restricted to
     // denominatorDetectors_), the denominator of sharedEnergyFraction.
     std::vector<double> rootEnergy_;
 
-    // Shared layout only: the candidate roots' subgraph hits, coalesced here once at
-    // construction because the persisted store keeps them in tree order with a cell
-    // repeated per contributing descendant, while the merge-join needs one ascending
-    // entry per cell. Materialised indices keep using the persisted spans, so these
-    // stay empty. CSR over roots_, in the order roots_ holds them.
+    // Shared layout only: the subgraph hits of the candidate roots, coalesced to one
+    // ascending entry per cell for the merge-join. CSR over roots_. Empty for a
+    // materialised index, which persists coalesced spans.
     std::vector<uint32_t> rootHitOffsets_;
     std::vector<LogicalGraphHitIndex::Hit> rootHitStorage_;
     // particle id -> position in rootHitOffsets_, or kNoRoot when the particle is not a

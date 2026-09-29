@@ -4,17 +4,13 @@
 // Date: 03/2026
 //
 // Build a logical truth::Graph from the raw heterogeneous TruthGraph.
-// The topology comes from the raw TruthGraph.
-// Standalone payload (momentum/position/checkpoints) is materialized from optional
-// HepMC2 / HepMC3 / SimTrack / SimVertex inputs, and for a graph built during mixing
-// from the GEN payload the accumulator keeps for every sub-event (rawGenPayload).
+// The topology comes from the raw TruthGraph. The payload (momentum, position,
+// checkpoints) comes from the optional HepMC2, HepMC3, SimTrack and SimVertex inputs,
+// and, for a graph built during mixing, from the GEN payload of the accumulator.
 //
-// GenParticle and SimTrack nodes are merged when a robust association exists.
-// A merged GEN+SIM particle takes its production vertex from the GEN side (the
-// immediate GenParticle's production GenVertex, via genpartIndex); the redundant
-// SimTrack production vertex (the shared Geant4 beam vertex) is dropped. This
-// attaches each track to its faithful immediate GEN vertex, without the artificial
-// high-degree merged vertex that a position-based GEN/SIM vertex merge created.
+// A GenParticle and a SimTrack merge when a GEN-SIM link joins them. A merged GEN+SIM
+// particle takes its production vertex from the GEN side, via genpartIndex. Its SimTrack
+// production vertex, the shared Geant4 beam vertex, is dropped.
 
 #include <algorithm>
 #include <cstddef>
@@ -66,23 +62,18 @@
 
 namespace {
 
-  // Append a standalone particle carrying LevelFlag::Signal, for a sample whose generator
-  // never wrote the resonance. It has no edges, so the CSR offset arrays only need one
-  // more entry each, repeating the final offset. Its momentum is the sum of the
-  // hard-process legs, which is the closest thing to the resonance the record still has.
+  // Append a standalone particle with LevelFlag::Signal, for a sample whose generator
+  // does not write the resonance. It has no edges. Its momentum is the sum of the
+  // hard-process legs.
   void addSyntheticSignalNode(truth::Graph& graph) {
     truth::ParticleData synthetic;
-    // The ROLE is the marker. Empty genNode/simNode would not do: connector particles
-    // have exactly the same empty fields and the same status 0, so inferring "synthetic"
-    // from them cannot tell a stand-in from a connector.
+    // The role is the marker: a connector also has no genNode, no simNode and status 0.
     synthetic.role = static_cast<uint8_t>(truth::ParticleRole::SignalStandIn);
     synthetic.genNode = -1;
     synthetic.simNode = -1;
     synthetic.status = 0;
     synthetic.pdgId = 0;
-    // The hard-process legs, computed from levelAntichain directly: LevelFlag::HardProcess
-    // is not stamped yet at this point, since fillLevelFlags runs only on the finished
-    // graph.
+    // From levelAntichain, because LevelFlag::HardProcess is not stamped yet.
     math::XYZTLorentzVectorD sum(0., 0., 0., 0.);
     for (const uint32_t id : truth::levelAntichain(graph, truth::Level::HardProcess)) {
       if (id < graph.nParticles()) {
@@ -93,8 +84,7 @@ namespace {
     synthetic.setLevel(truth::LevelFlag::Signal);
 
     graph.particles().push_back(synthetic);
-    // A particle with no production and no decay vertex: both offset arrays grow by one
-    // entry repeating the last, which is what "empty range" means in this CSR layout.
+    // No production and no decay vertex: both offset arrays repeat their last entry.
     auto& decayOff = graph.particleToDecayVertexOffsets();
     auto& prodOff = graph.particleToProductionVertexOffsets();
     decayOff.push_back(decayOff.empty() ? 0 : decayOff.back());
@@ -358,9 +348,9 @@ public:
             cfg.getParameter<edm::ParameterSet>("postProcessing").getParameter<bool>("dropHitlessSimSubgraphs")),
         postProcessor_(truth::TruthLogicalGraphPostProcessor::configFromPSet(
             cfg.getParameter<edm::ParameterSet>("postProcessing"))) {
-    // The hitless-subgraph pruning needs to know which SimTracks left a sim-hit;
-    // consume the same collections the hit-index producer uses, on every channel it
-    // indexes. A channel missing here is silently turned into deleted truth.
+    // The hitless-subgraph pruning needs the SimTracks that leave a sim-hit. Consume the
+    // collections of every channel that the hit-index producer indexes: a missing channel
+    // deletes truth without a warning.
     if (dropHitlessSimSubgraphs_) {
       for (auto const& tag : cfg.getParameter<std::vector<edm::InputTag>>("simHitCollections"))
         caloSimHitTokens_.push_back(consumes<std::vector<PCaloHit>>(tag));
@@ -459,9 +449,8 @@ public:
     edm::Handle<edm::SimVertexContainer> hSimVertices;
     evt.getByToken(simVertexToken_, hSimVertices);
 
-    // SimTracks by (sub-event id, trackId) and SimVertices by (sub-event id, index in
-    // its sub-event): a trackId and an index are local to a sub-event, and a merged
-    // container holds every sub-event's in order.
+    // SimTracks by (sub-event id, trackId) and SimVertices by (sub-event id, index in the
+    // sub-event): a trackId and an index are local to a sub-event.
     std::unordered_map<uint64_t, uint32_t> simTrackIdToIndex;
     std::unordered_map<uint64_t, uint32_t> simVertexIdToIndex;
     if (validHandle(hSimVertices)) {
@@ -697,13 +686,13 @@ public:
         const uint32_t gv = candidate.first;
         const uint32_t sv = candidate.second;
 
-        // Only accept locally one-to-one GenVertex <-> SimVertex matches.
-        // This prevents one busy SimVertex from absorbing many unrelated GenVertices.
+        // Accept only one-to-one GenVertex <-> SimVertex matches, so one busy SimVertex
+        // does not absorb many unrelated GenVertices.
         if (genVertexCandidateMultiplicity[gv] != 1 || simVertexCandidateMultiplicity[sv] != 1)
           continue;
 
-        // Do not merge secondary SIM vertices produced by an existing SimTrack.
-        // Primary/injection SIM vertices can legitimately have multiple outgoing primary tracks.
+        // Merge only primary SIM vertices, which have no incoming SimTrack and can have
+        // several outgoing primary tracks.
         if (rawSimVertexIncomingSimTracks[sv] != 0)
           continue;
 
@@ -750,10 +739,8 @@ public:
     out->particles().resize(particleRepToLogical.size());
     out->vertices().resize(vertexRepToLogical.size());
 
-    // Whether a GEN payload, the signal HepMC or the raw graph's own, supplied a
-    // momentum/position for each logical object. A merged GEN+SIM object with no GEN
-    // payload (a job with no HepMC product) takes the SimTrack/SimVertex value instead
-    // of keeping the default-constructed one (zero momentum).
+    // Whether a GEN payload supplied the momentum or position of each logical object.
+    // Without one, a merged GEN+SIM object takes the SimTrack or SimVertex value.
     std::vector<uint8_t> genMomentumApplied(out->particles().size(), 0);
     std::vector<uint8_t> genPositionApplied(out->vertices().size(), 0);
 
@@ -775,10 +762,9 @@ public:
           if (nodeId < raw.genEventOfNode().size())
             p.genEvent = raw.genEventOfNode()[nodeId];
 
-          // The sub-event a particle belongs to must come from whichever side it has. A
-          // GEN-only particle has no SIM side to inherit it from, and eventId 0 means the
-          // signal interaction, so leaving it at the default silently promotes every
-          // pileup particle without a SimTrack to signal.
+          // The sub-event comes from whichever side the particle has. The default
+          // eventId 0 means the signal interaction, which is wrong for a pileup
+          // GEN-only particle.
           if (p.eventId == 0)
             p.eventId = raw.nodeEventId(nodeId);
 
@@ -791,8 +777,8 @@ public:
           if (p.statusFlags == 0)
             p.statusFlags = raw.nodeStatusFlags(nodeId);
 
-          // The HepMC payload is the signal interaction's. A pileup GEN node with the
-          // same barcode is a different particle and takes its own record's momentum.
+          // The HepMC payload is of the signal interaction. A pileup GEN node with the
+          // same barcode is a different particle.
           if (haveGenPayload && raw.nodeEventId(nodeId) == 0) {
             const int barcode = static_cast<int>(ref.key);
             auto it = genParticlePayload.find(barcode);
@@ -821,8 +807,8 @@ public:
         } else if (ref.kind == TruthGraph::NodeKind::SimTrack) {
           p.simNode = static_cast<int32_t>(nodeId);
 
-          // Back-scattering (albedo) is a SimTrack property; OR it in so a merged
-          // GEN+SIM particle inherits it from its SIM side.
+          // Back-scattering (albedo) is a SimTrack property. A merged GEN+SIM particle
+          // takes it from its SIM side.
           p.backscattered = p.backscattered || raw.nodeBackscattered(nodeId);
 
           if (p.pdgId == 0)
@@ -844,9 +830,8 @@ public:
               const math::XYZTLorentzVectorD simMomentum(
                   t.momentum().px(), t.momentum().py(), t.momentum().pz(), t.momentum().e());
 
-              // Use the SimTrack momentum whenever the GEN side did not supply one:
-              // SIM-only particles, and merged GEN+SIM particles with no GEN payload.
-              // When a GEN momentum was applied it remains the nominal one.
+              // Use the SimTrack momentum when the GEN side supplies none. A GEN
+              // momentum stays the nominal one.
               if (!genMomentumApplied[static_cast<uint32_t>(rawToParticle[nodeId])]) {
                 p.momentum = simMomentum;
               }
@@ -879,8 +864,7 @@ public:
           if (nodeId < raw.genEventOfNode().size())
             v.genEvent = raw.genEventOfNode()[nodeId];
 
-          // Same as for particles: a GEN-only vertex has no SIM side to take the
-          // sub-event id from, and the default reads as the signal interaction.
+          // As for particles: the default eventId 0 reads as the signal interaction.
           if (v.eventId == 0)
             v.eventId = raw.nodeEventId(nodeId);
 
@@ -906,8 +890,7 @@ public:
         } else if (ref.kind == TruthGraph::NodeKind::SimVertex) {
           v.simNode = static_cast<int32_t>(nodeId);
 
-          // Physical reason this vertex exists, from the SimVertex G4 process subtype.
-          // For GEN+SIM merged vertices the SIM side is the one that carries it.
+          // The reason for this vertex, from the Geant4 process subtype of the SimVertex.
           v.reason = static_cast<uint8_t>(truth::reasonFromG4ProcessSubType(raw.nodeProcessType(nodeId)));
 
           if (v.eventId == 0)
@@ -922,10 +905,8 @@ public:
               const auto& pos = sv.position();
               constexpr double sToNs = 1e9;  // SimVertex time is stored in seconds -> ns
 
-              // Use the SimVertex position whenever the GEN side did not supply one:
-              // SIM-only vertices, and merged GEN+SIM vertices with no GEN payload.
-              // The position is in cm and the time is converted from s to ns, the
-              // (cm, ns) of the GEN vertices. A GEN position, when applied, stays.
+              // Use the SimVertex position when the GEN side supplies none. The time is
+              // converted from s to ns, to match the (cm, ns) of the GEN vertices.
               if (!genPositionApplied[static_cast<uint32_t>(rawToVertex[nodeId])]) {
                 v.position = math::XYZTLorentzVectorD(pos.x(), pos.y(), pos.z(), pos.t() * sToNs);
               }
@@ -961,12 +942,9 @@ public:
           const int32_t logicalParticle = rawToParticle[dst];
 
           if (logicalVertex >= 0 && logicalParticle >= 0) {
-            // A merged GEN+SIM particle takes its production vertex from the GEN side: the
-            // immediate GenParticle's production GenVertex (faithful, via genpartIndex). The
-            // SimTrack's production SimVertex is the shared Geant4 beam vertex, redundant and
-            // many-GEN-to-one-SIM, so drop that edge here. The GEN production edge is added
-            // when the GEN side of this particle is visited. This replaces the former
-            // position-based GEN/SIM vertex merge.
+            // A merged GEN+SIM particle takes its production vertex from the GEN side. Drop
+            // the edge from its production SimVertex, the shared Geant4 beam vertex. The
+            // GEN production edge is added when the GEN side is visited.
             const bool redundantSimProduction = srcRef.kind == TruthGraph::NodeKind::SimVertex &&
                                                 out->particles()[static_cast<uint32_t>(logicalParticle)].hasGen();
 
@@ -1016,10 +994,8 @@ public:
     // products, before the pruning removes any of them.
     truth::fillMomentumFromDecayProducts(*out);
 
-    // A GEN-only vertex has no creator process to read, so its reason comes from the
-    // particles that meet there, on the complete GEN topology. So does a vertex merged
-    // with a SimVertex that Geant4 did not create, whose SIM reason is Primary: there the
-    // generator made the vertex, a pi0 or a D decay for example.
+    // A GEN-only vertex, or a GEN+SIM vertex with SIM reason Primary, takes its reason
+    // from the particles that meet there, on the complete GEN topology.
     for (uint32_t vertexId = 0; vertexId < out->nVertices(); ++vertexId) {
       auto& vertex = out->vertices()[vertexId];
       if (vertex.isArtificial() || !vertex.hasGen())
@@ -1031,18 +1007,15 @@ public:
         vertex.reason = static_cast<uint8_t>(reason);
     }
 
-    // Per-particle sim-hit presence for the hitless-subgraph pruning. A logical
-    // particle is flagged when a calo or tracker sim-hit carries its SimTrack
-    // trackId with positive energy -- exactly how the LogicalGraphHitIndex
-    // attributes direct hits, so the pruned graph stays consistent with the
-    // index. Left empty (pruning disabled) when no sim-hit collection is present.
+    // Per-particle sim-hit presence for the hitless-subgraph pruning. A logical particle
+    // is flagged when a calo, tracker or muon sim-hit with positive energy carries its
+    // SimTrack trackId, as in LogicalGraphHitIndex. Empty (no pruning) when no sim-hit
+    // collection is present.
     std::vector<uint8_t> particleDirectHit;
 
     if (dropHitlessSimSubgraphs_) {
-      // trackId is event-local (each mixing sub-event reuses 1,2,3,...), so it MUST
-      // be namespaced by the packed EncodedEventId or signal and pileup collide and
-      // the wrong particles get flagged as hit-bearing. Mirrors the same key in
-      // LogicalGraphHitIndexBuilder so the pruned graph stays consistent with the index.
+      // trackId is local to a sub-event, so the key includes the packed EncodedEventId,
+      // as in LogicalGraphHitIndexBuilder.
       std::unordered_set<uint64_t> hitKeys;
       bool anyCollectionValid = false;
 
@@ -1097,23 +1070,15 @@ public:
 
     *out = postProcessor_.process(std::move(*out), particleDirectHit);
 
-    // Record the seed species the selection ran with, so LevelFlag::Signal stays
-    // re-derivable by a reader that has only the graph.
+    // Record the selection species on the graph, so a reader can re-derive
+    // LevelFlag::Signal.
     out->signalSeedPdgIds() = postProcessor_.config().seedPdgIds;
     out->reconstructablePdgIds() = postProcessor_.config().reconstructablePdgIds;
     out->seedHadronFlavors() = postProcessor_.config().seedHadronFlavors;
 
-    // If the generator never wrote the resonance, stand one in for it so the signal level
-    // is answerable for every sample rather than only the resonant ones. Marked
-    // synthetic: no GEN and no SIM back-reference, and status 0, which no generator
-    // particle carries. It is an accounting object, not truth, and nothing may read its
-    // four-momentum as a generator quantity.
-    //
-    // The full-graph preset is spelled seedPdgIds = {0}, and that means NO SELECTION, not
-    // "a resonance the generator failed to write". No real particle carries pdgId 0, so
-    // nothing can ever match it and the fallback would stand a resonance in on EVERY
-    // event of every unselected sample. Treat {0} exactly as filterGraphBySelection
-    // already treats it, as the escape hatch that asks for the whole graph.
+    // If no particle has the Signal flag, add a synthetic stand-in, so the signal level
+    // exists on every selected sample. Its four-momentum is not a generator quantity.
+    // seedPdgIds = {0} means no selection, so it gets no stand-in.
     if (truth::seedsNameAResonance(out->signalSeedPdgIds(), out->seedHadronFlavors())) {
       const bool haveSignal = std::any_of(out->particles().begin(), out->particles().end(), [](auto const& p) {
         return p.isAtLevel(truth::LevelFlag::Signal);
@@ -1129,9 +1094,7 @@ public:
       }
     }
 
-    // Stamp level membership last, on the finished graph: the antichain reduction walks
-    // ancestors and descendants, so anything earlier would classify a graph that the
-    // post-processor is still rewriting.
+    // Stamp level membership last, on the finished graph.
     truth::fillLevelFlags(*out);
 
     if (verbosity_ > 0) {
@@ -1150,8 +1113,7 @@ public:
           << levels.str();
     }
 
-    // Checked on the graph that is actually produced, after the synthetic node and the
-    // level stamping, so a future mutation between here and the put cannot slip past it.
+    // Check the graph that is put, after every change.
     if (!out->isConsistent()) {
       throw cms::Exception("TruthLogicalGraphProducer") << "Produced truth::Graph is not consistent";
     }

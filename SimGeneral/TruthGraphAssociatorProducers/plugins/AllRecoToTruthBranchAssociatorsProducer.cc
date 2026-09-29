@@ -1,19 +1,13 @@
 // Original author: Felice Pantaleo (CERN) <felice.pantaleo@cern.ch>
 
-// One producer, every configured reco collection of one type, every branch-association
-// working point. Follows the All* pattern of
-// SimCalorimetry/HGCalAssociatorProducers: the module takes a VInputTag of reco
-// collections and emits one pair of association maps per (collection, working point),
-// with instance labels derived from the input tags.
+// Associates every configured reco collection of one type to the truth graph, at every
+// working point. For each collection it produces one RecoToTruth map per working point
+// and one TruthToReco map, with instance labels derived from the input tag.
 //
-// The reco type only has to be adaptable to (DetId, fraction) hits. Which adapter
-// applies is decided by a concept rather than by a per-type producer, so a new domain
-// is a truth::recoHits overload plus a label in truthGraphAssociationLabels_cff, not a
-// new plugin.
+// A hit-based reco type needs a truth::recoHits overload. A concept selects the overload.
 //
-// Working points differ only in the arguments passed to bestAdaptiveBranch, not in the
-// associator itself, so the inverted DetId index is built ONCE per event and reused
-// across every working point.
+// Working points differ only in the arguments to bestAdaptiveBranch. The associator and
+// the candidate list of each object are built once and shared by every working point.
 
 #include <algorithm>
 #include <cctype>
@@ -60,18 +54,15 @@
 #include "SimDataFormats/TruthInfo/interface/Graph.h"
 #include "SimDataFormats/TruthInfo/interface/LogicalGraphHitIndex.h"
 
-// The producer template below is a member of this namespace rather than of the anonymous
-// one, and it holds a VertexResolution. A type with internal linkage cannot be the type of
-// a member of a class with external linkage, so this enum needs a named home.
+// Not in the anonymous namespace: the producer, which has external linkage, holds a
+// VertexResolution member, and a member cannot have a type with internal linkage.
 namespace truthassociation {
-  //
-  //   Immediate    the production vertex of the matched particle itself. Right for a
-  //                secondary vertex, which IS a decay or interaction vertex: the tracks
-  //                that belong to it were produced there.
-  //   Interaction  the one vertex representing the interaction the particle belongs to,
-  //                so a track from a decay downstream of the vertex is counted at the
-  //                vertex the chain started from. Right for a primary vertex, where the
-  //                question is which interaction a track came from, not which decay.
+  // The truth vertex at which a constituent counts.
+  //   Immediate    the production vertex of the matched particle. For a secondary
+  //                vertex, where the tracks are produced.
+  //   Interaction  the vertex of the interaction that the particle belongs to. For a
+  //                primary vertex: a track from a downstream decay counts at the
+  //                interaction.
   enum class VertexResolution { Immediate, Interaction };
 }  // namespace truthassociation
 
@@ -79,8 +70,7 @@ namespace {
   using truth::byAscendingScore;
   using truthassociation::VertexResolution;
 
-  // DetId::Detector by name, so the shared-energy denominator is a readable configuration
-  // list instead of an integer mask. An unknown name is a configuration error.
+  // DetId::Detector by name. An unknown name is a configuration error.
   DetId::Detector detectorFromName(std::string const& name) {
     static constexpr std::pair<std::string_view, DetId::Detector> kDetectors[] = {
         {"Tracker", DetId::Tracker},
@@ -117,20 +107,12 @@ namespace {
   template <typename RECO>
   concept AdaptableToTruthHits = SelfContainedRecoHits<RECO> || LayerClusterBackedRecoHits<RECO>;
 
-  // How a domain reaches the truth is a property of its reco type, not of runtime
-  // configuration. Two strategies cover everything:
-  //
-  //   HitBased         the object owns detector hits, so it is matched directly
-  //                    (tracks by shared hits, tracksters by shared energy).
-  //   ConstituentBased the object is BUILT from objects that are already associated,
-  //                    so its truth is aggregated from theirs rather than recomputed
-  //                    from hits. A vertex shares tracks, a jet shares constituents,
-  //                    a candidate shares a track and clusters. This is the layering
-  //                    CMSSW already uses: VertexAssociatorByPositionAndTracks
-  //                    consumes the track maps, it does not revisit hits.
-  //
-  // Binding payload and strategy to the type means the declared product type and the
-  // produced one cannot drift apart.
+  // How a reco type reaches the truth.
+  //   HitBased         the object owns detector hits and is matched on them (tracks by
+  //                    shared hits, tracksters by shared energy).
+  //   ConstituentBased the object is built from objects that are already associated,
+  //                    and its truth is aggregated from their maps. A vertex uses the
+  //                    track maps, as VertexAssociatorByPositionAndTracks does.
   enum class AssociationStrategy { HitBased, ConstituentBased };
 
   template <typename RECO>
@@ -145,9 +127,8 @@ namespace {
     static constexpr const char* cfiName = "allTrackToTruthBranchAssociators";
   };
 
-  // A vertex carries no hits of its own: its truth is whatever its tracks point to.
-  // The payload is therefore a FRACTION of the vertex's tracks, weighted the way
-  // calculateVertexSharedTracks weights them, not an energy.
+  // A vertex has no hits: its truth is aggregated from its tracks. The payload is a
+  // pt^2-weighted fraction of the vertex tracks.
   template <>
   struct TruthAssociationTraits<reco::Vertex> {
     static constexpr auto strategy = AssociationStrategy::ConstituentBased;
@@ -155,16 +136,11 @@ namespace {
     using MapType = ticl::TICLAssociationMap<ticl::mapWithFractionAndScore>;
     static constexpr const char* cfiName = "allVertexToTruthBranchAssociators";
 
-    // Visit (constituent index into its own collection, weight). The index is the Ref
-    // key, which is exactly the row the constituent's association map is indexed by.
-    //
-    // The weight is pt SQUARED, which is what CMSSW's own vertex association uses:
-    // calculateVertexSharedTracks returns sharedPt2Fraction as
-    // sum(pt^2 of shared tracks) / sum(pt^2 of ALL the vertex's tracks)
-    // (SimTracker/VertexAssociation/src/calculateVertexSharedTracks.cc). The vertex FIT
-    // weight answers a different question: it says how strongly a track constrained the
-    // fit, not how much of the vertex's momentum it carries, and it gives a soft pileup
-    // track the same standing as a hard signal one.
+    // Visits (constituent index, weight). The index is the Ref key, which is the row of
+    // the constituent association map.
+    // The weight is pt^2, as in the sharedPt2Fraction of calculateVertexSharedTracks
+    // (SimTracker/VertexAssociation/src/calculateVertexSharedTracks.cc). The vertex fit
+    // weight is not used: it measures the constraint on the fit, not the momentum share.
     template <typename F>
     static void forEachConstituent(reco::Vertex const& vertex, F&& visit) {
       for (auto it = vertex.tracks_begin(); it != vertex.tracks_end(); ++it) {
@@ -180,16 +156,11 @@ namespace {
     }
   };
 
-  // A particle-flow cluster owns its calorimeter cells directly: reco::PFCluster derives
-  // from reco::CaloCluster and addRecHitFraction fills the base hitsAndFractions, so the
-  // reco::CaloCluster adapter in RecoHitAdapters.h applies unchanged and the cluster is
-  // matched on shared energy like a trackster. One PFCluster type serves every block
-  // element flavour (ECAL, HCAL, HO, HF, PS, HGCAL): the importer picks the enum from
-  // the cluster's layer, the object is the same. Which detector the shared-energy
-  // denominator covers is configuration (denominatorDetectors), one module per
-  // subdetector, because the efficiency gate is the branch energy fraction there and a
-  // hadron branch scored against a joint ECAL+HCAL denominator can never reach the
-  // individual threshold with an ECAL cluster alone.
+  // A particle-flow cluster owns its calorimeter cells. reco::PFCluster derives from
+  // reco::CaloCluster, so the reco::CaloCluster adapter applies and the cluster is matched
+  // on shared energy. Use one module per subdetector, with its own denominatorDetectors:
+  // against a joint ECAL+HCAL denominator, an ECAL cluster alone never reaches the
+  // individual threshold for a hadron branch.
   template <>
   struct TruthAssociationTraits<reco::PFCluster> {
     static constexpr auto strategy = AssociationStrategy::HitBased;
@@ -199,10 +170,8 @@ namespace {
     static constexpr const char* cfiName = "truthBranchPFClusterAssociators";
   };
 
-  // A trackster owns calorimeter energy through its layer clusters, so it is matched
-  // directly like a track, but on SHARED ENERGY in the calorimeter channel rather than
-  // on a hit count in the tracker. This is the same metric the TICL trackster
-  // validation scores against, so the two are comparable.
+  // A trackster owns calorimeter energy through its layer clusters. It is matched on
+  // shared energy in the calorimeter channel, the metric of the TICL trackster validation.
   template <>
   struct TruthAssociationTraits<ticl::Trackster> {
     static constexpr auto strategy = AssociationStrategy::HitBased;
@@ -262,40 +231,33 @@ private:
   // collection configured the metric weights the cells by their sim energy.
   std::vector<edm::EDGetTokenT<HGCRecHitCollection>> hgcalRecHitTokens_;
   std::vector<edm::EDGetTokenT<reco::PFRecHitCollection>> pfRecHitTokens_;
-  // One warning per job for an input condition that the maps cannot repair.
+  // One warning per job for each input condition that the maps cannot repair.
   mutable std::once_flag moduleKeyedWarned_;
   mutable std::once_flag placeholderVertexWarned_;
 
   std::vector<std::pair<std::string, edm::EDGetTokenT<std::vector<RECO>>>> recoTokens_;
-  // One warning per collection per job when none of its hits is in the configured
-  // denominator scope, because every shared-energy fraction is then zero, which reads
-  // like a reconstruction that matches nothing. A barrel trackster collection under an
-  // endcap-only scope is that case.
+  // One warning per collection per job when none of its hits is in denominatorDetectors:
+  // every shared-energy fraction is then zero.
   mutable std::vector<std::once_flag> outOfScopeWarned_;
   std::vector<WorkingPoint> workingPoints_;
-  // The detectors the sim-normalised shared-energy fraction is normalised to. It is
-  // configuration, so one truth branch is scored against the same denominator in every
-  // event and in an event where the collection is empty.
+  // Bit mask of the detectors that the sim-normalised shared-energy fraction is
+  // normalised to.
   uint32_t denominatorDetectors_ = truth::BranchHitAssociator::kAllDetectors;
   const bool truthToRecoSignalOnly_;
   const bool heavyFlavorOnly_;
   // Composite domains only: the worst score a constituent's best match may have and
   // still place the constituent at a truth vertex.
   float maxConstituentScore_ = 1.f;
-  // The selector-passing candidate roots, computed once per event by the shared
-  // TruthBranchTargetsProducer together with the level denominators and signal seeds.
+  // The selector-passing candidate roots, from TruthBranchTargetsProducer.
   edm::EDGetTokenT<std::vector<unsigned int>> targetsToken_;
-  // The subset of those roots a reco object may be assigned to, from the same producer.
+  // The subset of those roots that an adaptive working point may answer with.
   edm::EDGetTokenT<std::vector<unsigned int>> assignableTargetsToken_;
 
   using Traits = TruthAssociationTraits<RECO>;
   using MapType = typename Traits::MapType;
 
-  // Composite domains read their constituents' association maps instead of hits. The
-  // upstream module is named by a cms.string and the instance labels are rebuilt here,
-  // the same way the HGCal All* producers reach allHitToTracksterAssociations.
-  // Constituents are tracks for every composite domain shipped here; a future
-  // non-track constituent belongs in the domain's own trait, not in a conditional.
+  // Composite domains read the association maps of their constituents, one per
+  // collection and working point. The constituents are tracks.
   using ConstituentMapType = TruthAssociationTraits<reco::Track>::MapType;
   std::vector<std::vector<edm::EDGetTokenT<ConstituentMapType>>> constituentMapTokens_;
   VertexResolution vertexResolution_ = VertexResolution::Immediate;
@@ -349,19 +311,16 @@ AllRecoToTruthBranchAssociatorsProducer<RECO>::AllRecoToTruthBranchAssociatorsPr
   }
 
   if constexpr (ConstituentBasedDomain<RECO>) {
-    // The truth-driven direction of a composite domain reads the constituent map of the
-    // FIRST working point, so that point has to be the plain per-root match. With an
-    // adaptive point first it would silently measure the adaptive climb instead.
+    // The truth-driven direction reads the constituent map of the first working point,
+    // so that point must be the plain per-root match.
     if (names.front() != "Fixed") {
       throw cms::Exception("Configuration")
           << "workingPointNames starts with '" << names.front()
           << "': a composite domain reads the first point's constituent map, so the first point must be 'Fixed'";
     }
-    // A composite object's truth target is a vertex, not a branch at some level, so
-    // there is a single denominator.
+    // The truth target of a composite object is a vertex, so there is one denominator.
     produces<std::vector<unsigned int>>("truthToRecoTargets");
-    // A composite object is associated to a truth VERTEX, so its efficiency denominator
-    // is a set of vertices, not of branch roots.
+    // Every selected truth vertex, before the signal-only restriction.
     produces<std::vector<unsigned int>>("selectedTruthVertices");
     const auto resolution = cfg.getParameter<std::string>("vertexResolution");
     if (resolution == "interaction") {
@@ -375,9 +334,7 @@ AllRecoToTruthBranchAssociatorsProducer<RECO>::AllRecoToTruthBranchAssociatorsPr
   }
 
   for (auto const& tag : cfg.getParameter<std::vector<edm::InputTag>>("recoCollections")) {
-    // Key rule for this package: label and instance joined by an underscore, the same
-    // string that names the DQM folder. HGCal concatenates for products and
-    // underscores for folders; keeping one rule avoids that asymmetry.
+    // "label_instance", the same key that names the DQM folder.
     std::string key = tag.label();
     if (!tag.instance().empty()) {
       key += "_" + tag.instance();
@@ -397,18 +354,10 @@ AllRecoToTruthBranchAssociatorsProducer<RECO>::AllRecoToTruthBranchAssociatorsPr
       constituentMapTokens_.push_back(std::move(perWp));
     }
 
-    // The two directions are NOT transposes of each other and are deliberately not
-    // named as if they were.
-    //
-    // RecoToTruth is reco-driven: given a reco object, the adaptive search picks the
-    // graph level that best matches it, so there is one product per working point. Its
-    // score is 1 - RECO purity, the reco object being the denominator.
-    //
-    // TruthToReco is truth-driven: the truth target is fixed A PRIORI by the domain's
-    // resolution, so there is ONE product. The reco side of each pair still comes from
-    // a matching pass, which runs at the FIRST listed working point; the shipped config
-    // lists "Fixed" first. Its score is 1 - TRUTH purity, the truth object being the
-    // denominator.
+    // The two directions are not transposes of each other.
+    // RecoToTruth is reco-driven, one product per working point. Score: 1 - reco purity.
+    // TruthToReco is truth-driven, one product, with no adaptive climb. Score: 1 - truth
+    // purity.
     for (auto const& wp : workingPoints_) {
       produces<MapType>(key + "RecoToTruth" + wp.name);
     }
@@ -437,8 +386,8 @@ void AllRecoToTruthBranchAssociatorsProducer<RECO>::produce(edm::StreamID,
   std::vector<reco::CaloCluster> const* layerClusters = nullptr;
   // The rechit energy of every cell, the weight of the shared-energy metric. Every
   // configured collection is required. The barrel PFRecHits (DetId detectors 3 and 4) go
-  // in before the HGCAL rechits (8 to 10), and each collection is sorted by DetId, so the
-  // table is built in order and finalize() does not sort.
+  // in before the HGCAL rechits (8 to 10), so the table is in DetId order when each
+  // collection is sorted.
   truth::CellEnergyTable recHitEnergies;
   truth::CellEnergyTable const* recHitEnergiesPtr = nullptr;
   if constexpr (LayerClusterBackedRecoHits<RECO>) {
@@ -462,12 +411,9 @@ void AllRecoToTruthBranchAssociatorsProducer<RECO>::produce(edm::StreamID,
 
   const unsigned int nBranches = graph.nParticles();
 
-  // The selector-passing candidate roots, computed once per event by the shared
-  // TruthBranchTargetsProducer alongside the level denominators and signal seeds.
   auto const& selectedRoots = event.get(targetsToken_);
-  // Membership test for the assignable roots, one lookup per candidate. The product is a
-  // sorted id list like every other target product; the mask is the per-event expansion
-  // of it. A composite domain answers with a vertex, so it needs no mask.
+  // Membership mask of the assignable roots. A composite domain answers with a vertex,
+  // so it needs no mask.
   std::vector<uint8_t> isAssignable;
   if constexpr (!ConstituentBasedDomain<RECO>) {
     isAssignable.assign(nBranches, 0);
@@ -502,37 +448,21 @@ void AllRecoToTruthBranchAssociatorsProducer<RECO>::produce(edm::StreamID,
   }
 
   if constexpr (ConstituentBasedDomain<RECO>) {
-    // The vertices a composite object could have been reconstructed at: those where at
-    // least two findable tracks were produced. One track cannot make a vertex, so a
-    // one-particle vertex in the denominator is a guaranteed miss that scales every
-    // efficiency down without measuring anything, the same reason the branch selector
-    // guards the particle denominator. The count, the signal count and the pt^2 weight
-    // all run over ONE population: in-time, charged, one entry per physical particle.
-    // Counting the gate over a different population than the weight readmits the
-    // one-track vertex through a neutral member or a root's own selected ancestor.
-    // Charged, because the constituents are tracks and a neutrino carries pt^2 no
-    // vertex finder can recover. Charged is not enough on its own: a charged particle
-    // that decays before it reaches the tracker leaves no track either, and a D+ from a
-    // B decays after about 300 um. Such a particle would make a one-track vertex look
-    // findable and would carry pt^2 into the purity denominator that no track can ever
-    // match, since its own daughters count at its own decay vertex. So the population is
-    // the particles that own tracker hits, which is what a track is made of. When the
-    // input carries no tracker truth at all the requirement is dropped, because then it
-    // would empty the denominator instead of cleaning it.
-    // With Interaction resolution the population is the generator particles: a Geant4
-    // secondary, a conversion electron or the product of a nuclear interaction, was not
-    // produced by the interaction, as a TrackingVertex does not count it either. The
-    // filters come first and the earliest member of each chain is kept, so a particle
-    // that interacted counts once, as itself. Immediate resolution needs no reduction,
-    // its members being one vertex's outgoing particles.
+    // The findable truth vertices: those that produce at least two findable tracks, since
+    // one track cannot make a vertex. The count, the signal count and the pt^2 weight use
+    // one population: in-time, charged particles that own tracker hits. A charged
+    // particle that decays before the tracker (a D+ from a B, after about 300 um) has no
+    // track. The tracker-hit requirement is dropped when the input has no tracker truth.
+    // With Interaction resolution, only generator particles count, as for a
+    // TrackingVertex, and only the earliest member of each chain, so a particle that
+    // interacts counts once.
     const bool trackerTruthPresent = hitIndex.hasChannel(truth::HitChannel::Tracker);
     std::unordered_map<unsigned int, unsigned int> rootsPerVertex;
     std::unordered_map<unsigned int, unsigned int> signalRootsPerVertex;
     {
       std::vector<uint32_t> counted;
       for (uint32_t root : selectedRoots) {
-        // In-time only, as the reference vertex validation counts only bunch-crossing-0
-        // simulated vertices in its denominator
+        // In-time only, as in the reference vertex validation
         // (Validation/RecoVertex/src/PrimaryVertexAnalyzer4PUSlimmed.cc:877-883).
         if (!truth::Branch(&graph, root).isInTime()) {
           continue;
@@ -552,8 +482,7 @@ void AllRecoToTruthBranchAssociatorsProducer<RECO>::produce(edm::StreamID,
         truth::dropCoveredMembers(graph, counted, /*keepDeepest=*/false);
       }
       for (uint32_t root : counted) {
-        // Same resolution the numerator uses. A denominator counted at a different set
-        // of vertices than the numerator measures nothing.
+        // The same resolution as the numerator.
         if (const auto vertexId = countingVertex(graph, root, vertexResolution_, interactionVertex)) {
           ++rootsPerVertex[*vertexId];
           if (graph.particles()[root].isSignal()) {
@@ -565,12 +494,10 @@ void AllRecoToTruthBranchAssociatorsProducer<RECO>::produce(edm::StreamID,
       }
     }
 
-    // The denominator is where a heavy-flavour hadron decayed, which is what a secondary
-    // vertex is: inclusiveSecondaryVertices reconstructs displaced heavy-flavour
-    // vertices, not every nuclear interaction, conversion and decay in flight. The levels
-    // are antichains, so a B* radiating down to a B contributes one vertex rather than one
-    // per generator copy. Beauty and charm are asked separately because a B decays to a D
-    // and a combined level would drop every charm vertex.
+    // Decay vertices of heavy-flavour hadrons, which inclusiveSecondaryVertices
+    // reconstructs. Each level is an antichain, so a B* that radiates down to a B gives one
+    // vertex. Beauty and charm are separate levels: a B decays to a D, and one combined
+    // level drops every charm vertex.
     const std::unordered_set<unsigned int> heavyFlavorDecayVertices = [&graph, heavyFlavorOnly = heavyFlavorOnly_] {
       std::unordered_set<unsigned int> vertices;
       // Only the secondary-vertex flavour of this producer reads the set.
@@ -592,9 +519,8 @@ void AllRecoToTruthBranchAssociatorsProducer<RECO>::produce(edm::StreamID,
       if (count < 2u) {
         continue;
       }
-      // Junk-vertex guard of the reference vertex validation: a simulated vertex
-      // beyond |z| of 1000 cm is not counted
-      // (Validation/RecoVertex/src/PrimaryVertexAnalyzer4PUSlimmed.cc:885-886).
+      // A simulated vertex beyond |z| of 1000 cm is not counted, as in the reference
+      // vertex validation (Validation/RecoVertex/src/PrimaryVertexAnalyzer4PUSlimmed.cc:885-886).
       if (std::abs(graph.vertices()[vertexId].position.z()) > 1000.) {
         continue;
       }
@@ -602,9 +528,8 @@ void AllRecoToTruthBranchAssociatorsProducer<RECO>::produce(edm::StreamID,
         continue;
       }
       selectedVertices->push_back(vertexId);
-      // Signal is decided from the PARTICLES produced there, not from the vertex's own
-      // eventId: a collapsed GEN vertex carries 0 even when everything it produced
-      // belongs to a pileup interaction.
+      // Signal comes from the particles produced at the vertex, not from the vertex
+      // eventId: a collapsed GEN vertex has eventId 0 also when its particles are pileup.
       if (!truthToRecoSignalOnly_ || signalRootsPerVertex[vertexId] > 0u) {
         targets->push_back(vertexId);
       }
@@ -629,13 +554,11 @@ void AllRecoToTruthBranchAssociatorsProducer<RECO>::produce(edm::StreamID,
     auto const& collection = event.get(token);
     const unsigned int nReco = collection.size();
 
-    // Truth-driven direction, built ONCE: the truth target is fixed a priori, so the
-    // reco-driven working point plays no part in it. Its score is 1 - truth purity.
+    // Truth-driven direction, one map for all working points. Score: 1 - truth purity.
     const unsigned int nTruthRows = ConstituentBasedDomain<RECO> ? graph.nVertices() : nBranches;
     auto truthToReco = std::make_unique<MapType>(nTruthRows);
 
-    // Hit-based domains: each object's hit adaptation is independent of the working
-    // point, so it is built ONCE per collection and shared by every working point below.
+    // Hit-based domains: the hits of each object, shared by every working point.
     std::vector<std::vector<truth::RecoHit>> recoHitsPerObject;
     if constexpr (!ConstituentBasedDomain<RECO>) {
       recoHitsPerObject.resize(nReco);
@@ -663,14 +586,12 @@ void AllRecoToTruthBranchAssociatorsProducer<RECO>::produce(edm::StreamID,
       }
     }
 
-    // Composite domains only: (reco index, shared weight) per truth vertex and the
-    // per-truth-vertex total, so the truth-normalised fraction can be formed once every
-    // reco object of the collection has contributed.
+    // Composite domains only: (reco index, shared weight) per truth vertex. The truth
+    // purity is formed after every reco object of the collection contributes.
     std::unordered_map<unsigned int, std::vector<std::pair<unsigned int, float>>> sharedWeightPerTruthVertex;
 
-    // Hit-based domains: the associator depends on the graph, the selected roots and
-    // the detector mask, never on the reco collection itself, so it is cached per
-    // mask; collections of one domain produce the same mask, giving one build.
+    // Hit-based domains: the associator does not depend on the reco collection, so it is
+    // cached per detector mask.
     truth::BranchHitAssociator const* hitAssociator = nullptr;
     if constexpr (!ConstituentBasedDomain<RECO>) {
       for (auto const& [mask, cached] : associatorPerMask) {
@@ -698,19 +619,13 @@ void AllRecoToTruthBranchAssociatorsProducer<RECO>::produce(edm::StreamID,
         auto const& wp = workingPoints_[wpIndex];
         auto recoToTruth = std::make_unique<MapType>(nReco);
 
-        // A composite object is associated to a truth VERTEX, not to a particle branch.
-        // Keying the aggregation by the branch a constituent points at cannot disagree
-        // with itself, so every object matched something and the purity was 1 by
-        // construction. Keying it by the PRODUCTION VERTEX of that branch is what makes
-        // the number mean anything: constituents whose particles were produced at an
-        // unrelated vertex are contamination, and the leading vertex's share is the
-        // purity.
+        // A composite object is associated to a truth vertex. Constituents from another
+        // truth vertex are contamination, and the share of the leading vertex is the purity.
         auto const& constituentMap = event.get(constituentMapTokens_[collectionIndex][wpIndex]);
         for (unsigned int i = 0; i < nReco; ++i) {
           auto const& object = collection[i];
-          // Summed in its own pass, not fused into the scan below: fusing changes the
-          // inlining context of the float accumulation and with it the rounding of the
-          // pt^2 sums, which moves association scores in the last ulp.
+          // A separate pass, not fused into the scan below: fusion changes the rounding of
+          // the float pt^2 sums and moves the scores in the last ulp.
           const float total = Traits::totalWeight(object);
           if (total <= 0.f) {
             continue;
@@ -720,11 +635,10 @@ void AllRecoToTruthBranchAssociatorsProducer<RECO>::produce(edm::StreamID,
             if (constituentIndex >= constituentMap.size()) {
               return;
             }
-            // maps are score-sorted, so [0] is the constituent's best match
+            // Rows are sorted by ascending score, so [0] is the best match.
             for (auto const& match : constituentMap[constituentIndex]) {
-              // A constituent donates its whole weight to the vertex it points at, so a
-              // weak match must not point anywhere. 1 - score is the constituent's reco
-              // purity, the same quantity the tracker association thresholds.
+              // A constituent gives its whole weight to one vertex, so a weak match gives
+              // it to none. 1 - score is the reco purity of the constituent.
               if (match.score() > maxConstituentScore_) {
                 break;
               }
@@ -737,15 +651,14 @@ void AllRecoToTruthBranchAssociatorsProducer<RECO>::produce(edm::StreamID,
               break;
             }
           });
-          // Denominator over ALL constituents, the CMSSW convention: a track with no
-          // truth match lowers the shared fraction. The pt^2 weighting keeps that
-          // dilution small, because the unmatched tracks are the soft ones.
+          // The denominator is all constituents, as in CMSSW: an unmatched track lowers
+          // the shared fraction.
           for (auto const& [vertexId, weight] : weightPerVertex) {
-            // RECO purity: the leading truth vertex's share of THIS reco object's pt^2.
+            // Reco purity: the share of the pt^2 of this reco object from this truth vertex.
             const float recoPurity = weight / total;
             recoToTruth->insert(i, vertexId, recoPurity, 1.f - recoPurity);
-            // TRUTH purity: the shared weight over what the truth vertex produced,
-            // formed below once the whole collection has been seen.
+            // Truth purity: the shared weight over the weight of the truth vertex,
+            // formed below after the whole collection.
             if (wpIndex == 0) {
               sharedWeightPerTruthVertex[vertexId].emplace_back(i, weight);
             }
@@ -768,25 +681,22 @@ void AllRecoToTruthBranchAssociatorsProducer<RECO>::produce(edm::StreamID,
           }
         }
 
-        // Ascending score, so [0] is the best match; consumers rely on this. An explicit
-        // comparator: the map's own sort(true) orders DESCENDING by score, worst first.
+        // Ascending score, so [0] is the best match. The map's own sort(true) orders by
+        // descending score.
         recoToTruth->sort(byAscendingScore);
-        // Every declared instance label must be put on every path, including the one
-        // where the reco collection was absent: a missing put is a framework error.
         event.put(std::move(recoToTruth), key + "RecoToTruth" + wp.name);
       }
     } else {
-      // One map per working point, filled together: the candidate list is the whole
-      // per-object cost and every working point only re-ranks it, so it is computed
-      // once per object rather than once per (object, working point).
+      // One map per working point, filled together: the candidate list of each object is
+      // computed once and every working point re-ranks it.
       std::vector<std::unique_ptr<MapType>> recoToTruthPerWp;
       recoToTruthPerWp.reserve(workingPoints_.size());
       for (std::size_t wpIndex = 0; wpIndex < workingPoints_.size(); ++wpIndex) {
         recoToTruthPerWp.push_back(std::make_unique<MapType>(nReco));
       }
 
-      // The candidates of one reco object, restricted to the roots an adaptive point may
-      // answer with. Declared here and cleared per object, so it allocates once.
+      // The candidates of one reco object that an adaptive point may answer with, and the
+      // row of a fixed point. Reused across objects.
       std::vector<truth::BranchMatch> assignableMatches;
       std::vector<truth::BranchMatch> fixedRow;
 
@@ -797,11 +707,10 @@ void AllRecoToTruthBranchAssociatorsProducer<RECO>::produce(edm::StreamID,
         const std::span<const truth::RecoHit> span(recoHitsPerObject[i]);
         const auto matches = hitAssociator->bestBranches(span);
 
-        // A candidate root carries the hits of its whole subgraph, so a parton, a beam
-        // particle or an invented node covers the reco object entirely and wins on score.
-        // An adaptive point may not answer with one. A fixed point keeps the barred roots,
-        // which the truth-driven direction reads its pair scores from, but after every
-        // assignable root, so its row [0] is a detector particle whenever one matches.
+        // A parton, a beam particle or an invented node covers the reco object entirely
+        // through its subgraph, and wins on score. An adaptive point may not answer with
+        // one. A fixed point keeps these barred roots after every assignable root, so its
+        // row [0] is a detector particle when one matches.
         assignableMatches.clear();
         for (auto const& match : matches) {
           if (match.rootParticleId < isAssignable.size() && isAssignable[match.rootParticleId] != 0) {
@@ -814,12 +723,11 @@ void AllRecoToTruthBranchAssociatorsProducer<RECO>::produce(edm::StreamID,
             fixedRow.push_back(match);
           }
         }
-        // Ascending score, tightest first, as bestBranches ordered it: the filter keeps
-        // the order, so the climb still starts from the best candidate.
+        // The filter keeps the ascending-score order of bestBranches, so the climb starts
+        // from the best candidate.
         const std::span<const truth::BranchMatch> assignableSpan(assignableMatches);
 
-        // RECO to TRUTH: the working point drives the search, and the score is
-        // reco-normalised, so 1 - score is the RECO purity.
+        // Reco to truth: the working point drives the search. 1 - score is the reco purity.
         for (std::size_t wpIndex = 0; wpIndex < workingPoints_.size(); ++wpIndex) {
           auto const& wp = workingPoints_[wpIndex];
           if (wp.adaptive) {
@@ -835,13 +743,9 @@ void AllRecoToTruthBranchAssociatorsProducer<RECO>::produce(edm::StreamID,
           }
         }
 
-        // TRUTH to RECO, filled once per object. NO adaptive climb: the climb chooses
-        // a graph level to suit the reco object, which is meaningless when the truth
-        // target is the thing being asked about. Both payloads of this direction are
-        // TRUTH-normalised: the sim-normalised shared energy fraction, which is the
-        // axis HGCalValidator gates efficiency on, and the truth-normalised score,
-        // which gates purity and duplicate. A shared-hits domain has no energy, so it
-        // keeps reporting the shared hit count.
+        // Truth to reco, with no adaptive climb. Both payloads are truth-normalised: the
+        // shared energy fraction and the reverse score. A shared-hits domain reports the
+        // shared hit count.
         constexpr bool sharedEnergyMetric = Traits::metric == truth::BranchHitAssociator::Metric::SharedEnergy;
         for (auto const& match : matches) {
           // The row index comes from the hit index and the map is sized from the graph.
@@ -858,11 +762,8 @@ void AllRecoToTruthBranchAssociatorsProducer<RECO>::produce(edm::StreamID,
       }
 
       for (std::size_t wpIndex = 0; wpIndex < workingPoints_.size(); ++wpIndex) {
-        // The rows keep the order they were filled in: assignable roots first, each group
-        // by ascending score with equal scores by the tightest branch first, so [0] is the
-        // best detector particle. A sort by score and index here would undo both.
-        // Every declared instance label must be put on every path, including the one
-        // where the reco collection was absent: a missing put is a framework error.
+        // The rows keep the fill order: assignable roots first, each group by ascending
+        // score, so [0] is the best detector particle. Do not sort them here.
         event.put(std::move(recoToTruthPerWp[wpIndex]), key + "RecoToTruth" + workingPoints_[wpIndex].name);
       }
     }
@@ -964,10 +865,9 @@ using AllTrackToTruthBranchAssociatorsProducer = AllRecoToTruthBranchAssociators
 DEFINE_FWK_MODULE(AllTrackToTruthBranchAssociatorsProducer);
 using AllVertexToTruthBranchAssociatorsProducer = AllRecoToTruthBranchAssociatorsProducer<reco::Vertex>;
 DEFINE_FWK_MODULE(AllVertexToTruthBranchAssociatorsProducer);
-// NOT named AllTracksterToTruthBranchAssociatorsProducer: a standalone producer of that
-// name exists on the NanoAOD training branch, with different product keying and a
-// different candidate-root source. A duplicate class name would make the framework pick
-// one of the two at random in an area that carries both.
+// Not named AllTracksterToTruthBranchAssociatorsProducer: the NanoAOD training branch has
+// a different producer of that name, and a duplicate plugin name breaks an area that has
+// both.
 using TruthBranchTracksterAssociatorsProducer = AllRecoToTruthBranchAssociatorsProducer<ticl::Trackster>;
 DEFINE_FWK_MODULE(TruthBranchTracksterAssociatorsProducer);
 using TruthBranchPFClusterAssociatorsProducer = AllRecoToTruthBranchAssociatorsProducer<reco::PFCluster>;

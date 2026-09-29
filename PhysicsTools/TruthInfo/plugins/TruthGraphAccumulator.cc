@@ -1,39 +1,24 @@
 // Original author: Felice Pantaleo (CERN) <felice.pantaleo@cern.ch>
 
-// Builds the mixed (signal + pileup) raw TruthGraph as a DigiAccumulatorMixMod, like
-// TrackingTruthAccumulator and CaloTruthAccumulator. The framework hands over one
-// sub-event at a time with its own SimTrack, SimVertex and HepMC collections, so
-// trackId, vertIndex and parentIndex keep their local meaning, and the graph is
-// consistent with the digis by construction.
+// Builds the mixed (signal + pileup) raw TruthGraph as a DigiAccumulatorMixMod. The
+// framework gives one sub-event at a time with its own SimTrack, SimVertex and HepMC
+// collections, so trackId, vertIndex and parentIndex keep their local meaning.
 //
-// GEN handling is configurable per realm, and the same flag means the same thing for
-// both:
-//   collapsePileupGen (default true) : collapse the GEN decay chain to the stable
-//        (status 1) GEN particles and the species in collapsedGenKeptPdgIds (default
-//        {111}), keep the SIM continuation (GenToSim links). The interaction has one
-//        gen vertex, and each kept species has its own decay vertex, so a level that
-//        stops at a pi0 finds it. Compact, and it connects each pileup interaction
-//        into one component.
-//   collapseSignalGen (default false): keep the full HepMC decay chain, built by the
-//        shared truth::GenBuild that TruthGraphProducer uses, so the signal carries
-//        intermediate (status 2) particles, GenStatusFlags and the hard-process
-//        record. A selection preset seeded on a resonance pdgId needs this: the
-//        collapsed form has stable particles only and nothing to seed on.
-//
-//   collapseGenShower (default true): applies to the pile-up interactions. The parton
-//        shower and the intermediate copies of a resonance are contracted away,
-//        keeping ancestry, so a resonance that appears several times is one node whose
-//        children are its decay products. See truth::collapseGenShower.
-//
-//   collapseGenShowerSignal (default false): the same for the main event, which keeps
-//        its shower: those partons are what feeds the hard-scatter strings from the beam
-//        side, and the BeamSideInput vertex points at them.
-//
-//   pileupBunchCrossings (default {0} = in-time pileup only): which bunch crossings
-//        to include for pileup.
+// GEN handling, per realm:
+//   collapsePileupGen, collapseSignalGen: if true, the GEN record of that realm is
+//        collapsed to the stable (status 1) GEN particles and the species in
+//        collapsedGenKeptPdgIds, with one gen vertex per interaction and one decay
+//        vertex per kept decaying species. If false, the full HepMC decay chain is
+//        kept, with the intermediate particles and GenStatusFlags. A preset seeded on a
+//        resonance pdgId needs the full chain.
+//   collapseGenShower, collapseGenShowerSignal: for a realm with the full chain,
+//        contract the parton shower and the intermediate resonance copies, keeping the
+//        ancestry (see truth::collapseGenShower). The main event keeps its shower by
+//        default, because the BeamSideInput vertex points at those partons.
+//   pileupBunchCrossings: the bunch crossings of the pileup to include.
 //
 // Each node carries an EncodedEventId: (0,0) for the signal, (bunchCrossing,
-// pileupIndex) for pileup, so signal and pileup stay distinguishable.
+// pileupIndex) for pileup.
 
 #include <algorithm>
 #include <cstdint>
@@ -136,8 +121,7 @@ namespace {
         gb = truth::buildFromHepMC2(*h2->GetEvent());
     }
     if (collapseShower && !gb.empty()) {
-      // The degraded path is a property of the sample, not of one sub-event, so one
-      // warning per stream says everything 200 per event would.
+      // The degraded path is a property of the sample, so it is reported once per stream.
       if (!truth::collapseGenShower(gb, truth::simContinuedGenBarcodes(tracks)) && !degradedCollapseWarned) {
         degradedCollapseWarned = true;
         edm::LogWarning("TruthGraphAccumulator")
@@ -175,14 +159,12 @@ private:
                    EncodedEventId const& eid,
                    int32_t genEvent);
 
-  // Append this sub-event's sim-hits to the merged collections, re-tagged with `eid`
-  // so they carry per-interaction provenance (native hits are all tagged (0,0)).
+  // Append the sim-hits of this sub-event to the merged collections, re-tagged with `eid`.
   template <class EvT>
   void addSubEventHits(EvT const& ev, EncodedEventId const& eid);
 
-  // Merge one sim-hit collection family (PCaloHit or PSimHit) from the sub-event,
-  // re-tagging each hit's eventId. Kept per subdetector family so a downstream
-  // consumer can apply the right sim-to-reco DetId relabelling per collection.
+  // Merge one sim-hit collection family from the sub-event, re-tagging the eventId of
+  // each hit. One output per family, so a consumer can relabel DetIds per collection.
   template <class HitT, class EvT>
   void mergeHits(EvT const& ev,
                  std::vector<edm::InputTag> const& tags,
@@ -212,28 +194,22 @@ private:
   // One counter per bunch crossing, keyed by bx, as the MixingModule numbers its
   // sub-events. Reset per event.
   std::map<int, int> pileupCount_;
-  // Warn once PER COLLECTION, not once overall: a single shared flag reports only the
-  // first collection that goes missing and hides every later one, so a real premix
-  // problem in the calorimeter can be masked by an unrelated tracker collection.
+  // Warn once per missing collection, so one missing collection does not hide another.
   std::set<std::string> missingHitsWarned_;
   bool degradedCollapseWarned_ = false;
 
-  // Merged calorimeter sim-hits across signal + kept pileup, each re-tagged with its
-  // sub-event EncodedEventId so the (eventId,trackId) hit-index key resolves pileup
-  // nodes at RECO (the native pileup hits are consumed transiently here). Kept one
-  // vector per subdetector family so the relabelling at RECO stays per collection.
+  // Merged calorimeter sim-hits of the signal and the kept pileup, re-tagged with the
+  // sub-event EncodedEventId, so the (eventId, trackId) key resolves pileup nodes at RECO.
   std::vector<PCaloHit> mergedCaloHits_;
   std::vector<PCaloHit> mergedEcalHits_;
   std::vector<PCaloHit> mergedHcalHits_;
-  // Tracking sim-hits (tracker, muon chambers, MTD) as PSimHit, same per-interaction
-  // re-tagging. Tracker pileup is by far the largest family; see the customise note.
+  // Tracking sim-hits (tracker, muon chambers, MTD), with the same re-tagging.
   std::vector<PSimHit> mergedTrackerHits_;
   std::vector<PSimHit> mergedMuonHits_;
   std::vector<PSimHit> mergedMtdHits_;
 
-  // Rejected GenToSim links, summed over the event's sub-events: a SimTrack whose
-  // genpartIndex resolves to a GEN particle of a different pdgId is not that
-  // particle's continuation, so the link is dropped rather than written wrong.
+  // Rejected GenToSim links in the event: a SimTrack whose genpartIndex resolves to a
+  // GEN particle of a different pdgId gets no link.
   unsigned int rejectedGenToSimLinks_ = 0;
 
   std::vector<TruthGraph::NodeRef> nodes_;
@@ -248,16 +224,14 @@ private:
   std::vector<uint8_t> edgeKinds_;
   std::vector<uint16_t> simVertexProcessType_;  // node-parallel; G4 process subtype (SimVertex only)
   std::vector<uint8_t> simTrackBackscattered_;  // node-parallel; albedo flag (SimTrack only)
-  // GEN payload from each sub-event's own record, for the GEN nodes it covers: the node
-  // ids in ascending order and, in step, the four-momentum of a GenParticle or the
-  // (cm, ns) position of a GenVertex. After mixing only the signal record is in the
-  // event, so this is where the pile-up one is. The time is the generator time of the
-  // record, with no bunch-crossing offset for an out-of-time interaction.
+  // GEN payload from the record of each sub-event: the GEN node ids in ascending order
+  // and, in step, the four-momentum of a GenParticle or the (cm, ns) position of a
+  // GenVertex. After mixing, this is the only copy of the pileup GEN record. The time
+  // has no bunch-crossing offset.
   std::vector<uint32_t> genPayloadNodes_;
   std::vector<math::XYZTLorentzVectorD> genPayload_;
-  // Every sub-event's SimTracks and SimVertices, each tagged with its sub-event id, in
-  // the order the sub-events were added. The logical graph reads momenta and
-  // positions from them by (event id, trackId) and (event id, index).
+  // The SimTracks and SimVertices of every sub-event, tagged with the sub-event id, in
+  // the order the sub-events are added.
   edm::SimTrackContainer mergedSimTracks_;
   edm::SimVertexContainer mergedSimVertices_;
 
@@ -391,9 +365,8 @@ void TruthGraphAccumulator::addSubEvent(std::vector<truth::CompactGenParticle> c
   const bool useFullGen = (fullGen != nullptr && !fullGen->empty());
 
   if (useFullGen) {
-    // Full HepMC decay chain: every particle at its own status, both Gen edge
-    // directions, and the GenEvent node attached to the vertices with no incoming
-    // particle so the component has a single source.
+    // Full HepMC decay chain: every particle at its own status and both Gen edge
+    // directions, with a GenEvent node as the source.
     const uint32_t genEventNode = pushNode(TruthGraph::NodeKind::GenEvent, static_cast<int64_t>(genEvent), 0, 0);
     genEventOfNode_[genEventNode] = genEvent;
 
@@ -440,13 +413,9 @@ void TruthGraphAccumulator::addSubEvent(std::vector<truth::CompactGenParticle> c
         pushEdge(itP->second, itV->second, TruthGraph::EdgeKind::Gen);
     }
 
-    // Attach the GenEvent node PER CONNECTED COMPONENT, which is what TruthGraphProducer
-    // does on an unmixed event and what GenGraphBuild.h requires of both: a component
-    // whose vertices all have an incoming particle has no source of its own, and a
-    // single sub-event-wide root count would let one component with a source suppress
-    // the fallback for another that has none, leaving the second unreachable.
-    // A collider record is entirely the fallback case: the beam particles give the first
-    // vertex an incoming particle, so no vertex is a source.
+    // Attach the GenEvent node per connected component, as TruthGraphProducer does: to
+    // each source vertex, or to every vertex of a component with no source. In a collider
+    // record the beam particles feed the first vertex, so no vertex is a source.
     std::unordered_map<int, int> componentOfVtx;
     {
       // Two vertices are in the same component when a particle touches both.
@@ -485,12 +454,8 @@ void TruthGraphAccumulator::addSubEvent(std::vector<truth::CompactGenParticle> c
       }
     }
 
-    // Residual gap, shared with TruthGraphProducer so the two stay consistent: source
-    // counting is per undirected component, but reachability from the GenEvent node is
-    // DIRECTED. A component containing both a true source and a beam-fed branch would
-    // attach only the source and leave the branch unreachable. No current record mixes
-    // the two in one component: a collider record is wholly sourceless and a gun record
-    // wholly source-rooted.
+    // Known limit, shared with TruthGraphProducer: a component with a source and a
+    // beam-fed branch attaches only the source, and the branch is unreachable.
     std::unordered_map<int, unsigned int> rootsInComponent;
     for (int vbc : fullGen->vtxBarcodes) {
       if (vtxIncoming[vbc] == 0)
@@ -610,10 +575,8 @@ void TruthGraphAccumulator::mergeHits(EvT const& ev,
     edm::Handle<std::vector<HitT>> hits;
     ev.getByLabel(tag, hits);
     if (!hits.isValid()) {
-      // State the fact, then the two things that cause it. Naming premixing as THE cause
-      // is wrong and actively misleading: a collection configured here but absent from
-      // the running geometry, for instance the strip tracker under Run4, produces the
-      // same invalid handle and nothing is wrong.
+      // Two causes: the collection is not in the running geometry (the strip tracker in
+      // Run4), or the pileup is premixed.
       if (missingHitsWarned_.insert(tag.encode()).second) {
         edm::LogWarning("TruthGraphAccumulator")
             << "sim-hit collection " << tag.encode() << " not found in a sub-event, so it contributes no truth hits."
@@ -623,7 +586,7 @@ void TruthGraphAccumulator::mergeHits(EvT const& ev,
       continue;
     }
     out.reserve(out.size() + hits->size());
-    for (HitT hit : *hits) {  // copy: re-tag the eventId to this sub-event
+    for (HitT hit : *hits) {  // copy, to re-tag the eventId
       hit.setEventId(eid);
       out.push_back(hit);
     }
@@ -664,16 +627,11 @@ void TruthGraphAccumulator::accumulate(PileUpEventPrincipal const& pep, edm::Eve
   if (!keepBx(bx))
     return;
 
-  // One counter per bunch crossing, starting at 1, which is how the MixingModule numbers
-  // the sub-events it overlays. The tracker digi links carry those numbers, so a global
-  // counter across crossings would tag the same interaction differently on the two sides
-  // and attribute a link to another interaction that happens to reuse the local track id.
-  // EncodedEventId keeps the sign of the crossing in its own bit, so (-1,1) and (+1,1) are
-  // different packed ids and a per-crossing counter is unique. It advances for every
-  // sub-event, also for one this accumulator cannot read, as the mixing numbering does.
+  // One counter per bunch crossing, starting at 1, as the MixingModule numbers its
+  // sub-events. The tracker digi links carry these numbers, so the two must agree. The
+  // counter advances also for a sub-event that this accumulator cannot read.
   const int puIndex = ++pileupCount_[bx];
-  // EncodedEventId packs the event number into 16 bits; an unrealistic pileup
-  // multiplicity would overflow into the bunch-crossing bits and alias ids.
+  // EncodedEventId packs the event number into 16 bits.
   if (puIndex > 0xFFFF)
     throw cms::Exception("TruthGraphAccumulator")
         << "pileup sub-event count " << puIndex << " exceeds the 16-bit EncodedEventId event field";
@@ -720,8 +678,7 @@ void TruthGraphAccumulator::finalizeEvent(edm::Event& event, edm::EventSetup con
         << " the GEN particle its genpartIndex points at.";
   }
 
-  // CSR out-edges via the counting-sort cursor scatter: each edge lands in its
-  // source's range, by construction (no sort, no permutation vector).
+  // CSR out-edges by a counting-sort scatter.
   out->offsets().assign(nNodes + 1, 0);
   for (auto const& e : edges_)
     ++out->offsets()[e.first + 1];
