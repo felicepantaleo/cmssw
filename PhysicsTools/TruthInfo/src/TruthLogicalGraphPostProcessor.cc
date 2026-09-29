@@ -1297,7 +1297,7 @@ namespace truth {
             "If non-empty, particles with these exact PDG ids seed the selection: the most upstream particle of "
             "each matching chain becomes a root and its full downstream subgraph is kept. The special value 0 "
             "disables the selection and keeps the full graph (debugging). Stable GEN particles outside the "
-            "selection are kept and attached to one artificial source vertex.");
+            "selection are kept and attached to the artificial vertices of their interaction.");
 
     desc.add<uint32_t>("seedParentDepth", 0)
         ->setComment(
@@ -1321,7 +1321,8 @@ namespace truth {
     desc.add<bool>("attachSelectionSources", true)
         ->setComment(
             "If true, kept particles whose production vertices all fall outside the selection are attached to an "
-            "artificial InitialState/UnderlyingEvent source vertex. If false, they become true graph roots, so each "
+            "artificial InitialState, UnderlyingEvent or BeamSideInput vertex of their interaction. If false, they "
+            "become true graph roots, so each "
             "selected seed yields a self-contained subgraph starting directly at the seed (e.g. ten taus -> ten "
             "disjoint components). Only meaningful when a selection is active.");
 
