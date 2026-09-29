@@ -1,18 +1,11 @@
 // Original author: Felice Pantaleo (CERN) <felice.pantaleo@cern.ch>
 
-// DQM performance plots for the truth::Branch graph as a replacement for the
-// TrackingParticle in track->truth association - the tracker counterpart of
-// BranchHGCalValidator. A TrackingParticle has no hits of its own, so the
-// comparison is mediated by the reco track: for each reco track it (a) matches the
-// track to a branch through the tracker simhit index (shared DetIds) and (b)
-// matches it to a TrackingParticle through the standard ClusterTPAssociation, then
-// maps that TP back to its logical particle via the SimTrack trackId. The branch
-// reproduces the TP-based assignment when both point at the same logical particle.
-// The booked numerator/denominator (TP-matched tracks vs Branch-and-TP-agree) are
-// turned into a "reproduction efficiency vs eta/pt" by the harvester
-// (DQMGenericClient); the shared-hit completeness is booked directly. It sits
-// alongside the standard tracking validation so the two truth descriptions can be
-// compared.
+// DQM plots that compare truth::Branch to the TrackingParticle in the track-to-truth association.
+// A TrackingParticle has no hits, so the reco track links the two. Each track is matched to a Branch
+// by shared tracker cells, and to a TrackingParticle through ClusterTPAssociation. The TrackingParticle
+// maps to its logical particle by the SimTrack trackId. The Branch reproduces the TrackingParticle
+// assignment when both give the same logical particle. The harvester (DQMGenericClient) computes the
+// reproduction efficiency from the numerator and denominator histograms.
 
 #include <algorithm>
 #include <cstdint>
@@ -57,9 +50,7 @@ struct BranchTrackingHistograms {
   dqm::reco::MonitorElement* denomPt = nullptr;
   dqm::reco::MonitorElement* effNumEta = nullptr;
   dqm::reco::MonitorElement* effNumPt = nullptr;
-  // Quality distributions for the best branch match. (For tracking the best-match
-  // Branch performance is exactly these, and the self-match rate is the efficiency
-  // above: effnum = best Branch is the TrackingParticle's natural Branch.)
+  // Quality distributions for the best Branch match. The efficiency above is also the self-match rate.
   dqm::reco::MonitorElement* completenessHits = nullptr;
   dqm::reco::MonitorElement* sharedHits = nullptr;
   dqm::reco::MonitorElement* completenessVsEta = nullptr;
@@ -157,8 +148,8 @@ namespace {
     return out;
   }
 
-  // tightest (smallest tracker subgraph) among the best-scoring matches, and its
-  // shared-hit count. Returns {-1, 0} when there is no match.
+  // The best-scoring match with the smallest tracker subgraph, and its shared-hit count.
+  // It is {-1, 0} when there is no match.
   struct BestMatch {
     int particle = -1;
     uint32_t sharedHits = 0;
@@ -221,8 +212,7 @@ void BranchTrackingValidator::dqmAnalyze(edm::Event const& event,
     if (pt < minPt_ || std::abs(eta) > maxEta_)
       continue;
 
-    // Branch side: the track's cells -> best (tightest) tracker branch. The tracker truth
-    // is keyed by (module, cell), so the hits come from the shared adapter.
+    // Branch side: the best tracker Branch for the track's (module, cell) hits.
     const std::vector<truth::RecoHit> trackHits = truth::recoHits(track);
     uint32_t nTrackHits = 0;
     for (auto it = track.recHitsBegin(); it != track.recHitsEnd(); ++it) {
@@ -236,7 +226,7 @@ void BranchTrackingValidator::dqmAnalyze(edm::Event const& event,
       branch = tightestBest(matches, subgraphView);
     }
 
-    // TP side: shared clusters via ClusterTPAssociation -> dominant TP -> particle.
+    // TrackingParticle side: the TrackingParticle with the most shared clusters gives the particle.
     auto clusters = track_associator::hitsToClusterRefs(track.recHitsBegin(), track.recHitsEnd());
     std::unordered_map<uint32_t, int> tpClusters;
     std::unordered_map<uint32_t, uint64_t> tpTrackId;
@@ -260,7 +250,7 @@ void BranchTrackingValidator::dqmAnalyze(edm::Event const& event,
       }
     }
 
-    // The TrackingParticle assignment is the reference the Branch should reproduce.
+    // The TrackingParticle assignment is the reference.
     if (expectedParticle < 0)
       continue;
     plots.denomEta->Fill(eta);

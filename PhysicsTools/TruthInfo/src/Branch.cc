@@ -90,11 +90,11 @@ namespace truth {
                                spec_.stopPdgIds.end();
           break;
         case ClosureKind::UntilLevels:
-          // Stop at (but include) a particle that is at any of the selected truth levels
+          // Stop at (but include) a particle at any of the selected truth levels.
           stop = (graph_->particles()[id].levelFlags & spec_.levelFlags) != 0;
           break;
         case ClosureKind::Predicate:
-          // Stop when predicate condition is satitified (note: includes roots)
+          // Stop where the predicate is true, roots included.
           stop = spec_.stopAt && spec_.stopAt(graph_->particle(id));
           break;
         case ClosureKind::Subtree:
@@ -103,14 +103,12 @@ namespace truth {
           break;
       }
 
-      // Stop this chain if the closure condition was met
       if (stop) {
         if (stopIds != nullptr)
           stopIds->push_back(id);
         continue;
       }
 
-      // Add children to queue
       for (const uint32_t vertexId : graph_->decayVertices(id)) {
         if (vertexId >= graph_->nVertices())
           continue;
@@ -123,13 +121,12 @@ namespace truth {
       }
     }
 
-    // For StableLeaves keep only roots and final-state (childless) particles.
+    // StableLeaves keeps only the roots and the childless particles.
     if (spec_.kind == ClosureKind::StableLeaves) {
       const auto isRoot = [this](uint32_t id) { return std::find(roots_.begin(), roots_.end(), id) != roots_.end(); };
       std::erase_if(order, [&](uint32_t id) { return !isRoot(id) && !graph_->particle(id).isLeaf(); });
     }
 
-    // Sort so ids in stopIds and order are ascending
     if (stopIds != nullptr) {
       std::sort(stopIds->begin(), stopIds->end());
     }
@@ -171,11 +168,8 @@ namespace truth {
     std::vector<uint32_t> ids = traverse();
     if (ids.empty())
       return ids;
-    // The members no other member covers, so each particle of the branch is counted
-    // once and none of its own ancestors is counted with it. On a Subtree branch these
-    // are the final-state leaves. On a TRUNCATED branch they are the particles the
-    // closure stopped at, which is the whole point: an UntilPdgId({111}) branch stops at
-    // the pi0, whose photons are not members, so the pi0 itself carries the momentum.
+    // On a truncated branch the leaves are the particles the closure stopped at: an
+    // UntilPdgId({111}) branch stops at the pi0, whose photons are not members.
     dropCoveredMembers(*graph_, ids, /*keepDeepest=*/true);
     return ids;
   }

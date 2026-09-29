@@ -11,12 +11,10 @@
 
 namespace truth {
 
-  // Detector channels of the hit index. Each channel keeps its own per-particle
-  // direct hits and subgraph-aggregated hits, so calorimeter, tracker, MTD and
-  // muon hits stay separate (different DetId spaces, metrics and recHit links).
-  // Stored as the underlying type for dictionary simplicity, ordered inner ->
-  // outer by detector radius. The value is the channel index and must stay stable;
-  // code refers to channels by name, never by literal index.
+  // Detector channels of the hit index. Each channel keeps its own direct and subgraph
+  // hits, because the channels use different DetId spaces and recHit links.
+  // The order is inner to outer by detector radius. The value is the channel index and
+  // must stay stable. Code refers to a channel by name, never by literal index.
   enum class HitChannel : uint8_t {
     Tracker = 0,  // tracker PSimHits, energy = energyLoss, keyed by module and cell
     MTD = 1,      // MIP timing layer (BTL/ETL)
@@ -49,25 +47,19 @@ namespace truth {
       [[nodiscard]] bool hasCell() const { return recHitIndex != kNoCell; }
     };
 
-    // One detector channel. Two storage layouts exist, and which one an index carries
-    // is a property of the data, not of the reading job: sharedSubgraphStore() reports
-    // it and the accessors below handle both, so an index written either way reads back
-    // correctly.
+    // One detector channel. Two storage layouts exist. The layout is a property of the
+    // data: sharedSubgraphStore() reports it, and the accessors below read both.
     //
     //   materialised: directOffsets/directHits hold each particle's own hits, and
     //       subgraphOffsets/subgraphHits hold a second, coalesced copy of every
     //       descendant's hits under each ancestor. A hit is stored once per ancestor
-    //       that contains it. Written by every index that predates the shared layout.
+    //       that contains it. Written when the shared layout is off or not possible.
     //
     //   shared (the default): dfsOffsets/directHits hold each hit exactly once, ordered
     //       so that a particle's descendants occupy the slots right after it. A subgraph
-    //       is then a set of ranges of that single store and costs no hit storage at
-    //       all. The hits of a range are in tree order rather than detId order and
-    //       repeat a detId hit by several descendants, so a consumer that needs per-cell
-    //       energies coalesces them.
-    //
-    // Members are public so the dictionary and the associator's flat scans can reach
-    // them directly.
+    //       is a set of ranges of that single store and needs no extra hit storage.
+    //       The hits of a range are in tree order, not detId order, and can repeat a
+    //       detId. A consumer that needs per-cell energies coalesces them.
     struct Channel {
       std::vector<uint32_t> directOffsets;
       std::vector<Hit> directHits;
@@ -78,8 +70,8 @@ namespace truth {
       // directHits. Empty on a channel that carries no time.
       std::vector<float> directHitTimes;
       // Whether recHitIndex holds a cell, so that two hits on one detId are two cells.
-      // isCellKeyed() reads the Tracker channel as cell keyed whatever this flag says. An
-      // index digitised before the tracker cells carries none: truth::isModuleKeyedTracker.
+      // isCellKeyed() reads the Tracker channel as cell keyed whatever this flag says.
+      // truth::isModuleKeyedTracker detects a Tracker channel that carries no cells.
       bool cellKeyed = false;
     };
 
@@ -107,17 +99,14 @@ namespace truth {
           rangeOffsets_(std::move(rangeOffsets)),
           ranges_(std::move(ranges)) {}
 
-    // True when the shared layout is in use. The DFS slot of a particle and the ranges
-    // its subgraph covers are properties of the tree, so they are stored once for the
-    // whole index rather than per channel.
+    // True when the shared layout is in use. The DFS slots and subgraph ranges depend
+    // only on the tree, so the index stores them once, not per channel.
     [[nodiscard]] bool sharedSubgraphStore() const { return !dfsPos_.empty(); }
     [[nodiscard]] std::vector<uint32_t> const& dfsPos() const { return dfsPos_; }
 
     // The slot ranges a particle's subgraph covers. Empty in the materialised layout.
     [[nodiscard]] std::span<const SlotRange> subgraphRanges(uint32_t particleId) const {
-      // Widened before the increment: particleId is read back from a file and the
-      // builder's own kNoParent sentinel is 0xFFFFFFFF, which wraps to 0 in uint32 and
-      // turns the bound into an out-of-range read.
+      // Widen before the increment: particleId + 1 wraps to 0 in uint32 for 0xFFFFFFFF.
       if (static_cast<std::size_t>(particleId) + 1 >= rangeOffsets_.size())
         return {};
       const auto begin = rangeOffsets_[particleId];
@@ -177,10 +166,9 @@ namespace truth {
     }
 
     // A particle's own hits plus those of every descendant, as one span. Coalesced and
-    // sorted by detId in the materialised layout. In the shared layout this is valid
-    // only for a particle whose subgraph is a single range, which is every particle
-    // that carries hits; a GEN-only particle spans several ranges and returns empty
-    // here, so a consumer that must handle those iterates subgraphRanges instead.
+    // sorted by detId in the materialised layout. In the shared layout, a particle whose
+    // subgraph covers more than one range (a GEN-only particle) returns empty: use
+    // appendSubgraphHits or subgraphRanges for those.
     [[nodiscard]] std::span<const Hit> subgraphHits(HitChannel channel, uint32_t particleId) const {
       Channel const* channelData = channelOrNull(channel);
       if (channelData == nullptr)
@@ -215,8 +203,7 @@ namespace truth {
       return channelData != nullptr && !channelData->directHits.empty();
     }
 
-    // Raw channel storage (flat hit vectors + offsets), for callers that scan a
-    // whole channel - e.g. BranchHitAssociator's inverted-index build.
+    // Raw channel storage, for callers that scan a whole channel.
     [[nodiscard]] Channel const& channel(HitChannel channel) const { return channels_.at(index(channel)); }
 
   private:

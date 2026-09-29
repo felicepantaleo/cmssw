@@ -3,10 +3,9 @@
 """Per-process logical-graph selection presets for the enableTruth relval samples.
 
 The enableTruth process modifier attaches to *every* Run4 workflow, and the same
-presets are used to pick a focused view for the much larger production zoo. They
-collapse to a handful of archetypes that fix the right ``postProcessing``
-selection (which particle is the seed, whether to pull in the seed's hard-scatter
-co-products, which decay channel to keep, ...):
+presets pick a focused view for the production samples. They reduce to a few
+archetypes that fix the ``postProcessing`` selection (which particle is the seed,
+whether to keep the seed's hard-scatter co-products, which decay channel to keep, ...):
 
   gun          single/multi-particle guns          seed = the gun species
   resonance    s-channel Z / DY (+n-jet) / Z' / W(+jets)  seed = the resonance, initial state
@@ -16,17 +15,17 @@ co-products, which decay channel to keep, ...):
   top          ttbar / t' pair / ttX (ttH, ttW, ttZ, ttbb, tttt, ...)  seed = tops
   singletop    single top (t-channel / tW / s-chan) seed = top
   diboson      WW / WZ / ZZ / VBS / same-sign WW    seed = the vector bosons
+  heavyflavor  B / charmonium / bottomonium         seed by heavy-flavor content
+  full         QCD / MinBias / NuGun / SUSY / LLP / DM / EFT / BSM / unknown  keep the whole graph
 
 The seed alone gets the Signal flag. keepProductionSiblings keeps the particles produced
 with the seed (the tagging quarks, the recoiling boson, the single-top partner) in the
 graph, but they are not signal: the signal levels do not reach them.
-  heavyflavor  B / charmonium / bottomonium         seed by heavy-flavor content
-  full         QCD / MinBias / NuGun / SUSY / LLP / DM / EFT / BSM / unknown  keep the whole graph
 
 ``selectionForFragment(name)`` maps a generator-fragment (or short gallery label)
-to one of these and returns a plain dict of ``postProcessing`` parameters; the
-preset is only a starting point - pass keyword overrides to customise any field,
-or build a config by hand from ``TEMPLATES``. ``postProcessingPSet`` wraps the
+to one of these and returns a plain dict of ``postProcessing`` parameters. Pass
+keyword overrides to customise any field, or build a config by hand from
+``TEMPLATES``. ``postProcessingPSet`` wraps the
 result as a ``cms.PSet`` for use in a producer/dumper config, and the module's
 CLI prints the matching ``dumpTruthGraphsFromGENSIMRECO_cfg.py`` flags (used by
 makeTruthGallery.sh).
@@ -62,7 +61,7 @@ def _selection(seedPdgIds=(0,),
     )
 
 
-# --- the seven pre-made templates ------------------------------------------
+# --- the pre-made templates ------------------------------------------------
 # Each is a zero-argument factory returning a fresh dict (so callers can mutate).
 TEMPLATES = {
     # Guns: each primary is its own signal; no upstream, no underlying event.
@@ -203,9 +202,9 @@ def seedPdgIdsForPreset(name=None, template=None, **overrides):
 
     Feeding the associators the SAME values the preset seeds with makes the signalSeeds
     product (the _signal efficiency denominator) exactly the preset's signal objects.
-    [0] is the full-graph escape hatch, not a species: it maps to an empty list, which
-    the associators read as "this sample names no resonance" and publish empty signal
-    seed products for."""
+    A seed of 0 selects the full graph and is not a species: it maps to an empty list,
+    which the associators read as "this sample names no resonance" and publish empty
+    signal seed products for."""
     s = selectionForFragment(name=name, template=template, **overrides)
     return [p for p in s["seedPdgIds"] if p != 0]
 
@@ -239,7 +238,7 @@ def dumperArgs(name=None, template=None, **overrides):
     """The dumpTruthGraphsFromGENSIMRECO_cfg.py flags for a fragment's selection."""
     s = selectionForFragment(name=name, template=template, **overrides)
     # Empty seedPdgIds means "seed by flavor/decay group, not PDG": omit -s so the
-    # dumper keeps it empty (passing -s 0 would force the full-graph escape hatch).
+    # dumper keeps it empty (-s 0 selects the full graph).
     args = []
     if s["seedPdgIds"]:
         args += ["-s", ",".join(str(p) for p in s["seedPdgIds"])]

@@ -1,8 +1,5 @@
 // Original author: Felice Pantaleo (CERN) <felice.pantaleo@cern.ch>
 
-// Author: Felice Pantaleo - CERN
-// Date: 03/2026
-
 #include <cstdint>
 #include <cstring>
 #include <memory>
@@ -48,7 +45,7 @@ using truth::genKeyVertex;
 
 namespace {
 
-  // Pack EncodedEventId into 64 bit without relying on a particular public API.
+  // Copies the bits of the EncodedEventId into a uint64_t.
   uint64_t packEventId(EncodedEventId const& id) {
     uint64_t out = 0;
     static_assert(sizeof(EncodedEventId) <= sizeof(uint64_t), "EncodedEventId larger than 64 bits, adjust packing");
@@ -176,7 +173,7 @@ public:
 
     if (haveGen && collapseGenShower_)
       if (!truth::collapseGenShower(gb, truth::simContinuedGenBarcodes(simTracks)) && !degradedCollapseWarned_) {
-        // Sample-level condition; once per stream is the whole message.
+        // The condition applies to the whole sample, so warn once per stream.
         degradedCollapseWarned_ = true;
         edm::LogWarning("TruthGraphProducer")
             << "collapseGenShower ran on a GEN record with no packed status flags, which "
@@ -317,16 +314,15 @@ public:
         if (itStatus != gb.particleStatusByBarcode.end())
           out->status()[nodeId] = itStatus->second;
 
-        // Computed from the HepMC record via MCTruthHelper at build time (HepMC2);
-        // 0 when unavailable (HepMC3 path, missing barcode).
+        // buildFromHepMC2 fills the status flags with MCTruthHelper.
+        // The value is 0 on the HepMC3 path and for a missing barcode.
         auto itFlags = gb.particleStatusFlagsByBarcode.find(pbc);
         out->statusFlags()[nodeId] = (itFlags != gb.particleStatusFlagsByBarcode.end()) ? itFlags->second : 0;
       }
     }
 
-    // Map each GEN particle barcode to its production GenVertex barcode.
-    // gb.vtxToPart holds (vertex barcode -> outgoing particle barcode), i.e. the
-    // production vertex of each outgoing particle.
+    // Map each GEN particle barcode to the barcode of its production GenVertex.
+    // gb.vtxToPart holds (vertex barcode, outgoing particle barcode) pairs.
     std::unordered_map<int, int> genPartToProdVtxBarcode;
     if (haveGen) {
       genPartToProdVtxBarcode.reserve(gb.vtxToPart.size() * 2);
@@ -443,12 +439,11 @@ public:
           ++it->second;
       }
 
-      // Residual gap, shared with TruthGraphAccumulator so the two stay consistent: source
-      // counting is per undirected component, but reachability from the GenEvent node is
-      // DIRECTED. A component containing both a true source and a beam-fed branch would
-      // attach only the source and leave the branch unreachable. No current record mixes
-      // the two in one component: a collider record is wholly sourceless and a gun record
-      // wholly source-rooted.
+      // The GenEvent node links to each source vertex (no incoming particle) of its component.
+      // A component with no source vertex links through all its vertices.
+      // Known limit, shared with TruthGraphAccumulator: a component with a source and a
+      // beam-fed branch links only the source, and the branch is unreachable.
+      // A collider record has no source vertex and a gun record has no beam-fed branch.
       std::vector<std::vector<int>> rootsByComp(nGenEvents);
       std::vector<std::vector<int>> allVtxByComp(nGenEvents);
 
@@ -514,10 +509,7 @@ public:
       push_edge(vtxNode, childNode, TruthGraph::EdgeKind::Sim);
     }
 
-    // Decay edges: parent SimTrack -> SimVertex, one per vertex. Built in a
-    // separate pass over SimVertices (not inside the track loop) so the edge is
-    // emitted once per vertex rather than once per outgoing daughter, which would
-    // duplicate parentTrack -> vertex by the vertex's out-degree.
+    // Decay edges: parent SimTrack -> SimVertex, one per vertex.
     for (uint32_t i = 0; i < nSimVtx; ++i) {
       const int parentTid = simVertices[i].parentIndex();
       if (parentTid <= 0)
@@ -529,11 +521,9 @@ public:
       }
     }
 
-    // Cross-domain particle associations only. These edges are created only for
-    // primary SimTracks that carry a validated HepMC barcode.
-    //
-    // GenVertex -> SimVertex edges are intentionally not created here because
-    // shared Geant4 source or injection vertices can create artificial many-to-one topology.
+    // GenParticle -> SimTrack edges, only for primary SimTracks with a validated HepMC barcode.
+    // There are no GenVertex -> SimVertex edges: a shared Geant4 source or injection vertex
+    // would give an artificial many-to-one topology.
     if (addGenToSimEdges_ && haveGen) {
       for (uint32_t i = 0; i < nSimTrk; ++i) {
         const uint32_t simNode = baseSimTrk + i;
@@ -544,9 +534,8 @@ public:
         }
       }
 
-      // SimVertex -> GenVertex provenance edges. Unlike the GenVertex -> SimVertex
-      // direction warned about above, these are derived from per-track primary
-      // associations and stored as a single edge per SimVertex (simVtxToGen).
+      // SimVertex -> GenVertex provenance edges come from the primary SimTrack associations.
+      // Each SimVertex has at most one (simVtxToGen).
       for (uint32_t i = 0; i < nSimVtx; ++i) {
         const uint32_t simVtxNode = baseSimVtx + i;
         const int32_t genVtxNode = out->simVtxToGen()[simVtxNode];

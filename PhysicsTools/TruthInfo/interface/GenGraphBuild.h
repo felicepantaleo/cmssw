@@ -56,9 +56,7 @@ namespace truth {
     std::unordered_map<int, int32_t> particlePdgIdByBarcode;
     std::unordered_map<int, int16_t> particleStatusByBarcode;
     // Packed reco::GenStatusFlags from MCTruthHelper, the same helper
-    // GenParticleProducer uses, so no barcode-to-reco::GenParticle association is
-    // needed. HepMC2 only; the HepMC3 path leaves them 0 until MCTruthHelper grows a
-    // HepMC3 specialization.
+    // GenParticleProducer uses. HepMC2 only: buildFromHepMC3 leaves this map empty.
     std::unordered_map<int, uint16_t> particleStatusFlagsByBarcode;
 
     // The payload of the record: the four-momentum of each particle in GeV, the position
@@ -108,14 +106,9 @@ namespace truth {
   // GenVertex to its nearest surviving ancestors, and a GenVertex survives only if it
   // still produces a surviving particle.
   //
-  // The isHardProcess and isLastCopy rules read the packed reco::GenStatusFlags, which
-  // only buildFromHepMC2 fills; on the HepMC3 path they are 0, so the keep set there
-  // degrades to the SIM-continued and status 1 particles.
-  // Returns false when the record carried no packed status flags at all, which makes the
-  // isHardProcess and isLastCopy rules dead and degrades the keep set to the SIM-continued
-  // and status 1 particles. buildFromHepMC3 does not fill them, so that is the HepMC3
-  // path; the caller is expected to say so out loud rather than silently ship a keep set
-  // that drops every intermediate resonance.
+  // Returns false when the record carries no packed status flags, as on the HepMC3 path.
+  // Then the keep set is only the SIM-continued and status 1 particles, and every
+  // intermediate resonance is dropped. The caller must report this.
   [[nodiscard]] bool collapseGenShower(GenBuild& gb, std::unordered_set<int> const& simContinuedBarcodes);
 
   // The barcodes some SimTrack continues, which is the input to the first keep rule

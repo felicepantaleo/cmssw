@@ -19,11 +19,9 @@ from Validation.HGCalValidation.HLT_TICLIterLabels_cff import hltTiclIterLabelsP
 
 # EDProducer types whose produces<> declares a vector<ticl::Trackster>, so a trackster
 # collection is recognised BY TYPE and a new TICL iteration or HLT trackster module
-# joins the validation without an edit here. Verified in RecoHGCal/TICL/plugins:
-# TrackstersProducer.cc:146, TracksterLinksProducer.cc:108, MergedTrackstersProducer.cc:34,
-# TICLCandidateProducer.cc:208 (the post-linking trackster collection, emitted next to
-# its vector<TICLCandidate>; EDM resolves the two by type from the bare module label).
-# SimTrackstersProducer is deliberately absent: its tracksters are truth, not reco.
+# joins the validation without an edit here. TICLCandidateProducer emits the post-linking
+# trackster collection next to its vector<TICLCandidate>; EDM resolves the two by type from
+# the bare module label. SimTrackstersProducer is absent: its tracksters are truth, not reco.
 tracksterProducerTypes = (
     "TrackstersProducer",
     "TracksterLinksProducer",
@@ -191,7 +189,7 @@ def setTracksterLabelsFromProcess(process):
 _truthLevels = cms.vstring(
     "stableLegsFromInitialState", "caloBoundary", "stableDecayProducts", "hardProcess",
     # The resonance's visible final state, which needs LevelFlag::Signal on the graph.
-    # Stamped at DIGI, so a sample produced before that carries an empty level.
+    # A graph with no Signal flag gives an empty level.
     "reconstructableFromSignal", "underlyingEvent",
     # One root per parton-initiated jet: the hard-scatter legs that are quarks or gluons,
     # each standing for everything downstream of it. No clustering.

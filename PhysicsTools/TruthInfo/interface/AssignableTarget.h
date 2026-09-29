@@ -6,21 +6,15 @@
 // its descendants and can win the association on score alone. Some of those ancestors are
 // not particles a detector could see: the nodes the graph invents to summarise an
 // interaction, the beam particles, the partons of the hard scatter and the electroweak
-// bosons. A reco object assigned to one of them is labelled with a bookkeeping entry
-// rather than with a particle.
+// bosons. These are barred as assignment targets.
 //
-// The rule is about WHAT the ancestor is, not about the vertex between it and the reco
-// object's own particle: the merged pi0 the adaptive search exists for is reached by
-// crossing a decay vertex, so no vertex process can be a barrier. Nor is it about the
-// vertex a particle was produced at. A selection preset attaches every real particle it
-// keeps but whose production vertex it dropped to an artificial source vertex: a gun
-// particle to the InitialState vertex, a stable spectator to the UnderlyingEvent vertex.
-// Those are particles a detector sees, and they stay assignable. The invented nodes are
-// barred by their own role instead.
+// The rule is about WHAT the ancestor is, not about a vertex. A merged pi0 is reached by
+// crossing a decay vertex, so no vertex process can be a barrier. A gun particle attached
+// to the InitialState vertex and a spectator attached to the UnderlyingEvent vertex stay
+// assignable.
 //
-// This is the assignment rule only. The barred particles stay candidate roots, because a
-// truth object that is not a candidate can never be matched and the hard-process and
-// parton-jet denominators are made of exactly these particles.
+// This is the assignment rule only. The barred particles stay candidate roots, because
+// the hard-process and parton-jet denominators are made of these particles.
 
 #ifndef PhysicsTools_TruthInfo_interface_AssignableTarget_h
 #define PhysicsTools_TruthInfo_interface_AssignableTarget_h

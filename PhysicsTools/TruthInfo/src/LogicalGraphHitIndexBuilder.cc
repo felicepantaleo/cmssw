@@ -171,11 +171,8 @@ namespace truth {
       return;
 
     // Iterative DFS over the distinct descendants, cycle-safe via `visited`. A
-    // descendant reachable through more than one path (a re-convergent DAG, e.g. a
-    // particle whose production vertex has several incoming particles that share a
-    // common ancestor) is enqueued and summed only once; merging the already
-    // aggregated child subgraphs instead would add such a descendant's per-cell
-    // energy once per path (coalesce() sums equal detIds), inflating the subgraph.
+    // descendant reachable through more than one path is collected once, so its
+    // energy is not summed once per path.
     stack.clear();
     stack.push_back(particleId);
     visited[particleId] = 1;
@@ -244,10 +241,8 @@ namespace truth {
           continue;
         }
 
-        // Second visit. A child still in progress is a cycle, and what lies beyond it is
-        // unknown at this point, so it must count as REACHING: memoizing 0 here would be
-        // wrong whenever the cycle has an exit to a SimTrack, and this function guards
-        // the layout, so it over-approximates. The cost of a false positive is a
+        // Second visit. A child still in progress is a cycle, and it counts as REACHING:
+        // the cycle can have an exit to a SimTrack. A false positive only costs a
         // fallback to the materialised layout, which is always correct.
         uint8_t value = hasSimTrack_[particleId];
         for (const uint32_t child : children_[particleId]) {
@@ -272,34 +267,29 @@ namespace truth {
     dfsPos.assign(nParticles_, 0);
     subtreeCount.assign(nParticles_, 1);
 
-    // A particle's SIM parent is the one parent that also has a SimTrack. Particles
-    // without one are roots: the SIM primaries, and the GEN-only nodes, which carry no
-    // hits and so become single-slot trees here.
+    // A particle's SIM parent is its nearest hit-carrying ancestor. Particles without
+    // one are roots: the SIM primaries, and the GEN-only nodes, which carry no hits and
+    // so become single-slot trees here.
     //
     // A subtree is only a contiguous run of slots when the hit-carrying particles form
-    // a forest. A particle with two SimTrack parents would sit under one of them and be
-    // missing from the other's run, so the layout cannot represent it and the caller
+    // a forest. A particle with two SIM parents would sit under one of them and be
+    // missing from the other's run, so the layout cannot represent it and finish()
     // falls back to the materialised one.
-    // Whether a particle's descendant closure contains anything that carries hits. Used
-    // below to reject the one topology the tree cannot represent.
+    // A GEN-only child whose closure reaches no SimTrack is skipped.
     const std::vector<uint8_t> reachesSim = closureReachesSimTrack();
 
-    // The tree edge is hasSimTrack to NEAREST hit-carrying descendant, walking THROUGH
-    // any GEN-only nodes between them. A decay in flight puts a GEN-only record between
-    // two SIM particles, and central heavy-ion events do this at scale: 71 such bridges
-    // in one Hydjet event, none in pp samples. Treating the bridge as a forest violation
-    // sent every such event to the materialised fallback, whose per-ancestor hit
-    // duplication turned a 30 MB graph into an index above ROOT's 1 GiB single-object
-    // limit and killed the output module (cms-sw/cmssw#51638). The GEN-only bridge
-    // itself owns no slots, and its subgraph is the union of its descendants' runs,
-    // which buildSubgraphRanges already computes for every GEN-only node.
+    // The tree edge goes from a hit-carrying particle to its NEAREST hit-carrying
+    // descendants, through any GEN-only nodes between them (a bridge). A decay in flight
+    // makes a bridge: 71 in one central Hydjet event, none in pp samples. The
+    // materialised fallback for such an event turns a 30 MB graph into an index above
+    // the ROOT 1 GiB single-object limit. A bridge owns no slots; buildSubgraphRanges
+    // gives it the union of the runs below it.
     std::vector<uint32_t> simParent(nParticles_, kNoParent);
     std::vector<std::vector<uint32_t>> simChildren(nParticles_);
     bool isForest = true;
     std::vector<uint32_t> bridgeStack;
-    // Visited mask for the bridge walk, undone after each parent: GEN-only nodes can
-    // form a CYCLE (testSharedStoreFallsBackAcrossAGenOnlyCycle builds one), and a walk
-    // without the mask never terminates on it.
+    // Visited mask for the bridge walk, cleared after each parent: GEN-only nodes can
+    // form a cycle, and a walk without the mask does not end on it.
     std::vector<uint8_t> bridgeSeen(nParticles_, 0);
     std::vector<uint32_t> bridgeVisited;
     for (uint32_t parent = 0; parent < nParticles_; ++parent) {

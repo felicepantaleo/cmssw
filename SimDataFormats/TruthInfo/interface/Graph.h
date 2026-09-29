@@ -17,18 +17,15 @@
 namespace truth {
 
   // The user-facing logical truth graph: a bipartite Particle <-> Vertex graph
-  // stored CSR-style. Built once (the producer / post-processor fill the storage
-  // via the non-const accessors) and read many times through the navigation API
-  // and the lightweight Particle / Vertex views.
+  // stored CSR-style. The producer and the post-processor fill it through the
+  // non-const accessors. Consumers read it through the navigation API and the
+  // lightweight Particle / Vertex views.
   class Graph {
   public:
     using size_type = uint32_t;
 
     // --- Storage accessors --------------------------------------------------
-    // Built once (the producer / post-processor fill via the non-const accessors)
-    // and read many times (consumers use the const accessors and the navigation
-    // API below). The bipartite adjacency is stored CSR-style: each *Offsets vector
-    // has size n+1 and indexes into the matching flat target vector.
+    // Each *Offsets vector has size n+1 and indexes into the matching flat target vector.
     [[nodiscard]] std::vector<ParticleData> const& particles() const { return particles_; }
     [[nodiscard]] std::vector<ParticleData>& particles() { return particles_; }
 
@@ -171,10 +168,8 @@ namespace truth {
     void appendChildren(size_type particleId, std::vector<uint32_t>& out) const;
 
     // ancestorCount allocates a seen list that grows with the number of ancestors, not
-    // with the graph, so it does not allocate per graph as ancestorsOf does. It scans
-    // that list for each step, so it costs O(ancestors^2): a few hundred ancestors on an
-    // uncollapsed generator record is still well under a millisecond, and the validator
-    // calls it once per target.
+    // with the graph as in ancestorsOf. It scans that list for each step, so it costs
+    // O(ancestors^2).
     [[nodiscard]] uint32_t ancestorCount(size_type particleId) const;
 
     [[nodiscard]] std::vector<Particle> ancestorsOf(size_type particleId) const;

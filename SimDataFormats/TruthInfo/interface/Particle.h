@@ -19,8 +19,7 @@ namespace truth {
   class Vertex;
 
   // A lightweight, copyable view of one logical particle. It stores only a graph
-  // pointer and an id; all accessors read through to the owning Graph (the heavy
-  // method bodies live in Particle.cc).
+  // pointer and an id. All accessors read through to the owning Graph.
   class Particle {
   public:
     Particle() = default;

@@ -86,8 +86,8 @@ class TruthGraphView:
     Each particle and vertex is a dict with the same keys from either source; roles and
     reasons are names. The levels are the flags the producer stamped on the graph, so a
     file written before a level existed reads as no member of it. fromProduct copies the
-    whole product into python: measured 1.5 s and 190 MB for a PU200 event, which is what
-    an audit script can afford and an event loop cannot.
+    whole product into python: measured 1.5 s and 190 MB for a PU200 event. Use it in an
+    audit script, not in an event loop.
     """
 
     def __init__(self, particles, vertices, decayVertices, productionVertices, incoming, outgoing, eventId=None):
@@ -206,8 +206,10 @@ class TruthGraphView:
         return self._particles[particleId]["p4"][3] > 0.0
 
     def lastCopy(self, particleId):
-        """The last copy of a radiating chain, as truth::lastCopyOf: follow the one child of
-        the same species through the one decay vertex until the species changes."""
+        """The last copy of a radiating chain: follow the one child of the same species
+        through the one decay vertex, until the particle is stable or the step is ambiguous.
+        Unlike truth::Graph::lastCopyOf, it stops at a particle with several decay vertices
+        and does not require the child to have a GEN record."""
         pdgId = self.pdgId(particleId)
         current = particleId
         for _ in range(self.nParticles()):
@@ -338,8 +340,8 @@ class TruthGraphView:
     def interactions(self):
         """One entry per overlaid interaction, the signal first and the pile-up after it by
         bunch crossing then by index. Each entry carries the vertex that stands for the
-        interaction point, its position and what came out of it. Ask isSignal rather than
-        taking the first entry on faith: a pile-up-only graph holds no signal."""
+        interaction point, its position and what came out of it. Check isSignal, do not
+        assume the first entry is the signal: a pile-up-only graph holds no signal."""
         found = {}
         for vertexId, vertex in enumerate(self._vertices):
             if vertex["role"] == "Interaction":

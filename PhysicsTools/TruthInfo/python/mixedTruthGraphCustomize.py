@@ -7,10 +7,9 @@ import FWCore.ParameterSet.Config as cms
 
 
 def customiseTruthReduced(process):
-    """Reduced variant: drop the Tracker channel from the DIGI-built truth, leaving
-    calo (HGCal + ECAL + HCAL) + MTD + muon. Apply it at the DIGI step for a
-    cost-sensitive production that does not need track-based candidate matching (the
-    tracker is the largest sim-hit family and dominates the DIGI cost)."""
+    """Reduced variant: drop the tracker hits from the DIGI-built truth and keep only
+    the Calo and Muon channels in the hit index. Apply it at the DIGI step for a
+    production that does not need track-based candidate matching."""
     acc = process.mix.digitizers.truthGraph
     acc.trackerHits = cms.VInputTag()
     idx = process.truthLogicalGraphHitIndexProducer

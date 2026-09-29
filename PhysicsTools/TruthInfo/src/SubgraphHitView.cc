@@ -27,16 +27,10 @@ namespace truth {
     std::vector<Hit> hits;
     hitIndex_->appendSubgraphHits(channel, particleId, hits);
 
-    // The same rule LogicalGraphHitIndexBuilder::coalesce applies: sort by detId, sum
-    // the energies that share one, and keep the valid recHit index, which sorts first
-    // because the invalid sentinel is UINT32_MAX.
-    //
-    // A cell-keyed channel, the tracker and the MTD, carries the cell in recHitIndex,
-    // so there two cells of one module are two hits. Merging them by detId alone would
-    // give an ancestor one entry per module while a leaf keeps one per cell, and a
-    // consumer that compares the two counts, such as the tightest-match rule of the
-    // tracking validator, would read the ancestor as the tighter match. This is the
-    // same cell-aware rule BranchHitAssociator applies.
+    // Sort by detId, sum the energies that share one, and keep the valid recHit index,
+    // which sorts first because the invalid sentinel is UINT32_MAX.
+    // A cell-keyed channel carries the cell in recHitIndex, so two cells of one module
+    // stay two hits. Then an ancestor and a leaf count hits the same way.
     const bool cellKeyed = hitIndex_->isCellKeyed(channel);
     std::sort(hits.begin(), hits.end(), [](Hit const& a, Hit const& b) {
       if (a.detId != b.detId)

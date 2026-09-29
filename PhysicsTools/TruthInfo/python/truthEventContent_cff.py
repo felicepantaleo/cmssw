@@ -2,39 +2,31 @@
 
 # Event content for the MC-truth graph, with two verbosity levels.
 #
-# The stage-independent truth is built once at the mixing/DIGI step, where the
-# merged signal+pileup simHits are live, as a logical graph plus a per-particle
-# per-cell sim-energy hit index. The index is built UNRESOLVED (recHitMap="")
-# because the shared-energy association (BranchHitAssociator) matches by DetId,
-# not by recHitIndex: it keys the inverted index and the per-cell total-sim-energy
-# denominator on DetId, so the same unresolved index serves any stage (L1, HLT,
-# offline RECO) that later exposes its reco objects as (DetId, fraction). The
-# recHitIndex field stays a convenience pointer, filled on demand only where a
-# consumer wants index->recHit navigation.
+# The DIGI step builds the truth once, where the merged signal+pileup simHits exist:
+# a logical graph and a per-particle per-cell sim-energy hit index. The index is
+# UNRESOLVED (recHitMap=""). BranchHitAssociator matches by DetId, so the same index
+# serves any stage (L1, HLT, offline RECO) that exposes its reco objects as
+# (DetId, fraction).
 #
 #   compact (default): the logical graph, the unresolved hit index, and the raw
-#     merged graph (TruthGraph_mix). The index is both the fraction numerator
+#     merged graph (TruthGraph_mix). The index gives the fraction numerator
 #     (per-particle per-cell energy) and, summed over all particles per cell, the
-#     denominator; correct hits-and-fractions shared energy at any stage whose
-#     rechits share the cell-level DetId space. The raw graph is small (~3 MB/ev)
-#     and is kept because the branch validators consume it (rawSrc, for the
-#     trackId->particle map) and it lets the logical graph / index be rebuilt
-#     offline. mix:genPayload is not kept, so a rebuild sets rawGenPayload to "";
-#     then a stable pileup GEN-only particle has no momentum and a pileup GEN
+#     denominator. The branch validators read the raw graph (rawSrc, for the
+#     trackId->particle map), and it lets the logical graph and the index be rebuilt
+#     offline (~3 MB/ev). mix:genPayload is not kept, so a rebuild sets rawGenPayload
+#     to "": then a stable pileup GEN-only particle has no momentum and a pileup GEN
 #     vertex that merged with no SimVertex has no position.
 #
-#     INVARIANT: the persisted index must stay COMPLETE - every hit-leaving
-#     contributor present, no pdgId pruning. The per-cell denominator is the sum
-#     of the index hit energies over all particles; drop contributors and every
-#     surviving fraction is biased high. Do not "optimize" the index by pruning it
-#     to interesting species without also persisting a separate all-contributor
-#     per-cell total map.
+#     INVARIANT: the persisted index is COMPLETE: every contributor that leaves a hit,
+#     no pdgId pruning. The per-cell denominator is the sum of the index hit energies
+#     over all particles, so a dropped contributor biases every surviving fraction
+#     high. Do not prune the index to selected species without also persisting a
+#     separate all-contributor per-cell total map.
 #
-#   full: compact + the merged simHits (all contributors). The only level that
-#     rebuilds the association at a DIFFERENT granularity (e.g. L1 trigger cells)
-#     or with a different metric, because it keeps the raw deposits with trackId +
-#     eventId. Adds the merged simHit cost (calo, plus tracking under
-#     includeTrackingHits).
+#   full: compact + the merged simHits (all contributors, with trackId and eventId).
+#     Only this level rebuilds the association at a DIFFERENT granularity (e.g. L1
+#     trigger cells) or with another metric. Calo simHits always, tracking simHits
+#     with includeTrackingHits.
 
 import FWCore.ParameterSet.Config as cms
 
@@ -49,9 +41,8 @@ _truthGraphKeep = [
 
 
 def _truthSimHitsKeep(includeTrackingHits):
-    """The merged (signal+pileup) simHits kept only at the 'full' level, so the
-    numerator/denominator can be rebuilt at a different granularity. Calo always;
-    tracking (tracker + muon + MTD) only when the accumulator captured it."""
+    """The merged (signal+pileup) simHits kept at the 'full' level. Calo always;
+    tracking (tracker + muon + MTD) only with includeTrackingHits."""
     keep = [
         'keep *_mix_mergedHGCHits_*',
         'keep *_mix_mergedEcalHits_*',
@@ -87,8 +78,8 @@ def truthEventContent(level='compact', includeTrackingHits=True):
 
 def setTruthEventContent(process, level='compact', includeTrackingHits=True):
     """Append a truth verbosity level to every output module in the process.
-    level='compact' (default, ~O(10) MB/ev: graph + unresolved hit index) or
-    'full' (adds raw graph + merged simHits for off-geometry re-association)."""
+    level='compact' (default: graph, unresolved hit index and raw graph) or
+    'full' (adds the merged simHits for re-association at another granularity)."""
     commands = truthEventContent(level, includeTrackingHits)
     for out in process.outputModules_().values():
         out.outputCommands.extend(commands)

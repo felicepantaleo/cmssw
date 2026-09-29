@@ -47,12 +47,10 @@ namespace truth {
   }
 
   uint32_t BranchSelector::failedKinematicCuts(Branch const& branch) const {
-    // Kinematics from the defining root particle. Copy by value: root() returns
-    // a temporary Particle, so a reference to its momentum() would dangle.
+    // Kinematics from the root particle.
     const auto rootParticle = branch.root();
 
-    // A resonance at rest carries pt about 0 with |eta| unbounded, so a track-shaped cut
-    // would throw it away while its decay products fill the calorimeter.
+    // A resonance at rest has pt about 0 and a large |eta|, so the cuts do not apply.
     if (config_.kinematicsOnStableOnly && !hasObservableMomentum(rootParticle.data()))
       return 0u;
 

@@ -1,10 +1,7 @@
 // Original author: Felice Pantaleo (CERN) <felice.pantaleo@cern.ch>
 
-// Author: Felice Pantaleo - CERN
-// Date: 03/2026
-// A compact, read-only graph representation of the truth information in an event.
-// The graph is built in the TruthGraphProducer module, which also fills the node metadata and associations.
-// The graph is intended to be a common data format for various use cases (e.g. validation, analysis, visualization).
+// A compact graph of the GEN and SIM truth of an event, in CSR form.
+// TruthGraphProducer builds it and fills the node metadata and the associations.
 
 #ifndef SimDataFormats_TruthInfo_interface_TruthGraph_h
 #define SimDataFormats_TruthInfo_interface_TruthGraph_h
@@ -28,7 +25,7 @@ public:
     Gen = 0,       // within GEN realm
     Sim = 1,       // within SIM realm
     GenToSim = 2,  // realm boundary GEN -> SIM
-    SimToGen = 3   // reserved (we don't produce these now)
+    SimToGen = 3   // SimVertex -> GenVertex provenance
   };
 
   struct NodeRef {
@@ -39,10 +36,8 @@ public:
   TruthGraph() = default;
 
   // --- Storage accessors --------------------------------------------------
-  // The graph is built once (the producer fills the vectors via the non-const
-  // accessors) and then read many times (consumers use the const accessors and
-  // the node helpers below). The CSR invariants are: offsets().size() == nNodes+1,
-  // edges().size() == edgeKind().size() == nEdges.
+  // The producer fills the storage through the non-const accessors. Consumers read it
+  // through the const accessors and the node helpers.
   [[nodiscard]] std::vector<uint32_t> const& offsets() const { return offsets_; }
   [[nodiscard]] std::vector<uint32_t>& offsets() { return offsets_; }
 
@@ -133,7 +128,8 @@ public:
   bool isConsistent() const;
 
 private:
-  // CSR out-edges: offsets_.size() == nNodes+1, edges_/edgeKind_.size() == nEdges.
+  // CSR out-edges: offsets_.size() == nNodes+1, edges_.size() == nEdges.
+  // edgeKind_ is empty or has nEdges entries.
   std::vector<uint32_t> offsets_;
   std::vector<uint32_t> edges_;
   std::vector<uint8_t> edgeKind_;  // stores TruthGraph::EdgeKind as uint8_t
@@ -150,13 +146,13 @@ private:
   std::vector<int32_t> genEventOfNode_;  // -1 for SIM; for GEN nodes = component id
 
   // Geant4 process *subtype* (G4VProcess::GetProcessSubType()) of the creator
-  // process of the SimVertex's outgoing particles - the physical reason the vertex
+  // process of the SimVertex's outgoing particles: the physical reason the vertex
   // exists (e.g. 2 = ionisation/delta-ray, 3 = bremsstrahlung, 14 = pair conversion,
   // 121 = hadronic inelastic, 201 = decay). 0 for primaries and non-SimVertex nodes.
   std::vector<uint16_t> simVertexProcessType_;
 
-  // 1 for SimTrack nodes Geant4 flagged as back-scattered (SimTrack::isFromBack-
-  // Scattering, the Tracker<->CALO inward albedo); 0 otherwise / non-SimTrack nodes.
+  // 1 for a SimTrack node that Geant4 flags as back-scattered (SimTrack::isFromBackScattering,
+  // the Tracker<->CALO inward albedo). 0 for every other node.
   std::vector<uint8_t> simTrackBackscattered_;
 
   // Associations (nodeId -> nodeId). Only meaningful for SimTrack nodes.

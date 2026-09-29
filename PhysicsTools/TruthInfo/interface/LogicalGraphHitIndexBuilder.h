@@ -18,9 +18,8 @@ namespace truth {
   class LogicalGraphHitIndexBuilder {
   public:
     // sharedSubgraphStore selects the shared layout described in LogicalGraphHitIndex:
-    // each hit is stored once, in an order that makes every subtree a contiguous range,
-    // instead of being copied into each ancestor's aggregate. This is what the producer
-    // writes by default. False builds the materialised layout.
+    // each hit is stored once, in an order that makes every subtree a contiguous range.
+    // The producer writes this layout by default. False builds the materialised layout.
     explicit LogicalGraphHitIndexBuilder(uint32_t nParticles, bool sharedSubgraphStore = true);
 
     // trackId is event-local (each mixing sub-event reuses 1,2,3,...); it MUST be
@@ -68,22 +67,15 @@ namespace truth {
     using Hit = LogicalGraphHitIndex::Hit;
     using SlotRange = LogicalGraphHitIndex::SlotRange;
 
-    // Per-particle hits are accumulated as a flat, append-only list and coalesced
-    // (summed per detId, sorted) lazily. This keeps the hot insertion path a
-    // single push_back and avoids a per-particle hash table (one per particle for
-    // each channel), which dominated CPU and memory at high hit multiplicity.
+    // Per-particle hits are an append-only list, coalesced in finish(), so an insertion
+    // is a single push_back.
     using HitList = std::vector<Hit>;
 
     static void appendHit(HitList& hits, uint32_t detId, uint32_t recHitIndex, float energy);
 
-    // Sort by detId and merge entries that share a detId: energies are summed and
-    // the recHitIndex is the unique valid index for that detId, if any (a detId
-    // maps to a single recHit, so all valid entries agree). Entries that coalesce
-    // to non-positive energy are dropped. Idempotent on already-coalesced lists.
-    // Summation runs in detId order, so coalesced energies are deterministic and
-    // independent of hit insertion order (unlike a hash-map accumulation, whose
-    // sum order was bucket-dependent); cell energies can therefore differ from a
-    // hash-based build at the float-reassociation level (~1e-7 relative).
+    // Sort by detId and merge entries that share a detId: energies are summed and the
+    // merged entry keeps the valid recHitIndex, if any. Entries with non-positive energy
+    // are dropped. Idempotent on already-coalesced lists.
     // cellKeyed groups by (detId, cell) instead of by detId, so two cells of one module
     // stay separate entries.
     static void coalesce(HitList& hits, bool cellKeyed);
@@ -96,12 +88,9 @@ namespace truth {
     [[nodiscard]] static bool timesInStep(std::vector<HitList> const& hits,
                                           std::vector<std::vector<float>> const& times);
 
-    // Collect the particle and every distinct descendant (cycle-safe) into
-    // `order`. `visited`/`touched`/`stack` are reusable scratch: `touched` lists
-    // the ids set in `visited` so they can be cleared in O(subgraph size) between
-    // calls. Each descendant appears exactly once, so a particle reachable through
-    // several paths (a re-convergent DAG) is not double-counted when its direct
-    // hits are later summed into the subgraph aggregate.
+    // Collect the particle and every distinct descendant (cycle-safe) into `order`, each
+    // once. `visited`, `touched` and `stack` are reusable scratch: `touched` lists the ids
+    // set in `visited`, so the caller clears them in O(subgraph size).
     void collectSubgraphParticles(uint32_t particleId,
                                   std::vector<uint8_t>& visited,
                                   std::vector<uint32_t>& touched,
@@ -113,18 +102,16 @@ namespace truth {
                             std::vector<uint32_t>& offsets,
                             std::vector<Hit>& storage);
 
-    // Order the particles so that every subtree occupies consecutive slots, which is
-    // what lets a subgraph be a range of the single hit store. The tree is the SIM
-    // parentage alone: only particles with a SimTrack carry hits, and each of those has
-    // at most one parent that also has a SimTrack, whereas the GEN half above them is a
-    // DAG whose vertices have several incoming particles. Fills the DFS slot of every
-    // particle and the number of particles in its subtree.
     // Per particle, whether its descendant closure contains anything with a SimTrack.
     [[nodiscard]] std::vector<uint8_t> closureReachesSimTrack() const;
 
-    // False when the hit-carrying particles do not form a forest the tree can carry,
-    // either because one has two hit-carrying parents or because one has a GEN-only
-    // child with hit-carrying descendants of its own; the outputs are then meaningless.
+    // Order the particles so that every subtree occupies consecutive slots, so a
+    // subgraph is a range of the single hit store. The tree is the SIM parentage: a
+    // hit-carrying particle hangs under its nearest hit-carrying ancestor, through any
+    // GEN-only particles between them. Fills the DFS slot of every particle and the
+    // number of particles in its subtree.
+    // False when a hit-carrying particle has two hit-carrying parents, directly or
+    // through GEN-only particles; the outputs are then meaningless.
     [[nodiscard]] bool buildDfsOrder(std::vector<uint32_t>& slotToParticle,
                                      std::vector<uint32_t>& dfsPos,
                                      std::vector<uint32_t>& subtreeCount) const;

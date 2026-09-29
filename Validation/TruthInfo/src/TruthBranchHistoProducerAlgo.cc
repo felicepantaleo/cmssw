@@ -11,10 +11,9 @@
 #include "Validation/TruthInfo/interface/TruthBranchHistoProducerAlgo.h"
 
 namespace {
-  // One bin per VertexReason. The Geant4 values name the process that made a SIM vertex;
-  // the values past Other name what a GEN-only vertex is, which is what a pileup
-  // interaction is made of; Unknown holds an artificial vertex and a GEN pattern no rule
-  // covers.
+  // One bin per VertexReason. The Geant4 values name the process that made a SIM vertex.
+  // The values after Other name the type of a GEN-only vertex, which makes up a pileup interaction.
+  // Unknown holds an artificial vertex and a GEN pattern that no rule covers.
   constexpr int kNReasonBins = truth::kVertexReasonCount;
 }  // namespace
 
@@ -36,12 +35,9 @@ namespace truth {
         resPtAxis_{pset.getParameter<int>("nint_res_pt"),
                    pset.getParameter<double>("min_res_pt"),
                    pset.getParameter<double>("max_res_pt")} {
-    // Resolve a variable name to its position in Kinematics::asVector, so a typo in the
-    // configuration is a configuration error and not a silently missing plot.
-    // prefix lets ONE side override a range the other must keep. The truth zpos of a
-    // trackster branch is its production vertex, in the tracker; the reco zpos is the
-    // trackster barycentre, in HGCal at |z| of 320 to 520 cm. Sharing one range put 100%
-    // of reco trackster z in the under and overflow, so that plot drew nothing at all.
+    // Resolve a variable name to its position in Kinematics::asVector. An unknown name throws.
+    // prefix gives one side its own range when the configuration has one. Example: the truth zpos
+    // of a trackster branch is in the tracker, the reco zpos is in HGCal at |z| of 320 to 520 cm.
     auto resolve = [&](std::vector<std::string> const& names,
                        std::vector<std::size_t>& indices,
                        std::vector<std::string>& kept,
@@ -105,8 +101,8 @@ namespace truth {
   }
 
   namespace {
-    // The ME names are the harvesting API: DQMGenericClient forms every ratio from
-    // these by string, so a rename silently drops a plot rather than failing.
+    // The ME names are the harvesting API: DQMGenericClient finds them by string.
+    // A rename drops a plot without an error.
     template <typename AxisT>
     void bookRow(dqm::implementation::IBooker& booker,
                  std::vector<TruthBranchHistograms::MERow>& rows,
@@ -119,8 +115,7 @@ namespace truth {
         auto const& axis = axes[v];
         const auto edges = TruthBranchHistoProducerAlgo::binEdges({axis.nbins, axis.min, axis.max, axis.linthresh});
         auto* me = booker.book1D(prefix + "_" + name, prefix + " vs " + name, axis.nbins, edges.data());
-        // The flavour axis is species, not a number: label it so the DQM GUI reads as
-        // d/u/s/c/b/t/g rather than as bin indices.
+        // The flavour axis is categorical: label the bins d/u/s/c/b/t/g.
         if (name == "flavour") {
           for (int f = 0; f < kNFlavourBins && f < axis.nbins; ++f) {
             me->setBinLabel(f + 1, kFlavourBinNames[f]);
@@ -135,8 +130,8 @@ namespace truth {
   void TruthBranchHistoProducerAlgo::bookTruthHistos(dqm::implementation::IBooker& booker,
                                                      TruthBranchHistograms& h,
                                                      bool calorimetric) const {
-    // One block of rowsPerEntry() rows per entry, the region ones in sub-folders carrying
-    // the SAME ME names, so every harvester string and the plot script work unchanged.
+    // One block of rowsPerEntry() rows per entry. The region rows are in sub-folders with the
+    // same ME names, so the harvester strings and the plot script apply to each folder.
     const std::string base = booker.pwd();
     bookTruthRow(booker, h, calorimetric);
     for (const EtaRegion region : bookedRegions_) {
@@ -159,13 +154,11 @@ namespace truth {
     bookRow(booker, h.h_split, "num_split", truthVarNames_, truthAxes_);
   }
 
-  // Booked ONCE per entry, in the base folder, not per region: these are distributions
-  // rather than ratio numerators, and their fills index the entry directly. Booking them
-  // per region would leave the region copies unfilled and shift every index.
+  // Booked once per entry, in the base folder, not per region: the fills index the entry directly.
   void TruthBranchHistoProducerAlgo::bookTruthDiagnostics(dqm::implementation::IBooker& booker,
                                                           TruthBranchHistograms& h,
                                                           bool calorimetric) const {
-    // Categorical axis: one labelled bin per Geant4 creation process.
+    // Categorical axis: one labelled bin per VertexReason.
     auto bookReason = [&](std::vector<TruthBranchHistograms::METype>& v, std::string const& name) {
       auto* me = booker.book1D(name, name, kNReasonBins, -0.5, kNReasonBins - 0.5);
       for (int r = 0; r < kNReasonBins; ++r) {
@@ -182,8 +175,7 @@ namespace truth {
     // Truth purity: the truth object is the denominator, so it lives on this side.
     h.h_truthPurity.push_back(booker.book1D("truth_purity", "Truth purity", 50, 0., 1.));
 
-    // A fraction of the truth object's own energy, so a [0, 1] axis like truth purity
-    // and unlike the reco-side shared quantity, which counts hits or GeV.
+    // A fraction of the truth object's own energy, on a [0, 1] axis.
     if (calorimetric) {
       h.h_sharedEnergyFraction.push_back(booker.book1D("shared_energy_fraction", "Shared energy fraction", 50, 0., 1.));
     }
@@ -229,8 +221,7 @@ namespace truth {
     // Reco purity: the reco object is the denominator, on a [0, 1] axis.
     h.h_recoPurity.push_back(booker.book1D("reco_purity", "Reco purity", 50, 0., 1.));
 
-    // 2D inputs for the Gaussian slice fit the harvester runs. Same naming as MTV so
-    // the resolution strings and the plot script read the same way.
+    // 2D inputs for the Gaussian slice fit in the harvester. The names are the MTV names.
     auto const& etaAxis = resEtaAxis_;
     auto const& ptAxis = resPtAxis_;
     h.h_ptres_vs_eta.push_back(booker.book2D("ptres_vs_eta",
@@ -261,9 +252,8 @@ namespace truth {
                                                 TruthOutcome outcome,
                                                 bool cumulative,
                                                 uint32_t failedCuts) const {
-    // Inclusive row always, plus the object's region row. The region variable is the one
-    // that decides acceptance: where the branch ENTERS the calorimeter when the domain
-    // records that, since a branch produced centrally can deposit in an endcap.
+    // Fill the inclusive row and the object's region row. The region uses the calorimeter entry eta
+    // when it is recorded, because a branch produced centrally can deposit in an endcap.
     const double regionEta = (kin.caloeta != kNoCaloEntry) ? kin.caloeta : kin.eta;
     const auto region = etaRegionOf(std::abs(regionEta));
     fill_simul_row(h, rowsPerEntry() * i, kin, outcome, cumulative, failedCuts);
@@ -289,17 +279,14 @@ namespace truth {
                                                     uint32_t failedCuts) const {
     const auto values = kin.asVector();
     for (std::size_t v = 0; v < truthVars_.size(); ++v) {
-      // Variable-blind: this object may enter the plot only if the cuts it fails are
-      // exactly the cut on THIS variable, so the axis never has its own cut applied and
-      // no other axis is polluted by an object a cut would have removed.
+      // Variable-blind: fill only if the object fails no cut other than the cut on this variable.
       if ((failedCuts & ~truthCutBits_[v]) != 0u) {
         continue;
       }
       const double x = values[truthVars_[v]];
       h.h_simul[i][v]->Fill(x);
-      // Individual and Duplicate both mean the truth object WAS reconstructed as one
-      // object, so both count in the efficiency numerator; they differ in whether it
-      // happened once or more than once. Split did not happen as one object at all.
+      // Individual and Duplicate both mean that one reco object reconstructs the truth object,
+      // so both count in the efficiency numerator. Split does not count.
       if (outcome == TruthOutcome::Individual || outcome == TruthOutcome::Duplicate) {
         h.h_assoc_simToReco[i][v]->Fill(x);
       }

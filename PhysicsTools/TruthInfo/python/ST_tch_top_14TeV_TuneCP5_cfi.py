@@ -1,9 +1,8 @@
 # Original author: Felice Pantaleo (CERN) <felice.pantaleo@cern.ch>
 #
-# t-channel single-top GEN fragment (q q' -> t q'' via t-channel W). There is no
-# single-top sample in the standard relval matrix, so this minimal fragment is used
-# to produce a gallery/library example that exercises the 'top' selection preset
-# keeping the production co-products (the recoiling spectator quark alongside the t).
+# t-channel single-top GEN fragment (q q' -> t q'' via t-channel W). The standard relval
+# matrix has no single-top sample. This fragment gives a gallery/library example for the
+# 'top' selection preset with the production co-products (the recoiling spectator quark).
 
 import FWCore.ParameterSet.Config as cms
 from Configuration.Generator.Pythia8CommonSettings_cfi import *

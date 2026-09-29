@@ -37,9 +37,8 @@ std::vector<truth::Interaction> truth::interactions(truth::Graph const& graph) {
   }
 
   if (out.empty()) {
-    // No preset ran, so no interaction node exists and the best available answer is an
-    // elected stand-in: the lowest-numbered usable production vertex of the interaction,
-    // which the build order makes the one where the interaction started.
+    // No interaction node exists. Elect the lowest-numbered usable production vertex of
+    // the interaction, which the build order makes the one where the interaction started.
     std::unordered_map<uint64_t, uint32_t> elected;
     std::unordered_map<uint64_t, uint32_t> placeholderOnly;
 

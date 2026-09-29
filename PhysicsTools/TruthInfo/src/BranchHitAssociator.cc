@@ -19,8 +19,7 @@ namespace truth {
     cells.reserve(keys_.size());
     for (std::size_t i = 0; i < keys_.size(); ++i)
       cells.emplace_back(keys_[i], values_[i]);
-    // Rechit collections arrive sorted by DetId, and the producer adds them in
-    // ascending detector order, so the common case needs no sort.
+    // The common input is already sorted by DetId and needs no sort.
     if (!std::is_sorted(keys_.begin(), keys_.end()))
       std::sort(cells.begin(), cells.end(), [](auto const& a, auto const& b) { return a.first < b.first; });
     keys_.clear();
@@ -63,10 +62,8 @@ namespace truth {
       std::iota(roots_.begin(), roots_.end(), 0u);
     }
 
-    // Per-cell total sim energy (denominator for branch fractions): sum of every
-    // particle's direct-hit energy on that cell. Use the requested channel.
-    // directStorage is grouped by particle, not globally sorted, so collect and
-    // coalesce into a sorted (detId -> energy) table for binary-search lookup.
+    // Per-DetId total sim energy on the requested channel: the sum of the direct-hit
+    // energies of every particle. Stored as a sorted (detId -> energy) table.
     const auto& directStorage = hitIndex_->channel(channel_).directHits;
     std::vector<std::pair<uint32_t, float>> cells;
     cells.reserve(directStorage.size());
@@ -87,9 +84,8 @@ namespace truth {
 
     buildRootHits();
 
-    // Inverted index detId -> candidate roots, from each candidate's subgraph
-    // hits. Built as a flat (detId, root) list, sorted, then packed CSR-style so
-    // lookups are a binary search plus a contiguous root span (no hashing).
+    // Inverted index detId -> candidate roots, from the subgraph hits of each candidate,
+    // packed CSR-style: a lookup is a binary search plus a contiguous root span.
     rootSelfEnergySq_.assign(hitIndex_->nParticles(), 0.0);
     rootEnergy_.assign(hitIndex_->nParticles(), 0.0);
     std::vector<std::pair<uint32_t, uint32_t>> pairs;  // (detId, root)
@@ -147,12 +143,9 @@ namespace truth {
       if (root >= rootHitSlotOfRoot_.size())
         continue;
 
-      // A root whose subgraph is a single one-slot range owns nothing but its own direct
-      // hits, and the builder already sorted and summed those per detId before writing
-      // them, so the persisted span is usable as it stands. Skipping the copy is what
-      // keeps the all-roots case affordable: leaves are most of the graph, and copying
-      // every one of them would rebuild in memory the aggregate this layout exists to
-      // not store.
+      // A root whose subgraph is a single one-slot range owns only its own direct hits,
+      // which the builder already sorted and summed, so the persisted span is used as is.
+      // Leaves are most of the graph, so this keeps the all-roots case affordable.
       const auto ranges = hitIndex_->subgraphRanges(root);
       if (ranges.size() == 1 && ranges[0].slotCount == 1) {
         rootHitSlotOfRoot_[root] = kPersistedSpan;
@@ -285,7 +278,7 @@ namespace truth {
     candidates.erase(std::unique(candidates.begin(), candidates.end()), candidates.end());
 
     for (const uint32_t root : candidates) {
-      auto branchHits = rootHits(root);  // sorted by detId (LogicalGraphHitIndexBuilder guarantee)
+      auto branchHits = rootHits(root);  // sorted by (detId, cell)
 
       double sharedEnergy = 0.0;
       // Shared energy on the denominatorDetectors_ cells only. The fraction divides by
@@ -399,8 +392,7 @@ namespace truth {
       if (energyWeighted) {
         m.sharedEnergy = static_cast<float>(sharedEnergy);
         // A zero denominator means every truth-known cell of the object carries zero
-        // fraction; score 1 (worst) rather than 0/0, which would put a NaN into a
-        // persisted map and poison every sort and cut downstream.
+        // fraction. Score 1 (worst), not 0/0, so no NaN goes into the persisted map.
         m.score = denominator > 0. ? static_cast<float>(scoreNum / denominator) : 1.f;
         // Reverse score: the fraction of the branch self-energy the reco object
         // fails to capture. Branch-only cells (not visited in the merge-join above)
@@ -412,10 +404,9 @@ namespace truth {
         // reverse score rather than the best one.
         m.reverseScore = branchDenom > 0.0 ? static_cast<float>(branchScoreNum / branchDenom) : 1.f;
         // Normalized to the branch energy in the detectors of denominatorDetectors_,
-        // not to its whole channel energy: the numerator can only ever grow on cells
-        // the reco object occupies, so a denominator spanning detectors that
-        // collection does not reconstruct is a fraction nothing can pass. The numerator
-        // counts the same detectors, which bounds the fraction to [0, 1].
+        // not to its whole channel energy, so a detector the collection does not
+        // reconstruct does not lower the fraction. The numerator counts the same
+        // detectors, which bounds the fraction to [0, 1].
         const double branchEnergyTotal = rootEnergy_[root];
         m.sharedEnergyFraction =
             branchEnergyTotal > 0.0 ? static_cast<float>(sharedEnergyInDenominator / branchEnergyTotal) : 0.f;
@@ -460,10 +451,8 @@ namespace truth {
   BranchMatch BranchHitAssociator::bestAdaptiveBranch(std::span<const RecoHit> recoHits,
                                                       float reverseWeight,
                                                       float maxReverseScore) const {
-    // Reuse the full merge-join (both scores per candidate) and re-rank by the
-    // balanced objective. The candidate set already encodes the climb: with the
-    // ancestor closure as roots, a reco hit lands on its leaf and every ancestor,
-    // so all levels appear here and the argmin selects the best one.
+    // Rank every candidate by the balanced objective. With the ancestor closure as
+    // roots, a reco hit reaches its leaf and every ancestor, so all levels compete.
     const auto all = bestBranches(recoHits, 0);
     return bestAdaptiveBranch(all, reverseWeight, maxReverseScore);
   }
@@ -471,11 +460,9 @@ namespace truth {
   BranchMatch BranchHitAssociator::bestAdaptiveBranch(std::span<const BranchMatch> matches,
                                                       float reverseWeight,
                                                       float maxReverseScore) {
-    // Float throughout: every input is a float map payload and nothing accumulates,
-    // so double buys no precision here. One pass tracks the ceiling-constrained and
-    // the unconstrained argmin together; the fallback to the unconstrained minimum
-    // covers a ceiling that rejected every level (e.g. a very fragmented reco
-    // object), which must not be reported as no match.
+    // One pass tracks the argmin under the reverse-score ceiling and the unconstrained
+    // argmin. When the ceiling rejects every level, for example for a very fragmented
+    // reco object, the unconstrained argmin is returned, not "no match".
     const auto objective = [reverseWeight](BranchMatch const& m) { return m.score + reverseWeight * m.reverseScore; };
 
     BranchMatch best;

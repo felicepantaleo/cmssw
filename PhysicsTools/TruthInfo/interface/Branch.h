@@ -25,7 +25,7 @@ namespace truth {
     std::vector<int32_t> stopPdgIds;       // UntilPdgId: stop at (and include) particles with these ids (excl. root)
     std::function<bool(Particle)> stopAt;  // Predicate: stop at (and include) particles where true (incl. root)
     uint32_t levelFlags = 0;  // UntilLevels: stop at (and include) particles at any of these levels (incl. root)
-                              // Note: levelFlags==0 is equivalent to the full branch
+                              // levelFlags == 0 gives the members of the full subtree
 
     static ClosureSpec subtree() { return {}; }
     static ClosureSpec stableLeaves() { return {ClosureKind::StableLeaves, 0, {}, {}, 0}; }
@@ -47,11 +47,9 @@ namespace truth {
     }
   };
 
-  // A Branch is a lightweight, non-owning view of a coherent subgraph: one or
-  // more root particles plus a closure of their descendants. Members are
-  // recomputed on demand from the Graph; the Branch stores no graph data and is
-  // not an EDM product. It is the truth-side object that reco objects are matched
-  // to, the natural successor to the static CaloParticle/TrackingParticle.
+  // A non-owning view of a subgraph: one or more root particles plus a closure of their
+  // descendants. Members are computed on demand from the Graph. A Branch is not an EDM
+  // product. It is the truth-side object that reco objects are matched to.
   class Branch {
   public:
     Branch() = delete;
@@ -106,8 +104,7 @@ namespace truth {
     [[nodiscard]] int event() const;
     [[nodiscard]] bool isInTime() const { return bunchCrossing() == 0; }
     // Anything that is not the signal interaction. NOT bunchCrossing() != 0: in-time
-    // pileup carries bunch crossing 0 and a nonzero event number, and the default
-    // production keeps in-time pileup only.
+    // pileup carries bunch crossing 0 and a nonzero event number.
     [[nodiscard]] bool isFromPileup() const { return !isSignal(); }
     // The root particle decides, so a branch and its root cannot disagree.
     [[nodiscard]] bool isSignal() const;
@@ -119,7 +116,7 @@ namespace truth {
   private:
     [[nodiscard]] std::vector<uint32_t> finalStateIds() const;
     void validate();
-    // Fills stopIds (when non-null) with the particles where the closure stops
+    // Fills stopIds (when non-null) with the particles where the closure stops.
     [[nodiscard]] std::vector<uint32_t> traverse(std::vector<uint32_t>* stopIds = nullptr) const;
 
     Graph const* graph_;

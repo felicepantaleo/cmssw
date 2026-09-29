@@ -1,13 +1,10 @@
 // Original author: Felice Pantaleo (CERN) <felice.pantaleo@cern.ch>
 
-// Author: Felice Pantaleo - CERN
-// Flat-table dump of reco::PFRecHit collections (barrel/forward calorimeters:
-// ECAL, HBHE, HF, HO). HGCal rechits are dumped separately by
-// RecHitFlatTableProducer.
-//
-// NOTE: reco::PFRecHit::position()/positionREP() read the cached CaloCellGeometry,
-// which is NOT persisted; calling them on rechits read back from a file segfaults.
-// Positions are therefore recomputed from CaloGeometry using the (persisted) detId.
+// Writes reco::PFRecHit collections (ECAL, HBHE, HF, HO) to a flat table.
+// RecHitFlatTableProducer writes the HGCal rechits.
+// The position comes from CaloGeometry and the persisted detId.
+// reco::PFRecHit::position() reads a cached CaloCellGeometry that is not persisted.
+// On rechits read from a file, it crashes.
 
 #include "FWCore/Framework/interface/stream/EDProducer.h"
 #include "FWCore/Framework/interface/Event.h"

@@ -3,22 +3,15 @@
 #ifndef PhysicsTools_TruthInfo_interface_RecoHitAdapters_h
 #define PhysicsTools_TruthInfo_interface_RecoHitAdapters_h
 
-// Adapters that expose a reco object's hits as a range of truth::RecoHit so the
-// generic BranchHitAssociator and the reco-to-truth associators can match any reco object to
-// the truth Branch graph (the customization point envisaged by the HasTruthHits
-// concept in BranchHitAssociator.h). These live here, not as member methods on the
-// reco data formats, for two reasons: (a) only reco::Track owns its hits - a
-// Trackster/TICLCandidate/PFCandidate references layer clusters / blocks that live
-// in separate event collections, which a data-format method cannot reach; and (b)
-// returning a PhysicsTools type from a DataFormats class would invert the package
-// dependency. Each adapter therefore takes the object plus whatever external
-// collection it needs.
+// Adapters that expose the hits of a reco object as a vector of truth::RecoHit, so
+// BranchHitAssociator can match it to a truth Branch. They are free functions, not
+// members of the reco data formats: most reco objects reference hits in other event
+// collections, and a DataFormats class must not return a PhysicsTools type. Each
+// adapter takes the object plus the collection it needs.
 //
-// Tracker hits carry no per-cell energy to share, so they are exposed with unit
-// energy and fraction (matching is by shared-hit multiplicity). Calorimeter hits
-// are exposed with unit energy and the cell fraction, matching the convention the
-// calo association producer / validator already use for CaloParticle/SimCluster, so
-// the shared-energy metric compares cell fractions.
+// Tracker hits have unit energy and fraction, so matching counts shared hits.
+// Calorimeter hits have unit energy and the cell fraction, so the shared-energy metric
+// compares cell fractions, as the CaloParticle and SimCluster associators do.
 
 #include <algorithm>
 #include <vector>
@@ -52,10 +45,8 @@ namespace truth {
       if (!hit->isValid()) {
         continue;
       }
-      // A stub or a matched hit is not a single hit and carries no cluster of its own. A
-      // FastSim single hit is not a TrackerSingleRecHit and carries no cluster either, so
-      // the tag must be exactly single. The RTTI tag is an int compare, where a
-      // dynamic_cast on every hit of every track shows up in a PU200 profile.
+      // A stub, a matched hit and a FastSim hit carry no cluster of their own, so the tag
+      // must be exactly single. The RTTI tag is an int compare, cheaper than a dynamic_cast.
       if (trackerHitRTTI::rtti(*hit) != trackerHitRTTI::single) {
         continue;
       }
@@ -104,11 +95,8 @@ namespace truth {
     hits.resize(w);
   }
 
-  // reco::CaloCluster (a single layer cluster) -> its (DetId, fraction) hits (unit
-  // energy; the calo shared-energy metric compares cell fractions). Sorted by detId,
-  // and coalesced (fractions summed) so a repeated cell is seen once by the merge-join
-  // in BranchHitAssociator. HGCAL layer clusters list each cell once, but the overload
-  // is generic over reco::CaloCluster, so the dedup keeps it correct for any input.
+  // reco::CaloCluster (a single layer cluster) -> its (DetId, fraction) hits with unit
+  // energy, sorted by detId and coalesced (fractions summed).
   inline std::vector<RecoHit> recoHits(reco::CaloCluster const& layerCluster) {
     std::vector<RecoHit> hits;
     hits.reserve(layerCluster.hitsAndFractions().size());
@@ -118,12 +106,10 @@ namespace truth {
     return hits;
   }
 
-  // ticl::Trackster -> the (DetId, fraction) of its layer clusters (unit energy; the
-  // calo shared-energy metric then compares cell fractions). A layer cluster shared
-  // by several tracksters contributes 1/multiplicity of its fraction, as in the TICL
-  // trackster associations. Duplicate cells across the trackster's layer clusters
-  // are coalesced (fractions summed) so the merge-join in BranchHitAssociator sees
-  // each cell once.
+  // ticl::Trackster -> the (DetId, fraction) hits of its layer clusters with unit
+  // energy, sorted by detId and coalesced (fractions summed). A layer cluster shared by
+  // several tracksters contributes 1/multiplicity of its fraction, as in the TICL
+  // trackster associations.
   inline std::vector<RecoHit> recoHits(ticl::Trackster const& trackster,
                                        std::vector<reco::CaloCluster> const& layerClusters) {
     std::vector<RecoHit> hits;

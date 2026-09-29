@@ -63,13 +63,11 @@ namespace truth {
   [[nodiscard]] bool usableAsInteractionVertex(VertexData const& vertex);
 
   // Every interaction of the event, the signal first and the pile-up after it ordered by
-  // bunch crossing, then by index inside the crossing. One pass over the vertices when
-  // the selection preset built the interaction nodes, one pass over the particles when it
-  // did not.
+  // bunch crossing, then by index inside the crossing.
   [[nodiscard]] std::vector<Interaction> interactions(Graph const& graph);
 
   // The interaction the signal particles come from. Empty when the graph holds none,
-  // which is what a pile-up-only sub-graph looks like.
+  // as in a pile-up-only sub-graph.
   [[nodiscard]] std::optional<Interaction> signalInteraction(Graph const& graph);
 
 }  // namespace truth

@@ -1,12 +1,10 @@
 # Original author: Felice Pantaleo (CERN) <felice.pantaleo@cern.ch>
 #
-# cmsDriver --customise hook for the truth-graph history-guard unit test. Appended
-# to a short GEN,SIM job run with --procModifiers enableTruth, it builds the truth
-# graph straight from the freshly simulated SimTracks/SimVertices and runs the
-# TruthGraphTopologyChecker in failOnViolations mode, so the job throws if the
-# SimTrack/SimVertex history is not one tree fully connected to the generator -
-# exactly the regression a simulation change that drops the per-track parentage
-# (e.g. a port that no longer records parentID for every track) would cause.
+# cmsDriver --customise hook for the truth-graph history-guard unit test. In a short
+# GEN,SIM job with --procModifiers enableTruth, it builds the truth graph from the
+# SimTracks/SimVertices and runs TruthGraphTopologyChecker with failOnViolations. The
+# job throws if the SimTrack/SimVertex history is not one tree connected to the
+# generator, for example when the simulation does not record parentID for every track.
 
 import FWCore.ParameterSet.Config as cms
 

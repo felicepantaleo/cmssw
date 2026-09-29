@@ -1,17 +1,15 @@
 # Original author: Felice Pantaleo (CERN) <felice.pantaleo@cern.ch>
 
-# Branch performance-plot validation: the DQM analyzers that compare the truth::Branch
-# graph to the legacy truth objects, and the cluster-to-TrackingParticle map they read. Harvesting (efficiency) lives in
-# truthGraphDQMHarvester_cff. Hooked into globalValidation behind enableTruth.
+# DQM analyzers that compare truth::Branch to the legacy truth objects, and the
+# cluster-to-TrackingParticle map they read. truthGraphDQMHarvester_cff holds the harvesting.
+# globalValidation includes this file under enableTruth.
 
 import FWCore.ParameterSet.Config as cms
 from DQMServices.Core.DQMEDAnalyzer import DQMEDAnalyzer
 
-# The logical graph and hit index are built at DIGI (mixing accumulator chain) under
-# enableTruth and arrive at RECO through the input. The associators/validators below
-# consume them by DetId via string InputTags, so the signal-only build producers are
-# intentionally NOT imported here: importing them would attach them to the RECO
-# process and shadow the DIGI-built products.
+# The mixing accumulator chain builds the logical graph and the hit index at DIGI.
+# They arrive at RECO through the input file. Do not import the signal-only build producers here:
+# they would attach to the RECO process and shadow the DIGI-built products.
 
 branchHGCalValidator = DQMEDAnalyzer(
     "BranchHGCalValidator",
@@ -25,11 +23,9 @@ branchHGCalValidator = DQMEDAnalyzer(
     maxEta=cms.double(3.0),
 )
 
-# Tracker counterpart. A TrackingParticle has no hits of its own, so the
-# Branch<->TrackingParticle comparison is mediated by the reco track: the validator
-# matches each track to branches by shared tracker cells and to TrackingParticles
-# through ClusterTPAssociation.
-# Phase-2 tracker: pixel + outer-tracker (Phase2TrackerCluster1D), no strips.
+# Tracker validator. The reco track links a Branch to a TrackingParticle: the track matches
+# Branches by shared tracker cells and TrackingParticles through ClusterTPAssociation.
+# Phase-2 tracker: pixel and outer tracker (Phase2TrackerCluster1D), no strips.
 from SimTracker.TrackerHitAssociation.tpClusterProducer_cfi import tpClusterProducer as _tpClusterProducer
 truthTpClusterProducer = _tpClusterProducer.clone(
     pixelClusterSrc=cms.InputTag("siPixelClusters"),
@@ -52,22 +48,14 @@ branchTrackingValidator = DQMEDAnalyzer(
     maxEta=cms.double(3.0),
 )
 
-# The truth-graph DQM analyzers that compare the graph to the legacy truth objects:
-# CaloParticle and SimCluster through branchHGCalValidator, TrackingParticle through
-# branchTrackingValidator. Split in two so the release wires each into the right place,
-# the EDProducers in the prevalidation Path and the analyzers in the validation EndPath.
-# The logical graph and the hit index are built at DIGI by the mixing accumulator chain
-# and arrive at RECO through the input file, so the signal-only build producers are not
-# imported here: they would attach to the RECO process and shadow the DIGI-built
-# products. The validators' rawSrc points at the mixed graph.
-# What the graph itself holds, per interaction: the numbers that say whether it was built
-# as intended, so a pile-up regression shows up in a plot rather than in a hand dump.
+# Content of the graph per interaction, to show whether it is built as intended.
 truthGraphSummaryValidator = DQMEDAnalyzer(
     "TruthGraphSummaryValidator",
     src=cms.InputTag("truthLogicalGraphProducer"),
     folder=cms.string("TruthInfo/Graph"),
 )
 
+# The EDProducers go in the prevalidation Path, the analyzers in the validation EndPath.
 truthGraphValidationProducers = cms.Sequence(truthTpClusterProducer)
 truthGraphValidationAnalyzers = cms.Sequence(
     branchHGCalValidator

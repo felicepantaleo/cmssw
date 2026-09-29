@@ -1,10 +1,8 @@
 // Original author: Felice Pantaleo (CERN) <felice.pantaleo@cern.ch>
 //
-// What the truth graph of this event contains, per interaction: how many interactions it
-// holds, how big each one is, which artificial vertices it carries and how many members
-// each level has, signal and pile-up apart. These are the numbers that say whether the
-// graph was built as intended; without them a pile-up regression is only visible by
-// dumping a graph by hand.
+// Content of the truth graph per event: the number of interactions, the particles and vertices
+// per interaction, the vertices per role, and the members of each level, signal and pile-up apart.
+// These numbers show whether the graph is built as intended, for example after a pile-up change.
 
 #include <string>
 #include <unordered_map>
@@ -66,8 +64,8 @@ public:
         booker.book1D("vertices_per_interaction", "vertices per interaction", 200, 0., 10000.);
     histograms.signalParticles = booker.book1D("signal_particles", "signal particles per event", 200, 0., 20000.);
     histograms.pileupParticles = booker.book1D("pileup_particles", "pileup particles per event", 200, 0., 400000.);
-    // A GEN particle of a pile-up interaction has a momentum only through its SimTrack or
-    // its decay products, so this counts what no kinematic cut can select.
+    // A pile-up GEN particle has a momentum only from its SimTrack or its decay products.
+    // This counts the particles that no kinematic cut can select.
     histograms.particlesWithoutMomentum =
         booker.book1D("particles_without_momentum", "particles with no momentum per event", 200, 0., 100000.);
 

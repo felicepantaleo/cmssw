@@ -87,7 +87,6 @@ public:
 
 protected:
   const std::string objName_;
-  //   const edm::EDGetTokenT<edm::View<pat::PackedGenParticle>> src_;
   const std::vector<edm::EDGetTokenT<HGCRecHitCollection>> rechits_tokens_;
 
   edm::ESGetToken<TICLGeomHost, CaloGeometryRecord> ticlGeom_token_;

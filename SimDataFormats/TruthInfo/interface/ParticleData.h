@@ -63,8 +63,7 @@ namespace truth {
 
   // What a particle IS, mirroring VertexRole on the vertex side. Absence of a GEN and a
   // SIM back-reference does NOT identify a synthetic particle: connectors have neither,
-  // and so would anything else artificial, so the kind has to be stated rather than
-  // inferred. Guessing it from empty fields silently conflated the two.
+  // and so would anything else artificial, so the kind is stated, not inferred.
   enum class ParticleRole : uint8_t {
     // A generator or Geant4 particle.
     Normal = 0,
@@ -120,7 +119,6 @@ namespace truth {
     // before this member existed", so a reader re-derives with levelAntichain().
     uint32_t levelFlags = 0;
 
-    // Standalone payload.
     // Nominal physics four-momentum.
     // For GEN+SIM particles, this is the GEN four-momentum.
     // For SIM-only particles, this is the SimTrack four-momentum.
@@ -129,9 +127,9 @@ namespace truth {
     // Optional trajectory checkpoints.
     std::vector<Checkpoint> checkpoints;
 
-    // True for SIM particles that Geant4 flagged as back-scattered (albedo): the
-    // track crossed the Tracker<->CALO boundary inward. From SimTrack::isFromBack-
-    // Scattering(); always false for GEN-only particles.
+    // True for a SIM particle that Geant4 flags as back-scattered (albedo): the track
+    // crosses the Tracker<->CALO boundary inward. From SimTrack::isFromBackScattering().
+    // Always false for a GEN-only particle.
     bool backscattered = false;
 
     // Real particle, connector, or synthetic stand-in, stored as its underlying type

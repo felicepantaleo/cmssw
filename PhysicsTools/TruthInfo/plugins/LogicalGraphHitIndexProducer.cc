@@ -153,12 +153,12 @@ private:
 
   void fillTrackerCells(edm::Event& event, truth::LogicalGraphHitIndexBuilder& builder) const;
 
-  // Muon chambers (DT/CSC/RPC/GEM/ME0): PSimHits keyed by trackId, like the tracker
-  // channel (energy = energyLoss, no recHit link).
+  // Muon chambers (DT/CSC/RPC/GEM/ME0): PSimHits keyed by trackId.
+  // The energy is energyLoss and there is no recHit link.
   void fillMuonSimHits(edm::Event& event, truth::LogicalGraphHitIndexBuilder& builder) const;
 
-  // MTD (BTL/ETL): fill the MTD channel from the MtdSimLayerClusters of every
-  // interaction, one hit per (sensor module, cell, category) with its earliest time.
+  // MTD (BTL/ETL): fill the MTD channel from the MtdSimLayerClusters of every interaction.
+  // There is one hit per (sensor module, cell, category), with its earliest time.
   void fillMtdHits(edm::Event& event, edm::EventSetup const& setup, truth::LogicalGraphHitIndexBuilder& builder) const;
 
   RelabelContext makeRelabelContext(edm::EventSetup const& setup) const;
@@ -175,8 +175,7 @@ private:
   std::vector<edm::InputTag> simHitTags_;
   std::vector<edm::EDGetTokenT<std::vector<PCaloHit>>> simHitTokens_;
 
-  // Per-cell truth of the tracker, written by the digitizer: (channel, trackId,
-  // eventId, charge fraction).
+  // Per-cell tracker truth from the digitizer: (channel, trackId, eventId, charge fraction).
   std::vector<edm::InputTag> digiSimLinkTags_;
   std::vector<edm::EDGetTokenT<edm::DetSetVector<PixelDigiSimLink>>> digiSimLinkTokens_;
   // One warning per job per collection that is missing from the input.
@@ -191,8 +190,7 @@ private:
 
   std::array<bool, truth::kNumHitChannels> fillChannel_{};
 
-  // Sim-to-reco DetId conversion, one switch per calorimeter numbering scheme: the
-  // HGCAL hexagon unpacking and the HCAL HcalHitRelabeller are selected independently.
+  // Sim-to-reco DetId conversion, one switch per calorimeter numbering scheme.
   bool doHGCalRelabelling_ = true;
   bool doHcalRelabelling_ = true;
   bool sharedSubgraphStore_ = false;
@@ -254,11 +252,9 @@ void TruthLogicalGraphHitIndexProducer::fillDescriptions(edm::ConfigurationDescr
           "Detector channels to fill (subdetector selection): any of Calo, Tracker, MTD, Muon. Each reads its "
           "own per-subdetector hit collections below; channels left out of this list stay empty in the index.");
 
-  // The same calorimeter list TruthLogicalGraphProducer prunes on. The pruner deletes
-  // any SIM particle whose subgraph carries no hit in the collections IT reads, so a
-  // shorter list here leaves a kept particle with an empty footprint: a barrel particle
-  // would show zero calorimeter hits and every per-cell fraction over it would be wrong.
-  // Keep the two defaults equal.
+  // Keep this default equal to the simHitCollections of TruthLogicalGraphProducer.
+  // That module removes a SIM particle with no hit in its list. A shorter list here
+  // gives a kept particle with no calorimeter hits and wrong per-cell fractions.
   desc.add<std::vector<edm::InputTag>>("simHitCollections",
                                        {edm::InputTag("g4SimHits", "HGCHitsEE"),
                                         edm::InputTag("g4SimHits", "HGCHitsHEfront"),
@@ -327,9 +323,7 @@ void TruthLogicalGraphHitIndexProducer::produce(edm::StreamID, edm::Event& event
   if (fillChannel_[static_cast<std::size_t>(truth::HitChannel::Calo)])
     fillSimHits(event, setup, builder, recHitMap);
   if (fillChannel_[static_cast<std::size_t>(truth::HitChannel::Tracker)]) {
-    // The tracker truth is keyed by (module, cell) and comes from the digi sim links
-    // alone: a tracker DetId names a module, and the cell is what separates two
-    // particles crossing one.
+    // A tracker DetId names a module. The cell separates two particles that cross one module.
     builder.setCellKeyed(truth::HitChannel::Tracker, true);
     fillTrackerCells(event, builder);
   }
@@ -342,10 +336,9 @@ void TruthLogicalGraphHitIndexProducer::produce(edm::StreamID, edm::Event& event
 
   auto output = std::make_unique<truth::LogicalGraphHitIndex>(builder.finish());
   if (sharedSubgraphStore_ && !builder.usedSharedStore()) {
-    // The materialised layout stores each hit once PER ANCESTOR, and on a large event
-    // that can exceed ROOT's 1 GiB single-object limit and kill the output module. A
-    // silent fallback shows up only as a crash three modules away, on heavy-ion events
-    // (cms-sw/cmssw#51638), so the fallback is always announced.
+    // The materialised layout stores each hit once per ancestor. On a large event it can
+    // exceed the ROOT 1 GiB single-object limit and the output module fails. Always warn,
+    // because the failure shows up only in a later module.
     edm::LogWarning("LogicalGraphHitIndexProducer")
         << "shared subgraph store requested but the hit-carrying particles do not form a forest; "
            "fell back to the MATERIALISED layout, which duplicates every hit per ancestor. On a "
@@ -562,9 +555,8 @@ void TruthLogicalGraphHitIndexProducer::fillTrackerCells(edm::Event& event,
 
     for (auto const& detSet : *hLinks) {
       for (auto const& link : detSet) {
-        // The energy of a cell-keyed hit is the charge fraction the digitizer recorded
-        // for this particle on this cell. The tracker metric counts cells, so the value
-        // is informational, but it must be positive or the builder drops the hit.
+        // The energy of a cell-keyed hit is the charge fraction of this particle on this cell.
+        // The builder drops a hit with no positive energy, so a non-positive fraction becomes 1.
         const float fraction = link.fraction() > 0.f ? link.fraction() : 1.f;
         builder.addHit(truth::HitChannel::Tracker,
                        link.eventId().rawId(),
@@ -583,7 +575,7 @@ void TruthLogicalGraphHitIndexProducer::fillMuonSimHits(edm::Event& event,
     edm::Handle<edm::PSimHitContainer> hSimHits;
     event.getByToken(muonSimHitTokens_[tokenIndex], hSimHits);
 
-    // Phase-2 D120 does not populate every muon subsystem; missing ones are skipped.
+    // A geometry does not always have every muon subsystem. Skip a missing collection.
     if (!hSimHits.isValid())
       continue;
 
@@ -609,15 +601,14 @@ void TruthLogicalGraphHitIndexProducer::fillMtdHits(edm::Event& event,
       MTDTopologyMode::crysLayoutFromTopoMode(setup.getData(mtdTopologyToken_).getMTDTopologyMode());
 
   for (auto const& cluster : *hClusters) {
-    // Every interaction: the graph keys its particles by (EncodedEventId, trackId), as
-    // the other channels do.
+    // Read every interaction. The graph keys its particles by (EncodedEventId, trackId).
     const uint64_t eventId = cluster.eventId().rawId();
     const auto trackId = static_cast<uint32_t>(cluster.particleId());
     const uint32_t category = cluster.hitProdType();
     const auto energies = cluster.hits_and_energies();
     const auto times = cluster.hits_and_times();
     for (std::size_t i = 0; i < energies.size(); ++i) {
-      // Packed as the sim DetId << 32 | row << 16 | col, the row and col are 8 bits each.
+      // Packed as sim DetId << 32 | row << 16 | col. The row and the col are 8 bits each.
       const uint64_t packed = energies[i].first;
       const MTDDetId simId(static_cast<uint32_t>(packed >> 32));
       const uint32_t moduleId = simId.mtdSubDetector() == MTDDetId::BTL

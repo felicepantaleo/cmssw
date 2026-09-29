@@ -1,14 +1,12 @@
 #!/usr/bin/env python3
-"""Render the truth-branch DQM output as a CMS-styled, browsable gallery.
+"""Draw the truth-branch DQM output as a CMS-style gallery.
 
-Each variable becomes ONE overlay plot with a ratio panel, rather than isolated
-histograms the reader has to compare by eye. The reco-driven metrics (fake, pileup,
-purity, resolution) overlay the branch-association working points; the truth-driven
-metrics (efficiency, duplicate, split, composition) overlay the graph LEVELS, because
-their folders are keyed by level and the working point never enters them.
+Each variable gives one overlay plot with a ratio panel. The reco-driven metrics (fake,
+pileup, purity, resolution) overlay the branch-association working points. The
+truth-driven metrics (efficiency, duplicate, split, composition) overlay the graph levels,
+because their folders are keyed by level.
 
-Collections, working points, levels and categories are DISCOVERED from the DQM folder
-names, so a new collection, working point or level needs no edit here.
+The script finds collections, working points, levels and categories from the DQM folder names.
 
   makeTruthValidationPlots.py DQM_V0001_*.root --outputDir plots
 """
@@ -31,28 +29,20 @@ ROOT.gErrorIgnoreLevel = ROOT.kWarning
 
 plt.style.use(hep.style.CMS)
 
-# The reference working point: every reco-driven ratio is taken against it, and it
-# keeps the first colour of the Petroff cycle everywhere in the gallery so colour
-# follows the entity.
+# The reference working point of every reco-driven ratio. It keeps the first colour of the cycle.
 REFERENCE_WP = "Fixed"
 WP_ORDER = ["Fixed", "AdaptiveTight", "AdaptiveNominal", "AdaptiveLoose"]
-# Truth-driven folders are keyed by graph LEVEL (hit-based domains) or by the vertex
-# resolution (composite domains). Every truth-driven ratio is taken against
-# caloBoundary, falling back to the first suffix present. The signal suffix is the
-# overall signal entry: its denominator is the preset SEED objects among the selected
-# roots, so with a selection preset it is the efficiency of the signal object itself
-# (the tau, not its decay legs). signalNoSelection is the same seed objects with no
-# selector cut at all, so the efficiency is quoted against every seed in the event.
-# Every entry here is an ANTICHAIN: no member is an ancestor of another, so no efficiency
-# counts one object twice. That is the entry requirement for a truth denominator.
+# Truth-driven folders are keyed by graph level (hit-based domains) or by the vertex
+# resolution (composite domains). Every truth-driven ratio is taken against caloBoundary,
+# or against the first suffix present. signal has the preset seed objects among the selected
+# roots as denominator. signalNoSelection has the same seed objects with no selector cut.
 LEVEL_ORDER = ["stableLegsFromInitialState", "caloBoundary", "stableDecayProducts", "hardProcess",
                "reconstructableFromSignal", "reconstructableFinalState", "underlyingEvent",
                "partonJets", "bHadrons", "cHadrons", "tauVisibleHadronic", "tauVisibleLeptonic",
                "signal", "signalNoSelection"]
-# What each truth-driven series IS. These are the efficiency DENOMINATORS, and they are not
-# interchangeable, but every one of them is an ANTICHAIN: no member is an ancestor of
-# another, so no efficiency counts one object twice. Sizes quoted are ttbar PU200 D122 with
-# the top preset, per event, measured from the associator target lists.
+# The efficiency denominator of each truth-driven series. Each is an antichain: no member is an
+# ancestor of another. Sizes are per event on ttbar PU200 D122 with the top preset, from the
+# associator target lists.
 LEVEL_MEANING = {
     "caloBoundary":
         "every particle recorded crossing the tracker/calorimeter boundary OUTWARD, back-scattered tracks "
@@ -110,7 +100,7 @@ REFERENCE_LEVEL = "caloBoundary"
 # The metrics that live in the level-keyed folders; everything else is per working point.
 TRUTH_METRICS = {"composition", "efficiency", "duplicate", "splitrate"}
 
-# Which metrics we plot, and how each should be read.
+# The plotted metrics: (label, meaning, formula).
 METRICS = {
     "composition": (
         "Branch composition",
@@ -242,31 +232,25 @@ VARIABLE_MEANING = {
     "flavour": "species that initiated the truth object, read off the branch root PDG id. Only the partonJets level has parton roots, so on every other level the whole distribution sits in the `other` bin by construction",
     "shared_energy_fraction": "fraction of the truth branch energy that the matched reco object shares with it",
 }
-# Axis title per variable, in the CMS convention: the unit in square brackets, and no
-# bracket at all for a pure count, a fraction or a dimensionless shape variable.
-# Bin names of the flavour axis, mirroring truth::kFlavourBinNames. The axis is species
-# rather than a number, so the ticks are named and never drawn as bin indices.
+# Bin names of the flavour axis, the same as truth::kFlavourBinNames.
 FLAVOUR_BINS = ["other", "d", "u", "s", "c", "b", "t", "g"]
 
-# Axes booked with symlog bin edges, mirroring _linthresh in truthBranchValidation_cff.
-# The value is the linear-to-log crossover, and it must match the booking or the drawn
-# axis and the bin edges disagree.
-# (linthresh, max). The maximum is needed because matplotlib's symlog is SYMMETRIC about
-# zero by default: without an explicit left limit it draws a negative branch, and a
-# negative pt or radius cannot exist, so half the canvas went to empty mirror decades.
+# Axes booked with symlog bin edges: (linthresh, max). linthresh must match _linthresh in
+# truthBranchValidation_cff. The max sets the axis limit, because matplotlib symlog is
+# symmetric about zero and would otherwise draw negative decades.
 SYMLOG_AXES = {
     "pt": (0.1, 1000.0),
     "vertpos": (0.001, 60.0),
     "nhits": (1.0, 10000.0),
 }
 
+# Axis title per variable, in the CMS convention: the unit in square brackets, no bracket
+# for a count, a fraction or a dimensionless variable.
 AXIS_TITLE = {
     "flavour": "initiating parton",
     "pt": r"p$_{T}$ [GeV]",
-    # The truth object here is the branch ROOT, whose eta is where it was PRODUCED, not
-    # where its energy landed. Say so on the axis: for anything but caloBoundary the root
-    # decayed long before the calorimeter, so this is not an acceptance axis. The
-    # calorimeter-entrance counterpart is caloeta.
+    # The eta of the branch root at production, not an acceptance axis. caloeta is the
+    # eta at the calorimeter entrance.
     "eta": r"truth root $\eta$",
     "phi": r"$\phi$ [rad]",
     "nhits": "number of hits",
@@ -280,30 +264,22 @@ AXIS_TITLE = {
     "shared_energy_fraction": "shared energy fraction",
     "reason": "creation process",
 }
-# Axes drawn over their full booked range whatever the sample populates. A gun sample
-# fills a slice of eta and autoscaling would hide that the rest of the acceptance is
-# empty, which is itself the result.
-# The eta axes are booked over +-4.5, so the drawing range matches the booking; a
-# narrower window drops the forward region off the canvas.
+# Axes drawn over their full booked range (+-4.5), whatever the sample fills, so an empty
+# part of the acceptance stays visible.
 AXIS_RANGE = {"eta": (-4.5, 4.5), "caloeta": (-4.5, 4.5)}
-# Residual axis titles per fitted quantity: the momentum residual is relative and so
-# dimensionless, the angular ones are differences and phi carries radians.
+# Residual axis titles per fitted quantity: the pt residual is relative, the angular ones are differences.
 RESIDUAL_TITLE = {
     "pt": "(reco - truth) / truth",
     "eta": "reco - truth",
     "phi": "reco - truth [rad]",
 }
 RESIDUAL_UNIT = {"pt": "", "eta": "", "phi": " [rad]"}
-# One marker shape and one line style per series, so the curves stay separable in
-# greyscale and under colour-vision deficiency, not by colour alone. A cumulative
-# partner keeps its series' colour and shape and is drawn open and dashed.
+# One marker shape and one line style per series, so the curves are distinct without colour.
+# A cumulative partner keeps the colour and shape of its series, with an open marker and a dashed line.
 SERIES_MARKERS = ["o", "s", "^", "v", "*", "P", "D"]
 SERIES_STYLES = ["-", "--", "-.", ":", (0, (3, 1, 1, 1)), (0, (1, 1)), (0, (5, 1))]
-# Typography. The CMS style is built for a single full-page pad, where a 26 pt axis
-# title is right; on a two-pad figure carrying a twelve-entry legend it dwarfs
-# everything around it and a long y title outgrows its own pad. The title is therefore
-# modestly larger than the tick labels, and the ratio pad's title smaller still so it
-# does not compete with the main pad's.
+# Font sizes, smaller than the CMS style default of 26 pt, which is for a single full-page pad.
+# The ratio pad title is smaller than the main pad title.
 AXIS_TITLE_SIZE = 17
 TICK_LABEL_SIZE = 15
 RATIO_TITLE_SIZE = 12
@@ -317,11 +293,8 @@ def axis_title(var):
 def marker_size(marker):
     """A star needs more area than a circle to read as the same size."""
     return 8 if marker == "*" else 5
-# The Individual-match criterion per category: (legend line, full statement). The
-# threshold values come from the corresponding standard validation, not from here; the
-# full statement says where each lives. The legend line goes on every truth-driven
-# plot, the full statement into the DEFINITIONS text, so the number on the page
-# carries its own definition.
+# The Individual-match criterion per category: (legend line, full statement). The legend
+# line goes on every truth-driven plot, the full statement into the definitions text.
 _VERTEX_CRITERION = (
     "Individual: any positive shared p$_{T}^{2}$ track fraction (vertex validation standard)",
     "Individual: any positive shared pt^2 track fraction. The reference vertex association gates on "
@@ -366,8 +339,7 @@ MATCH_CRITERIA = {
         "other side counting as a good association.",
     ),
 }
-# Per-domain caveats. A number that is correct but not discriminating reads as a result
-# unless the page says otherwise, so the page says otherwise.
+# Caveats per domain, written on the pages of that domain.
 CATEGORY_NOTE = {
     "Vertexing": (
         "A vertex owns no hits, so it is associated to a truth vertex by aggregating the tracks it was built "
@@ -403,8 +375,7 @@ STYLE = (
     ".f{font-family:monospace;background:#fff;padding:.2em .45em;border:1px solid #dde}"
     "ul.idx{line-height:1.8;max-width:62em}"
 )
-# Plots the graph makes possible that a frozen truth object cannot answer. Shown in the
-# gallery so the next step is visible rather than tribal knowledge.
+# Proposed plots that the graph makes possible, listed in the gallery.
 PROPOSED = [
     ("Merge rate by lowest common ancestor",
      "When two branches are reconstructed as one object the graph gives the LCA of the contributors, so the merge "
@@ -420,13 +391,11 @@ PROPOSED = [
      "A vertex should be associated to the graph Interaction vertex rather than to particle branches. The present "
      "PV numbers are mechanically correct but aimed at the wrong truth object."),
 ]
-# Metric order drives the page order, so a reader meets efficiency before its failure modes.
+# The page order: efficiency before its failure modes.
 METRIC_ORDER = ["composition", "efficiency", "duplicate", "splitrate", "recopurity", "fakerate",
                 "nocandidate", "nolevelcandidate", "contaminated",
                 "pileuprate", "resolution"]
-# caloeta sits next to eta on purpose: the two answer "where was the branch root
-# produced" and "where did the branch reach the calorimeter", and for anything but the
-# caloBoundary level they are different questions with different answers.
+# caloeta is next to eta: production eta of the root and eta at the calorimeter entrance.
 VARIABLE_ORDER = ["pt", "eta", "caloeta", "phi", "nhits", "vertpos", "zpos", "dxy", "dz", "depth",
                   "root_footprint_fraction", "flavour"]
 # Axes whose bins are named categories rather than numbers, drawn as grouped bars.
@@ -440,14 +409,11 @@ RESOLUTION_ORDER = [
 ]
 _RES_RE = re.compile(r"^(?P<base>\w+res_vs_\w+)_(?P<stat>Mean|Sigma)$")
 RESOLUTION_SOURCES = ["ptres_vs_eta", "ptres_vs_pt", "etares_vs_eta", "phires_vs_eta"]
-# A Gaussian fitted to a slice with a handful of entries returns a width that is not a
-# resolution. Below this many entries the point is dropped, not drawn.
+# A slice fit with fewer entries than this is not drawn.
 MIN_SLICE_ENTRIES = 20
-# A ratio formed from a handful of entries is noise with a large error bar, not a
-# measurement. Bins whose DENOMINATOR is below this are not drawn.
+# A ratio bin whose denominator has fewer entries than this is not drawn.
 MIN_DENOM_ENTRIES = 10
-# Which num_* histogram is the denominator of each metric, so a bin can be dropped when
-# there was nothing there to divide by.
+# The num_* histogram that is the denominator of each metric.
 DENOMINATOR = {
     "efficiency": "num_simul",
     "duplicate": "num_simul",
@@ -494,13 +460,12 @@ def bin_labels(h):
     return labels if any(labels) else None
 
 
-# The two reconstructions of the same event. They are never pooled: each gets its own
-# pages, so a comparison is between pages and not inside a plot.
+# The two reconstructions of the same event. Each has its own pages.
 FLAVOURS = ["Offline", "HLT"]
 
 
-# Acceptance-region sub-folders, mirroring truth::kEtaRegionFolders. Same ME names as the
-# inclusive folder, so they need no other special handling.
+# Acceptance-region sub-folders, the same as truth::kEtaRegionFolders, with the same ME names
+# as the inclusive folder.
 REGION_FOLDERS = {"etaLt15", "eta15to30", "eta30to45"}
 REGION_MEANING = {
     "etaLt15": "|eta| below 1.5, the barrel. No trackster exists here, so a calorimetric efficiency in this "
@@ -512,12 +477,7 @@ REGION_MEANING = {
 
 
 def _source_of(relpath, start_marker, end_marker=None, max_lines=80):
-    """The actual source text of a definition, read at plot time from the release.
-
-    A page that cites "SomeFile.cc:2819" is wrong the moment a line is inserted above it,
-    and the reader cannot tell. Embedding the text means the page always shows the
-    definition that produced the numbers on it, and there is nothing to keep in sync.
-    """
+    """The source text of a definition, read at plot time from CMSSW_BASE or CMSSW_RELEASE_BASE."""
     for base in (os.environ.get("CMSSW_BASE"), os.environ.get("CMSSW_RELEASE_BASE")):
         if not base:
             continue
@@ -594,13 +554,7 @@ def definitions_html():
 
 
 def region_label(category):
-    """The acceptance range this plot covers, spelled out for the image itself.
-
-    Without it a region plot and the inclusive one carry the SAME title, so a PNG on its
-    own is ambiguous: the range only survives in the filename and the page it sits on.
-    Inclusive says so explicitly rather than staying silent, since silence is what made
-    the region plots indistinguishable in the first place.
-    """
+    """The acceptance range of this plot, drawn on the image. The inclusive plot says "all |eta|"."""
     region = category.rsplit("/", 1)[-1] if "/" in category else ""
     return {
         "etaLt15": "|eta| < 1.5",
@@ -612,11 +566,8 @@ def region_label(category):
 def discover(tfile):
     """Yield (flavour, category, folder, TDirectory) for every directory with histograms.
 
-    The DQM path is TruthInfo/<flavour>/<category>/<collection>_<workingPoint>. A file
-    written before the flavour level existed has no such component and is reported as
-    Offline, so old files still plot. Only the TruthInfo tree is read: a harvested file
-    of a full validation job also holds Tracking, Btag, HLT and other folders, whose
-    names split on the last underscore as well and would be drawn as truth collections.
+    The DQM path is TruthInfo/<flavour>/<category>/<collection>_<workingPoint>. A path with
+    no flavour component is reported as Offline. Only the TruthInfo tree is read.
     """
 
     def walk(directory, path):
@@ -633,10 +584,8 @@ def discover(tfile):
             elif cls and cls.InheritsFrom("TH1"):
                 holds = True
         if holds and len(path) >= 2:
-            # An acceptance region is a sub-folder of the collection folder, carrying the
-            # same ME names. Fold it into the CATEGORY so every downstream page, caption
-            # and ratio works unchanged and the regions simply appear as their own
-            # entries rather than being silently skipped by the collection_wp split.
+            # An acceptance region is a sub-folder of the collection folder with the same ME
+            # names. It becomes part of the category, "<category>/<region>".
             if path[-1] in REGION_FOLDERS and len(path) >= 3:
                 flavour = path[-4] if len(path) >= 4 and path[-4] in FLAVOURS else "Offline"
                 yield flavour, path[-3] + "/" + path[-1], path[-2], directory
@@ -656,8 +605,8 @@ def collect(files):
             print(f"cannot open {fname}", file=sys.stderr)
             continue
         for flavour, category, folder, folderDir in discover(tfile):
-            # Folder is "<collection>_<workingPoint>"; split on the LAST underscore so a
-            # collection label containing underscores survives.
+            # Folder is "<collection>_<workingPoint>". Split on the last underscore, because a
+            # collection label can contain underscores.
             if "_" not in folder:
                 continue
             collection, wp = folder.rsplit("_", 1)
@@ -665,9 +614,7 @@ def collect(files):
             for key in folderDir.GetListOfKeys():
                 # One deserialization per key; every branch below reads this object.
                 obj = key.ReadObj()
-                # The per-process population is the denominator of the categorical
-                # ratios; it is carried along so a bar can be dropped when the process
-                # simply does not occur, rather than drawn as a zero efficiency.
+                # Keep the num_simul_* and num_reco_* counts, to drop bins with a small denominator.
                 name = key.GetName()
                 if name.startswith("num_simul_") or name.startswith("num_reco_"):
                     if obj.InheritsFrom("TH1") and not obj.InheritsFrom("TH2"):
@@ -745,9 +692,8 @@ def collect(files):
 def _fit_ok(wp, values, slices, is_sigma=False, errors=None):
     """Mask of slices whose Gaussian fit can be believed.
 
-    Three ways a slice fit is worthless: too few entries to constrain it, a width wider
-    than the histogram it was fitted in, and a width narrower than one bin. The first
-    two are runaway fits, the third is a fit that collapsed onto a single bin.
+    A slice is rejected if it has too few entries, if the value is outside the fit range, if a
+    width is narrower than one bin, or if the relative fit error is above 0.5.
     """
     ok = np.ones(len(values), dtype=bool)
     if slices is None or wp not in slices:
@@ -769,9 +715,7 @@ def _fit_ok(wp, values, slices, is_sigma=False, errors=None):
 def broken(values, keep):
     """The series with the dropped bins as NaN, keeping the x grid contiguous.
 
-    A dropped bin must BREAK the line, not be skipped over: the segment matplotlib would
-    otherwise draw across it reads as a measurement in a region that has none, such as the
-    barrel gap where HGCAL has no acceptance. NaN lifts the pen and draws no marker.
+    A dropped bin breaks the line, so no segment is drawn across a region with no measurement.
     """
     out = np.asarray(values, dtype=float).copy()
     out[~np.asarray(keep, dtype=bool)] = np.nan
@@ -798,8 +742,7 @@ def plot_metric(category, collection, metric, var, per_wp, outdir, index, slices
 
     is_sigma = var.endswith("_Sigma")
     colors = plt.rcParams["axes.prop_cycle"].by_key()["color"]
-    # Working points can lie on top of one another (the adaptive points differ by ~0.002
-    # here), so vary marker AND linestyle: colour alone hides a curve completely.
+    # Curves can overlap, so the series differ in marker and line style as well as colour.
     markers = SERIES_MARKERS
     styles = SERIES_STYLES
     fig, (ax, rax) = plt.subplots(
@@ -811,10 +754,7 @@ def plot_metric(category, collection, metric, var, per_wp, outdir, index, slices
     for i, wp in enumerate(wps):
         edges, values, errors = per_wp[wp]
         centers = 0.5 * (edges[:-1] + edges[1:])
-        # A measured zero is data: an efficiency that falls to zero inside acceptance, a
-        # fake rate of zero on a clean sample, a fitted mean that sits at zero. Only a bin
-        # with no entries at all is empty, and such a bin carries both a zero value and a
-        # zero uncertainty. The denominator cut below removes the thinly populated bins.
+        # A measured zero is data. A bin is empty only when both its value and its error are zero.
         filled = np.isfinite(values) & ((values != 0) | (errors > 0))
         filled = filled & _fit_ok(wp, values, slices, is_sigma, errors if metric == "resolution" else None)
         if denom is not None and wp in denom and len(denom[wp]) == len(values):
@@ -834,8 +774,7 @@ def plot_metric(category, collection, metric, var, per_wp, outdir, index, slices
             label=wp,
         )
         if paired is not None and wp in paired:
-            # The cumulative partner of this series: same colour and shape so the pair
-            # reads as one level, open marker and dashed line so the two are distinct.
+            # The cumulative partner of this series: same colour and shape, open marker, dashed line.
             p_edges, p_values, p_errors = paired[wp]
             p_centers = 0.5 * (p_edges[:-1] + p_edges[1:])
             p_filled = np.isfinite(p_values) & ((p_values != 0) | (p_errors > 0))
@@ -857,8 +796,7 @@ def plot_metric(category, collection, metric, var, per_wp, outdir, index, slices
 
     label, meaning, formula = METRICS[metric]
     if metric == "resolution":
-        # Residuals are not bounded to [0, 1]; a fixed range would push every point off
-        # the axis. Scale to the data, keeping zero visible so a bias is readable.
+        # Residuals are not bounded to [0, 1]. Scale to the data and keep zero visible.
         def _shown(w):
             v = per_wp[w][1]
             return v[(v != 0) & _fit_ok(w, v, slices, is_sigma)]
@@ -867,12 +805,9 @@ def plot_metric(category, collection, metric, var, per_wp, outdir, index, slices
         allv = np.concatenate(shown or [np.zeros(1)])
         span = float(np.abs(allv).max()) if allv.size else 1.0
         ax.set_ylim(min(0.0, float(allv.min()) * 1.3 if allv.size else 0.0), span * 1.35 if span else 1.0)
-        # The momentum residual is relative and dimensionless, the angular ones are
-        # differences, so only the azimuth carries a unit.
+        # Only the phi residual has a unit.
         label = ("Mean" if var.endswith("_Mean") else "Sigma") + RESIDUAL_UNIT.get(var.split("res_vs_", 1)[0], "")
-    # The plot title stays generic. A bin-averaged summary in the title reads as a
-    # conclusion the plot has not earned, so the measured numbers go in the README
-    # caption instead, where they can be qualified.
+    # The plot title stays generic. The bin-averaged numbers go in the caption.
     title = f"{label} vs {var}" if metric != "resolution" else var.replace("_", " ")
     ref = means.get(reference)
     others = [means[w] for w in wps if w != reference]
@@ -884,33 +819,26 @@ def plot_metric(category, collection, metric, var, per_wp, outdir, index, slices
     else:
         caption = f"{title}, {region_label(category)}"
 
-    # Centred on the MAIN pad: the CMS top location hangs the title from the top of the
-    # axes, so a long one runs down past the pad and into the ratio panel.
+    # Centred on the main pad, so a long title does not run into the ratio panel.
     ax.set_ylabel(label, fontsize=AXIS_TITLE_SIZE, loc="center")
     ax.tick_params(labelsize=TICK_LABEL_SIZE)
     if metric != "resolution":
         ax.set_ylim(0.0, 1.15)
     ax.grid(alpha=0.3)
     handles, labels = ax.get_legend_handles_labels()
-    # Paired pages carry twice the entries, so the legend wraps instead of overflowing
-    # into the x label at the figure's right edge.
-    # Three columns once the level pairs push past eight entries: a fourth column runs
-    # into the x label at the figure's right edge.
+    # Up to four legend columns, three above eight entries, so the legend fits the figure width.
     ncol = min(len(labels), 4 if len(labels) <= 8 else 3)
     fig.legend(handles, labels, fontsize=13 if len(labels) <= 4 else 11, loc="lower center",
                ncol=ncol, frameon=False, bbox_to_anchor=(0.5, 0.02))
-    # The legend grows a row at a time and the x title, which carries the unit, is written
-    # in the same band; the pads move up so the two do not overlap.
+    # Move the pads up by one step per extra legend row, so the legend and the x title do not overlap.
     fig.subplots_adjust(bottom=0.16 + 0.025 * max(0, -(-len(labels) // ncol) - 1))
     if note:
-        # The match criterion the numerator was counted with, so the plot carries its
-        # own definition; the sources of the thresholds are in DEFINITIONS.md.
+        # The match criterion of the numerator. The full statement is in DEFINITIONS.md.
         fig.text(0.5, 0.002, note, ha="center", va="bottom", fontsize=9, color="0.35")
     ax.tick_params(labelbottom=False)
     hep.cms.label(ax=ax, llabel="Private Work", rlabel=f"Phase-2 Simulation, {region_label(category)}", fontsize=15)
 
-    # Ratio panel: only where the reference has a value, so an empty reference bin does
-    # not manufacture a spike.
+    # Ratio panel: only where the reference is non-zero.
     ratio_values = []
     if reference in per_wp:
         ref_edges, ref_values, _ = per_wp[reference]
@@ -919,8 +847,7 @@ def plot_metric(category, collection, metric, var, per_wp, outdir, index, slices
             if wp == reference:
                 continue
             _, values, _ = per_wp[wp]
-            # The reference has to be non-zero to divide by it. The series itself may be
-            # zero: a ratio of zero is a result, not a missing point.
+            # The series may be zero: a ratio of zero is a result.
             ok = np.isfinite(ref_values) & np.isfinite(values) & (ref_values != 0)
             ok = ok & _fit_ok(reference, ref_values, slices, is_sigma) & _fit_ok(wp, values, slices, is_sigma)
             if denom is not None:
@@ -931,8 +858,7 @@ def plot_metric(category, collection, metric, var, per_wp, outdir, index, slices
                 ratio = np.full(len(values), np.nan)
                 ratio[ok] = values[ok] / ref_values[ok]
                 ratio_values.extend(ratio[ok].tolist())
-                # Same marker, colour and line style as the main pad, so a series is
-                # recognised in the ratio without going back to the legend.
+                # Same marker, colour and line style as in the main pad.
                 rax.plot(
                     ref_centers,
                     ratio,
@@ -944,8 +870,7 @@ def plot_metric(category, collection, metric, var, per_wp, outdir, index, slices
                     alpha=0.85,
                     color=colors[i % len(colors)],
                 )
-    # Scale to the data when a ratio leaves the default window, rather than drawing an
-    # empty panel that reads as "no points" instead of "points off scale".
+    # The ratio range is [0, 2], extended to the data when a ratio is larger.
     rax.axhline(1.0, linestyle="--", color="gray", linewidth=1.2)
     rax.set_ylabel(f"ratio to {reference}", fontsize=RATIO_TITLE_SIZE)
     rax.set_ylim(0.0, max(2.0, max(ratio_values) * 1.15 if ratio_values else 2.0))
@@ -953,15 +878,13 @@ def plot_metric(category, collection, metric, var, per_wp, outdir, index, slices
     xvar = var.rsplit("_vs_", 1)[-1].split("_")[0] if "_vs_" in var else var
     # The two pads share the x axis, so the title is written once, under the ratio.
     rax.set_xlabel(axis_title(xvar), fontsize=AXIS_TITLE_SIZE)
-    # Axes booked with symlog bin edges must be DRAWN symlog, or the log ladder is
-    # squashed into the right-hand sliver of a linear axis and reads as an empty plot.
-    # Linear below the threshold so the entries at exactly 0 stay visible: on DY 20.5% of
-    # the signal level sits at pt exactly 0.
+    # Axes booked with symlog bin edges are drawn symlog. The linear part keeps entries at 0
+    # visible: on DY, 20.5% of the signal level has pt exactly 0.
     if xvar in SYMLOG_AXES:
         _lin, _max = SYMLOG_AXES[xvar]
         for _a in (rax, ax):
             _a.set_xscale("symlog", linthresh=_lin)
-            # Clamp at 0: symlog would otherwise mirror the decades into negative x.
+            # Start at 0, so symlog draws no negative decades.
             _a.set_xlim(0.0, _max)
     if xvar == "flavour":
         rax.set_xticks([i + 0.5 for i in range(len(FLAVOUR_BINS))])
@@ -980,8 +903,7 @@ def plot_categorical(category, collection, metric, var, per_wp, counts, outdir, 
                      order=None, reference=None):
     """Grouped horizontal bars, one group per named category, one bar per series.
 
-    Categories the sample does not populate are dropped rather than drawn at zero: a
-    process that never happened is not an inefficiency.
+    Categories that the sample does not fill are not drawn.
     """
     order = order or WP_ORDER
     wps = [w for w in order if w in per_wp] + [w for w in sorted(per_wp) if w not in order]
@@ -1000,15 +922,13 @@ def plot_categorical(category, collection, metric, var, per_wp, counts, outdir, 
                (population is not None and population[i] > 0)]
     if not keep:
         return None
-    # Most populated process first, so the rows the reader should trust come first and
-    # a one-entry category cannot sit between two well-populated ones.
+    # Most populated process first.
     if population is not None:
         keep.sort(key=lambda k: population[k], reverse=True)
 
     colors = plt.rcParams["axes.prop_cycle"].by_key()["color"]
     fig, ax = plt.subplots(figsize=(11, 0.62 * len(keep) + 3.6))
-    # Margins fixed in inches, not in figure fractions: the figure height grows with the
-    # number of categories, so a fractional bottom margin would shrink the label space.
+    # Margins are fixed in inches, because the figure height grows with the number of categories.
     height = fig.get_figheight()
     fig.subplots_adjust(left=0.30, right=0.97, top=1 - 0.5 / height, bottom=1.6 / height)
 
@@ -1023,8 +943,7 @@ def plot_categorical(category, collection, metric, var, per_wp, counts, outdir, 
 
     label, meaning, formula = METRICS[metric]
     title = f"{label} vs {var}"
-    # The category population is what makes a bar readable, so it is written next to
-    # the label instead of being left to the reader to guess from the error bar.
+    # Write the category population next to the label.
     ticks = []
     for k in keep:
         if population is not None:
@@ -1038,8 +957,7 @@ def plot_categorical(category, collection, metric, var, per_wp, counts, outdir, 
     ax.set_xlabel(label, fontsize=AXIS_TITLE_SIZE)
     ax.tick_params(axis="x", labelsize=TICK_LABEL_SIZE)
     ax.grid(axis="x", alpha=0.3)
-    # Below everything: a legend inside the axes covers the least populated rows, which
-    # are still real measurements, so it goes under the x label in the reserved margin.
+    # The legend goes under the x label, so it covers no bar.
     handles, lbls = ax.get_legend_handles_labels()
     fig.legend(handles, lbls, fontsize=13, loc="lower center", ncol=len(lbls), frameon=False,
                bbox_to_anchor=(0.5, 0.15 / height))
@@ -1059,8 +977,7 @@ def plot_categorical(category, collection, metric, var, per_wp, counts, outdir, 
 def plot_residual(category, collection, source, per_wp, outdir, index):
     """The residual distribution itself, overlaid across working points.
 
-    The Gaussian slice fit summarises this distribution; when the distribution is not
-    Gaussian the fit says nothing and only the distribution does.
+    It shows the shape when the distribution is not Gaussian and the slice fit does not describe it.
     """
     wps = [w for w in WP_ORDER if w in per_wp] + [w for w in sorted(per_wp) if w not in WP_ORDER]
     if not wps:
@@ -1077,8 +994,7 @@ def plot_residual(category, collection, source, per_wp, outdir, index):
         if total <= 0:
             continue
         centers = 0.5 * (edges[:-1] + edges[1:])
-        # Fraction inside +-10%, a scale-free statement about how peaked it is that does
-        # not depend on a fit converging.
+        # Fraction inside +-0.1, a measure of the peak that needs no fit.
         cores[wp] = float(values[np.abs(centers) <= 0.1].sum() / total)
         hep.histplot(broken(values / total, values > 0), edges, ax=ax, label=wp, yerr=False,
                      color=colors[i % len(colors)], linestyle=styles[i % len(styles)], linewidth=1.6)
@@ -1145,8 +1061,7 @@ def main():
     args = ap.parse_args()
 
     os.makedirs(args.outputDir, exist_ok=True)
-    # One real directory per metric, so the gallery browses as folders and not as one
-    # flat list of sixty files.
+    # One directory per flavour and metric.
     for flavour in FLAVOURS:
         for metric in METRIC_ORDER:
             os.makedirs(os.path.join(args.outputDir, flavour, metric), exist_ok=True)
@@ -1173,14 +1088,12 @@ def main():
                     index += 1
             for metric in METRIC_ORDER:
                 per_metric = data[category][collection].get(metric, {})
-                # Truth-driven metrics compare graph levels; everything else compares
-                # working points.
+                # Truth-driven metrics compare graph levels, the others compare working points.
                 if metric in TRUTH_METRICS:
                     series_order, series_ref = TRUTH_SUFFIXES, REFERENCE_LEVEL
                 else:
                     series_order, series_ref = WP_ORDER, REFERENCE_WP
-                # The cumulative numerator pairs with the individual one on the
-                # efficiency page rather than getting a page of its own.
+                # The cumulative efficiency is drawn with the individual one, on the efficiency page.
                 cumulative = (data[category][collection].get("efficiency_cumulative", {})
                               if metric == "efficiency" else {})
                 for var in VARIABLE_ORDER:
@@ -1188,10 +1101,8 @@ def main():
                         continue
                     _criterion = (MATCH_CRITERIA.get(category.split("/")[-1])
                                   if metric in TRUTH_METRICS else None)
-                    # Queued rather than drawn here: every argument is numpy arrays and
-                    # plain values, since hist_arrays converts the TH1 before this point,
-                    # so the work pickles and a worker process can do it. Drawing is the
-                    # bulk of the runtime and is what parallelises.
+                    # Queue the plot for the process pool. The arguments are numpy arrays and
+                    # plain values, so they pickle.
                     metric_tasks.append((
                         (category, collection, metric, var, per_metric[var], args.outputDir, index,
                          None,
@@ -1200,8 +1111,7 @@ def main():
                          _criterion[0] if _criterion else None),
                         {"_ord": index, "category": category, "collection": collection, "metric": metric, "var": var},
                     ))
-                    # Unconditional now: the index only has to be unique per plot, and the
-                    # worker decides whether the plot is drawable.
+                    # The index is unique per plot. The worker decides if the plot is drawn.
                     index += 1
                 if metric == "resolution":
                     for source in RESOLUTION_SOURCES:
@@ -1219,8 +1129,7 @@ def main():
                         if var not in per_metric:
                             continue
                         base = var.rsplit("_", 1)[0]
-                        # Queued like every other plot_metric call, so the resolution
-                        # pages draw in the process pool too.
+                        # Queue the plot for the process pool.
                         metric_tasks.append((
                             (category, collection, metric, var, per_metric[var], args.outputDir, index,
                              all_slices.get(base), None, None, None, None, None),
@@ -1243,9 +1152,7 @@ def main():
                                         "var": var, "png": name, "caption": caption})
                         index += 1
 
-    # Draw the queued plots in a process pool. One task is one plot, which is the same
-    # granularity SimpleValidation uses for the standard validation, and the natural unit
-    # here since each writes its own PNG and shares nothing.
+    # Draw the queued plots in a process pool, one task per plot.
     if metric_tasks:
         nproc = args.jobs if args.jobs > 0 else os.cpu_count()
         nproc = max(1, min(nproc, len(metric_tasks)))
@@ -1260,16 +1167,15 @@ def main():
                 name, caption = result
                 written.append(dict(meta, png=name, caption=caption))
 
-    # Restore creation order: the queued plots are appended after the loop, so without
-    # this the categorical plots drawn inline would jump ahead of them on the page.
+    # Restore the creation order, because the queued plots are appended after the loop.
     written.sort(key=lambda e: e["_ord"])
     by_page = {}
     for entry in written:
         flavour = entry["category"].split("/", 1)[0]
         by_page.setdefault((flavour, entry["metric"]), []).append(entry)
 
-    # What the curves of one plot are, per metric family. The truth-driven metrics
-    # overlay graph levels, the reco-driven ones working points.
+    # The description of the curves of one plot: graph levels for the truth-driven metrics,
+    # working points for the reco-driven ones.
     def overlay_note(metric):
         if metric in TRUTH_METRICS:
             return ("Each plot overlays the branch LEVELS of the truth graph, the a priori definitions of what "
@@ -1323,8 +1229,7 @@ def main():
                     page.write(f"<a href='{href}'><img src='{href}' width='400'></a>")
                 page.write("</div>")
 
-    # Each folder carries its own definitions, so a reader who lands in the folder
-    # without going through the index still knows what the plots in it mean.
+    # Each folder has its own DEFINITIONS.md.
     for (flavour, metric), entries in by_page.items():
         label, meaning, formula = METRICS[metric]
         with open(os.path.join(args.outputDir, flavour, metric, "DEFINITIONS.md"), "w") as defs:

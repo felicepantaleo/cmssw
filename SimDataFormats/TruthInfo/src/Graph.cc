@@ -137,8 +137,8 @@ void truth::Graph::appendChildren(size_type particleId, std::vector<uint32_t>& o
 }
 
 namespace {
-  // Append the unique particles_ in `ids` (preserving first-occurrence order) to
-  // `out` as views. Degree is tiny, so the O(deg^2) scan beats an nParticles array.
+  // Append each id in `ids` once, in first-occurrence order, to `out` as a view.
+  // The degree is small, so an O(deg^2) scan costs less than an nParticles array.
   void appendUnique(truth::Graph const* g, std::vector<uint32_t> const& ids, std::vector<truth::Particle>& out) {
     for (uint32_t p : ids) {
       bool dup = false;
@@ -427,9 +427,8 @@ std::optional<truth::Particle> truth::Graph::lowestCommonAncestor(std::vector<Pa
   if (ids.size() == 1)
     return particle(ids.front());
 
-  // Per-ancestor accumulators keyed only by the ancestors actually visited, so
-  // the cost is O(sum of input ancestries) instead of O(inputs x nParticles),
-  // with no dense per-input distance matrix and no full-graph scan:
+  // Per-ancestor accumulators keyed only by the visited ancestors, so the cost is
+  // O(sum of input ancestries), not O(inputs x nParticles):
   //   reach  = how many inputs reach the ancestor (common <=> reach == #inputs)
   //   total  = summed upward distance over the inputs
   //   worst  = worst-case (max) upward distance over the inputs

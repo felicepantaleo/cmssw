@@ -1,21 +1,19 @@
 # Original author: Felice Pantaleo (CERN) <felice.pantaleo@cern.ch>
 
-# DIGI-step pileup-aware truth, wired under the enableTruth modifier: the
-# TruthGraphAccumulator (registered in the MixingModule digitizers) builds the
-# merged signal+pileup raw TruthGraph during mixing, then the logical graph and an
-# UNRESOLVED per-particle per-cell hit index are built right after mixing, where the
-# merged simHits are live. recHitMap="" leaves the index unresolved because the
-# shared-energy association matches by DetId, so the merged simHits never have to
+# DIGI-step pileup-aware truth, under the enableTruth modifier. The
+# TruthGraphAccumulator (in the MixingModule digitizers) builds the merged
+# signal+pileup raw TruthGraph during mixing. The logical graph and an UNRESOLVED
+# per-particle per-cell hit index are built right after mixing, where the merged
+# simHits exist. The association matches by DetId, so the merged simHits do not
 # cross the DIGI->RECO boundary.
 #
-# DEFAULT SCOPE: full detector - calo (HGCal + ECAL + HCAL) + MTD + muon + tracker.
+# DEFAULT SCOPE: the accumulator reads calo (HGCal + ECAL + HCAL), MTD, muon and
+# tracker simHits. The hit index fills the Calo, Muon and Tracker channels.
 # Track-based candidate matching (a TICLCandidate is two-channel: calo shared energy
-# plus tracker shared hits) needs the tracker channel, so it is in the default. The
-# tracker is the largest sim-hit family and the dominant cost, so the reduced variant
-# (mixedTruthGraphCustomize.customiseTruthReduced) drops it for cost-sensitive runs,
-# leaving calo + MTD + muon. MTD sim-hits are captured here. The MTD channel of the
-# hit index is not in the default list below; adding "MTD" to subdetectors fills it
-# from mix:MergedMtdTruthLC and the MTD topology, here or in a later job.
+# plus tracker shared hits) needs the tracker channel. The reduced variant
+# (mixedTruthGraphCustomize.customiseTruthReduced) drops the tracker. Adding "MTD" to
+# subdetectors fills the MTD channel from mix:MergedMtdTruthLC and the MTD topology,
+# here or in a later job.
 
 import FWCore.ParameterSet.Config as cms
 

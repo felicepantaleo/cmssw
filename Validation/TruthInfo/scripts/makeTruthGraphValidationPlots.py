@@ -1,15 +1,12 @@
 #!/usr/bin/env python3
 # Original author: Felice Pantaleo (CERN) <felice.pantaleo@cern.ch>
 
-"""Render the truth-Branch DQM validation plots, inspired by
-Validation/HGCalValidation/scripts/makeHGCalValidationPlots.py but self-contained
-(PyROOT only). It reads one or more DQM files - either the analyzer DQMIO output
-(per-type TH1Fs/TProfiles trees) or a harvested legacy DQM_V0001 file - locates the
-Branch-validator folders, derives the efficiency / fake-rate / merge-rate /
-duplicate-rate ratios from their numerator/denominator histograms (with binomial
-errors) and overlays the booked quality distributions. Passing several files
-overlays the samples in one set of plots (e.g. Tau vs ZMM vs TTbar), which doubles
-as the per-event guided comparison. Output: one PNG per plot plus an index.html.
+"""Draw the truth-Branch DQM validation plots with PyROOT.
+
+Reads DQMIO analyzer output or a harvested legacy DQM file. Computes the efficiency and
+self-match ratios from the numerator and denominator histograms, with binomial errors,
+and draws the quality distributions. Several input files are drawn on the same plots.
+Output: one PNG per plot and an index.html.
 
 Examples:
   makeTruthGraphValidationPlots.py branch_reco_dqm.root -o plots
@@ -29,8 +26,7 @@ ROOT.gErrorIgnoreLevel = ROOT.kWarning
 FOLDERS = [
     ("Tracking/BranchValidator/TrackingParticle", "Branch vs TrackingParticle", {
         "ratios": {
-            # For tracking the self-match rate IS the reproduction efficiency
-            # (best Branch == the TP's natural Branch).
+            # For tracking, the self-match rate is the reproduction efficiency.
             "efficiency_eta": ("effnum_eta", "denom_eta", "Branch reproduces TP / self-match"),
             "efficiency_pt": ("effnum_pt", "denom_pt", "Branch reproduces TP / self-match"),
         },
@@ -175,7 +171,7 @@ def main(opts):
         # Direct distributions.
         for dname in spec["dists"]:
             hists = [(reader.get(folder, dname), label) for label, reader in samples]
-            # normalize distributions for shape comparison across samples
+            # Normalize to unit area to compare shapes across samples.
             for h, _ in hists:
                 if h and h.Integral() > 0:
                     h.Scale(1.0 / h.Integral())

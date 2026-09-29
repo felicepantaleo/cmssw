@@ -1,10 +1,8 @@
 # Original author: Felice Pantaleo (CERN) <felice.pantaleo@cern.ch>
 #
 # Associated-Higgs (VH) GEN fragment: Higgs-strahlung q qbar -> Z H, with H -> b b
-# and Z -> leptons. There is no VH sample in the standard relval matrix, so this
-# minimal fragment produces a gallery/library example that exercises the 'vh'
-# selection preset (seed the Higgs {25}, keep the recoiling Z as a production
-# sibling).
+# and Z -> leptons. The standard relval matrix has no VH sample. This fragment gives a
+# gallery/library example for the 'vh' selection preset.
 
 import FWCore.ParameterSet.Config as cms
 from Configuration.Generator.Pythia8CommonSettings_cfi import *

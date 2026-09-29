@@ -1,9 +1,8 @@
 # Original author: Felice Pantaleo (CERN) <felice.pantaleo@cern.ch>
 #
-# Diboson WW GEN fragment (q qbar -> W+ W-, both W -> leptons). There is no WW
-# sample in the standard relval matrix, so this minimal fragment produces a
-# gallery/library example that exercises the 'diboson' selection preset (seed the
-# vector bosons {23, 24, -24}, keep the production system).
+# Diboson WW GEN fragment (q qbar -> W+ W-, both W -> leptons). The standard relval
+# matrix has no WW sample. This fragment gives a gallery/library example for the
+# 'diboson' selection preset.
 
 import FWCore.ParameterSet.Config as cms
 from Configuration.Generator.Pythia8CommonSettings_cfi import *

@@ -330,7 +330,7 @@ public:
     edm::Handle<edm::SimTrackContainer> hSimTracks;
     evt.getByToken(simTracksToken_, hSimTracks);
 
-    // SimVertexContainer was already consumed; fetch it to enrich SimVertex nodes.
+    // The SimVertexContainer enriches the SimVertex nodes.
     edm::Handle<edm::SimVertexContainer> hSimVertices;
     evt.getByToken(simVerticesToken_, hSimVertices);
 
@@ -343,7 +343,7 @@ public:
     }
 
     // --- GEN handles (optional)
-    // Prefer HepMC2 if present (it is in your step1.root); else HepMC3.
+    // Use HepMC2 if present, else HepMC3.
     edm::Handle<edm::HepMCProduct> hHepMC2;
     evt.getByToken(hepmc2Token_, hHepMC2);
 
@@ -436,7 +436,9 @@ public:
         os << "color=\"red\", penwidth=2, ";
 
       os << "pdg=" << pdg << ", status=" << st << ", statusFlags=" << flags
-         << ", statusFlagsLabel=" << dotQuote(flagsLabel) << ", eid=" << eid << ",";  // --- GEN enrichment
+         << ", statusFlagsLabel=" << dotQuote(flagsLabel) << ", eid=" << eid << ",";
+
+      // --- GEN enrichment
       if (r.kind == TruthGraph::NodeKind::GenEvent) {
         if (ev2) {
           os << "HepMCversion=2, event=" << ev2->event_number() << ", spid=" << ev2->signal_process_id() << ",";

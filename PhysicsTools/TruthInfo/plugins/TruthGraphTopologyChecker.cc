@@ -1,14 +1,12 @@
 // Original author: Felice Pantaleo (CERN) <felice.pantaleo@cern.ch>
 
-// Diagnostic analyzer that audits the raw TruthGraph and the logical truth::Graph
-// for "strange" topologies and reports their structural provenance:
-//   * vertices with many outgoing particles (hadronization, showers, system vtx);
-//   * particles with more than one parent particle (hard scatter, multi-mother);
-//   * particles produced at more than one vertex (structural anomaly);
-//   * cycles (the graphs must be DAGs);
-//   * disconnected components (orphans).
-// Everything is aggregated per job and printed in endJob, with a few worst-case
-// examples carrying pdgId/status so the cause can be identified.
+// Audits the topology of the raw TruthGraph and of the logical truth::Graph. It counts:
+//   * vertices with many outgoing particles;
+//   * particles with more than one parent particle;
+//   * particles produced at more than one vertex;
+//   * events with a cycle (the graphs must be DAGs);
+//   * small disconnected components (orphan fragments).
+// endJob prints the totals and a few examples with pdgId and status.
 
 #include <algorithm>
 #include <cstdint>
@@ -119,9 +117,7 @@ private:
 
   const edm::EDGetTokenT<TruthGraph> rawToken_;
   const edm::EDGetTokenT<truth::Graph> logicalToken_;
-  // When true, throw at endJob if any history-fragmentation violation (orphan
-  // components or cycles, raw or logical) was seen - used by the history-guard
-  // unit test to fail if the simulation stops producing connected parentage.
+  // When true, endJob throws if the raw or the logical graph has an orphan fragment or a cycle.
   const bool failOnViolations_;
 
   uint64_t nEvents_ = 0;
@@ -167,8 +163,8 @@ void TruthGraphTopologyChecker::analyzeRaw(TruthGraph const& g) {
   using EK = TruthGraph::EdgeKind;
   const uint32_t n = g.nNodes();
 
-  // Reverse pass: classify incoming edges of each node by the source's kind and
-  // by edge kind (structural Gen/Sim vs cross-realm GenToSim).
+  // Count the structural incoming edges of each node by the kind of the source node.
+  // GenToSim and SimToGen edges are not structural.
   std::vector<uint32_t> inFromVertex(n, 0), inFromParticle(n, 0);
   std::vector<int32_t> firstProdVertex(n, -1);
   std::vector<std::vector<uint32_t>> structOut(n);  // structural out-adjacency for DAG/components
@@ -181,7 +177,7 @@ void TruthGraphTopologyChecker::analyzeRaw(TruthGraph const& g) {
     for (std::size_t e = 0; e < kids.size(); ++e) {
       const uint32_t d = kids[e];
       const EK ek = static_cast<EK>(kinds[e]);
-      uf.unite(s, d);  // weak connectivity uses every edge, incl. GenToSim
+      uf.unite(s, d);  // weak connectivity uses every edge
       if (ek == EK::GenToSim || ek == EK::SimToGen)
         continue;
       structOut[s].push_back(d);
@@ -440,10 +436,8 @@ void TruthGraphTopologyChecker::endJob() {
       << "[LOG] pileup provenance: signalParticles(bx=0,ev=0)=" << logSignalParticles_
       << " pileupParticles=" << logPileupParticles_ << " | per-bunchCrossing:" << bx.str();
 
-  // History guard: a disconnected (orphan) fragment or a parentage cycle means the
-  // SimTrack/SimVertex history no longer forms one tree reaching the generator -
-  // exactly the regression a simulation change that drops the per-track parentage
-  // (e.g. a GPU port) would cause. Fail hard when asked to (the history-guard test).
+  // An orphan fragment or a cycle means that the SimTrack/SimVertex history does not
+  // connect to the generator.
   if (failOnViolations_) {
     const uint64_t violations = rawOrphanComponents_ + logOrphanComponents_ + rawCycles_ + logCycles_;
     if (violations != 0)

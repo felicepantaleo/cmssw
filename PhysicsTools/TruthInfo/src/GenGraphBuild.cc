@@ -308,8 +308,7 @@ namespace truth {
     }
 
     // The surviving vertex inherits the nearest surviving ancestors of everything that
-    // fed it, which is the contraction: the collapsed chain becomes one edge. A vertex
-    // left without any is a root, and the callers attach the GenEvent node to it.
+    // fed it, so the collapsed chain becomes one edge. A vertex left without any is a root.
     std::vector<std::pair<int, int>> partToVtx;
     std::vector<uint32_t> ancestors;
     for (const int vbc : gb.vtxBarcodes) {

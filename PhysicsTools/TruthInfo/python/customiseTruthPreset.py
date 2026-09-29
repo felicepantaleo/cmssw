@@ -117,8 +117,8 @@ def applyTruthPreset(process, preset=None, fragment=None, **overrides):
 
     # The signal-seed denominator is the preset's own signal object, so every module that
     # reads seeds reads the same ones: the targets producer publishes the denominators and
-    # each validator books its signal folders from them. [0] is the full-graph escape
-    # hatch, not a species.
+    # each validator books its signal folders from them. A seed of 0 selects the full
+    # graph and is not a species.
     seeds = [p for p in selection["seedPdgIds"] if p != 0]
     flavors = list(selection["seedHadronFlavors"])
     seeded = []

@@ -1,9 +1,8 @@
 // Original author: Felice Pantaleo (CERN) <felice.pantaleo@cern.ch>
 //
 // The interaction a node belongs to, read from the packed EncodedEventId that
-// ParticleData and VertexData store. One definition, because "this is the signal"
-// is a statement every consumer makes and a wrong one silently labels pile-up as
-// signal: the packed id of the signal is 0, which is also the default value.
+// ParticleData and VertexData store. Every consumer uses this one definition of the
+// signal. The packed id of the signal is 0, which is also the default value.
 
 #ifndef SimDataFormats_TruthInfo_interface_InteractionId_h
 #define SimDataFormats_TruthInfo_interface_InteractionId_h

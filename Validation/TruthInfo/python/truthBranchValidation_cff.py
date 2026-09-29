@@ -1,23 +1,18 @@
 # Original author: Felice Pantaleo (CERN) <felice.pantaleo@cern.ch>
 
-# The DQM analyzers and their harvesting, both generated from the same label and
-# working-point lists the associators use, so the folder names, the ME names and the
-# harvester subDirs cannot drift apart.
-#
-# One entry in _domains below is all it takes to add a reco domain: the analyzer, the
-# folder names, the harvester subDirs and every ratio string are derived from it.
+# The DQM analyzers and their harvesting, generated from the label and working-point lists
+# that the associators use, so the folder names, the ME names and the harvester subDirs agree.
+# One entry in _domains adds a reco domain: the analyzer, the folders, the harvester subDirs
+# and the ratio strings come from it.
 
 import FWCore.ParameterSet.Config as cms
 from DQMServices.Core.DQMEDHarvester import DQMEDHarvester
 
-# Acceptance regions, mirroring truth::kEtaRegionFolders. Each num_* row is booked again
-# in a sub-folder of the same name, with the SAME ME names, so one string list harvests
-# the inclusive folder and every region. A domain that books no region folder, because
-# its objects all fall in one band, must not have them harvested either: the ratios would
-# be asked for in folders that do not exist.
+# Acceptance regions, the same as truth::kEtaRegionFolders. Each num_* row is booked again in
+# a sub-folder of the same name, with the same ME names, so one string list harvests all of them.
+# Harvest only the region folders that a domain books.
 _etaRegions = ["", "etaLt15", "eta15to30", "eta30to45"]
-# The bands a domain books on top of the inclusive folder. A band the domain's detector
-# does not cover would only repeat the inclusive one at the same cost in monitor elements.
+# The bands a domain books in addition to the inclusive folder, by default.
 _allEtaRegions = _etaRegions[1:]
 
 
@@ -52,28 +47,24 @@ from SimGeneral.TruthGraphAssociatorProducers.truthGraphAssociationLabels_cff im
 
 _wps = list(truthBranchWorkingPointsPSet.names)
 
-# Branch levels of the truth graph, one source with the associators so the analyzer
-# cannot book a folder whose denominator product does not exist.
+# Branch levels of the truth graph, from the same list as the associators, so each booked
+# folder has a denominator product.
 _levels = list(_truthLevels)
 
-# Axis definition per x variable, shared by every domain. Built here so the booking, the
-# harvester strings and the plot script all read one list.
+# Axis definition (nbins, min, max) per x variable, shared by every domain.
 _axes = {
     # Symlog to 1000 GeV: a parton jet reaches several hundred GeV in ttbar and the QCD
-    # flat-pT sample goes to 3000, while caloBoundary is dominated by sub-GeV particles.
+    # flat-pT sample goes to 3000, while caloBoundary has mostly sub-GeV particles.
     "pt": (50, 0.0, 1000.0),
-    # +-4.5, matching the forward acceptance boundary exactly: an axis stopping at 4 put
-    # part of the eta30to45 region's own population off the end of the axis it is binned
-    # against. Truth branches reach beyond 4.5 (beam remnants) and still overflow, which
-    # is outside every acceptance region and expected rather than a range error.
+    # +-4.5 is the forward acceptance boundary, so the eta30to45 region fits on the axis.
+    # Beam remnants beyond 4.5 go to the overflow, outside every acceptance region.
     "eta": (50, -4.5, 4.5),
     "phi": (36, -3.2, 3.2),
-    # Symlog: a branch footprint runs from one hit to thousands. Measured on no-PU ttbar,
-    # 7.1% of truth nhits was in the overflow at 40, and a partonJets subgraph holds 961
-    # to 3539 hits.
+    # Symlog: a branch footprint has from one hit to thousands. On no-PU ttbar, 7.1% of truth
+    # nhits is above 40, and a partonJets subgraph holds 961 to 3539 hits.
     "nhits": (50, 0.0, 10000.0),
-    # Symlog: a heavy-flavour decay length is sub-millimetre while a nuclear interaction
-    # sits at tens of cm, so a uniform 1.5 cm bin put 93.4% of truth SVs in the first one.
+    # Symlog: a heavy-flavour decay length is sub-millimetre, a nuclear interaction is at tens
+    # of cm. With uniform 1.5 cm bins, 93.4% of truth SVs are in the first bin.
     "vertpos": (40, 0.0, 60.0),
     "zpos": (40, -30.0, 30.0),
     "dxy": (40, -5.0, 5.0),
@@ -81,29 +72,21 @@ _axes = {
     # Graph-only axes: depth of the branch root in the graph, and the fraction of the
     # branch footprint that belongs to the root particle itself.
     "depth": (15, 0.0, 15.0),
-    # Top edge past 1 on purpose. A branch whose root owns its ENTIRE footprint has a
-    # fraction of exactly 1.0, which ROOT puts in the OVERFLOW of a [0,1] axis: 36.6% of
-    # entries, the single largest category, vanished off the end of its own plot.
+    # Top edge above 1: a root that owns the full footprint has a fraction of exactly 1.0,
+    # which is the overflow of a [0, 1] axis. This is 36.6% of the entries.
     "root_footprint_fraction": (21, 0.0, 1.05),
-    # The species that initiated the truth object, one bin each for other, d, u, s, c, b,
-    # t, g. Only partonJets roots are partons, so every other level sits in bin 0 and the
-    # axis reads as "which flavour of jet" on that level alone.
+    # The species that starts the truth object, one bin each for other, d, u, s, c, b, t, g.
+    # Only partonJets roots are partons, so all other levels fill bin 0.
     "flavour": (8, 0.0, 8.0),
-    # Where the branch ENTERS the calorimeter, not where its root was produced. Same
-    # range as eta so the two are read side by side; a branch that never reached the
-    # calorimeter is filled at kNoCaloEntry and lands in the underflow of both the
-    # numerator and the denominator.
-    # Same +-4.5 as eta. The large UNDERFLOW here is by design and must not be "fixed":
-    # a branch that never reached the calorimeter is filled at kNoCaloEntry so it lands in
-    # the underflow of numerator and denominator alike.
+    # Eta where the branch enters the calorimeter, on the same range as eta. A branch that
+    # does not reach the calorimeter is filled at kNoCaloEntry, in the underflow of the
+    # numerator and the denominator. The large underflow is intended.
     "caloeta": (50, -4.5, 4.5),
 }
-# Axes whose quantity spans decades get SYMLOG binning: one linear bin up to the value
-# below, then a log ladder to the top. Plain log cannot hold 0, and both of these have a
-# real population there: on DY 20.5% of the signal level sits at pt EXACTLY 0, the
-# pre-ISR copy of the resonance, and a decay length of 0 means the vertex coincides with
-# the primary. Measured motivation: 19% of partonJets entries were in the pt OVERFLOW at
-# 100 GeV, and 93.4% of all truth secondary vertices fell in the first 1.5 cm bin.
+# Symlog binning for axes that span decades: one linear bin up to the threshold below, then
+# log bins to the top. A log axis cannot hold 0, and these axes have entries at 0: on DY, 20.5%
+# of the signal level has pt exactly 0 (the pre-ISR copy of the resonance), and a decay length
+# of 0 means the vertex is the primary. 19% of partonJets entries have pt above 100 GeV.
 _linthresh = {
     "pt": 0.1,        # GeV
     "vertpos": 0.001,  # cm, that is 10 microns
@@ -119,67 +102,39 @@ for _name, (_n, _lo, _hi) in _axes.items():
 _algoBlockArgs.update(
     nintScore=cms.int32(50), minScore=cms.double(0.0), maxScore=cms.double(1.0),
     nintShared=cms.int32(50), minShared=cms.double(0.0), maxShared=cms.double(50.0),
-    # Wide on purpose. The truth reference is the BRANCH ROOT, and a reco object matched
-    # to a branch by shared hits or energy can belong to a descendant of that root, so
-    # the residual has a long tail that a narrow window pushes into the overflow, leaving
-    # the slice fit with a nearly flat in-range distribution and no convergence.
+    # Wide range: the truth reference is the branch root, and a matched reco object can belong
+    # to a descendant of that root. The residual has a long tail, and the slice fit needs it in range.
     nintRes=cms.int32(120), minRes=cms.double(-1.5), maxRes=cms.double(1.5),
-    # Coarser than the efficiency axes on purpose: every x slice of the residual 2D gets
-    # a Gaussian fit, and a slice with a handful of entries returns a meaningless width.
+    # Coarser than the efficiency axes: each x slice gets a Gaussian fit, which needs entries.
     nint_res_eta=cms.int32(20), min_res_eta=cms.double(-4.0), max_res_eta=cms.double(4.0),
     nint_res_pt=cms.int32(15), min_res_pt=cms.double(0.0), max_res_pt=cms.double(100.0),
 )
 
-# Truth-side variables are properties of the BRANCH, so every domain supplies all of
-# them. Reco-side variables are properties of the reco object and differ by domain: a
-# vertex has no momentum and no impact parameter, a trackster has no track parameters.
-# Booking a variable a domain cannot fill would put a spike at zero in every reco-side
-# plot and read as a real feature.
+# Truth-side variables are properties of the branch, so every hit-based domain supplies all of
+# them. Reco-side variables differ by domain: a vertex has no momentum and no impact parameter,
+# a trackster has no track parameters. A variable that a domain cannot fill makes a false spike at zero.
 truthPlotVariables = ["pt", "eta", "phi", "nhits", "vertpos", "zpos", "dxy", "dz", "depth",
                       "root_footprint_fraction", "caloeta", "flavour"]
 
-# Individual-match thresholds per domain, taken from the corresponding standard
-# validation rather than invented. Tracks and vertices are judged on the fraction of
-# shared COMPONENTS (hits; constituent tracks), calorimetry on the fraction of shared
-# ENERGY. Each value cites where it lives in the reference package.
+# Individual-match thresholds per domain, taken from the standard validation of each domain.
+# Tracks and vertices use the fraction of shared components (hits, constituent tracks).
+# Calorimetry uses the fraction of shared energy.
 #
-# Tracks: QuickTrackAssociatorByHits with SimToRecoDenominator='reco' counts a truth
-# object reconstructed when a track shares MORE THAN 75% of its own hits with it, with
-# no truth-normalised cut at all (Cut_RecoToSim=0.75, Purity_SimToReco=0.75,
-# Quality_SimToReco=0.5 in SimTracker/TrackAssociatorProducers/python/
-# quickTrackAssociatorByHits_cfi.py:4-8, applied in plugins/
-# QuickTrackAssociatorByHitsImpl.cc:234-244 and 312-326; MultiTrackValidator adds no
-# further cut, plugins/MultiTrackValidator.cc:939-943).
+# Tracks: QuickTrackAssociatorByHits (quickTrackAssociatorByHits_cfi.py) with
+# SimToRecoDenominator='reco' counts a truth object as reconstructed when a track shares more
+# than 75% of its own hits with it, with no truth-normalised cut. MultiTrackValidator adds no cut.
 #
-# Vertices: VertexAssociatorByPositionAndTracks gates on POSITION and ships its
-# shared-track-fraction cut DISABLED (sharedTrackFraction=-1.0 in SimTracker/
-# VertexAssociation/plugins/VertexAssociatorByPositionAndTracksProducer.cc:72, the
-# fraction branch at src/VertexAssociatorByPositionAndTracks.cc:129), so on the
-# shared-components axis this framework uses, the reference criterion is any positive
-# shared fraction.
-#
-# Calorimetry: HGCalValidator counts the three on DIFFERENT axes, and the association
-# scores are the TICL ones (Validation/HGCalValidation/src/HGVHistoProducerAlgo.cc:
-# 2897-2899). EFFICIENCY is a SHARED ENERGY FRACTION cut, shared energy over the truth
-# branch's energy IN THE DETECTORS THE COLLECTION RECONSTRUCTS (the reference sim
-# trackster exists only in HGCAL; the truth branch here also holds the barrel deposits
-# of the same particles, which no endcap reco object can cover), above
-# minTSTSharedEneFracEfficiency = 0.5
-# (Validation/HGCalValidation/python/HGVHistoProducerAlgoBlock_cfi.py:82). PURITY and
-# DUPLICATE cut the simToReco score below maxSimToRecoScoreForPurity/Duplicate = 0.2
-# (cfi:72-73). FAKE and MERGE cut the recoToSim score below
-# maxRecoToSimScoreForNonFake/Merge = 0.6 (cfi:70-71, applied
-# HGVHistoProducerAlgo.cc:2819-2820).
+# Calorimetry: HGCalValidator (HGVHistoProducerAlgoBlock_cfi.py) uses three different axes.
+# Efficiency: the shared energy over the truth branch energy in the detectors that the collection
+# reconstructs is above minTSTSharedEneFracEfficiency = 0.5. Duplicate: the simToReco score is
+# below maxSimToRecoScoreForDuplicate = 0.2. Fake: the recoToSim score is below
+# maxRecoToSimScoreForNonFake = 0.6.
 _trackThresholds = dict(minTruthPurityForIndividual=0.0, minRecoPurityLoose=0.75)
-# Vertices: the reference association gates on POSITION, not on shared tracks. Its
-# shared-track cut is disabled (sharedTrackFraction = 2, above 1) and the match is a
-# window in z (absZ = 1.0 cm, sigmaZ = 10) in
-# SimTracker/VertexAssociation/python/secondaryVertexAssociatorByPositionAndTracks_cfi.py:4-13.
-# This association has no position gate: it matches a truth vertex to a reco vertex
-# through the tracks they share. With both cuts at 0 every truth vertex that shares ONE
-# track counted as reconstructed, so the efficiency was 1 by construction and a split
-# over two reco vertices was a duplicate. A constituent-fraction cut takes the place of
-# the position window: more than half of the constituents on each side.
+# Vertices: the reference association gates on a z window (absZ, sigmaZ in
+# secondaryVertexAssociatorByPositionAndTracks_cfi.py) and disables its shared-track cut.
+# This association has no position gate: it matches vertices through shared tracks. With both
+# cuts at 0, one shared track is a match and the efficiency is 1 by construction. A cut of more
+# than half of the constituents on each side replaces the position window.
 _vertexThresholds = dict(minTruthPurityForIndividual=0.5, minRecoPurityLoose=0.5)
 _caloThresholds = dict(minSharedEnergyFractionForIndividual=0.5,
                        maxSimToRecoScoreForDuplicate=0.2,
@@ -201,20 +156,17 @@ _domains = [
         label="truthBranchVertexValidator",
         associator="allVertexToTruthBranchAssociators",
         dirName="TruthInfo/Offline/Vertexing/",
-        # A primary vertex is resolved at the INTERACTION, matching the associator.
+        # A primary vertex is resolved at the interaction, as in the associator.
         vertexResolution="interaction",
-        # A vertex has a position and a track multiplicity, and nothing else this set
-        # can express. The TRUTH object here is a graph vertex, not a particle branch,
-        # so pt, eta, depth and root_footprint_fraction do not exist on that side either.
+        # A vertex has a position and a track multiplicity only. The truth object is a graph
+        # vertex, not a particle branch, so it has no pt, eta, depth or root_footprint_fraction.
         recoVariables=["nhits", "vertpos", "zpos"],
         truthVariables=["nhits", "vertpos", "zpos"],
         sharedRange=(0.0, 1.0),
-        # A vertex has no pseudorapidity of its own, so every entry would land in the
-        # first band and the three folders would be one duplicate and two empty.
+        # A vertex has no pseudorapidity, so no eta-region folders.
         etaRegions=[],
-        # nhits counts tracks on the reco side but PARTICLES at the truth vertex, and an
-        # interaction vertex has hundreds of them: the 40-bin default put every truth
-        # entry in the overflow, so the efficiency was empty in the visible range.
+        # nhits counts tracks on the reco side but particles at the truth vertex, and an
+        # interaction vertex has hundreds of particles.
         axisOverrides={"nhits": (50, 0.0, 500.0)},
         thresholds=_vertexThresholds,
     ),
@@ -224,12 +176,12 @@ _domains = [
         label="truthBranchSecondaryVertexValidator",
         associator="allSecondaryVertexToTruthBranchAssociators",
         dirName="TruthInfo/Offline/SecondaryVertexing/",
-        # A secondary vertex is resolved at the IMMEDIATE production vertex.
+        # A secondary vertex is resolved at the immediate production vertex.
         vertexResolution="immediate",
         recoVariables=["nhits", "vertpos", "zpos"],
         truthVariables=["nhits", "vertpos", "zpos"],
         sharedRange=(0.0, 1.0),
-        # As for the primary vertices: no pseudorapidity of its own.
+        # A vertex has no pseudorapidity, so no eta-region folders.
         etaRegions=[],
         thresholds=_vertexThresholds,
     ),
@@ -242,18 +194,16 @@ _domains = [
         # A trackster has a barycentre and a layer-cluster count; its pt is the raw
         # energy projected transversally along that barycentre.
         recoVariables=["pt", "eta", "phi", "nhits", "vertpos", "zpos"],
-        # HGCal, not the tracker. A trackster barycentre sits at |z| between about 320 and
-        # 520 cm and out to a transverse radius near 180 cm, so on the shared tracker
-        # ranges 100% of reco zpos and 54% of reco vertpos were in the under and overflow:
-        # the trackster z plot drew nothing at all. Measured on 200 no-PU ttbar.
+        # HGCal ranges: a trackster barycentre is at |z| of about 320 to 520 cm and at a
+        # transverse radius up to about 180 cm. On the tracker ranges, 100% of reco zpos and
+        # 54% of reco vertpos are outside the axis (200 no-PU ttbar events).
         recoAxisOverrides={"zpos": (60, -600.0, 600.0), "vertpos": (50, 0.0, 200.0)},
         thresholds=_caloThresholds,
     ),
-    # Particle-flow clusters, the calorimeter constituents of the barrel PF blocks. One
-    # domain per subdetector, matching the associator modules: the efficiency gate is
-    # the branch energy fraction in that detector alone. A barrel cluster position sits
-    # at a transverse radius near 130 cm (ECAL) to 180-290 cm (HCAL) and |z| below about
-    # 400 cm, so the shared tracker ranges would put every entry in the overflow.
+    # Particle-flow clusters of the barrel PF blocks, one domain per subdetector as in the
+    # associators: the efficiency uses the branch energy fraction in that detector only.
+    # A barrel cluster is at a transverse radius of about 130 cm (ECAL) or 180 to 290 cm
+    # (HCAL) and at |z| below about 400 cm, outside the tracker ranges.
     dict(
         name="pfClustersEcal",
         module="TruthBranchPFClusterValidator",
@@ -278,9 +228,8 @@ _domains = [
     ),
 ]
 
-# The HLT menu's reconstruction of the same event, same domains and same variables. A
-# domain the menu does not reconstruct has no labels and is skipped below, so nothing
-# has to be commented out when the menu changes.
+# The HLT reconstruction of the same event, with the same domains and variables.
+# A domain that the HLT menu does not reconstruct has no labels and is skipped below.
 _hltDomains = [
     dict(_d,
          flavour="hlt",
@@ -289,8 +238,8 @@ _hltDomains = [
                      "allVertexToTruthBranchAssociators": "hltVertexToTruthBranchAssociators",
                      "allSecondaryVertexToTruthBranchAssociators": "hltVertexToTruthBranchAssociators",
                      "truthBranchTracksterAssociators": "hltTruthBranchTracksterAssociators",
-                     # No HLT PF-cluster association is produced; the HLT label lists are
-                     # empty, so these domains are dropped by the recoLabels filter below.
+                     # No HLT PF-cluster association exists. The HLT label lists are empty,
+                     # so the recoLabels filter below drops these domains.
                      "truthBranchPFClusterEcalAssociators": "hltTruthBranchPFClusterEcalAssociators",
                      "truthBranchPFClusterHcalAssociators": "hltTruthBranchPFClusterHcalAssociators"}[_d["associator"]],
          dirName=_d["dirName"].replace("TruthInfo/Offline/", "TruthInfo/HLT/"))
@@ -304,8 +253,7 @@ _domains = _domains + [_d for _d in _hltDomains if recoLabels(_d["name"], "hlt")
 def _algoBlock(recoVariables, truthVariables=None, sharedRange=None, axisOverrides=None,
                recoAxisOverrides=None, etaRegions=None):
     args = dict(_algoBlockArgs)
-    # Reco-side only. A trackster barycentre sits in HGCal while the truth branch's
-    # production vertex is in the tracker, so the two sides cannot share one range.
+    # Reco-side only: a trackster barycentre is in HGCal, the truth production vertex is in the tracker.
     for _var, (_n, _lo, _hi) in (recoAxisOverrides or {}).items():
         args["nint_reco_" + _var] = cms.int32(_n)
         args["min_reco_" + _var] = cms.double(_lo)
@@ -315,14 +263,11 @@ def _algoBlock(recoVariables, truthVariables=None, sharedRange=None, axisOverrid
         args["nint_" + _var] = cms.int32(_n)
         args["min_" + _var] = cms.double(_lo)
         args["max_" + _var] = cms.double(_hi)
-        # An override replaces the range, so it must also drop any symlog threshold that
-        # belonged to the old one, or the ladder would be built against a range it no
-        # longer matches.
+        # An override replaces the range, so it also drops the symlog threshold.
         args["linthresh_" + _var] = cms.double(0.0)
     if sharedRange is not None:
-        # A composite domain's shared quantity is a FRACTION of the object's
-        # constituents, so it lives in [0, 1]; the hit-based default of [0, 50] counts
-        # hits or GeV and would put every fraction in the first bin.
+        # A composite domain's shared quantity is a fraction of the object's constituents,
+        # in [0, 1]. The default [0, 50] counts hits or GeV.
         args["minShared"] = cms.double(sharedRange[0])
         args["maxShared"] = cms.double(sharedRange[1])
     return cms.PSet(
@@ -333,41 +278,28 @@ def _algoBlock(recoVariables, truthVariables=None, sharedRange=None, axisOverrid
     )
 
 
-# Every ratio is formed by DQMGenericClient from the num/denom names, so this package
-# ships no harvesting C++. The metric set follows MultiTrackValidator (efficiency, fake,
-# duplicate, pileup) plus purity from the TICL trackster validation, which asks the
-# complementary question: how much of the reco object belongs to the branch it matched.
-# Which direction each metric belongs to is not a style choice; it decides the
-# denominator the number carries AND the folder family it lives in.
-#
-#   TRUTH to RECO, denominator the truth object: efficiency, duplicate rate, split rate.
-#     The truth target is fixed a priori per graph level, so these live in the
-#     per-level folders and never see a working point.
-#   RECO to TRUTH, denominator the reco object: fake rate, pileup rate, reco purity.
-#     These live in the per-working-point folders.
-#
-# This is the split HGVHistoProducerAlgo already uses (maxSimToRecoScoreForPurity and
-# maxSimToRecoScoreForDuplicate on one side, maxRecoToSimScoreForNonFake and
-# maxRecoToSimScoreForMerge on the other) and that QuickTrackAssociatorByHits encodes as
-# two separate implementations with different denominators.
-# duplicate is skipped for a calorimetric domain, which does not book the numerator:
-# its reco objects are built from disjoint layer clusters, so two of them cannot each
-# capture most of the same branch energy. Asking for a ratio whose numerator was never
-# booked produces an empty plot and a harvester warning per folder.
+# DQMGenericClient forms every ratio from the num/denom names. The metrics follow
+# MultiTrackValidator (efficiency, fake, duplicate, pileup), plus the reco purity of the TICL
+# trackster validation. The direction of a metric sets its denominator and its folder:
+#   truth to reco, denominator the truth object: efficiency, duplicate rate, split rate.
+#     These are in the per-level folders and do not depend on a working point.
+#   reco to truth, denominator the reco object: fake rate, pileup rate, reco purity.
+#     These are in the per-working-point folders.
+# A calorimetric domain does not book the duplicate numerator: its reco objects use disjoint
+# layer clusters, so two of them cannot each hold most of the same branch energy.
 def _truthDrivenStrings(truthVariables=None, duplicate=True):
     out = []
     for var in (truthVariables or truthPlotVariables):
         out.append(f"efficiency_vs_{var} 'Branch efficiency vs {var}' num_assoc(simToReco)_{var} num_simul_{var}")
         # Cumulative: the truth object counts as found when all reco objects of the
-        # collection together cover it, not only when a single one does.
+        # collection together cover it.
         out.append(f"efficiency_cumulative_vs_{var} 'Cumulative branch efficiency vs {var}' "
                    f"num_assoc_cumulative_{var} num_simul_{var}")
         if duplicate:
             out.append(f"duplicate_vs_{var} 'Duplicate rate vs {var}' num_duplicate_{var} num_simul_{var}")
         out.append(f"splitrate_vs_{var} 'Split rate vs {var}' num_split_{var} num_simul_{var}")
-    # Efficiency and duplicate rate against the Geant4 creation process of the branch.
-    # The axis is categorical, one bin per truth::VertexReason, and it exists only
-    # because the graph keeps the process that made each particle.
+    # Efficiency and duplicate rate vs the creation process of the branch, one bin per
+    # truth::VertexReason.
     out.append("efficiency_vs_reason 'Branch efficiency vs creation process' "
                "num_assoc(simToReco)_reason num_simul_reason")
     if duplicate:
@@ -375,8 +307,8 @@ def _truthDrivenStrings(truthVariables=None, duplicate=True):
     return out
 
 
-# strict adds the calorimetric non-fake criterion as its OWN page. Only a calorimetric
-# domain books num_assoc_strict, so asking for it elsewhere would be an empty plot.
+# strict adds the calorimetric non-fake criterion as a separate plot. Only a calorimetric
+# domain books num_assoc_strict.
 def _recoDrivenStrings(recoVariables, strict=False):
     out = []
     for var in recoVariables:
@@ -386,25 +318,22 @@ def _recoDrivenStrings(recoVariables, strict=False):
         out.append(f"fakerate_vs_{var} 'Fake rate vs {var}' num_dominated_{var} num_reco_{var} fake")
         out.append(f"nocandidate_vs_{var} 'No-candidate rate vs {var}' "
                    f"num_assoc(recoToSim)_{var} num_reco_{var} fake")
-        # Where the dominance question is UNDEFINED: the object matched truth, but none
-        # of its candidates sits at the dominance level. Deliberately not folded into
-        # the fake rate, which would measure level coverage rather than reconstruction.
+        # The object matches truth, but none of its candidates is at the dominance level.
+        # This is not part of the fake rate, which measures reconstruction, not level coverage.
         out.append(f"nolevelcandidate_vs_{var} 'No dominance-level candidate vs {var}' "
                    f"num_levelcandidate_{var} num_reco_{var} fake")
         if strict:
             out.append(f"contaminated_vs_{var} 'Contaminated rate vs {var}' "
                        f"num_assoc_strict_{var} num_reco_{var} fake")
         out.append(f"pileuprate_vs_{var} 'Pileup rate vs {var}' num_pileup_{var} num_reco_{var}")
-        # Its own numerator, filled with the purity as a weight. Dividing the UNWEIGHTED
-        # match count by num_reco would give the matched fraction a second time.
+        # The numerator is filled with the purity as a weight.
         out.append(f"recopurity_vs_{var} 'Reco purity vs {var}' num_recopurity_{var} num_reco_{var}")
     return out
 
 
-# Gaussian slice fits, the same mechanism MTV uses: DQMGenericClient books <prefix>_Mean
-# and <prefix>_Sigma from each 2D. The string is three tokens,
-# "<outputPrefix> '<title>' <sourceHistogram>"; a two-token form parses without an error
-# and silently produces nothing.
+# Gaussian slice fits, as in MTV: DQMGenericClient books <prefix>_Mean and <prefix>_Sigma from
+# each 2D. The string has three tokens, "<outputPrefix> '<title>' <sourceHistogram>".
+# A two-token string gives no error and no output.
 _resolutions = [
     "ptres_vs_eta 'Relative p_{T} residual vs #eta' ptres_vs_eta",
     "ptres_vs_pt 'Relative p_{T} residual vs p_{T}' ptres_vs_pt",
@@ -413,29 +342,24 @@ _resolutions = [
 ]
 
 truthBranchValidationSequence = cms.Sequence()
-# One harvester per domain: DQMGenericClient applies one string list to all its subDirs,
-# so a folder that never booked num_reco_pt must not be asked for fakerate_vs_pt.
+# Harvesters per domain, because DQMGenericClient applies one string list to all its subDirs.
 truthBranchHarvestingSequence = cms.Sequence()
-# The HLT twins read HLT collections, which an offline reconstruction does not produce,
-# so they are kept apart from the offline sequences.
+# The HLT analyzers read HLT collections, which an offline reconstruction does not produce,
+# so they are in separate sequences.
 truthBranchHltValidationSequence = cms.Sequence()
 truthBranchHltHarvestingSequence = cms.Sequence()
 
 for _d in _domains:
-    # Every denominator here is an ANTICHAIN: the levels by construction, and
-    # signal/signalNoSelection because the seeds are reduced to their most upstream
-    # members. A set holding both a particle and its own daughter would count the same
-    # energy twice, so it cannot be a truth denominator.
-    # The truth-driven folder suffixes: the graph levels, the overall signal entry
-    # (denominator the preset seed objects, signalSeeds) and the same seed objects with
-    # no selector cut at all (signalSeedsNoSelection) for a hit-based domain, the vertex
-    # resolution for a composite one.
+    # Every denominator is an antichain: the levels by construction, and signal and
+    # signalNoSelection because the seeds keep only their most upstream members.
+    # A set with a particle and its daughter would count the same energy twice.
+    # The truth-driven folder suffixes: for a hit-based domain, the graph levels, signal (the
+    # preset seed objects) and signalNoSelection (the same seeds with no selector cut); for a
+    # composite domain, the vertex resolution.
     _truthSuffixes = ([_d["vertexResolution"]] if "vertexResolution" in _d
                       else _levels + ["signal", "signalNoSelection"])
-    # signalSeedPdgIds travels with truthLevels because the analyzer books the signal
-    # folders from it, and it must carry the SAME value the associators get. A production
-    # that applies a preset sets it on the analyzers as well as on the associators; with
-    # no preset it stays empty and the signal folders are simply not booked.
+    # The analyzer books the signal folders from signalSeedPdgIds, which must have the same
+    # value as in the associators. With no preset it is empty and no signal folder is booked.
     _truthArgs = (dict(vertexResolution=cms.string(_d["vertexResolution"]))
                   if "vertexResolution" in _d
                   else dict(truthLevels=cms.vstring(*_levels),
@@ -450,9 +374,7 @@ for _d in _domains:
         recoCollections=cms.VInputTag(
             *[cms.InputTag(*l.split(":")) for l in recoLabels(_d["name"], _d["flavour"])]),
         workingPoints=cms.vstring(*_wps),
-        # Only the thresholds the domain is judged by, because each analyzer declares
-        # only those: the calorimetric criteria are three cuts on two different axes,
-        # the shared-component ones two cuts on one.
+        # Only the thresholds of the domain, because each analyzer declares only those.
         **{_k: cms.double(_v) for _k, _v in _d["thresholds"].items()},
         histoProducerAlgoBlock=_algoBlock(_d["recoVariables"], _d.get("truthVariables"),
                                           _d.get("sharedRange"), _d.get("axisOverrides"),
@@ -465,9 +387,8 @@ for _d in _domains:
     else:
         truthBranchValidationSequence += _analyzer
 
-    # Two harvesters per domain because DQMGenericClient applies one string list to all
-    # its subDirs: the per-WP folders carry only reco-driven MEs, the per-level folders
-    # only truth-driven ones, and asking a folder for a ratio it never booked is noise.
+    # Two harvesters per domain, because DQMGenericClient applies one string list to all its
+    # subDirs: the per-WP folders hold the reco-driven MEs, the per-level folders the truth-driven ones.
     _harvester = DQMEDHarvester(
         "DQMGenericClient",
         subDirs=cms.untracked.vstring(*_harvestedFolders(_d, _wps)),
@@ -475,8 +396,7 @@ for _d in _domains:
             _d["recoVariables"],
             strict="minSharedEnergyFractionForIndividual" in _d["thresholds"])),
         resolution=cms.vstring(*_resolutions),
-        # Fit the core, not the tail: the slice fit is restricted to a window around the
-        # peak, which is what makes Sigma a resolution rather than the width of the axis.
+        # Fit a window around the peak, so Sigma is the resolution of the core.
         resolutionLimitedFit=cms.untracked.bool(True),
         verbose=cms.untracked.uint32(0),
         outputFileName=cms.untracked.string(""),

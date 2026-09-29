@@ -4,8 +4,7 @@
 #include "SimDataFormats/TruthInfo/interface/Graph.h"
 
 const truth::VertexData& truth::Vertex::data() const {
-  // See Particle::data(): return a shared empty record for an invalid view rather
-  // than dereferencing a null graph_.
+  // An invalid view returns a shared empty record.
   if (graph_ == nullptr) {
     static const truth::VertexData kEmpty{};
     return kEmpty;

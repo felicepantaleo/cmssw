@@ -1,10 +1,9 @@
 // Original author: Felice Pantaleo (CERN) <felice.pantaleo@cern.ch>
 
-// Author: Felice Pantaleo - CERN
-// Flat-table dump of tracker PSimHit collections (g4SimHits TrackerHits*).
-// Global positions are computed from the local PSimHit position using the
-// TrackerGeometry. trackId() links each hit back to a SimTrack, i.e. to a
-// truth-graph particle.
+// Writes tracker PSimHit collections to a flat table.
+// The global position comes from the local PSimHit position and the TrackerGeometry.
+// A hit on a detId that is not in the TrackerGeometry gets the position (0, 0, 0).
+// trackId() links each hit to a SimTrack, which is a truth-graph particle.
 
 #include "FWCore/Framework/interface/stream/EDProducer.h"
 #include "FWCore/Framework/interface/Event.h"

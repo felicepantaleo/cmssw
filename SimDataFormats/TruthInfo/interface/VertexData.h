@@ -112,9 +112,8 @@ namespace truth {
     // VertexReason, stored as its underlying type.
     uint8_t reason = static_cast<uint8_t>(VertexReason::Unknown);
 
-    // Standalone payload.
-    // Convention: "best available" position.
-    // Prefer SIM if present, otherwise GEN, otherwise default-constructed.
+    // The best available position: SIM if present, otherwise GEN, otherwise
+    // default-constructed.
     math::XYZTLorentzVectorD position;
 
     [[nodiscard]] bool hasGen() const { return genNode >= 0; }

@@ -31,14 +31,13 @@
 
 namespace {
 
-  // The selection post-processing owns LevelFlag::Signal, so it is not a row of the level
-  // table and the loops over kAllLevels below do not reach it. It is drawn like a level
-  // because a reader looks for it like one.
+  // LevelFlag::Signal is not in kAllLevels, because the selection post-processing sets it.
+  // The label draws it like a level.
   constexpr char const* kSignalName = truth::kSignalLevelName;
   constexpr char const* kSignalColor = "#ffc4d6";
 
-  // One colour per level, shared by the node labels and the legend so the two cannot
-  // drift. Pale on purpose: these are backgrounds behind black text.
+  // One colour per level for the node labels. The colours are pale because they are
+  // backgrounds behind black text.
   std::string levelColor(truth::Level level) {
     switch (level) {
       case truth::Level::StableLegsFromInitialState:
@@ -202,10 +201,8 @@ namespace {
   }
 
   const char* logicalVertexDomain(truth::VertexData const& d) {
-    // Artificial source vertices (Interaction / InitialState / UnderlyingEvent)
-    // have no GEN or SIM back-reference by construction; they are graph-internal
-    // bookkeeping nodes, so they get their own "Internal" domain rather than
-    // looking like an unclassified real vertex.
+    // An artificial source vertex (Interaction, InitialState, UnderlyingEvent) has no GEN
+    // or SIM back-reference. Its domain is "Internal", not "UNKNOWN".
     if (d.isArtificial())
       return "Internal";
     if (d.hasGen() && !d.hasSim())
@@ -301,10 +298,8 @@ namespace {
     if (particleId >= g.nParticles())
       return;
 
-    // Iterative DFS with a visited set: cycle-safe (a stray cycle would otherwise
-    // overflow the stack) and visits each descendant exactly once (no exponential
-    // blow-up on re-convergent / diamond topologies). f is invoked once per
-    // distinct descendant, never on the start particle itself.
+    // Iterative DFS with a visited set, safe on cycles and on re-convergent topologies.
+    // f is called once per distinct descendant, never on the start particle.
     std::vector<uint8_t> visited(g.nParticles(), 0);
     std::vector<uint32_t> stack;
     visited[particleId] = 1;
@@ -360,20 +355,19 @@ namespace {
     if (!hasVisibleIncoming && !hasVisibleOutgoing)
       return true;
 
-    // Hide decay vertices that no longer have visible daughters.
+    // Hide a vertex whose outgoing particles are all hidden.
     if (hasOutgoing && !hasVisibleOutgoing)
       return true;
 
-    // Hide production/source vertices that no longer have visible outgoing particles.
+    // Hide a source vertex whose outgoing particles are all hidden. The check above covers this case.
     if (!hasIncoming && hasOutgoing && !hasVisibleOutgoing)
       return true;
 
     return false;
   }
 
-  // The same graph as the dot file, for a script that has to read numbers rather than a
-  // picture: one JSON object per event, with the momenta and positions at full precision.
-  // Full precision, and null where JSON has no number: it knows no NaN and no infinity.
+  // Formats a number for the JSON dump at full precision.
+  // NaN and infinity become null, because JSON has no number for them.
   std::string number(double value) {
     if (!std::isfinite(value)) {
       return "null";
@@ -397,7 +391,7 @@ namespace {
       }
       os << "],\n";
     };
-    // What the level rules read from the graph itself, so a reader recomputes a level.
+    // The inputs of the level rules that the graph stores, so a reader can recompute a level.
     list("signalSeedPdgIds", graph.signalSeedPdgIds());
     list("seedHadronFlavors", graph.seedHadronFlavors());
     list("reconstructablePdgIds", graph.reconstructablePdgIds());
@@ -515,10 +509,9 @@ public:
     desc.add<edm::InputTag>("hitIndex", edm::InputTag(""))
         ->setComment("Optional LogicalGraphHitIndex used to annotate particles with SimHit and RecHit summaries");
 
-    // These two lists MUST match DetIdToRecHitMapProducer's hgcalRecHits/pfRecHits
-    // (same collections, same order): hit.recHitIndex is the global concatenation
-    // index into HGC-then-PF, so any divergence makes recHitEnergies[recHitIndex]
-    // read the wrong hit. Defaults mirror that producer's defaults.
+    // These two lists MUST match hgcalRecHits and pfRecHits of DetIdToRecHitMapProducer,
+    // with the same collections in the same order. hit.recHitIndex is an index into the
+    // HGCal collections followed by the PF collections. The defaults are those of that producer.
     desc.add<std::vector<edm::InputTag>>("hgcalRecHits",
                                          {edm::InputTag("HGCalRecHit", "HGCEERecHits"),
                                           edm::InputTag("HGCalRecHit", "HGCHEFRecHits"),
@@ -575,10 +568,8 @@ public:
     if (layout_.empty() || layout_ == "dot") {
       os << "  rankdir=LR;\n";  // hierarchical: left-to-right ranks (the default)
     } else {
-      // Force-directed engine (sfdp / fdp / neato / ...): nodes repel each other and
-      // edges act as springs pulling children toward their parents, with overlap
-      // removal and no forced ranks. The `layout` graph attribute makes the standard
-      // `dot -Tsvg` invocation use that engine.
+      // Force-directed engine (sfdp, fdp, neato): no forced ranks.
+      // The `layout` graph attribute makes `dot -Tsvg` use that engine.
       os << "  layout=\"" << layout_ << "\";\n";
       os << "  overlap=\"prism\";\n";  // remove node overlaps
       os << "  splines=line;\n";       // straight edges (spline routing is very slow on big graphs)
@@ -606,11 +597,9 @@ public:
     // Particle nodes
     // ------------------------------------------------------------------
 
-    // AUDIT the persisted flags against a fresh computation on the very graph being
-    // dumped. A stored flag is only trustworthy if it still agrees with the definition
-    // that produced it, and a file written before a level definition changed is
-    // indistinguishable from a fresh one by inspection. Logged, never thrown: a stale
-    // file should still be readable and should say loudly that it is stale.
+    // Compare the persisted level flags with a fresh computation on this graph.
+    // A file written before a level definition changed has stale flags.
+    // A disagreement gives a warning, not an exception, so a stale file stays readable.
     {
       std::size_t disagreements = 0;
       std::ostringstream perLevel;
@@ -633,15 +622,12 @@ public:
         perLevel << "  " << truth::levelName(level) << " stored=" << stored << " recomputed=" << antichain.size()
                  << " disagree=" << bad << "\n";
       }
-      // Signal cannot be recomputed from the graph alone, so it is checked against the
-      // RECORDED seed species instead: every flagged particle must either match a seed or
-      // be the synthetic stand-in, and no flagged particle may have a seed-matching
-      // ancestor, which is what "most upstream match" means.
+      // Signal is checked against the recorded seed species. Each flagged particle must
+      // match a seed or be the signal stand-in, and must have no seed-matching ancestor.
       std::size_t signalFlagged = 0, signalBad = 0, syntheticSignal = 0;
       auto const& seeds = g.signalSeedPdgIds();
       auto const& flavors = g.seedHadronFlavors();
-      // A particle is a legitimate seed either by pdg id or by heavy-flavour hadron
-      // content, matching the two ways a selection preset can name its signal.
+      // A particle is a seed by pdg id or by heavy-flavour hadron content.
       auto isSeed = [&](int32_t pdgId) {
         if (std::find(seeds.begin(), seeds.end(), pdgId) != seeds.end()) {
           return true;
@@ -653,9 +639,7 @@ public:
         }
         return false;
       };
-      // A particle has a seed-matching ancestor exactly when it is a descendant of one,
-      // so one multi-source walk answers it for the whole graph. A scan per flagged
-      // particle would allocate and traverse the graph once each.
+      // One walk from all seeds marks every particle that has a seed-matching ancestor.
       std::vector<uint8_t> belowSeed(g.nParticles(), 0);
       std::vector<uint32_t> seedStack;
       for (uint32_t id = 0; id < g.nParticles(); ++id) {
@@ -728,8 +712,7 @@ public:
       const HitSummary directSummary = hasHitInfo ? summarizeHits(directHits, recHitEnergies) : HitSummary();
       const HitSummary subgraphSummary = hasHitInfo ? summarizeHits(subgraphHits, recHitEnergies) : HitSummary();
 
-      // Only the Calo channel holds rechit indices. The other channels hold cells or
-      // cluster indices, so they are summarised without the rechit table and only
+      // Only the Calo channel holds rechit indices. For the other channels, only
       // nSimHits and simHitEnergy carry meaning.
       const std::vector<float> noRecHitEnergies;
       const bool hasTrackerInfo = hasHitInfo && hitIndex->hasChannel(truth::HitChannel::Tracker);
@@ -751,14 +734,14 @@ public:
           hasMtdInfo ? summarizeHits(hitIndex->subgraphHits(truth::HitChannel::MTD, i), noRecHitEnergies)
                      : HitSummary();
 
-      // An MTD channel that is not cell keyed holds an FTLCluster index in recHitIndex;
-      // count the hits that carry one.
+      // An MTD channel that is not cell keyed holds an FTLCluster index in recHitIndex.
+      // Count the hits that carry one.
       uint32_t mtdSubgraphRecHitLinked = 0;
       if (hasMtdInfo && !mtdCellKeyed)
         for (auto const& h : hitIndex->subgraphHits(truth::HitChannel::MTD, i))
           mtdSubgraphRecHitLinked += static_cast<uint32_t>(h.hasRecHit());
 
-      // Muon-chamber simhits (DT/CSC/RPC/GEM), no recHit link.
+      // Muon-chamber simhits, no recHit link.
       const bool hasMuonInfo = hasHitInfo && hitIndex->hasChannel(truth::HitChannel::Muon);
       const HitSummary muonDirectSummary =
           hasMuonInfo ? summarizeHits(hitIndex->directHits(truth::HitChannel::Muon, i), recHitEnergies) : HitSummary();
@@ -769,11 +752,9 @@ public:
       os << "  p" << i << " [shape=ellipse, hasCheckpoints=" << p.hasCheckpoints() << ", hasGen=" << p.hasGen()
          << ", hasSim=" << d.hasSim();
 
-      // Level membership, straight off the persisted flags: the point of storing them is
-      // that a reader needs no knowledge of how a level is defined. Emitted BOTH as a dot
-      // attribute a graphviz filter can select on AND, below, as a coloured row in the
-      // label, because graphviz silently ignores attributes it does not know and an
-      // attribute alone renders to nothing at all.
+      // Level membership from the persisted flags. It is written as a dot attribute for a
+      // graphviz filter and, below, as a coloured label row, because graphviz does not render
+      // an unknown attribute.
       std::string levels;
       for (char const* name : truth::levelNamesOf(d)) {
         levels += levels.empty() ? "" : ",";
@@ -845,8 +826,8 @@ public:
            << ">";
       }
 
-      // Big, immediately-legible particle name + PDG id as the table's title row
-      // (HTML-like labels cannot mix free text and a TABLE), with the details below.
+      // The title row of the table is the particle name and PDG id in a large font.
+      // An HTML-like label cannot mix free text and a TABLE.
       const std::string bigName = (d.particleRole() == truth::ParticleRole::Connector) ? std::string("connector")
                                   : (d.particleRole() == truth::ParticleRole::SignalStandIn)
                                       ? std::string("signal stand-in")
@@ -857,8 +838,7 @@ public:
       os << "      <TR><TD><FONT POINT-SIZE=\"22\"><B>" << bigName << "</B></FONT></TD></TR>\n";
       os << "      <TR><TD><B>Particle " << i << "</B></TD></TR>\n";
 
-      // One coloured row per level the particle belongs to. Colours match the legend
-      // node emitted once per graph, so the levels are readable without a key.
+      // One coloured row per level of the particle.
       for (const truth::Level level : truth::kAllLevels) {
         if (d.isAtLevel(truth::levelFlagOf(level))) {
           os << "      <TR><TD BGCOLOR=\"" << levelColor(level) << "\"><B>" << truth::levelName(level)
@@ -1095,8 +1075,7 @@ private:
       evt.getByToken(hgcalRecHitTokens_[i], handle);
 
       if (!handle.isValid()) {
-        // Every later index would shift by the size of this collection, so the whole
-        // annotation is dropped rather than reported against the wrong hits.
+        // Every later index would shift, so drop all recHit energies.
         edm::LogWarning("TruthLogicalGraphDumper")
             << "Missing HGCRecHit collection " << hgcalRecHitTags_[i].encode()
             << ". The global recHit index cannot be rebuilt, so recHit energies are left out of this dump.";

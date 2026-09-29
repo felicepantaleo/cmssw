@@ -1,15 +1,12 @@
 # Original author: Felice Pantaleo (CERN) <felice.pantaleo@cern.ch>
 #
-# ttbar -> dilepton (TTto2L2Nu) at NLO with POWHEG (hvq) showered by Pythia8, used
-# to produce a more realistic ttbar gallery/library example than the LO Pythia8
-# Top:gg2ttbar sample.
+# ttbar -> dilepton (TTto2L2Nu) at NLO with POWHEG (hvq) showered by Pythia8, for a
+# ttbar gallery/library example.
 #
-# WARNING: this is the Run3 13.6 TeV gridpack (and a Run3 13.6 TeV tune /
-# PS-weights), but the truth-graph library/gallery is Phase-2 (Run4 D120) at
-# 14 TeV. The GEN centre-of-mass energy (13.6 TeV) therefore does NOT match the
-# Phase-2 detector/conditions it is simulated with - it is included only as a
-# topology demonstration. For a physically consistent Phase-2 ttbar-POWHEG sample,
-# swap the gridpack for a 14 TeV one and use a matching tune (e.g. CP5 14 TeV).
+# WARNING: the gridpack, tune and PS weights are Run3 at 13.6 TeV. The GEN centre-of-mass
+# energy does NOT match the Phase-2 14 TeV detector and conditions. Use it only as a
+# topology demonstration. For a consistent Phase-2 sample, use a 14 TeV gridpack and a
+# matching tune.
 
 import FWCore.ParameterSet.Config as cms
 
