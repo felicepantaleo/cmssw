@@ -13,55 +13,11 @@
 #include "FWCore/Utilities/interface/Exception.h"
 #include "PhysicsTools/TruthInfo/interface/TruthLevels.h"
 #include "SimDataFormats/TruthInfo/interface/Graph.h"
+#include "PhysicsTools/TruthInfo/test/TestGraphBuilder.h"
 
 namespace {
 
-  // Minimal CSR graph builder, the same one the other tests in this package use.
-  struct GraphBuilder {
-    explicit GraphBuilder(uint32_t nParticles, uint32_t nVertices) {
-      graph.particles().resize(nParticles);
-      graph.vertices().resize(nVertices);
-      // Vertices are GEN by default, as the decay vertices of GEN particles are in a
-      // production graph; a test exercising SIM continuation overrides genNode to -1.
-      for (uint32_t v = 0; v < nVertices; ++v) {
-        graph.vertices()[v].genNode = 200 + v;
-      }
-    }
-    void addDecay(uint32_t particleId, uint32_t vertexId) {
-      d2v.emplace_back(particleId, vertexId);
-      v2i.emplace_back(vertexId, particleId);
-    }
-    void addProduction(uint32_t vertexId, uint32_t particleId) {
-      v2o.emplace_back(vertexId, particleId);
-      p2v.emplace_back(particleId, vertexId);
-    }
-    static void csr(uint32_t n,
-                    std::vector<std::pair<uint32_t, uint32_t>>& pairs,
-                    std::vector<uint32_t>& off,
-                    std::vector<uint32_t>& flat) {
-      std::sort(pairs.begin(), pairs.end());
-      pairs.erase(std::unique(pairs.begin(), pairs.end()), pairs.end());
-      off.assign(n + 1, 0);
-      for (auto const& pr : pairs)
-        ++off[pr.first + 1];
-      for (uint32_t i = 1; i <= n; ++i)
-        off[i] += off[i - 1];
-      flat.assign(pairs.size(), 0);
-      auto cur = off;
-      for (auto const& pr : pairs)
-        flat[cur[pr.first]++] = pr.second;
-    }
-    truth::Graph finish() {
-      csr(graph.nParticles(), d2v, graph.particleToDecayVertexOffsets(), graph.particleToDecayVertices());
-      csr(graph.nParticles(), p2v, graph.particleToProductionVertexOffsets(), graph.particleToProductionVertices());
-      csr(graph.nVertices(), v2o, graph.vertexToOutgoingParticleOffsets(), graph.vertexToOutgoingParticles());
-      csr(graph.nVertices(), v2i, graph.vertexToIncomingParticleOffsets(), graph.vertexToIncomingParticles());
-      CPPUNIT_ASSERT(graph.isConsistent());
-      return graph;
-    }
-    truth::Graph graph;
-    std::vector<std::pair<uint32_t, uint32_t>> d2v, p2v, v2o, v2i;
-  };
+  using GraphBuilder = truth::test::GraphBuilder;
 
   // A tau decaying to a pion and a neutrino, the pion reaching the calorimeter.
   //   p0  tau, isHardProcess, decays at v0
