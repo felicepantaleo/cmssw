@@ -22,7 +22,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "DQMServices/Core/interface/DQMEDAnalyzer.h"
+#include "DQMServices/Core/interface/DQMGlobalEDAnalyzer.h"
 #include "DQMServices/Core/interface/DQMStore.h"
 #include "DQMServices/Core/interface/MonitorElement.h"
 
@@ -51,44 +51,45 @@
 #include "SimDataFormats/TruthInfo/interface/LogicalGraphHitIndex.h"
 #include "SimDataFormats/TruthInfo/interface/TruthGraph.h"
 
-class BranchTrackingValidator : public DQMEDAnalyzer {
+struct BranchTrackingHistograms {
+  // Numerator/denominator for the harvester-computed reproduction efficiency.
+  dqm::reco::MonitorElement* denomEta = nullptr;
+  dqm::reco::MonitorElement* denomPt = nullptr;
+  dqm::reco::MonitorElement* effNumEta = nullptr;
+  dqm::reco::MonitorElement* effNumPt = nullptr;
+  // Quality distributions for the best branch match. (For tracking the best-match
+  // Branch performance is exactly these, and the self-match rate is the efficiency
+  // above: effnum = best Branch is the TrackingParticle's natural Branch.)
+  dqm::reco::MonitorElement* completenessHits = nullptr;
+  dqm::reco::MonitorElement* sharedHits = nullptr;
+  dqm::reco::MonitorElement* completenessVsEta = nullptr;
+  dqm::reco::MonitorElement* completenessVsPt = nullptr;
+  // Merge/split: distinct Branches sharing >=10% of the track's hits.
+  dqm::reco::MonitorElement* nSharingBranches = nullptr;
+};
+
+class BranchTrackingValidator : public DQMGlobalEDAnalyzer<BranchTrackingHistograms> {
 public:
   explicit BranchTrackingValidator(edm::ParameterSet const&);
-  void bookHistograms(DQMStore::IBooker&, edm::Run const&, edm::EventSetup const&) override;
-  void analyze(edm::Event const&, edm::EventSetup const&) override;
+  void bookHistograms(dqm::reco::DQMStore::IBooker&,
+                      edm::Run const&,
+                      edm::EventSetup const&,
+                      BranchTrackingHistograms&) const override;
+  void dqmAnalyze(edm::Event const&, edm::EventSetup const&, BranchTrackingHistograms const&) const override;
   static void fillDescriptions(edm::ConfigurationDescriptions&);
 
 private:
-  struct Plots {
-    // Numerator/denominator for the harvester-computed reproduction efficiency.
-    MonitorElement* denomEta = nullptr;
-    MonitorElement* denomPt = nullptr;
-    MonitorElement* effNumEta = nullptr;
-    MonitorElement* effNumPt = nullptr;
-    // Quality distributions for the best branch match. (For tracking the best-match
-    // Branch performance is exactly these, and the self-match rate is the efficiency
-    // above: effnum = best Branch is the TrackingParticle's natural Branch.)
-    MonitorElement* completenessHits = nullptr;
-    MonitorElement* sharedHits = nullptr;
-    MonitorElement* completenessVsEta = nullptr;
-    MonitorElement* completenessVsPt = nullptr;
-    // Merge/split: distinct Branches sharing >=10% of the track's hits.
-    MonitorElement* nSharingBranches = nullptr;
-  };
-
   const edm::EDGetTokenT<truth::Graph> graphToken_;
   const edm::EDGetTokenT<TruthGraph> rawToken_;
   const edm::EDGetTokenT<truth::LogicalGraphHitIndex> hitIndexToken_;
   const edm::EDGetTokenT<edm::View<reco::Track>> trackToken_;
   const edm::EDGetTokenT<ClusterTPAssociation> clusterTPToken_;
   // One warning per job for an input whose tracker truth carries no cells.
-  std::once_flag moduleKeyedWarned_;
+  mutable std::once_flag moduleKeyedWarned_;
 
   const std::string folder_;
   const double minPt_;
   const double maxEta_;
-
-  Plots plots_;
 };
 
 BranchTrackingValidator::BranchTrackingValidator(edm::ParameterSet const& cfg)
@@ -101,7 +102,10 @@ BranchTrackingValidator::BranchTrackingValidator(edm::ParameterSet const& cfg)
       minPt_(cfg.getParameter<double>("minPt")),
       maxEta_(cfg.getParameter<double>("maxEta")) {}
 
-void BranchTrackingValidator::bookHistograms(DQMStore::IBooker& ib, edm::Run const&, edm::EventSetup const&) {
+void BranchTrackingValidator::bookHistograms(dqm::reco::DQMStore::IBooker& ib,
+                                             edm::Run const&,
+                                             edm::EventSetup const&,
+                                             BranchTrackingHistograms& plots) const {
   ib.setCurrentFolder(folder_ + "/TrackingParticle");
 
   constexpr int kEtaBins = 40;
@@ -109,31 +113,31 @@ void BranchTrackingValidator::bookHistograms(DQMStore::IBooker& ib, edm::Run con
   constexpr int kPtBins = 50;
   constexpr double kPtMax = 200.;
 
-  plots_.denomEta = ib.book1D("denom_eta", "TP-matched tracks vs #eta;#eta;tracks", kEtaBins, -kEtaMax, kEtaMax);
-  plots_.denomPt = ib.book1D("denom_pt", "TP-matched tracks vs p_{T};p_{T} [GeV];tracks", kPtBins, 0., kPtMax);
-  plots_.effNumEta =
+  plots.denomEta = ib.book1D("denom_eta", "TP-matched tracks vs #eta;#eta;tracks", kEtaBins, -kEtaMax, kEtaMax);
+  plots.denomPt = ib.book1D("denom_pt", "TP-matched tracks vs p_{T};p_{T} [GeV];tracks", kPtBins, 0., kPtMax);
+  plots.effNumEta =
       ib.book1D("effnum_eta", "Branch-reproduced TP assignment vs #eta;#eta;tracks", kEtaBins, -kEtaMax, kEtaMax);
-  plots_.effNumPt =
+  plots.effNumPt =
       ib.book1D("effnum_pt", "Branch-reproduced TP assignment vs p_{T};p_{T} [GeV];tracks", kPtBins, 0., kPtMax);
 
-  plots_.completenessHits =
+  plots.completenessHits =
       ib.book1D("completeness_hits", "Branch shared-hit completeness;shared hits / track hits;tracks", 52, -0.01, 1.03);
-  plots_.sharedHits = ib.book1D("shared_hits", "Branch shared tracker hits;shared hits;tracks", 40, 0., 40.);
-  plots_.completenessVsEta = ib.bookProfile("completeness_vs_eta",
-                                            "Branch shared-hit completeness vs #eta;#eta;completeness",
-                                            kEtaBins,
-                                            -kEtaMax,
-                                            kEtaMax,
-                                            0.,
-                                            1.05);
-  plots_.completenessVsPt = ib.bookProfile("completeness_vs_pt",
-                                           "Branch shared-hit completeness vs p_{T};p_{T} [GeV];completeness",
-                                           kPtBins,
-                                           0.,
-                                           kPtMax,
+  plots.sharedHits = ib.book1D("shared_hits", "Branch shared tracker hits;shared hits;tracks", 40, 0., 40.);
+  plots.completenessVsEta = ib.bookProfile("completeness_vs_eta",
+                                           "Branch shared-hit completeness vs #eta;#eta;completeness",
+                                           kEtaBins,
+                                           -kEtaMax,
+                                           kEtaMax,
                                            0.,
                                            1.05);
-  plots_.nSharingBranches = ib.book1D(
+  plots.completenessVsPt = ib.bookProfile("completeness_vs_pt",
+                                          "Branch shared-hit completeness vs p_{T};p_{T} [GeV];completeness",
+                                          kPtBins,
+                                          0.,
+                                          kPtMax,
+                                          0.,
+                                          1.05);
+  plots.nSharingBranches = ib.book1D(
       "n_sharing_branches", "Distinct Branches sharing >=10% of the track hits;#Branches;tracks", 51, -0.5, 50.5);
 }
 
@@ -181,7 +185,9 @@ namespace {
   }
 }  // namespace
 
-void BranchTrackingValidator::analyze(edm::Event const& event, edm::EventSetup const&) {
+void BranchTrackingValidator::dqmAnalyze(edm::Event const& event,
+                                         edm::EventSetup const&,
+                                         BranchTrackingHistograms const& plots) const {
   auto const& graph = event.get(graphToken_);
   auto const& raw = event.get(rawToken_);
   auto const& hitIndex = event.get(hitIndexToken_);
@@ -257,15 +263,15 @@ void BranchTrackingValidator::analyze(edm::Event const& event, edm::EventSetup c
     // The TrackingParticle assignment is the reference the Branch should reproduce.
     if (expectedParticle < 0)
       continue;
-    plots_.denomEta->Fill(eta);
-    plots_.denomPt->Fill(pt);
+    plots.denomEta->Fill(eta);
+    plots.denomPt->Fill(pt);
 
     if (branch.particle >= 0 && nTrackHits > 0) {
       const double completeness = static_cast<double>(branch.sharedHits) / nTrackHits;
-      plots_.completenessHits->Fill(completeness);
-      plots_.sharedHits->Fill(branch.sharedHits);
-      plots_.completenessVsEta->Fill(eta, completeness);
-      plots_.completenessVsPt->Fill(pt, completeness);
+      plots.completenessHits->Fill(completeness);
+      plots.sharedHits->Fill(branch.sharedHits);
+      plots.completenessVsEta->Fill(eta, completeness);
+      plots.completenessVsPt->Fill(pt, completeness);
     }
 
     // Merge/split: distinct Branches sharing >=10% of the track's hits.
@@ -275,12 +281,12 @@ void BranchTrackingValidator::analyze(edm::Event const& event, edm::EventSetup c
       for (auto const& m : matches)
         if (static_cast<double>(m.sharedEnergy) >= shareThreshold)
           ++nSharing;
-      plots_.nSharingBranches->Fill(std::min<uint32_t>(nSharing, 50));
+      plots.nSharingBranches->Fill(std::min<uint32_t>(nSharing, 50));
     }
 
     if (branch.particle == expectedParticle) {
-      plots_.effNumEta->Fill(eta);
-      plots_.effNumPt->Fill(pt);
+      plots.effNumEta->Fill(eta);
+      plots.effNumPt->Fill(pt);
     }
   }
 }

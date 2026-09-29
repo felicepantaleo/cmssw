@@ -19,7 +19,7 @@
 #include <unordered_set>
 #include <vector>
 
-#include "DQMServices/Core/interface/DQMEDAnalyzer.h"
+#include "DQMServices/Core/interface/DQMGlobalEDAnalyzer.h"
 #include "DQMServices/Core/interface/DQMStore.h"
 #include "DQMServices/Core/interface/MonitorElement.h"
 
@@ -47,55 +47,63 @@
 #include "SimDataFormats/TruthInfo/interface/LogicalGraphHitIndex.h"
 #include "SimDataFormats/TruthInfo/interface/TruthGraph.h"
 
-class BranchHGCalValidator : public DQMEDAnalyzer {
+// One set of monitor elements per legacy collection (CaloParticle, SimCluster).
+struct BranchHGCalPlots {
+  // Numerator/denominator for the harvester-computed reproduction efficiency.
+  dqm::reco::MonitorElement* denomEta = nullptr;
+  dqm::reco::MonitorElement* denomPt = nullptr;
+  dqm::reco::MonitorElement* denomEnergy = nullptr;
+  dqm::reco::MonitorElement* effNumEta = nullptr;
+  dqm::reco::MonitorElement* effNumPt = nullptr;
+  dqm::reco::MonitorElement* effNumEnergy = nullptr;
+  // Quality distributions.
+  dqm::reco::MonitorElement* purity = nullptr;
+  dqm::reco::MonitorElement* completenessHits = nullptr;
+  dqm::reco::MonitorElement* completenessEnergy = nullptr;
+  dqm::reco::MonitorElement* energyResponse = nullptr;
+  // Raw energy response: Branch hit energy over the object's *hit* energy (rather
+  // than its generator energy), on the deposited (sim) and reconstructed (rec)
+  // scales. ~1 when the Branch reproduces the object's calorimeter energy.
+  dqm::reco::MonitorElement* rawEnergyResponseSim = nullptr;
+  dqm::reco::MonitorElement* rawEnergyResponseReco = nullptr;
+  // Profiles vs kinematics.
+  dqm::reco::MonitorElement* purityVsEta = nullptr;
+  dqm::reco::MonitorElement* completenessVsEta = nullptr;
+  dqm::reco::MonitorElement* responseVsEta = nullptr;
+  dqm::reco::MonitorElement* responseVsEnergy = nullptr;
+  dqm::reco::MonitorElement* rawResponseSimVsEnergy = nullptr;
+  dqm::reco::MonitorElement* rawResponseRecoVsEnergy = nullptr;
+
+  // "Other way around": for each truth object, its best hit-matched Branch (which
+  // need not be the natural, trackId-seeded one) and that Branch's performance.
+  dqm::reco::MonitorElement* bestPurity = nullptr;
+  dqm::reco::MonitorElement* bestCompletenessHits = nullptr;
+  dqm::reco::MonitorElement* bestCompletenessEnergy = nullptr;
+  dqm::reco::MonitorElement* bestResponse = nullptr;
+  // Self-match numerator: best hit-matched Branch == natural Branch (denom reused).
+  dqm::reco::MonitorElement* selfMatchEta = nullptr;
+  dqm::reco::MonitorElement* selfMatchPt = nullptr;
+  // Merge/split: distinct Branches sharing >=10% of the object's hits.
+  dqm::reco::MonitorElement* nSharingBranches = nullptr;
+};
+
+struct BranchHGCalHistograms {
+  BranchHGCalPlots caloParticle;
+  BranchHGCalPlots simCluster;
+};
+
+class BranchHGCalValidator : public DQMGlobalEDAnalyzer<BranchHGCalHistograms> {
 public:
   explicit BranchHGCalValidator(edm::ParameterSet const&);
-  void bookHistograms(DQMStore::IBooker&, edm::Run const&, edm::EventSetup const&) override;
-  void analyze(edm::Event const&, edm::EventSetup const&) override;
+  void bookHistograms(dqm::reco::DQMStore::IBooker&,
+                      edm::Run const&,
+                      edm::EventSetup const&,
+                      BranchHGCalHistograms&) const override;
+  void dqmAnalyze(edm::Event const&, edm::EventSetup const&, BranchHGCalHistograms const&) const override;
   static void fillDescriptions(edm::ConfigurationDescriptions&);
 
 private:
-  // One set of monitor elements per legacy collection (CaloParticle, SimCluster).
-  struct Plots {
-    // Numerator/denominator for the harvester-computed reproduction efficiency.
-    MonitorElement* denomEta = nullptr;
-    MonitorElement* denomPt = nullptr;
-    MonitorElement* denomEnergy = nullptr;
-    MonitorElement* effNumEta = nullptr;
-    MonitorElement* effNumPt = nullptr;
-    MonitorElement* effNumEnergy = nullptr;
-    // Quality distributions.
-    MonitorElement* purity = nullptr;
-    MonitorElement* completenessHits = nullptr;
-    MonitorElement* completenessEnergy = nullptr;
-    MonitorElement* energyResponse = nullptr;
-    // Raw energy response: Branch hit energy over the object's *hit* energy (rather
-    // than its generator energy), on the deposited (sim) and reconstructed (rec)
-    // scales. ~1 when the Branch reproduces the object's calorimeter energy.
-    MonitorElement* rawEnergyResponseSim = nullptr;
-    MonitorElement* rawEnergyResponseReco = nullptr;
-    // Profiles vs kinematics.
-    MonitorElement* purityVsEta = nullptr;
-    MonitorElement* completenessVsEta = nullptr;
-    MonitorElement* responseVsEta = nullptr;
-    MonitorElement* responseVsEnergy = nullptr;
-    MonitorElement* rawResponseSimVsEnergy = nullptr;
-    MonitorElement* rawResponseRecoVsEnergy = nullptr;
-
-    // "Other way around": for each truth object, its best hit-matched Branch (which
-    // need not be the natural, trackId-seeded one) and that Branch's performance.
-    MonitorElement* bestPurity = nullptr;
-    MonitorElement* bestCompletenessHits = nullptr;
-    MonitorElement* bestCompletenessEnergy = nullptr;
-    MonitorElement* bestResponse = nullptr;
-    // Self-match numerator: best hit-matched Branch == natural Branch (denom reused).
-    MonitorElement* selfMatchEta = nullptr;
-    MonitorElement* selfMatchPt = nullptr;
-    // Merge/split: distinct Branches sharing >=10% of the object's hits.
-    MonitorElement* nSharingBranches = nullptr;
-  };
-
-  void book(DQMStore::IBooker&, Plots&, std::string const& sub);
+  void book(dqm::reco::DQMStore::IBooker&, BranchHGCalPlots&, std::string const& sub) const;
 
   template <class Collection>
   void validate(Collection const& objects,
@@ -106,7 +114,7 @@ private:
                 std::unordered_map<uint64_t, uint32_t> const& tidToParticle,
                 std::unordered_map<uint32_t, float> const& cellSimEnergy,
                 std::unordered_map<uint32_t, float> const& recHitEnergyByDetId,
-                Plots& plots);
+                BranchHGCalPlots const& plots) const;
 
   // Whole-cell RecHit energy keyed by DetId, rebuilt from the same RecHit
   // collections (HGCal then PF, the DetIdToRecHitMapProducer order) the hit
@@ -126,9 +134,6 @@ private:
   const std::string folder_;
   const double minPt_;
   const double maxEta_;
-
-  Plots caloParticlePlots_;
-  Plots simClusterPlots_;
 };
 
 BranchHGCalValidator::BranchHGCalValidator(edm::ParameterSet const& cfg)
@@ -150,7 +155,7 @@ BranchHGCalValidator::BranchHGCalValidator(edm::ParameterSet const& cfg)
   }
 }
 
-void BranchHGCalValidator::book(DQMStore::IBooker& ib, Plots& p, std::string const& sub) {
+void BranchHGCalValidator::book(dqm::reco::DQMStore::IBooker& ib, BranchHGCalPlots& p, std::string const& sub) const {
   ib.setCurrentFolder(folder_ + "/" + sub);
 
   constexpr int kEtaBins = 40;
@@ -248,9 +253,12 @@ void BranchHGCalValidator::book(DQMStore::IBooker& ib, Plots& p, std::string con
       "n_sharing_branches", "Distinct Branches sharing >=10% of the object hits;#Branches;objects", 51, -0.5, 50.5);
 }
 
-void BranchHGCalValidator::bookHistograms(DQMStore::IBooker& ib, edm::Run const&, edm::EventSetup const&) {
-  book(ib, caloParticlePlots_, "CaloParticle");
-  book(ib, simClusterPlots_, "SimCluster");
+void BranchHGCalValidator::bookHistograms(dqm::reco::DQMStore::IBooker& ib,
+                                          edm::Run const&,
+                                          edm::EventSetup const&,
+                                          BranchHGCalHistograms& histograms) const {
+  book(ib, histograms.caloParticle, "CaloParticle");
+  book(ib, histograms.simCluster, "SimCluster");
 }
 
 namespace {
@@ -280,7 +288,7 @@ void BranchHGCalValidator::validate(Collection const& objects,
                                     std::unordered_map<uint64_t, uint32_t> const& tidToParticle,
                                     std::unordered_map<uint32_t, float> const& cellSimEnergy,
                                     std::unordered_map<uint32_t, float> const& recHitEnergyByDetId,
-                                    Plots& plots) {
+                                    BranchHGCalPlots const& plots) const {
   auto recoEnergyOf = [&recHitEnergyByDetId](uint32_t detId) -> double {
     auto it = recHitEnergyByDetId.find(detId);
     return it != recHitEnergyByDetId.end() ? static_cast<double>(it->second) : 0.;
@@ -476,7 +484,9 @@ std::unordered_map<uint32_t, float> BranchHGCalValidator::collectRecHitEnergyByD
   return energies;
 }
 
-void BranchHGCalValidator::analyze(edm::Event const& event, edm::EventSetup const&) {
+void BranchHGCalValidator::dqmAnalyze(edm::Event const& event,
+                                      edm::EventSetup const&,
+                                      BranchHGCalHistograms const& histograms) const {
   auto const& graph = event.get(graphToken_);
   auto const& raw = event.get(rawToken_);
   auto const& hitIndexProduct = event.get(hitIndexToken_);
@@ -511,7 +521,7 @@ void BranchHGCalValidator::analyze(edm::Event const& event, edm::EventSetup cons
            tidToParticle,
            cellSimEnergy,
            recHitEnergyByDetId,
-           caloParticlePlots_);
+           histograms.caloParticle);
   validate(event.get(simClusterToken_),
            graph,
            raw,
@@ -520,7 +530,7 @@ void BranchHGCalValidator::analyze(edm::Event const& event, edm::EventSetup cons
            tidToParticle,
            cellSimEnergy,
            recHitEnergyByDetId,
-           simClusterPlots_);
+           histograms.simCluster);
 }
 
 void BranchHGCalValidator::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
