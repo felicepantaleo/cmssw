@@ -1,23 +1,9 @@
 #ifndef RecoHGCal_TICL_MuonInterpretationAlgo_h
 #define RecoHGCal_TICL_MuonInterpretationAlgo_h
 
-// Muon interpretation for TICL candidates. A muon crosses HGCAL as a MIP: it should
-// NOT be built from the small calorimetric deposit it leaves (as the general
-// interpretation would), but recognised as a muon and built from the track momentum,
-// with its MIP tracksters consumed so they do not resurface as neutral candidates.
-//
-// This is where the Muon-POG HGCAL muon identification belongs. For each candidate
-// track this algo:
-//   1. points/propagates the track into HGCAL and collects the layer clusters /
-//      tracksters in an (eta,phi) window around the trajectory;
-//   2. checks the trajectory does NOT coincide with an energetic trackster (a muon is
-//      MIP-like, not a shower) - the "not energetic" requirement;
-//   3. runs a neural network over the surrounding layer clusters to decide muon vs not
-//      (ONNX model, path configurable like the other TICL inference). The trained
-//      weights are a Muon-POG deliverable; until a model is provided the decision falls
-//      back to the rule-based MIP/not-energetic test so the algo is runnable.
-// A track accepted as a muon has its MIP tracksters masked (consumed) and is reported
-// so the producer builds a muon candidate from the track momentum.
+// Muon interpretation. A muon crosses HGCAL as a MIP: its candidate takes the track momentum.
+// makeCandidates: a muon track with MIP-like energy in its (eta, phi) window takes the tracksters of the window.
+// makeOpinions: a muon hypothesis for every muon track, with the tracksters near the propagated track as footprint.
 
 #include "FWCore/Framework/interface/Frameworkfwd.h"
 #include "FWCore/Framework/interface/ESHandle.h"
@@ -27,10 +13,6 @@
 
 #include <memory>
 #include <string>
-
-namespace cms::Ort {
-  class ONNXRuntime;
-}
 
 namespace ticl {
 
@@ -46,6 +28,13 @@ namespace ticl {
                         std::vector<bool> &maskedTracksters,
                         std::vector<std::vector<unsigned int>> &linkedResultTracksters) override;
 
+    // One muon hypothesis per muon track: the footprint is the tracksters near the track, the score falls with
+    // their energy.
+    void makeOpinions(const Inputs &input,
+                      edm::Handle<MtdHostCollection> inputTiming_h,
+                      std::vector<Trackster> &hypothesisTracksters,
+                      std::vector<Hypothesis> &hypotheses) override;
+
     void initialize(const HGCalDDDConstants *hgcons,
                     const ticlgeom::Tools rhtools,
                     const edm::ESHandle<MagneticField> bfieldH,
@@ -54,22 +43,19 @@ namespace ticl {
     static void fillPSetDescription(edm::ParameterSetDescription &iDesc);
 
   private:
-    // NN muon score over the layer clusters around the trajectory. Falls back to the
-    // rule-based MIP/not-energetic decision when no ONNX model is configured.
-    bool isMuonLike(double nearbyEnergy, unsigned nNearbyTracksters) const;
+    // True when the energy around the track is MIP-like.
+    bool isMuonLike(float nearbyEnergy, unsigned nNearbyTracksters) const;
 
     // (eta,phi) window used to collect tracksters around the track direction.
-    const double delta_tk_ts_;
+    const float delta_tk_ts_;
     // Max summed raw energy of the tracksters around the trajectory for a MIP-like
     // (muon) signature; above this the track points to a shower and is not a muon.
-    const double mip_energy_max_;
-    // ONNX muon-ID model (empty -> rule-based fallback). Loaded via the global cache.
-    const std::string onnx_model_path_;
+    const float mip_energy_max_;
+    // Hypotheses: the tracksters in the delta_tk_ts window within this transverse distance [cm] of the track.
+    const float max_distance_;
 
     const HGCalDDDConstants *hgcons_;
     ticlgeom::Tools rhtools_;
-    edm::ESHandle<MagneticField> bfield_;
-    edm::ESHandle<Propagator> propagator_;
   };
 
 }  // namespace ticl

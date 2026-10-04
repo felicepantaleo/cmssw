@@ -24,6 +24,13 @@ namespace ticl {
                         std::vector<bool> &maskedTracksters,
                         std::vector<std::vector<unsigned int>> &linkedResultTracksters) override;
 
+    // A charged-hadron hypothesis per track with linked tracksters, and a neutral-hadron hypothesis per trackster. A
+    // trackster can be linked to several tracks.
+    void makeOpinions(const Inputs &input,
+                      edm::Handle<MtdHostCollection> inputTiming_h,
+                      std::vector<Trackster> &hypothesisTracksters,
+                      std::vector<Hypothesis> &hypotheses) override;
+
     void initialize(const HGCalDDDConstants *hgcons,
                     const ticlgeom::Tools rhtools,
                     const edm::ESHandle<MagneticField> bfieldH,
@@ -33,6 +40,13 @@ namespace ticl {
 
   private:
     void buildLayers();
+
+    // Tracksters linked to each selected track, the tracks in descending momentum. A track only takes the tracksters
+    // marked in available; with exclusive, a linked trackster is not available to the next tracks.
+    std::vector<std::vector<unsigned int>> link(const Inputs &input,
+                                                edm::Handle<MtdHostCollection> inputTiming_h,
+                                                std::vector<bool> &available,
+                                                bool exclusive);
 
     Vector propagateTrackster(const Trackster &t,
                               const unsigned idx,
@@ -58,11 +72,12 @@ namespace ticl {
                                  const GlobalPoint &tkMtdPos,
                                  bool useMTDTiming);
 
-    const float tkEnergyCut_ = 2.0f;
     const float maxDeltaT_ = 3.0f;
     const float del_tk_ts_layer1_;
     const float del_tk_ts_int_;
     const float timing_quality_threshold_;
+    // Min raw energy [GeV] of a trackster for a neutral-hadron hypothesis.
+    const float min_neutral_hadron_energy_;
 
     const HGCalDDDConstants *hgcons_;
 
