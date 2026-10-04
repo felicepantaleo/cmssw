@@ -19,6 +19,7 @@
 <use name="HeterogeneousCore/AlpakaInterface"/>
 <use name="MagneticField/Engine"/>
 <use name="MagneticField/Records"/>
+<use name="PhysicsTools/ONNXRuntime"/>
 <use name="RecoLocalCalo/HGCalRecAlgos"/>
 <use name="RecoParticleFlow/PFProducer"/>
 <use name="RecoTICL/Common"/>

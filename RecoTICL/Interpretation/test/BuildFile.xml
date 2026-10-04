@@ -1,0 +1,4 @@
+<bin name="testMaxWeightIndependentSet" file="MaxWeightIndependentSet_t.cpp">
+  <use name="RecoTICL/Interpretation"/>
+  <use name="catch2"/>
+</bin>
