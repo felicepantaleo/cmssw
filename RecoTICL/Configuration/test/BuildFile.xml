@@ -1,6 +1,8 @@
 <!-- Original Author: Felice Pantaleo, CERN, felice.pantaleo@cern.ch -->
 <test name="testPyTICLReproduceV5"
       command="python3 ${LOCALTOP}/src/RecoTICL/Configuration/test/test_reproduce_v5.py"/>
+<test name="testPyTICLReproduceV6"
+      command="python3 ${LOCALTOP}/src/RecoTICL/Configuration/test/test_reproduce_v6.py"/>
 <test name="testPyTICLCatalogSchema"
       command="python3 ${LOCALTOP}/src/RecoTICL/Configuration/test/test_catalog_schema.py"/>
 <test name="testPyTICLPlumbing"
@@ -19,3 +21,5 @@
       command="python3 ${LOCALTOP}/src/RecoTICL/Configuration/test/test_localreco.py"/>
 <test name="testPyTICLGraph"
       command="python3 ${LOCALTOP}/src/RecoTICL/Configuration/test/test_graph.py"/>
+<test name="testPyTICLV6Modifier"
+      command="python3 ${LOCALTOP}/src/RecoTICL/Configuration/test/test_ticl_v6_modifier.py"/>
