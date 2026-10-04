@@ -22,6 +22,7 @@
 #include "FWCore/Framework/interface/ConsumesCollector.h"
 #include "DataFormats/Common/interface/MultiSpan.h"
 #include "PhysicsTools/ONNXRuntime/interface/ONNXRuntime.h"
+#include "RecoTICL/Interpretation/interface/TrackImpact.h"
 
 namespace edm {
   class Event;
@@ -32,6 +33,18 @@ namespace ticl {
   // rejected (the trajectory points to a shower, so it is not a muon). The producer
   // routes such tracks to the next (general) pass instead of building a muon candidate.
   constexpr int kMuonRejected = -2;
+
+  // The opinion of one interpretation that a track, several tracks or a trackster is a particle of one type.
+  // An interpretation does not consume objects: the hypotheses overlap, and the interpretation producer chooses the
+  // accepted set.
+  struct Hypothesis {
+    enum class Type { Muon, Electron, Photon, ChargedHadron, NeutralHadron, Jet, RecoveryChargedHadron };
+    Type type = Type::ChargedHadron;
+    float score = 0.f;           // in [0, 1]
+    int trackIdx = -1;           // track of a single-track hypothesis (-1: none)
+    int tracksterIdx = -1;       // footprint: index into the hypothesis tracksters (-1: none)
+    std::vector<int> trackIdxs;  // tracks of a jet hypothesis
+  };
 
   template <typename T>
   class TICLInterpretationAlgoBase {
@@ -47,6 +60,8 @@ namespace ticl {
       const edm::MultiSpan<Trackster>& tracksters;
       const edm::Handle<std::vector<T>> tracksHandle;
       const std::vector<bool>& maskedTracks;
+      // HGCAL front impact of each selected track, by track index; null when the producer does not compute them.
+      const std::vector<TrackImpact>* impacts;
 
       Inputs(const edm::Event& eV,
              const edm::EventSetup& eS,
@@ -54,14 +69,16 @@ namespace ticl {
              const edm::ValueMap<std::pair<float, float>>& lcT,
              const edm::MultiSpan<Trackster>& tS,
              const edm::Handle<std::vector<T>> trks,
-             const std::vector<bool>& mT)
+             const std::vector<bool>& mT,
+             const std::vector<TrackImpact>* imp = nullptr)
           : ev(eV),
             es(eS),
             layerClusters(lC),
             layerClustersTime(lcT),
             tracksters(tS),
             tracksHandle(trks),
-            maskedTracks(mT) {}
+            maskedTracks(mT),
+            impacts(imp) {}
     };
 
     struct TrackTimingInformation {
@@ -90,6 +107,13 @@ namespace ticl {
                                 std::vector<int>& resultCandidate,
                                 std::vector<bool>& maskedTracksters,
                                 std::vector<std::vector<unsigned int>>& linkedResultTracksters) = 0;
+
+    // Appends the hypotheses of the algorithm and their footprint tracksters. The interpretations share
+    // hypothesisTracksters: an algorithm only appends to it. The default gives no hypotheses.
+    virtual void makeOpinions(const Inputs& input,
+                              edm::Handle<MtdHostCollection> inputTiming_h,
+                              std::vector<Trackster>& hypothesisTracksters,
+                              std::vector<Hypothesis>& hypotheses) {}
 
     virtual void initialize(const HGCalDDDConstants* hgcons,
                             const ticlgeom::Tools rhtools,
