@@ -1,3 +1,4 @@
+#include <algorithm>
 #include "DataFormats/Math/interface/deltaPhi.h"
 #include "RecoTICL/Interpretation/interface/TICLInterpretationAlgoBase.h"
 #include "RecoTICL/Common/interface/TICLUtils.h"
@@ -15,7 +16,8 @@ GeneralInterpretationAlgo::GeneralInterpretationAlgo(const edm::ParameterSet &co
     : TICLInterpretationAlgoBase(conf, cc),
       del_tk_ts_layer1_(conf.getParameter<float>("delta_tk_ts_layer1")),
       del_tk_ts_int_(conf.getParameter<float>("delta_tk_ts_interface")),
-      timing_quality_threshold_(conf.getParameter<float>("timing_quality_threshold")) {}
+      timing_quality_threshold_(conf.getParameter<float>("timing_quality_threshold")),
+      min_neutral_hadron_energy_(conf.getParameter<float>("min_neutral_hadron_energy")) {}
 
 void GeneralInterpretationAlgo::initialize(const HGCalDDDConstants *hgcons,
                                            const ticlgeom::Tools rhtools,
@@ -193,12 +195,10 @@ bool GeneralInterpretationAlgo::timeAndEnergyCompatible(float &total_raw_energy,
   return energyCompatible && timeCompatible;
 }
 
-void GeneralInterpretationAlgo::makeCandidates(const Inputs &input,
-                                               edm::Handle<MtdHostCollection> inputTiming_h,
-                                               std::vector<Trackster> &resultTracksters,
-                                               std::vector<int> &resultCandidate,
-                                               std::vector<bool> &maskedTracksters,
-                                               std::vector<std::vector<unsigned int>> &linkedResultTracksters) {
+std::vector<std::vector<unsigned int>> GeneralInterpretationAlgo::link(const Inputs &input,
+                                                                       edm::Handle<MtdHostCollection> inputTiming_h,
+                                                                       std::vector<bool> &available,
+                                                                       bool exclusive) {
   bool useMTDTiming = inputTiming_h.isValid();
   const auto tkH = input.tracksHandle;
   const auto &maskTracks = input.maskedTracks;
@@ -307,20 +307,7 @@ void GeneralInterpretationAlgo::makeCandidates(const Inputs &input,
   findTrackstersInWindow(
       tracksters, tkPropIntColl, tsPropIntTiles, tsAllPropInt, del_tk_ts_int_, tracksters.size(), tsNearTkAtInt);
 
-  std::vector<unsigned int> chargedHadronsFromTk;
-  std::vector<std::vector<unsigned int>> trackstersInTrackIndices;
-  trackstersInTrackIndices.resize(tracks.size());
-
-  if (maskedTracksters.size() < tracksters.size())
-    maskedTracksters.resize(tracksters.size(), false);
-
-  std::vector<bool> chargedMask(tracksters.size(), true);
-  // Tracksters already consumed by an earlier interpretation pass (e.g. muon MIP
-  // tracksters) are unavailable here: they are neither linked to a track nor emitted
-  // as neutral candidates.
-  for (size_t i = 0; i < tracksters.size(); ++i)
-    if (maskedTracksters[i])
-      chargedMask[i] = false;
+  std::vector<std::vector<unsigned int>> trackstersInTrackIndices(tracks.size());
   for (unsigned &i : candidateTrackIds) {
     if (tsNearTk[i].empty() && tsNearTkAtInt[i].empty()) {  // nothing linked to track, make charged hadrons
       continue;
@@ -345,37 +332,64 @@ void GeneralInterpretationAlgo::makeCandidates(const Inputs &input,
     }
 
     for (auto const tsIdx : tsNearTk[i]) {
-      if (chargedMask[tsIdx] && timeAndEnergyCompatible(total_raw_energy,
-                                                        tracks[i],
-                                                        tracksters[tsIdx],
-                                                        track_time,
-                                                        track_timeErr,
-                                                        track_quality,
-                                                        track_beta,
-                                                        track_MtdPos,
-                                                        useMTDTiming)) {
+      if (available[tsIdx] && timeAndEnergyCompatible(total_raw_energy,
+                                                      tracks[i],
+                                                      tracksters[tsIdx],
+                                                      track_time,
+                                                      track_timeErr,
+                                                      track_quality,
+                                                      track_beta,
+                                                      track_MtdPos,
+                                                      useMTDTiming)) {
+        // A trackster in both windows is linked once.
+        if (std::find(chargedCandidate.begin(), chargedCandidate.end(), tsIdx) != chargedCandidate.end())
+          continue;
         chargedCandidate.push_back(tsIdx);
-        chargedMask[tsIdx] = false;
+        if (exclusive)
+          available[tsIdx] = false;
         total_raw_energy += tracksters[tsIdx].raw_energy();
       }
     }
     for (const unsigned tsIdx : tsNearTkAtInt[i]) {  // do the same for tk -> ts links at the interface
-      if (chargedMask[tsIdx] && timeAndEnergyCompatible(total_raw_energy,
-                                                        tracks[i],
-                                                        tracksters[tsIdx],
-                                                        track_time,
-                                                        track_timeErr,
-                                                        track_quality,
-                                                        track_beta,
-                                                        track_MtdPos,
-                                                        useMTDTiming)) {
+      if (available[tsIdx] && timeAndEnergyCompatible(total_raw_energy,
+                                                      tracks[i],
+                                                      tracksters[tsIdx],
+                                                      track_time,
+                                                      track_timeErr,
+                                                      track_quality,
+                                                      track_beta,
+                                                      track_MtdPos,
+                                                      useMTDTiming)) {
+        // A trackster in both windows is linked once.
+        if (std::find(chargedCandidate.begin(), chargedCandidate.end(), tsIdx) != chargedCandidate.end())
+          continue;
         chargedCandidate.push_back(tsIdx);
-        chargedMask[tsIdx] = false;
+        if (exclusive)
+          available[tsIdx] = false;
         total_raw_energy += tracksters[tsIdx].raw_energy();
       }
     }
     trackstersInTrackIndices[i] = chargedCandidate;
   }
+  return trackstersInTrackIndices;
+}
+
+void GeneralInterpretationAlgo::makeCandidates(const Inputs &input,
+                                               edm::Handle<MtdHostCollection> inputTiming_h,
+                                               std::vector<Trackster> &resultTracksters,
+                                               std::vector<int> &resultCandidate,
+                                               std::vector<bool> &maskedTracksters,
+                                               std::vector<std::vector<unsigned int>> &linkedResultTracksters) {
+  const auto &tracksters = input.tracksters;
+  if (maskedTracksters.size() < tracksters.size())
+    maskedTracksters.resize(tracksters.size(), false);
+  // Tracksters consumed by an earlier interpretation pass (e.g. muon MIP tracksters) are neither linked to a track
+  // nor emitted as neutral candidates.
+  std::vector<bool> chargedMask(tracksters.size(), true);
+  for (size_t i = 0; i < tracksters.size(); ++i)
+    if (maskedTracksters[i])
+      chargedMask[i] = false;
+  const auto trackstersInTrackIndices = link(input, inputTiming_h, chargedMask, true);
   linkedResultTracksters.reserve(linkedResultTracksters.size() + input.tracksters.size());
   for (size_t iTrack = 0; iTrack < trackstersInTrackIndices.size(); iTrack++) {
     if (!trackstersInTrackIndices[iTrack].empty()) {
@@ -417,9 +431,49 @@ void GeneralInterpretationAlgo::makeCandidates(const Inputs &input,
   }
 };
 
+void GeneralInterpretationAlgo::makeOpinions(const Inputs &input,
+                                             edm::Handle<MtdHostCollection> inputTiming_h,
+                                             std::vector<Trackster> &hypothesisTracksters,
+                                             std::vector<Hypothesis> &hypotheses) {
+  const auto &tracksters = input.tracksters;
+  std::vector<bool> available(tracksters.size(), true);
+  const auto linked = link(input, inputTiming_h, available, false);
+  for (size_t iTrack = 0; iTrack < linked.size(); ++iTrack) {
+    if (linked[iTrack].empty())
+      continue;
+    Hypothesis h;
+    h.type = Hypothesis::Type::ChargedHadron;
+    h.score = 0.5f;
+    h.trackIdx = static_cast<int>(iTrack);
+    h.tracksterIdx = static_cast<int>(hypothesisTracksters.size());
+    if (linked[iTrack].size() == 1) {
+      hypothesisTracksters.push_back(tracksters[linked[iTrack][0]]);
+    } else {
+      Trackster merged;
+      for (auto const tracksterId : linked[iTrack])
+        merged.mergeTracksters(tracksters[tracksterId]);
+      hypothesisTracksters.push_back(std::move(merged));
+    }
+    hypotheses.push_back(h);
+  }
+  // The producer gives the neutral-hadron scores from the trackster PID.
+  for (unsigned iTs = 0; iTs < tracksters.size(); ++iTs) {
+    const auto &ts = tracksters[iTs];
+    if (ts.raw_energy() < min_neutral_hadron_energy_)
+      continue;
+    Hypothesis h;
+    h.type = Hypothesis::Type::NeutralHadron;
+    h.tracksterIdx = static_cast<int>(hypothesisTracksters.size());
+    hypothesisTracksters.push_back(ts);
+    hypotheses.push_back(h);
+  }
+}
+
 void GeneralInterpretationAlgo::fillPSetDescription(edm::ParameterSetDescription &desc) {
   desc.add<float>("delta_tk_ts_layer1", 0.02);
   desc.add<float>("delta_tk_ts_interface", 0.03);
   desc.add<float>("timing_quality_threshold", 0.5);
+  desc.add<float>("min_neutral_hadron_energy", 1.f)
+      ->setComment("Hypotheses: min raw energy [GeV] of a trackster for a neutral-hadron hypothesis.");
   TICLInterpretationAlgoBase::fillPSetDescription(desc);
 }
