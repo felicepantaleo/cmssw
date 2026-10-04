@@ -1,42 +1,40 @@
 #include "MuonInterpretationAlgo.h"
 
-#include "DataFormats/Math/interface/deltaR.h"
-#include "FWCore/ParameterSet/interface/ParameterSet.h"
+#include <algorithm>
 
-// v0 of the Muon-POG HGCAL muon interpretation. It captures the architecture (point the
-// track into HGCAL, collect the tracksters around the trajectory, require a MIP / not-
-// energetic signature, and consume the MIP tracksters) with a rule-based decision as a
-// placeholder for the neural network. TODOs marked below are the upgrade path:
-//   - replace the direction-based association with full track propagation to the HGCAL
-//     layers (as GeneralInterpretationAlgo does) and per-layer layer-cluster collection;
-//   - run the ONNX muon-ID network over those layer clusters (onnx_model_path_).
+#include "DataFormats/Math/interface/deltaR.h"
+#include "RecoTICL/Interpretation/interface/TrackImpact.h"
+#include "RecoTICL/Interpretation/interface/TrackStraightLine.h"
+#include "FWCore/ParameterSet/interface/ParameterSet.h"
+#include "FWCore/Utilities/interface/Exception.h"
+
+// Muon interpretation: a track whose trajectory in HGCAL meets only MIP-like energy is a muon; it takes the
+// tracksters along the trajectory.
 
 using namespace ticl;
 
 MuonInterpretationAlgo::MuonInterpretationAlgo(const edm::ParameterSet &conf, edm::ConsumesCollector iC)
     : TICLInterpretationAlgoBase(conf, iC),
-      delta_tk_ts_(conf.getParameter<double>("delta_tk_ts")),
-      mip_energy_max_(conf.getParameter<double>("mip_energy_max")),
-      onnx_model_path_(conf.getParameter<std::string>("onnx_model_path")),
-      hgcons_(nullptr) {}
+      delta_tk_ts_(conf.getParameter<float>("delta_tk_ts")),
+      mip_energy_max_(conf.getParameter<float>("mip_energy_max")),
+      max_distance_(conf.getParameter<float>("max_distance")),
+      hgcons_(nullptr) {
+  if (!(max_distance_ > 0.f))
+    throw cms::Exception("Configuration") << "MuonInterpretationAlgo: max_distance must be positive";
+}
 
 MuonInterpretationAlgo::~MuonInterpretationAlgo() {}
 
 void MuonInterpretationAlgo::initialize(const HGCalDDDConstants *hgcons,
                                         const ticlgeom::Tools rhtools,
-                                        const edm::ESHandle<MagneticField> bfieldH,
-                                        const edm::ESHandle<Propagator> propH) {
+                                        const edm::ESHandle<MagneticField> /*bfieldH*/,
+                                        const edm::ESHandle<Propagator> /*propH*/) {
   hgcons_ = hgcons;
   rhtools_ = rhtools;
-  bfield_ = bfieldH;
-  propagator_ = propH;
 }
 
-bool MuonInterpretationAlgo::isMuonLike(double nearbyEnergy, unsigned /*nNearbyTracksters*/) const {
-  // TODO: when onnx_model_path_ is set, run the muon-ID network over the surrounding
-  // layer clusters and use its score here. Until then, the Muon-POG "not energetic"
-  // requirement is the decision: a muon deposits a MIP, so the tracksters around its
-  // trajectory carry little energy.
+bool MuonInterpretationAlgo::isMuonLike(float nearbyEnergy, unsigned /*nNearbyTracksters*/) const {
+  // A muon deposits a MIP: the tracksters around its trajectory carry little energy.
   return nearbyEnergy < mip_energy_max_;
 }
 
@@ -56,22 +54,20 @@ void MuonInterpretationAlgo::makeCandidates(const Inputs &input,
     if (!maskTracks[iTrack])
       continue;
     const auto &tk = tracks[iTrack];
-    // TODO: propagate the track to the HGCAL layers; here we use the outer track
-    // direction (or the momentum direction) as the HGCAL entry direction, which is a
-    // good approximation for a minimally-bending muon.
+    // The track enters HGCAL along its outermost momentum direction.
     const auto dir = tk.outerOk() ? tk.outerMomentum() : tk.momentum();
-    const double tkEta = dir.eta();
-    const double tkPhi = dir.phi();
+    const float tkEta = dir.eta();
+    const float tkPhi = dir.phi();
 
     // Collect the tracksters whose barycenter lies within the (eta,phi) window around
     // the trajectory, and sum their raw energy (the "is it energetic?" measure).
     std::vector<unsigned> nearby;
-    double nearbyEnergy = 0.;
+    float nearbyEnergy = 0.f;
     for (unsigned iTs = 0; iTs < tracksters.size(); ++iTs) {
       if (maskedTracksters[iTs])
         continue;
       const auto &bary = tracksters[iTs].barycenter();
-      if (bary.eta() * tkEta < 0.)  // same endcap
+      if (bary.eta() * tkEta < 0.f)  // same endcap
         continue;
       if (reco::deltaR(bary.eta(), bary.phi(), tkEta, tkPhi) < delta_tk_ts_) {
         nearby.push_back(iTs);
@@ -104,11 +100,69 @@ void MuonInterpretationAlgo::makeCandidates(const Inputs &input,
   }
 }
 
+void MuonInterpretationAlgo::makeOpinions(const Inputs &input,
+                                          edm::Handle<MtdHostCollection> /*inputTiming_h*/,
+                                          std::vector<Trackster> &hypothesisTracksters,
+                                          std::vector<Hypothesis> &hypotheses) {
+  const auto &tracks = *input.tracksHandle;
+  const auto &maskTracks = input.maskedTracks;
+  const auto &tracksters = input.tracksters;
+  if (std::none_of(maskTracks.begin(), maskTracks.end(), [](bool b) { return b; }))
+    return;
+  if (input.impacts == nullptr)
+    throw cms::Exception("Configuration") << "MuonInterpretationAlgo: the track impacts are required";
+  // (eta, phi) of the trackster barycenters.
+  std::vector<float> tsEta(tracksters.size()), tsPhi(tracksters.size());
+  for (unsigned iTs = 0; iTs < tracksters.size(); ++iTs) {
+    tsEta[iTs] = tracksters[iTs].barycenter().eta();
+    tsPhi[iTs] = tracksters[iTs].barycenter().phi();
+  }
+
+  for (size_t iTrack = 0; iTrack < tracks.size(); ++iTrack) {
+    if (!maskTracks[iTrack])
+      continue;
+    const auto &tk = tracks[iTrack];
+    const auto dir = tk.outerOk() ? tk.outerMomentum() : tk.momentum();
+    const float tkEta = dir.eta();
+    const float tkPhi = dir.phi();
+    // Distance to the propagated track; to the straight line from the outermost state when the propagation failed.
+    const auto &impact = (*input.impacts)[iTrack];
+    auto distance = [&](const Vector &point) {
+      return impact.valid ? impactTransverseDistance(impact, point) : straightLineTransverseDistance(tk, point);
+    };
+
+    std::vector<unsigned> nearby;
+    float nearbyEnergy = 0.f;
+    for (unsigned iTs = 0; iTs < tracksters.size(); ++iTs) {
+      if (tsEta[iTs] * tkEta < 0.f)  // same endcap
+        continue;
+      if (!(reco::deltaR(tsEta[iTs], tsPhi[iTs], tkEta, tkPhi) < delta_tk_ts_))
+        continue;
+      if (!(distance(tracksters[iTs].barycenter()) < max_distance_))
+        continue;
+      nearby.push_back(iTs);
+      nearbyEnergy += tracksters[iTs].raw_energy();
+    }
+
+    Hypothesis h;
+    h.type = Hypothesis::Type::Muon;
+    h.trackIdx = static_cast<int>(iTrack);
+    h.score = static_cast<float>(std::max(0.f, 1.f - nearbyEnergy / mip_energy_max_));
+    if (!nearby.empty()) {
+      Trackster muonTrackster;
+      muonTrackster.mergeTracksters(tracksters, nearby);
+      h.tracksterIdx = static_cast<int>(hypothesisTracksters.size());
+      hypothesisTracksters.push_back(std::move(muonTrackster));
+    }
+    hypotheses.push_back(std::move(h));
+  }
+}
+
 void MuonInterpretationAlgo::fillPSetDescription(edm::ParameterSetDescription &desc) {
-  desc.add<double>("delta_tk_ts", 0.1)->setComment("(eta,phi) window to collect tracksters around the trajectory.");
-  desc.add<double>("mip_energy_max", 10.0)
+  desc.add<float>("delta_tk_ts", 0.1f)->setComment("(eta,phi) window to collect tracksters around the trajectory.");
+  desc.add<float>("mip_energy_max", 10.0f)
       ->setComment("Max summed raw energy [GeV] around the trajectory for a MIP-like (muon) signature.");
-  desc.add<std::string>("onnx_model_path", "")
-      ->setComment("ONNX muon-ID model; empty falls back to the rule-based MIP test.");
+  desc.add<float>("max_distance", 3.f)
+      ->setComment("Hypotheses: max transverse distance [cm] between a trackster barycenter and the track.");
   TICLInterpretationAlgoBase::fillPSetDescription(desc);
 }
