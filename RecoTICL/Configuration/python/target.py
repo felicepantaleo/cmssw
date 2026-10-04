@@ -24,6 +24,7 @@ class Target:
     links_label: str
     supercluster_dnn_label: str
     egamma_label: str
+    interpretations_label: str
     candidate_label: str
     mtd_label: str
     pf_label: str
@@ -80,6 +81,7 @@ OFFLINE = Target(
     links_label="ticlTracksterLinks",
     supercluster_dnn_label="ticlTracksterLinksSuperclusteringDNN",
     egamma_label="ticlEGammaSuperClusterProducer",
+    interpretations_label="ticlTracksterInterpretations",
     candidate_label="ticlCandidate",
     mtd_label="mtdSoA",
     pf_label="pfTICL",
@@ -111,6 +113,7 @@ HLT = Target(
     links_label="hltTiclTracksterLinks",
     supercluster_dnn_label="hltTiclTracksterLinksSuperclusteringDNN",
     egamma_label="hltTiclEGammaSuperClusterProducer",
+    interpretations_label="hltTiclTracksterInterpretations",
     candidate_label="hltTiclCandidate",
     mtd_label="hltMtdSoA",
     pf_label="hltPfTICL",

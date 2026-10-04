@@ -81,6 +81,7 @@ T_MASK = "std::vector<float>"
 T_TRACKSTERS = "std::vector<ticl::Trackster>"
 T_SEEDS = "std::vector<ticl::TICLSeedingRegion>"
 T_LINKS = "std::vector<std::vector<unsigned int>>"
+T_INTS = "std::vector<int>"
 T_CANDIDATES = "std::vector<ticl::TICLCandidate>"
 T_TIME = "edm::ValueMap<std::pair<float,float>>"
 T_TILES = "ticl::TICLLayerTiles"
@@ -181,9 +182,10 @@ _SPECS = [
         key="TICLCandidateProducer",
         cfi_module="RecoTICL.Interpretation.ticlCandidateProducer_cfi",
         cfi_symbol="ticlCandidateProducer",
+        # The single-stage candidate producer (v5): the final tracksters and the candidates.
         produces=(
-            Product(T_CANDIDATES),
             Product(T_TRACKSTERS),
+            Product(T_CANDIDATES),
         ),
         consumes=(
             Consumed("layer_clusters", T_CALOCLUSTERS),
@@ -195,6 +197,41 @@ _SPECS = [
             Consumed("original_masks", T_MASK, vector=True),
         ),
         external_inputs=("tracks", "muons", "timingSoA"),
+    ),
+    ModuleSpec(
+        key="TICLInterpretationProducer",
+        cfi_module="RecoTICL.Interpretation.ticlInterpretationProducer_cfi",
+        cfi_symbol="ticlInterpretationProducer",
+        # The final tracksters and the per-track assignment maps.
+        produces=(
+            Product(T_TRACKSTERS),
+            Product(T_INTS, "fixed:trackToTrackster"),
+            Product(T_INTS, "fixed:trackMode"),
+            Product(T_INTS, "fixed:neutralIdx"),
+            Product(T_INTS, "fixed:neutralPdg"),
+            Product(T_INTS, "fixed:trackToClaimTrackster"),
+        ),
+        consumes=(
+            Consumed("layer_clusters", T_CALOCLUSTERS),
+            Consumed("layer_clustersTime", T_TIME),
+            Consumed("tracksters_collections", T_TRACKSTERS, vector=True),
+            Consumed("egamma_tracksters_collections", T_TRACKSTERS, vector=True),
+            Consumed("claimUnlinkedTracksters", T_TRACKSTERS, vector=True),
+        ),
+        external_inputs=("tracks", "muons", "timingSoA"),
+    ),
+    ModuleSpec(
+        key="TICLCandidateArbitrationProducer",
+        cfi_module="RecoTICL.Interpretation.ticlCandidateArbitrationProducer_cfi",
+        cfi_symbol="ticlCandidateArbitrationProducer",
+        # The candidates from the final tracksters and the assignment maps of TICLInterpretationProducer.
+        produces=(
+            Product(T_CANDIDATES),
+        ),
+        consumes=(
+            Consumed("interpretations", T_TRACKSTERS),
+        ),
+        external_inputs=("tracks", "gsf_tracks", "timingSoA"),
     ),
     ModuleSpec(
         key="MTDSoAProducer",

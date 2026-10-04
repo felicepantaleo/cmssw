@@ -597,8 +597,6 @@ private:
   const edm::EDGetTokenT<std::vector<ticl::Trackster>> tracksters_in_candidate_token_;
   const edm::EDGetTokenT<std::vector<reco::CaloCluster>> layer_clusters_token_;
   const edm::EDGetTokenT<std::vector<TICLCandidate>> ticl_candidates_token_;
-  const edm::EDGetTokenT<std::vector<ticl::Trackster>>
-      ticl_candidates_tracksters_token_;  ///< trackster collection used by TICLCandidate
   const edm::EDGetTokenT<std::vector<reco::Track>> tracks_token_;
   const edm::EDGetTokenT<std::vector<bool>> tracks_mask_token_;
   const edm::EDGetTokenT<edm::ValueMap<float>> tracks_time_token_;
@@ -931,8 +929,6 @@ TICLDumper::TICLDumper(const edm::ParameterSet& ps)
           consumes<std::vector<ticl::Trackster>>(ps.getParameter<edm::InputTag>("trackstersInCand"))),
       layer_clusters_token_(consumes<std::vector<reco::CaloCluster>>(ps.getParameter<edm::InputTag>("layerClusters"))),
       ticl_candidates_token_(consumes<std::vector<TICLCandidate>>(ps.getParameter<edm::InputTag>("ticlcandidates"))),
-      ticl_candidates_tracksters_token_(
-          consumes<std::vector<ticl::Trackster>>(ps.getParameter<edm::InputTag>("ticlcandidates"))),
       tracks_token_(consumes<std::vector<reco::Track>>(ps.getParameter<edm::InputTag>("tracks"))),
       tracks_time_token_(consumes<edm::ValueMap<float>>(ps.getParameter<edm::InputTag>("tracksTime"))),
       tracks_time_quality_token_(consumes<edm::ValueMap<float>>(ps.getParameter<edm::InputTag>("tracksTimeQual"))),
@@ -1203,8 +1199,6 @@ void TICLDumper::analyze(const edm::Event& event, const edm::EventSetup& setup) 
   edm::Handle<std::vector<TICLCandidate>> candidates_h;
   event.getByToken(ticl_candidates_token_, candidates_h);
   const auto& ticlcandidates = *candidates_h;
-  edm::Handle<std::vector<ticl::Trackster>> ticlcandidates_tracksters_h =
-      event.getHandle(ticl_candidates_tracksters_token_);
 
   //Track
   edm::Handle<std::vector<reco::Track>> tracks_h;
@@ -1507,9 +1501,8 @@ void TICLDumper::analyze(const edm::Event& event, const edm::EventSetup& setup) 
     auto trackster_ptrs = candidate.tracksters();
     auto track_ptr = candidate.trackPtr();
     for (const auto& ts_ptr : trackster_ptrs) {
-      // the candidate's trackster Ptrs reference the ticlCandidate trackster collection, not trackstersInCand
-      auto ts_idx = ts_ptr.get() - (edm::Ptr<ticl::Trackster>(ticlcandidates_tracksters_h, 0)).get();
-      tracksters_in_candidate[i].push_back(ts_idx);
+      // Index in the trackster collection of the candidates.
+      tracksters_in_candidate[i].push_back(ts_ptr.key());
     }
     if (track_ptr.isNull())
       continue;

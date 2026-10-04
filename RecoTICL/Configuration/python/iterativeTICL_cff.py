@@ -25,6 +25,8 @@ from Configuration.ProcessModifiers.ticlv5_TrackLinkingGNN_cff import ticlv5_Tra
 from Configuration.ProcessModifiers.ticl_superclustering_mustache_pf_cff import ticl_superclustering_mustache_pf
 from Configuration.ProcessModifiers.ticl_superclustering_mustache_ticl_cff import ticl_superclustering_mustache_ticl
 from Configuration.ProcessModifiers.ticl_barrel_cff import ticl_barrel
+from Configuration.ProcessModifiers.ticl_v6_cff import ticl_v6
+from RecoParticleFlow.PFClusterProducer.particleFlowClusterHGC_cfi import particleFlowClusterHGCal as _particleFlowClusterHGCal
 
 ticlLayerTileTask = cms.Task(ticlLayerTileProducer)
 
@@ -155,6 +157,13 @@ ticl_superclustering_mustache_ticl.toModify(
     )
 )
 
+# TICLv6: the final tracksters come from the interpretation stage; ticlCandidate holds the candidates only.
+ticl_v6.toModify(
+    ticlIterLabelsPSet,
+    labels=["ticlTracksterInterpretations" if label == "ticlCandidate" else label for label in ticlIterLabelsPSet.labels]
+)
+ticl_v6.toModify(_particleFlowClusterHGCal, initialClusteringStep=dict(tracksterSrc="ticlTracksterInterpretations"))
+
 associatorsInstances = []
 for labelts in ticlIterLabelsPSet.labels:
     for labelsts in ["ticlSimTracksters", "ticlSimTrackstersfromCPs"]:
@@ -212,3 +221,12 @@ iterBarrelTICLTask = cms.Task(ticlLayerTileBarrel
 
 ticl_barrel.toModify(mergeTICLTask, func=lambda x : x.add(ticlLayerTileBarrelTask, iterBarrelTICLTask))
 
+
+# TICLv6: the modules of the pyTICL preset v6, with the interpretation stage before the candidates.
+from RecoTICL.Configuration.presets import v6 as _v6
+_ticlV6Modules = _v6().assemble().modules
+ticlTracksterInterpretations = _ticlV6Modules["ticlTracksterInterpretations"]
+ticl_v6.toReplaceWith(ticlTracksterLinks, _ticlV6Modules["ticlTracksterLinks"])
+ticl_v6.toReplaceWith(ticlTracksterLinksSuperclusteringDNN, _ticlV6Modules["ticlTracksterLinksSuperclusteringDNN"])
+ticl_v6.toReplaceWith(ticlCandidate, _ticlV6Modules["ticlCandidate"])
+ticl_v6.toModify(ticlCandidateTask, lambda t: t.add(ticlTracksterInterpretations))

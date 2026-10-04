@@ -145,3 +145,7 @@ ticlSimCandidateExtraTable = cms.EDProducer(
         ),
     ),
 )
+
+# TICLv6: the tracksters of the candidates come from the interpretation stage, which gives no linked tracksters.
+from Configuration.ProcessModifiers.ticl_v6_cff import ticl_v6
+ticl_v6.toModify(ticlCandidateExtraTable, tracksters = "ticlTracksterInterpretations", linkedTracksters = None)
