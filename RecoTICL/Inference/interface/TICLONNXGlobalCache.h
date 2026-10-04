@@ -29,7 +29,8 @@ namespace ticl {
 
     //  - Consider inference plugin only if inferenceAlgo is non-empty.
     static std::unique_ptr<TICLONNXGlobalCache> initialize(edm::ParameterSet const& modulePSet) {
-      Ort::SessionOptions sess_opts;
+      auto cache = std::make_unique<TICLONNXGlobalCache>();
+      Ort::SessionOptions& sess_opts = cache->sessionOptions_;
       sess_opts.SetIntraOpNumThreads(1);
       sess_opts.SetInterOpNumThreads(1);
       sess_opts.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
@@ -42,8 +43,6 @@ namespace ticl {
       }
       sess_opts.EnableCpuMemArena();
       sess_opts.EnableMemPattern();
-      auto cache = std::make_unique<TICLONNXGlobalCache>();
-
       // 1) Linking model (TracksterLinksProducer / TracksterLinksProducer-like modules)
       // Load only if present and non-empty.
       if (modulePSet.existsAs<edm::ParameterSet>("linkingPSet", /*trackPar=*/true)) {
@@ -74,7 +73,15 @@ namespace ticl {
       return cache;
     }
 
+    // Loads the model at modelPath (CMSSW search path) with the session options of initialize, unless it is loaded.
+    void loadModel(std::string const& modelPath) {
+      const std::string fullPath = edm::FileInPath(modelPath).fullPath();
+      sessionsByFullPath.try_emplace(fullPath, std::make_unique<cms::Ort::ONNXRuntime>(fullPath, &sessionOptions_));
+    }
+
   private:
+    Ort::SessionOptions sessionOptions_;
+
     void tryLoadSessionFromKey(edm::ParameterSet const& pset, char const* key, Ort::SessionOptions const& sess_opts) {
       if (!pset.existsAs<std::string>(key, /*trackPar=*/true)) {
         return;
