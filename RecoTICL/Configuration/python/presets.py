@@ -215,6 +215,27 @@ def links_defaults():
     )
 
 
+def cornetto_links_defaults():
+    """``ticlTracksterLinks`` overrides for v6: :func:`links_defaults` with the Cornetto linking plugin and its
+    defaults."""
+    d = links_defaults()
+    d["linkingPSet"] = cms.PSet(
+        type=cms.string("Cornetto"),
+        algo_verbosity=cms.int32(0),
+        etaWindow=cms.float(0.3),
+        maxLongitudinalDistance=cms.float(60.0),
+        maxBackwardDistance=cms.float(20.0),
+        transverseRadius0=cms.float(4.0),
+        transverseSlope=cms.float(0.05),
+        timeCompatibilityNSigma=cms.float(3.0),
+        timeResolutionFloor=cms.float(0.05),
+        typeVetoProbability=cms.float(0.6),
+        minEmittedEnergy=cms.float(1.0),
+        minEmittedPt=cms.float(0.5),
+    )
+    return d
+
+
 def supercluster_dnn_defaults(pid_threshold=0.8, emission_pid_threshold=0.0,
                               pid_categories=None):
     """Standard ``ticlTracksterLinksSuperclusteringDNN`` overrides. ``pid_threshold``: min EM probability of a seed.
@@ -281,5 +302,26 @@ def v5(name="v5"):
            .links(["CLUE3DHigh", "Recovery"], **links_defaults())
            .superclustering_dnn(source="CLUE3DHigh", **supercluster_dnn_defaults())
            .candidate(**candidate_defaults())
+           .pf(**pf_defaults()))
+    return cfg
+
+
+def v6(name="v6"):
+    """Return a :class:`TICLConfig` for TICLv6, the configuration of the ``ticl_v6`` process modifier: Cornetto
+    linking, the interpretation stage (hypotheses, global arbitration, track claim) and the candidates from its maps.
+    The interpretation and candidate parameters are the module defaults."""
+    # The PFN inference of the v5 candidates, on the footprints and on the final tracksters.
+    interp = candidate_defaults()
+    del interp["regressionAndPid"]
+    cfg = (TICLConfig(name)
+           .iteration("CLUE3DHigh").preset()
+           .iteration("Recovery").preset()
+           .links(["CLUE3DHigh", "Recovery"], **cornetto_links_defaults())
+           # photon, electron AND neutral_pion: a pi0 is an electromagnetic object.
+           .superclustering_dnn(source="CLUE3DHigh",
+                                **supercluster_dnn_defaults(pid_threshold=0.1, emission_pid_threshold=0.3,
+                                                            pid_categories=(0, 1, 3)))
+           .interpretations(**interp)
+           .candidate()
            .pf(**pf_defaults()))
     return cfg
