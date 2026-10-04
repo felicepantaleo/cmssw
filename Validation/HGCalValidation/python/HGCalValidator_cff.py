@@ -20,6 +20,14 @@ hgcalValidator = _hgcalValidator.clone(
     mergeRecoToSimAssociator = cms.InputTag("allTrackstersToSimTrackstersAssociationsByLCs:ticlCandidateToticlSimTrackstersfromCPs"),
 )
 
+from Configuration.ProcessModifiers.ticl_v6_cff import ticl_v6
+# TICLv6: the final tracksters come from the interpretation stage.
+ticl_v6.toModify(hgcalValidator,
+    mergedTracksters = "ticlTracksterInterpretations",
+    mergeSimToRecoAssociator = "allTrackstersToSimTrackstersAssociationsByLCs:ticlSimTrackstersfromCPsToticlTracksterInterpretations",
+    mergeRecoToSimAssociator = "allTrackstersToSimTrackstersAssociationsByLCs:ticlTracksterInterpretationsToticlSimTrackstersfromCPs",
+)
+
 from Configuration.ProcessModifiers.premix_stage2_cff import premix_stage2
 premix_stage2.toModify(hgcalValidator,
     label_cp_fake = "mixData:MergedCaloTruth",
