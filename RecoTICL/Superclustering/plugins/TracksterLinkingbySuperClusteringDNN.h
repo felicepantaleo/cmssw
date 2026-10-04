@@ -52,7 +52,11 @@ namespace ticl {
 
   private:
     bool checkExplainedVarianceRatioCut(ticl::Trackster const& ts) const;
+    float emProbability(const Trackster& ts) const;
+    // Eligibility to seed a supercluster, i.e. to absorb other tracksters.
     bool trackstersPassesPIDCut(const Trackster& ts) const;
+    // Eligibility to be emitted as a standalone single-trackster supercluster.
+    bool passesEmissionPIDCut(const Trackster& ts) const;
 
     // --- Configuration
     std::unique_ptr<AbstractSuperclusteringDNNInput> dnnInputs_;
@@ -68,6 +72,7 @@ namespace ticl {
     bool filterByTracksterPID_;
     std::vector<int> tracksterPIDCategoriesToFilter_;
     float PIDThreshold_;
+    float emissionPIDThreshold_;
   };
 
 }  // namespace ticl
