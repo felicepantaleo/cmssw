@@ -4,6 +4,7 @@ from Validation.TICLValidation.ticlDumper_cfi import ticlDumper as ticlDumper_
 from Configuration.ProcessModifiers.ticl_superclustering_mustache_pf_cff import ticl_superclustering_mustache_pf
 from Configuration.ProcessModifiers.ticl_superclustering_mustache_ticl_cff import ticl_superclustering_mustache_ticl
 from Configuration.ProcessModifiers.ticl_barrel_cff import ticl_barrel
+from Configuration.ProcessModifiers.ticl_v6_cff import ticl_v6
 
 from RecoTICL.Configuration.iterativeTICL_cff import ticlIterLabelsPSet, associatorsInstances
 
@@ -44,6 +45,8 @@ ticlDumper = ticlDumper_.clone(
 
 
 ticl_superclustering_mustache_pf.toModify(ticlDumper, saveSuperclustering=False, recoSuperClusters_sourceTracksterCollection=cms.InputTag("ticlTrackstersCLUE3DHigh"))
+# With TICLv6 the HGCAL PF clusters of the superclusters come from the final tracksters, ticlTracksterInterpretations.
+(ticl_v6 & ~ticl_superclustering_mustache_pf).toModify(ticlDumper, recoSuperClusters_sourceTracksterCollection=cms.InputTag("ticlTracksterInterpretations"))
 
 simTrackstersBarrelCollections = ["ticlSimTrackstersBarrel", "ticlSimTrackstersBarrelfromCPs"]
 ticlBarrelIterLabels = ["ticlTrackstersCLUE3DBarrel"]
