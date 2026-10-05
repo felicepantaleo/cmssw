@@ -86,7 +86,9 @@ def build_associators_by_hits(labels):
 # dumper & validator
 # --------------------------------------------------------------------------- #
 
-def build_ticl_dumper(labels):
+def build_ticl_dumper(labels, supercluster_source=None):
+    """``supercluster_source`` is the trackster collection of the HGCAL PF clusters; ``None`` keeps the module
+    default."""
     from Validation.TICLValidation.ticlDumper_cfi import ticlDumper as base
     dumper_associators = []
     for sts in SIM_COLLECTIONS:
@@ -100,7 +102,7 @@ def build_ticl_dumper(labels):
                 associatorSimToRecoInputTag=cms.InputTag(
                     "allTrackstersToSimTrackstersAssociationsByLCs:%sTo%s" % (sts, lab)),
             ))
-    return base.clone(
+    dumper = base.clone(
         tracksterCollections=[
             *[cms.PSet(treeName=cms.string(l), inputTag=cms.InputTag(l)) for l in labels],
             cms.PSet(treeName=cms.string("simtrackstersSC"),
@@ -113,6 +115,9 @@ def build_ticl_dumper(labels):
         associators=dumper_associators,
         saveSuperclustering=cms.bool(True),
     )
+    if supercluster_source is not None:
+        dumper.recoSuperClusters_sourceTracksterCollection = cms.InputTag(supercluster_source)
+    return dumper
 
 
 def build_hgcal_validator(labels, primary_trackster="ticlTrackstersCLUE3DHigh",
@@ -171,7 +176,7 @@ def build_validation(cfg):
         merge_trackster = t.links_label
     modules["hgcalValidator"] = build_hgcal_validator(labels, primary, t.candidate_label, merge_trackster)
     if spec.get("dumper"):
-        modules["ticlDumper"] = build_ticl_dumper(labels)
+        modules["ticlDumper"] = build_ticl_dumper(labels, t.interpretations_label if cfg.interpretations_spec else None)
 
     task_children = {
         "ticlAssociatorsTask": [
