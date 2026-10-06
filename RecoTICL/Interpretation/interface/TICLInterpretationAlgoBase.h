@@ -100,13 +100,13 @@ namespace ticl {
 
     // maskedTracksters is indexed over input.tracksters and lets several interpretation
     // passes run in sequence. A pass grows it to input.tracksters.size(), skips the
-    // tracksters it finds marked, and marks every trackster it consumes.
+    // tracksters it finds marked, and marks every trackster it consumes. The default makes no candidates.
     virtual void makeCandidates(const Inputs& input,
                                 edm::Handle<MtdHostCollection> inputTiming_h,
                                 std::vector<Trackster>& resultTracksters,
                                 std::vector<int>& resultCandidate,
                                 std::vector<bool>& maskedTracksters,
-                                std::vector<std::vector<unsigned int>>& linkedResultTracksters) = 0;
+                                std::vector<std::vector<unsigned int>>& linkedResultTracksters) {}
 
     // Appends the hypotheses of the algorithm and their footprint tracksters. The interpretations share
     // hypothesisTracksters: an algorithm only appends to it. The default gives no hypotheses.
