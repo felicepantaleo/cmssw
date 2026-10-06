@@ -151,6 +151,16 @@ def _build_egamma(target):
     return _cfi_default("EGammaSuperclusterProducer").clone()
 
 
+def _external_inputs(target, tracks="tracks", muons="muons"):
+    """The inputs from outside TICL of a candidate-stage module: tracks, muons and MTD timing."""
+    ov = {tracks: cms.InputTag(target.tracks_label), muons: cms.InputTag(target.muons_label)}
+    if target.timing_label is None:
+        ov.update(useMTDTiming=cms.bool(False))
+    else:
+        ov.update(useMTDTiming=cms.bool(True), timingSoA=cms.InputTag(target.timing_label))
+    return ov
+
+
 def _build_interpretations(overrides, links_label, sc_label, target):
     """The interpretation stage (``TICLInterpretationProducer``): the final tracksters and the per-track assignment
     maps, from the linked tracksters and the superclusters."""
@@ -158,6 +168,8 @@ def _build_interpretations(overrides, links_label, sc_label, target):
     ov = dict(
         tracksters_collections=cms.VInputTag(links_label),
         egamma_tracksters_collections=cms.VInputTag(cms.InputTag(sc_label)),
+        claimUnlinkedTracksters=cms.VInputTag(target.trackster_label("Recovery")),
+        **_external_inputs(target),
     )
     if target.lc_tag() is not None:  # HLT-style: remap shared inputs
         ov["layer_clusters"] = target.lc_tag()
@@ -174,7 +186,10 @@ def _build_single_stage_candidate(overrides, links_label, target):
     ov = dict(egamma_tracksters_collections=links,
               egamma_tracksterlinks_collections=links,
               general_tracksters_collections=links,
-              general_tracksterlinks_collections=links)
+              general_tracksterlinks_collections=links,
+              **_external_inputs(target))
+    if target.timing_label is None:
+        ov["useTimingAverage"] = cms.bool(False)
     if target.lc_tag() is not None:  # HLT-style: remap shared inputs
         ov["layer_clusters"] = target.lc_tag()
         ov["layer_clustersTime"] = target.lc_time_tag()
@@ -187,7 +202,15 @@ def _build_candidate(overrides, target):
     """The candidate assembly after the interpretation stage: consumes its final tracksters
     and assignment maps (plus the GSF tracks) and builds the TICLCandidates."""
     base = _cfi_default("TICLCandidateArbitrationProducer")
-    ov = dict(interpretations=cms.InputTag(target.interpretations_label))
+    ov = dict(interpretations=cms.InputTag(target.interpretations_label), **_external_inputs(target, muons="muonSrc"))
+    if target.timing_label is None:
+        ov["useTimingAverage"] = cms.bool(False)
+    if target.gsf_tracks_label is None:
+        ov["useGsfTracks"] = cms.bool(False)
+    else:
+        ov["gsf_tracks"] = cms.InputTag(target.gsf_tracks_label)
+    if target.lc_tag() is not None:  # HLT-style: remap shared inputs
+        ov["layerClusters"] = target.lc_tag()
     ov.update(overrides or {})
     return base.clone(**ov)
 
@@ -198,7 +221,7 @@ def _build_mtd():
 
 def _build_pf(overrides, target):
     base = _cfi_default("PFTICLProducer")
-    ov = dict(ticlCandidateSrc=cms.InputTag(target.candidate_label))
+    ov = dict(ticlCandidateSrc=cms.InputTag(target.candidate_label), muonSrc=cms.InputTag(target.muons_label))
     ov.update(overrides or {})
     return base.clone(**ov)
 

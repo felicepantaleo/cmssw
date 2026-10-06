@@ -6,17 +6,12 @@ from RecoTICL.Superclustering.ticlEGammaSuperClusterProducer_cfi import ticlEGam
 from Configuration.ProcessModifiers.ticl_superclustering_mustache_pf_cff import ticl_superclustering_mustache_pf
 from Configuration.ProcessModifiers.ticl_superclustering_mustache_ticl_cff import ticl_superclustering_mustache_ticl
 
-# PIDThreshold: min EM probability of a seed. emissionPIDThreshold: min EM probability of a single-trackster
-# supercluster.
 ticlTracksterLinksSuperclusteringDNN = _tracksterLinksProducer.clone(
     linkingPSet = cms.PSet(
         type=cms.string("SuperClusteringDNN"),
         algo_verbosity=cms.int32(0),
         onnxModelPath = cms.string("RecoHGCal/TICL/data/superclustering/supercls_v3.onnx"),
         nnWorkingPoint=cms.float(0.57247),
-        filterByTracksterPID=cms.bool(True),
-        PIDThreshold=cms.float(0.8),
-        emissionPIDThreshold=cms.float(0.0),
     ),
     tracksters_collections = [cms.InputTag("ticlTrackstersCLUE3DHigh")], # to be changed to ticlTrackstersCLUE3DEM once separate CLUE3D iterations are introduced
 )
