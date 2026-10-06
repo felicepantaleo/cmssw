@@ -3,6 +3,7 @@
 <use name="DataFormats/ParticleFlowCandidate"/>
 <use name="FWCore/Framework"/>
 <use name="RecoParticleFlow/PFProducer"/>
+<use name="RecoTICL/Interpretation"/>
 <library file="*.cc" name="RecoTICLParticleFlowPlugins">
   <flags EDM_PLUGIN="1"/>
 </library>

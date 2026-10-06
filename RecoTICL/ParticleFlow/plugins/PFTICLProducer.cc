@@ -15,6 +15,7 @@
 #include "DataFormats/HGCalReco/interface/TICLCandidate.h"
 
 #include "RecoParticleFlow/PFProducer/interface/PFMuonAlgo.h"
+#include "RecoTICL/Interpretation/interface/MuonKinematics.h"
 
 class PFTICLProducer : public edm::stream::EDProducer<> {
 public:
@@ -149,8 +150,7 @@ void PFTICLProducer::produce(edm::Event& evt, const edm::EventSetup& es) {
       } else if (const int muId = PFMuonAlgo::muAssocToTrack(trackref, muons); muId != -1) {
         // Utilize PFMuonAlgo
         const reco::MuonRef muonref = reco::MuonRef(muonH, muId);
-        if ((PFMuonAlgo::isMuon(muonref) and not(*muonH)[muId].isTrackerMuon()) or
-            (ticl_cand.tracksters().empty() and muonref.isNonnull() and muonref->isGlobalMuon())) {
+        if (ticl::takesMuonKinematics(muonref, !ticl_cand.tracksters().empty())) {
           const bool allowLoose = (part_type == reco::PFCandidate::mu);
           // Redefine pfmuon candidate kinematics and add muonref
           pfmu_->reconstructMuon(candidate, muonref, allowLoose);

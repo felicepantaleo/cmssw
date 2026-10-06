@@ -23,13 +23,6 @@ void EGammaInterpretationAlgo::initialize(const HGCalDDDConstants * /*hgcons*/,
                                           const edm::ESHandle<MagneticField> /*bfieldH*/,
                                           const edm::ESHandle<Propagator> /*propH*/) {}
 
-void EGammaInterpretationAlgo::makeCandidates(const Inputs & /*input*/,
-                                              edm::Handle<MtdHostCollection> /*inputTiming_h*/,
-                                              std::vector<Trackster> & /*resultTracksters*/,
-                                              std::vector<int> & /*resultCandidate*/,
-                                              std::vector<bool> & /*maskedTracksters*/,
-                                              std::vector<std::vector<unsigned int>> & /*linkedResultTracksters*/) {}
-
 void EGammaInterpretationAlgo::makeOpinions(const Inputs &input,
                                             edm::Handle<MtdHostCollection> /*inputTiming_h*/,
                                             std::vector<Trackster> &hypothesisTracksters,
@@ -96,14 +89,15 @@ void EGammaInterpretationAlgo::makeOpinions(const Inputs &input,
       const float geom = 1.f - bestDR / delta_tk_sc_;
       const float eopSpan = std::max(eop_max_ - 1.f, 1.f - eop_min_);
       const float eopTerm = eopSpan > 0.f ? std::max(0.f, 1.f - std::abs(eop - 1.f) / eopSpan) : 1.f;
-      h.score = static_cast<float>(geom * eopTerm * std::min(emFraction, 1.f));
+      h.score = geom * eopTerm * std::min(emFraction, 1.f);
       h.trackIdx = static_cast<int>(iTrack);
       h.tracksterIdx = hypoTracksterFor(best);
       hypotheses.push_back(h);
     }
   }
 
-  // A photon hypothesis for every EM-like supercluster, the superclusters matched to a track included.
+  // A photon hypothesis for every EM-like supercluster, the superclusters matched to a track included. The
+  // interpretation producer scores it with the PID of its footprint.
   for (unsigned iSc = 0; iSc < superclusters.size(); ++iSc) {
     const auto &sc = superclusters[iSc];
     if (sc.raw_energy() < min_supercluster_energy_)
@@ -113,7 +107,6 @@ void EGammaInterpretationAlgo::makeOpinions(const Inputs &input,
       continue;
     Hypothesis h;
     h.type = Hypothesis::Type::Photon;
-    h.score = static_cast<float>(std::min(emFraction, 1.f));
     h.tracksterIdx = hypoTracksterFor(iSc);
     hypotheses.push_back(h);
   }

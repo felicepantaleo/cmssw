@@ -14,6 +14,7 @@
 #include <numeric>
 #include <type_traits>
 #include <unordered_map>
+#include <tuple>
 #include <utility>
 
 #include "CommonTools/Utils/interface/StringCutObjectSelector.h"
@@ -49,6 +50,7 @@
 #include "RecoTICL/Common/interface/TrackstersPCA.h"
 #include "RecoTICL/Inference/interface/TICLONNXGlobalCache.h"
 #include "RecoTICL/Inference/interface/TracksterInferenceAlgoFactory.h"
+#include "RecoTICL/Interpretation/interface/AssignmentMaps.h"
 #include "RecoTICL/Interpretation/interface/MaxWeightIndependentSet.h"
 #include "RecoTICL/Interpretation/interface/TICLInterpretationAlgoBase.h"
 #include "TICLInterpretationPluginFactory.h"
@@ -157,17 +159,6 @@ namespace {
     return h.type == Hypothesis::Type::Photon || h.type == Hypothesis::Type::NeutralHadron;
   }
 
-  // trackMode values of the assignment maps.
-  enum TrackMode : int {
-    kNotSelected = -1,
-    kUnassigned = 0,
-    kMuon = 1,
-    kChargedHadron = 2,
-    kElectron = 3,
-    kJetMember = 4,
-    kRecovery = 5
-  };
-
   // Number of features of the hypothesis model, and of the neutral species model.
   constexpr unsigned int kNHypothesisFeatures = 30;
   constexpr unsigned int kNNeutralFeatures = 12;
@@ -222,13 +213,13 @@ private:
   std::vector<float> modelWeights(const Opinions &opinions,
                                   const std::vector<std::vector<unsigned int>> &conflicts,
                                   const std::vector<reco::Track> &tracks) const;
-  void putHypothesisDump(edm::Event &evt,
-                         const Opinions &opinions,
-                         const std::vector<bool> &accepted,
-                         const std::vector<float> &weights) const;
+  // The trackster without the layer clusters that removed marks, and whether it is kept: layer clusters are left with
+  // a positive raw energy, at least claimMinEnergy when one was removed.
+  std::pair<Trackster, bool> without(const Trackster &ts,
+                                     const std::vector<bool> &removed,
+                                     const std::vector<reco::CaloCluster> &layerClusters) const;
   // Leftovers: the input tracksters in descending raw energy, without the layer clusters that the winners and the
-  // leftovers before them hold. A leftover that lost a layer cluster is kept when its raw energy is at least
-  // claimMinEnergy. held marks the layer clusters of the winners and of the leftovers.
+  // leftovers before them hold. held marks the layer clusters of the winners and of the leftovers.
   std::vector<Trackster> selectLeftovers(const edm::MultiSpan<Trackster> &tracksters,
                                          const std::vector<reco::CaloCluster> &layerClusters,
                                          std::vector<bool> &held) const;
@@ -300,12 +291,9 @@ private:
   const float claimMinEnergy_;
   // Depth [cm] from the HGCAL front that the claim search covers.
   static constexpr float kClaimMaxDepth = 200.f;
-  // Rank offset that puts every CE-E cluster after every CE-H cluster.
-  static constexpr float kClaimCalorimeterOffset = 1.e3f;
   const ArbitrationModel neutralModel_;
   const float neutralModelThreshold_;
   const float emRawEnergyBelow_;
-  const bool dumpHypotheses_;
 };
 
 std::unique_ptr<TICLONNXGlobalCache> TICLInterpretationProducer::initializeGlobalCache(const edm::ParameterSet &ps) {
@@ -349,8 +337,7 @@ TICLInterpretationProducer::TICLInterpretationProducer(const edm::ParameterSet &
       neutralModel_(
           *cache->getByModelPathString(ps.getParameter<std::string>("neutralModelFile")), kNNeutralFeatures, kNSpecies),
       neutralModelThreshold_(ps.getParameter<float>("neutralModelThreshold")),
-      emRawEnergyBelow_(ps.getParameter<float>("emRawEnergyBelow")),
-      dumpHypotheses_(ps.getParameter<bool>("dumpHypotheses")) {
+      emRawEnergyBelow_(ps.getParameter<float>("emRawEnergyBelow")) {
   for (auto const &tag : ps.getParameter<std::vector<edm::InputTag>>("tracksters_collections"))
     tracksters_tokens_.emplace_back(consumes<std::vector<Trackster>>(tag));
   for (auto const &tag : ps.getParameter<std::vector<edm::InputTag>>("egamma_tracksters_collections"))
@@ -362,11 +349,9 @@ TICLInterpretationProducer::TICLInterpretationProducer(const edm::ParameterSet &
 
   if (maxExactComponent_ > 64)
     throw cms::Exception("Configuration") << "arbitrationMaxExactComponent must be at most 64";
-  if (!(claimResponse_ > 0.f) || !(claimRadius0_ >= 0.f) || !(claimRadiusSlope_ >= 0.f) || !(claimMinEnergy_ >= 0.f) ||
-      !(claimRadius0_ + claimRadiusSlope_ * kClaimMaxDepth < kClaimCalorimeterOffset))
+  if (!(claimResponse_ > 0.f) || !(claimRadius0_ >= 0.f) || !(claimRadiusSlope_ >= 0.f) || !(claimMinEnergy_ >= 0.f))
     throw cms::Exception("Configuration")
-        << "track claim: response > 0, radius0 >= 0, radiusSlope >= 0, minEnergy >= 0, and the largest radius below "
-        << kClaimCalorimeterOffset << " cm are required";
+        << "track claim: response > 0, radius0 >= 0, radiusSlope >= 0 and minEnergy >= 0 are required";
   if (!(neutralModelThreshold_ > 0.f && neutralModelThreshold_ < 1.f))
     throw cms::Exception("Configuration") << "neutralModelThreshold must be in (0, 1)";
 
@@ -401,15 +386,6 @@ TICLInterpretationProducer::TICLInterpretationProducer(const edm::ParameterSet &
   produces<std::vector<int>>("trackMode");
   produces<std::vector<int>>("neutralIdx");
   produces<std::vector<int>>("neutralPdg");
-  produces<std::vector<int>>("trackToClaimTrackster");
-  if (dumpHypotheses_) {
-    for (auto const *n :
-         {"hypType", "hypTrack", "hypAccepted", "hypLCOffsets", "hypLCs", "hypJetOffsets", "hypJetTracks"})
-      produces<std::vector<int>>(n);
-    for (auto const *n : {"hypScore", "hypRawE", "hypRawEmE", "hypX", "hypY", "hypZ", "hypPid", "hypWeight"})
-      produces<std::vector<float>>(n);
-    produces<std::vector<int>>("trackClaimedLC");
-  }
 }
 
 void TICLInterpretationProducer::beginRun(edm::Run const &, edm::EventSetup const &es) {
@@ -659,8 +635,11 @@ std::vector<float> TICLInterpretationProducer::modelWeights(const Opinions &opin
     x[8] = hasE ? std::log1p(rawE) : -1.f;
     x[9] = hasE ? ts->raw_em_energy() / std::max(rawE, 1e-6f) : -1.f;
     x[10] = hasE ? std::abs(tsEta) : -1.f;
-    for (int k = 0; k < 8; ++k)
-      x[11 + k] = hasTs ? ts->id_probabilities(k) : -1.f;
+    static_assert(std::tuple_size_v<InferenceCache::Probabilities> == 8, "the hypothesis model reads 8 PID classes");
+    if (hasTs)
+      std::copy(ts->id_probabilities().begin(), ts->id_probabilities().end(), x + 11);
+    else
+      std::fill(x + 11, x + 19, -1.f);
     x[19] = hasTs ? static_cast<float>(ts->vertices().size()) : 0.f;
     x[20] = static_cast<float>(h.trackIdxs.size());
     float trackP = -1.f, trackPt = -1.f, trackEta = -1.f, dR = -1.f;
@@ -712,59 +691,20 @@ std::vector<float> TICLInterpretationProducer::modelWeights(const Opinions &opin
   return weights;
 }
 
-void TICLInterpretationProducer::putHypothesisDump(edm::Event &evt,
-                                                   const Opinions &opinions,
-                                                   const std::vector<bool> &accepted,
-                                                   const std::vector<float> &weights) const {
-  auto iv = []() { return std::make_unique<std::vector<int>>(); };
-  auto fv = []() { return std::make_unique<std::vector<float>>(); };
-  auto type = iv(), track = iv(), acc = iv(), lcOff = iv(), lcs = iv(), jetOff = iv(), jetTk = iv();
-  auto score = fv(), rawE = fv(), rawEmE = fv(), x = fv(), y = fv(), z = fv(), pid = fv();
-  lcOff->push_back(0);
-  jetOff->push_back(0);
-  for (unsigned int idx = 0; idx < opinions.hypotheses.size(); ++idx) {
-    const auto &h = opinions.hypotheses[idx];
-    type->push_back(static_cast<int>(h.type));
-    track->push_back(h.trackIdx);
-    acc->push_back(accepted[idx] ? 1 : 0);
-    score->push_back(h.score);
-    if (h.tracksterIdx >= 0) {
-      const auto &ts = opinions.tracksters[h.tracksterIdx];
-      rawE->push_back(ts.raw_energy());
-      rawEmE->push_back(ts.raw_em_energy());
-      x->push_back(ts.barycenter().x());
-      y->push_back(ts.barycenter().y());
-      z->push_back(ts.barycenter().z());
-      for (int k = 0; k < 8; ++k)
-        pid->push_back(ts.id_probabilities(k));
-      for (auto v : ts.vertices())
-        lcs->push_back(static_cast<int>(v));
-    } else {
-      for (auto *v : {rawE.get(), rawEmE.get(), x.get(), y.get(), z.get()})
-        v->push_back(-1.f);
-      for (int k = 0; k < 8; ++k)
-        pid->push_back(-1.f);
+std::pair<Trackster, bool> TICLInterpretationProducer::without(
+    const Trackster &ts, const std::vector<bool> &removed, const std::vector<reco::CaloCluster> &layerClusters) const {
+  Trackster out(ts);
+  out.vertices().clear();
+  out.vertex_multiplicity().clear();
+  float raw = 0.f;
+  for (size_t k = 0; k < ts.vertices().size(); ++k)
+    if (!removed[ts.vertices()[k]]) {
+      out.vertices().push_back(ts.vertices()[k]);
+      out.vertex_multiplicity().push_back(k < ts.vertex_multiplicity().size() ? ts.vertex_multiplicity()[k] : 1.f);
+      raw += layerClusters[ts.vertices()[k]].energy();
     }
-    lcOff->push_back(static_cast<int>(lcs->size()));
-    for (int iTk : h.trackIdxs)
-      jetTk->push_back(iTk);
-    jetOff->push_back(static_cast<int>(jetTk->size()));
-  }
-  evt.put(std::move(type), "hypType");
-  evt.put(std::move(track), "hypTrack");
-  evt.put(std::move(acc), "hypAccepted");
-  evt.put(std::move(lcOff), "hypLCOffsets");
-  evt.put(std::move(lcs), "hypLCs");
-  evt.put(std::move(jetOff), "hypJetOffsets");
-  evt.put(std::move(jetTk), "hypJetTracks");
-  evt.put(std::move(score), "hypScore");
-  evt.put(std::move(rawE), "hypRawE");
-  evt.put(std::move(rawEmE), "hypRawEmE");
-  evt.put(std::move(x), "hypX");
-  evt.put(std::move(y), "hypY");
-  evt.put(std::move(z), "hypZ");
-  evt.put(std::move(pid), "hypPid");
-  evt.put(std::make_unique<std::vector<float>>(weights), "hypWeight");
+  const bool keep = raw > 0.f && (out.vertices().size() == ts.vertices().size() || raw >= claimMinEnergy_);
+  return std::make_pair(std::move(out), keep);
 }
 
 std::vector<Trackster> TICLInterpretationProducer::selectLeftovers(const edm::MultiSpan<Trackster> &tracksters,
@@ -777,22 +717,8 @@ std::vector<Trackster> TICLInterpretationProducer::selectLeftovers(const edm::Mu
   });
   std::vector<Trackster> leftovers;
   for (unsigned int iTs : order) {
-    const auto &ts = tracksters[iTs];
-    Trackster rest(ts);
-    rest.vertices().clear();
-    rest.vertex_multiplicity().clear();
-    float total = 0.f, raw = 0.f;
-    for (size_t k = 0; k < ts.vertices().size(); ++k) {
-      const float e = layerClusters[ts.vertices()[k]].energy();
-      total += e;
-      if (!held[ts.vertices()[k]]) {
-        rest.vertices().push_back(ts.vertices()[k]);
-        rest.vertex_multiplicity().push_back(k < ts.vertex_multiplicity().size() ? ts.vertex_multiplicity()[k] : 1.f);
-        raw += e;
-      }
-    }
-    if (!(total > 0.f) || rest.vertices().empty() ||
-        (rest.vertices().size() < ts.vertices().size() && raw < claimMinEnergy_))
+    auto [rest, keep] = without(tracksters[iTs], held, layerClusters);
+    if (!keep)
       continue;
     for (auto v : rest.vertices())
       held[v] = true;
@@ -823,7 +749,7 @@ std::vector<int> TICLInterpretationProducer::claimAlongTracks(const Opinions &op
     grid[key(lc.eta(), lc.phi(), lc.z() > 0 ? 1 : 0)].push_back(v);
   }
   // Sources: (expected deposit still to claim, track). A single-track hypothesis on an EM footprint does not claim:
-  // its candidate takes the energy of the trackster.
+  // its candidate combines the track and the trackster energies.
   std::vector<std::pair<float, unsigned int>> sources;
   for (unsigned int i = 0; i < hypotheses.size(); ++i) {
     if (!accepted[i])
@@ -857,7 +783,9 @@ std::vector<int> TICLInterpretationProducer::claimAlongTracks(const Opinions &op
   const float maxRadius = claimRadius0_ + claimRadiusSlope_ * kClaimMaxDepth;
   // Clusters up to kFrontTolerance [cm] in front of the impact are kept.
   constexpr float kFrontTolerance = 1.f;
-  std::vector<std::pair<float, unsigned int>> candidates;
+  // (in CE-E, distance, layer cluster): nearest first, CE-H before CE-E. In CE-E the clusters near a track hold much
+  // EM energy.
+  std::vector<std::tuple<bool, float, unsigned int>> candidates;
   for (auto const &[deficit, t] : sources) {
     const auto &impact = impacts[t];
     if (!impact.valid)
@@ -895,14 +823,12 @@ std::vector<int> TICLInterpretationProducer::claimAlongTracks(const Opinions &op
           if (!impactTransverseDistanceBelow(
                   impact, lc.position(), claimRadius0_ + claimRadiusSlope_ * std::max(depth, 0.f), dist))
             continue;
-          // Nearest first, CE-H before CE-E: in CE-E the clusters near a track hold much EM energy.
-          const bool inCEE = lc.hitsAndFractions()[0].first.det() == DetId::HGCalEE;
-          candidates.emplace_back(inCEE ? dist + kClaimCalorimeterOffset : dist, v);
+          candidates.emplace_back(lc.seed().det() == DetId::HGCalEE, dist, v);
         }
       }
     std::sort(candidates.begin(), candidates.end());
     float claimed = 0.f;
-    for (auto const &[rank, v] : candidates) {
+    for (auto const &[inCEE, dist, v] : candidates) {
       if (claimed >= deficit)
         break;
       claimingTrack[v] = static_cast<int>(t);
@@ -922,8 +848,7 @@ void TICLInterpretationProducer::assignNeutralSpecies(const std::vector<Trackste
     if (!(ts.raw_energy() > 0.f))
       continue;
     rows.push_back(k);
-    for (int c = 0; c < 8; ++c)
-      x.push_back(ts.id_probabilities(c));
+    x.insert(x.end(), ts.id_probabilities().begin(), ts.id_probabilities().end());
     x.push_back(ts.raw_em_energy() / ts.raw_energy());
     x.push_back(std::log1p(ts.raw_energy()));
     x.push_back(std::abs(ts.barycenter().eta()));
@@ -982,8 +907,6 @@ void TICLInterpretationProducer::produce(edm::Event &evt, const edm::EventSetup 
         trackBonus_ * static_cast<float>((hypotheses[i].trackIdx >= 0 ? 1 : 0) + hypotheses[i].trackIdxs.size());
   const auto accepted =
       maxWeightIndependentSet(solverWeights, conflicts, maxExactComponent_, searchBudget_, solverStats_);
-  if (dumpHypotheses_)
-    putHypothesisDump(evt, opinions, accepted, weights);
 
   // Leftovers and the track claim. The pool of the claim: the layer clusters of the leftovers and of the
   // claimUnlinkedTracksters outside the input tracksters, without the winner footprints.
@@ -1017,40 +940,21 @@ void TICLInterpretationProducer::produce(edm::Event &evt, const edm::EventSetup 
             addToPool(v);
   }
   const auto claimingTrack = claimAlongTracks(opinions, accepted, tracks, impacts, layerClusters, pool);
-  if (dumpHypotheses_) {
-    auto claimedOut = std::make_unique<std::vector<int>>();
-    for (unsigned int v = 0; v < claimingTrack.size(); ++v)
-      if (claimingTrack[v] >= 0)
-        claimedOut->push_back(static_cast<int>(v));
-    evt.put(std::move(claimedOut), "trackClaimedLC");
-  }
 
   // Final tracksters: the winners, the neutrals without the claimed layer clusters, and one claim trackster per
   // claiming track. A neutral is kept when layer clusters are left and, if the claim took one, its raw energy is at
   // least claimMinEnergy.
   auto result = std::make_unique<std::vector<Trackster>>();
-  auto withoutClaims = [&](const Trackster &ts) {
-    Trackster out(ts);
-    out.vertices().clear();
-    out.vertex_multiplicity().clear();
-    float raw = 0.f;
-    for (size_t k = 0; k < ts.vertices().size(); ++k)
-      if (claimingTrack[ts.vertices()[k]] < 0) {
-        out.vertices().push_back(ts.vertices()[k]);
-        out.vertex_multiplicity().push_back(k < ts.vertex_multiplicity().size() ? ts.vertex_multiplicity()[k] : 1.f);
-        raw += layerClusters[ts.vertices()[k]].energy();
-      }
-    const bool keep =
-        !out.vertices().empty() && (out.vertices().size() == ts.vertices().size() || raw >= claimMinEnergy_);
-    return std::make_pair(std::move(out), keep);
-  };
+  std::vector<bool> claimed(layerClusters.size());
+  for (unsigned int v = 0; v < claimingTrack.size(); ++v)
+    claimed[v] = claimingTrack[v] >= 0;
   std::vector<int> winnerResultIdx(hypotheses.size(), -1);
   for (unsigned int idx = 0; idx < hypotheses.size(); ++idx) {
     if (!accepted[idx] || hypotheses[idx].tracksterIdx < 0)
       continue;
     const auto &ts = opinions.tracksters[hypotheses[idx].tracksterIdx];
     if (isNeutral(hypotheses[idx])) {
-      auto [pruned, keep] = withoutClaims(ts);
+      auto [pruned, keep] = without(ts, claimed, layerClusters);
       if (!keep)
         continue;
       winnerResultIdx[idx] = static_cast<int>(result->size());
@@ -1062,18 +966,18 @@ void TICLInterpretationProducer::produce(edm::Event &evt, const edm::EventSetup 
   }
   std::vector<int> leftoverResultIdx;
   for (auto const &leftover : leftovers) {
-    auto [pruned, keep] = withoutClaims(leftover);
+    auto [pruned, keep] = without(leftover, claimed, layerClusters);
     if (!keep)
       continue;
     leftoverResultIdx.push_back(static_cast<int>(result->size()));
     result->push_back(std::move(pruned));
   }
-  // No candidate uses a claim trackster: the charged candidate takes its energy from the track.
-  auto trackToClaimTrackster = std::make_unique<std::vector<int>>(tracks.size(), -1);
+  // One claim trackster per claiming track. No candidate uses it: the charged candidate takes its energy from the track.
+  std::vector<int> claimTracksterOfTrack(tracks.size(), -1);
   for (unsigned int v = 0; v < claimingTrack.size(); ++v) {
     if (claimingTrack[v] < 0)
       continue;
-    int &iClaim = (*trackToClaimTrackster)[claimingTrack[v]];
+    int &iClaim = claimTracksterOfTrack[claimingTrack[v]];
     if (iClaim < 0) {
       iClaim = static_cast<int>(result->size());
       result->emplace_back();
@@ -1091,14 +995,12 @@ void TICLInterpretationProducer::produce(edm::Event &evt, const edm::EventSetup 
 
   // Assignment maps.
   auto trackToTrackster = std::make_unique<std::vector<int>>(tracks.size(), -1);
-  auto trackMode = std::make_unique<std::vector<int>>(tracks.size(), kNotSelected);
-  for (size_t i = 0; i < selected.size(); ++i)
-    if (selected[i])
-      (*trackMode)[i] = kUnassigned;
+  // The accepted set is maximal, so every selected track has an accepted hypothesis.
+  auto trackMode = std::make_unique<std::vector<int>>(tracks.size(), static_cast<int>(TrackMode::kNotSelected));
   auto neutralIdx = std::make_unique<std::vector<int>>();
   auto neutralPdg = std::make_unique<std::vector<int>>();
   auto assign = [&](int iTrack, TrackMode mode, int iTrackster) {
-    (*trackMode)[iTrack] = mode;
+    (*trackMode)[iTrack] = static_cast<int>(mode);
     (*trackToTrackster)[iTrack] = iTrackster;
   };
   for (unsigned int idx = 0; idx < hypotheses.size(); ++idx) {
@@ -1108,20 +1010,20 @@ void TICLInterpretationProducer::produce(edm::Event &evt, const edm::EventSetup 
     const int iResult = winnerResultIdx[idx];
     switch (h.type) {
       case Hypothesis::Type::Muon:
-        assign(h.trackIdx, kMuon, iResult);
+        assign(h.trackIdx, TrackMode::kMuon, iResult);
         break;
       case Hypothesis::Type::Electron:
-        assign(h.trackIdx, kElectron, iResult);
+        assign(h.trackIdx, TrackMode::kElectron, iResult);
         break;
       case Hypothesis::Type::ChargedHadron:
-        assign(h.trackIdx, kChargedHadron, iResult);
+        assign(h.trackIdx, TrackMode::kChargedHadron, iResult);
         break;
       case Hypothesis::Type::Jet:
         for (int iTk : h.trackIdxs)
-          assign(iTk, kJetMember, iResult);
+          assign(iTk, TrackMode::kJetMember, iResult);
         break;
       case Hypothesis::Type::RecoveryChargedHadron:
-        assign(h.trackIdx, kRecovery, iResult);
+        assign(h.trackIdx, TrackMode::kRecovery, iResult);
         break;
       case Hypothesis::Type::Photon:
       case Hypothesis::Type::NeutralHadron:
@@ -1141,7 +1043,6 @@ void TICLInterpretationProducer::produce(edm::Event &evt, const edm::EventSetup 
   assignNeutralSpecies(*result, *neutralIdx, *neutralPdg);
 
   evt.put(std::move(result));
-  evt.put(std::move(trackToClaimTrackster), "trackToClaimTrackster");
   evt.put(std::move(trackToTrackster), "trackToTrackster");
   evt.put(std::move(trackMode), "trackMode");
   evt.put(std::move(neutralIdx), "neutralIdx");
@@ -1216,8 +1117,6 @@ void TICLInterpretationProducer::fillDescriptions(edm::ConfigurationDescriptions
   desc.add<float>("neutralModelThreshold", 0.7f)->setComment("P(photon) + P(pi0) at and above which a neutral is EM.");
   desc.add<float>("emRawEnergyBelow", 50.f)
       ->setComment("EM final tracksters below this raw energy [GeV] keep the raw energy.");
-  desc.add<bool>("dumpHypotheses", false)
-      ->setComment("Write the hypotheses as flat products, for the training of the hypothesis model.");
   descriptions.add("ticlInterpretationProducer", desc);
 }
 

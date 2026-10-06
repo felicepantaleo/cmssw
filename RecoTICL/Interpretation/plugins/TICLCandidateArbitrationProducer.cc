@@ -1,5 +1,5 @@
-// Author: Felice Pantaleo, Wahid Redjeb, Aurora Perego (CERN) - felice.pantaleo@cern.ch, wahid.redjeb@cern.ch, aurora.perego@cern.ch
-// Date: 12/2023
+// Author: Felice Pantaleo (CERN) - felice.pantaleo@cern.ch
+// Date: 10/2026
 //
 // Candidate assembly: the TICLCandidates from the final tracksters and the per-track assignment maps of
 // TICLInterpretationProducer. The GSF tracks are downstream of the final tracksters: an electron candidate takes the
@@ -20,7 +20,6 @@
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
 #include "FWCore/Utilities/interface/ESGetToken.h"
 #include "FWCore/Utilities/interface/Exception.h"
-#include "DataFormats/Common/interface/OrphanHandle.h"
 
 #include "DataFormats/HGCalReco/interface/Common.h"
 #include "DataFormats/HGCalReco/interface/MtdHostCollection.h"
@@ -32,7 +31,9 @@
 #include "DataFormats/MuonReco/interface/Muon.h"
 #include "DataFormats/ParticleFlowCandidate/interface/PFCandidate.h"
 #include "RecoParticleFlow/PFProducer/interface/PFMuonAlgo.h"
+#include "RecoTICL/Interpretation/interface/AssignmentMaps.h"
 #include "RecoTICL/Interpretation/interface/CandidateTime.h"
+#include "RecoTICL/Interpretation/interface/MuonKinematics.h"
 #include "FWCore/ParameterSet/interface/FileInPath.h"
 #include "PhysicsTools/ONNXRuntime/interface/ONNXRuntime.h"
 #include "DataFormats/GsfTrackReco/interface/GsfTrack.h"
@@ -48,10 +49,12 @@
 
 using namespace ticl;
 
-class TICLCandidateArbitrationProducer : public edm::stream::EDProducer<edm::stream::WatchRuns> {
+class TICLCandidateArbitrationProducer
+    : public edm::stream::EDProducer<edm::GlobalCache<cms::Ort::ONNXRuntime>, edm::stream::WatchRuns> {
 public:
-  explicit TICLCandidateArbitrationProducer(const edm::ParameterSet &ps);
-  ~TICLCandidateArbitrationProducer() override {}
+  TICLCandidateArbitrationProducer(const edm::ParameterSet &ps, const cms::Ort::ONNXRuntime *neutralShareModel);
+  static std::unique_ptr<cms::Ort::ONNXRuntime> initializeGlobalCache(const edm::ParameterSet &ps);
+  static void globalEndJob(const cms::Ort::ONNXRuntime *) {}
   void produce(edm::Event &, const edm::EventSetup &) override;
   void beginRun(edm::Run const &, edm::EventSetup const &) override;
   static void fillDescriptions(edm::ConfigurationDescriptions &descriptions);
@@ -63,7 +66,6 @@ private:
   const edm::EDGetTokenT<std::vector<int>> neutralIdx_token_;
   const edm::EDGetTokenT<std::vector<int>> neutralPdg_token_;
   const edm::EDGetTokenT<std::vector<reco::Track>> tracks_token_;
-  const edm::EDGetTokenT<std::vector<int>> trackToClaimTrackster_token_;
   // Without the GSF tracks an electron keeps the track kinematics.
   const bool useGsfTracks_;
   edm::EDGetTokenT<std::vector<reco::GsfTrack>> gsf_tracks_token_;
@@ -73,11 +75,6 @@ private:
   const float timingQualityThreshold_;
   // (eta, phi) window between an electron track and its GSF track.
   const float delta_tk_gsf_;
-  // A selected track with no hypothesis is a charged hadron from the track alone when the final-trackster energy
-  // within trackOnlyDeltaR is below max(floor, fraction x p).
-  const float trackOnlyDeltaR_;
-  const float trackOnlyNearbyEnergyFloor_;
-  const float trackOnlyNearbyEnergyFraction_;
   // A trackster shared by tracks that take their energy from the track gives a neutral residual E - sum(p) when it is
   // at least max(floor, fraction x E).
   const float residualEnergyFloor_;
@@ -100,23 +97,27 @@ private:
   // Share of a neutral trackster energy that comes from the particle it represents, predicted from 31 features of the
   // trackster, its shape and its surroundings. A neutral candidate below neutralMinEnergy_ after the correction is not
   // produced.
-  edm::EDGetTokenT<std::vector<reco::CaloCluster>> layerClustersToken_;
-  std::unique_ptr<cms::Ort::ONNXRuntime> neutralShareModel_;
-  float neutralMinEnergy_;
+  const edm::EDGetTokenT<std::vector<reco::CaloCluster>> layerClustersToken_;
+  const cms::Ort::ONNXRuntime &neutralShareModel_;
+  const float neutralMinEnergy_;
   static constexpr unsigned int kNNeutralShareFeatures = 31;
   std::vector<float> neutralEnergyShares(const std::vector<Trackster> &tracksters,
                                          const std::vector<reco::CaloCluster> &layerClusters,
                                          const std::vector<int> &neutralIdx) const;
 
-  // Combined energy of a momentum p with error sigmaP, mass hypothesis mass, and an EM trackster; compatible is false
-  // when they disagree, and the track energy is returned.
-  float combinedEnergy(float p, float sigmaP, float mass, const Trackster &ts, bool &compatible) const;
+  // Energy of a momentum p with error sigmaP and mass hypothesis mass on an EM trackster: the inverse-variance mean of
+  // the two when they are compatible, else the track energy.
+  struct CombinedEnergy {
+    float energy;
+    bool compatible;
+  };
+  CombinedEnergy combinedEnergy(float p, float sigmaP, float mass, const Trackster &ts) const;
 
   const std::string propName_;
   const edm::ESGetToken<MagneticField, IdealMagneticFieldRecord> bfield_token_;
   const edm::ESGetToken<Propagator, TrackingComponentsRecord> propagator_token_;
   const edm::ESGetToken<GlobalTrackingGeometry, GlobalTrackingGeometryRecord> trackingGeometry_token_;
-  edm::ESGetToken<HGCalDDDConstants, IdealGeometryRecord> hdc_token_;
+  const edm::ESGetToken<HGCalDDDConstants, IdealGeometryRecord> hdc_token_;
 
   const HGCalDDDConstants *hgcons_;
   edm::ESHandle<MagneticField> bfield_;
@@ -124,37 +125,32 @@ private:
   edm::ESHandle<GlobalTrackingGeometry> trackingGeometry_;
 };
 
-TICLCandidateArbitrationProducer::TICLCandidateArbitrationProducer(const edm::ParameterSet &ps)
+namespace {
+  // InputTag of a product instance of the interpretation stage.
+  edm::InputTag interpretationTag(const edm::ParameterSet &ps, const char *instance) {
+    const auto &tag = ps.getParameter<edm::InputTag>("interpretations");
+    return edm::InputTag(tag.label(), instance, tag.process());
+  }
+}  // namespace
+
+std::unique_ptr<cms::Ort::ONNXRuntime> TICLCandidateArbitrationProducer::initializeGlobalCache(
+    const edm::ParameterSet &ps) {
+  return std::make_unique<cms::Ort::ONNXRuntime>(ps.getParameter<edm::FileInPath>("neutralShareModel").fullPath());
+}
+
+TICLCandidateArbitrationProducer::TICLCandidateArbitrationProducer(const edm::ParameterSet &ps,
+                                                                   const cms::Ort::ONNXRuntime *neutralShareModel)
     : tracksters_token_(consumes<std::vector<Trackster>>(ps.getParameter<edm::InputTag>("interpretations"))),
-      trackToTrackster_token_(
-          consumes<std::vector<int>>(edm::InputTag(ps.getParameter<edm::InputTag>("interpretations").label(),
-                                                   "trackToTrackster",
-                                                   ps.getParameter<edm::InputTag>("interpretations").process()))),
-      trackMode_token_(
-          consumes<std::vector<int>>(edm::InputTag(ps.getParameter<edm::InputTag>("interpretations").label(),
-                                                   "trackMode",
-                                                   ps.getParameter<edm::InputTag>("interpretations").process()))),
-      neutralIdx_token_(
-          consumes<std::vector<int>>(edm::InputTag(ps.getParameter<edm::InputTag>("interpretations").label(),
-                                                   "neutralIdx",
-                                                   ps.getParameter<edm::InputTag>("interpretations").process()))),
-      neutralPdg_token_(
-          consumes<std::vector<int>>(edm::InputTag(ps.getParameter<edm::InputTag>("interpretations").label(),
-                                                   "neutralPdg",
-                                                   ps.getParameter<edm::InputTag>("interpretations").process()))),
+      trackToTrackster_token_(consumes<std::vector<int>>(interpretationTag(ps, "trackToTrackster"))),
+      trackMode_token_(consumes<std::vector<int>>(interpretationTag(ps, "trackMode"))),
+      neutralIdx_token_(consumes<std::vector<int>>(interpretationTag(ps, "neutralIdx"))),
+      neutralPdg_token_(consumes<std::vector<int>>(interpretationTag(ps, "neutralPdg"))),
       tracks_token_(consumes<std::vector<reco::Track>>(ps.getParameter<edm::InputTag>("tracks"))),
-      trackToClaimTrackster_token_(
-          consumes<std::vector<int>>(edm::InputTag(ps.getParameter<edm::InputTag>("interpretations").label(),
-                                                   "trackToClaimTrackster",
-                                                   ps.getParameter<edm::InputTag>("interpretations").process()))),
       useGsfTracks_(ps.getParameter<bool>("useGsfTracks")),
       useMTDTiming_(ps.getParameter<bool>("useMTDTiming")),
       useTimingAverage_(ps.getParameter<bool>("useTimingAverage")),
       timingQualityThreshold_(ps.getParameter<float>("timingQualityThreshold")),
       delta_tk_gsf_(ps.getParameter<float>("delta_tk_gsf")),
-      trackOnlyDeltaR_(ps.getParameter<float>("trackOnlyDeltaR")),
-      trackOnlyNearbyEnergyFloor_(ps.getParameter<float>("trackOnlyNearbyEnergyFloor")),
-      trackOnlyNearbyEnergyFraction_(ps.getParameter<float>("trackOnlyNearbyEnergyFraction")),
       residualEnergyFloor_(ps.getParameter<float>("residualEnergyFloor")),
       residualEnergyFraction_(ps.getParameter<float>("residualEnergyFraction")),
       trackMomentumErrorScale_(ps.getParameter<float>("trackMomentumErrorScale")),
@@ -164,27 +160,24 @@ TICLCandidateArbitrationProducer::TICLCandidateArbitrationProducer(const edm::Pa
       energyCompatibilityNSigma_(ps.getParameter<float>("energyCompatibilityNSigma")),
       muons_token_(consumes<reco::MuonCollection>(ps.getParameter<edm::InputTag>("muonSrc"))),
       pfmu_(std::make_unique<PFMuonAlgo>(ps.getParameterSet("pfMuonAlgoParameters"), false)),
+      layerClustersToken_(consumes<std::vector<reco::CaloCluster>>(ps.getParameter<edm::InputTag>("layerClusters"))),
+      neutralShareModel_(*neutralShareModel),
+      neutralMinEnergy_(ps.getParameter<float>("neutralMinEnergy")),
       propName_(ps.getParameter<std::string>("propagator")),
       bfield_token_(esConsumes<MagneticField, IdealMagneticFieldRecord, edm::Transition::BeginRun>()),
       propagator_token_(
           esConsumes<Propagator, TrackingComponentsRecord, edm::Transition::BeginRun>(edm::ESInputTag("", propName_))),
       trackingGeometry_token_(
           esConsumes<GlobalTrackingGeometry, GlobalTrackingGeometryRecord, edm::Transition::BeginRun>()),
+      hdc_token_(esConsumes<HGCalDDDConstants, IdealGeometryRecord, edm::Transition::BeginRun>(
+          edm::ESInputTag("", "HGCalEESensitive"))),
       hgcons_(nullptr) {
-  std::string detectorName_ =
-      (ps.getParameter<std::string>("detector") == "HFNose") ? "HGCalHFNoseSensitive" : "HGCalEESensitive";
-  hdc_token_ =
-      esConsumes<HGCalDDDConstants, IdealGeometryRecord, edm::Transition::BeginRun>(edm::ESInputTag("", detectorName_));
   if (useMTDTiming_) {
     inputTimingToken_ = consumes<MtdHostCollection>(ps.getParameter<edm::InputTag>("timingSoA"));
   }
   if (useGsfTracks_) {
     gsf_tracks_token_ = consumes<std::vector<reco::GsfTrack>>(ps.getParameter<edm::InputTag>("gsf_tracks"));
   }
-  layerClustersToken_ = consumes<std::vector<reco::CaloCluster>>(ps.getParameter<edm::InputTag>("layerClusters"));
-  neutralShareModel_ =
-      std::make_unique<cms::Ort::ONNXRuntime>(ps.getParameter<edm::FileInPath>("neutralShareModel").fullPath());
-  neutralMinEnergy_ = ps.getParameter<float>("neutralMinEnergy");
   produces<std::vector<TICLCandidate>>();
   // Per candidate: the index of its muon in muonSrc and the type of the muon track it takes, -1 when none.
   produces<std::vector<int>>("muonIndex");
@@ -199,20 +192,19 @@ void TICLCandidateArbitrationProducer::beginRun(edm::Run const &, edm::EventSetu
   trackingGeometry_ = es.getHandle(trackingGeometry_token_);
 }
 
-float TICLCandidateArbitrationProducer::combinedEnergy(
-    float p, float sigmaP, float mass, const Trackster &ts, bool &compatible) const {
+TICLCandidateArbitrationProducer::CombinedEnergy TICLCandidateArbitrationProducer::combinedEnergy(
+    float p, float sigmaP, float mass, const Trackster &ts) const {
   const float eTrack = std::sqrt(p * p + mass * mass);
   const float sigmaTrack = sigmaP;
   const float eTrackster = ts.regressed_energy();
   const float sigmaTrackster =
       eTrack * std::sqrt(emTracksterStochastic_ * emTracksterStochastic_ / std::max(eTrack, 0.1f) +
                          emTracksterConstant_ * emTracksterConstant_);
-  compatible = std::abs(eTrackster - eTrack) < energyCompatibilityNSigma_ * std::hypot(sigmaTrack, sigmaTrackster);
-  if (!compatible)
-    return eTrack;
+  if (!(std::abs(eTrackster - eTrack) < energyCompatibilityNSigma_ * std::hypot(sigmaTrack, sigmaTrackster)))
+    return {eTrack, false};
   const float wTrack = 1.f / std::max(sigmaTrack * sigmaTrack, 1e-12f);
   const float wTrackster = 1.f / (sigmaTrackster * sigmaTrackster);
-  return (wTrack * eTrack + wTrackster * eTrackster) / (wTrack + wTrackster);
+  return {(wTrack * eTrack + wTrackster * eTrackster) / (wTrack + wTrackster), true};
 }
 
 std::vector<float> TICLCandidateArbitrationProducer::neutralEnergyShares(
@@ -262,8 +254,7 @@ std::vector<float> TICLCandidateArbitrationProducer::neutralEnergyShares(
     x.push_back(ts.raw_em_energy() / std::max(ts.raw_energy(), 1e-6f));
     x.push_back(std::abs(bEta));
     x.push_back(std::log1p(static_cast<float>(ts.vertices().size())));
-    for (int k = 0; k < 8; ++k)
-      x.push_back(ts.id_probabilities(k));
+    x.insert(x.end(), ts.id_probabilities().begin(), ts.id_probabilities().end());
     x.push_back(std::log1p(nearEnergy));
     x.push_back(std::log1p(sideEnergy[side]));
     x.push_back(static_cast<float>(nNear));
@@ -306,7 +297,7 @@ std::vector<float> TICLCandidateArbitrationProducer::neutralEnergyShares(
 
   const int64_t rows = neutralIdx.size();
   cms::Ort::FloatArrays input{std::move(x)};
-  auto result = neutralShareModel_->run({"features"}, input, {{rows, kNNeutralShareFeatures}}, {}, rows);
+  auto result = neutralShareModel_.run({"features"}, input, {{rows, kNNeutralShareFeatures}}, {}, rows);
   if (result.empty() || result[0].size() != neutralIdx.size())
     throw cms::Exception("LogicError") << "TICLCandidateArbitrationProducer: expected " << rows
                                        << " outputs from the neutral share model";
@@ -360,10 +351,10 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
   std::vector<bool> gsfUsed(gsfTracks.size(), false);
 
   // Charged candidates from the per-track assignment.
-  for (size_t iTrack = 0; iTrack < trackMode.size() && iTrack < tracks.size(); ++iTrack) {
-    const int mode = trackMode[iTrack];
-    if (mode <= 0)
-      continue;  // -1: not selected; 0: no hypothesis (track-only candidates below)
+  for (size_t iTrack = 0; iTrack < trackMode.size(); ++iTrack) {
+    const auto mode = static_cast<TrackMode>(trackMode[iTrack]);
+    if (mode == TrackMode::kNotSelected)
+      continue;
     auto trackPtr = edm::Ptr<reco::Track>(tracks_h, iTrack);
     auto const &tk = *trackPtr;
     const int tsIdx = trackToTrackster[iTrack];
@@ -371,14 +362,14 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
     if (tsIdx >= 0)
       tracksterPtr = edm::Ptr<Trackster>(tracksters_h, tsIdx);
 
-    if (mode == 1) {
+    if (mode == TrackMode::kMuon) {
       // Muon: energy from the track momentum.
       TICLCandidate cand(trackPtr, tracksterPtr);
       cand.setPdgId(-13 * tk.charge());
       math::PtEtaPhiMLorentzVector p4Polar(tk.pt(), tk.eta(), tk.phi(), ticl::mmuon);
       cand.setP4(p4Polar);
       resultCandidates->push_back(cand);
-    } else if (mode == 3) {
+    } else if (mode == TrackMode::kElectron) {
       // Electron: the trackster energy along the direction of the GSF track.
       TICLCandidate cand(trackPtr, tracksterPtr);
       int bestGsf = -1;
@@ -399,17 +390,17 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
         cand.setPdgId(11 * gsf.charge());
         cand.setCharge(gsf.charge());
         // The GSF mode momentum combined with the trackster energy, or the trackster energy when they disagree.
-        bool compatible = false;
         const float p = gsf.pMode();
-        const float combined =
-            combinedEnergy(p, gsfMomentumErrorScale_ * gsf.qoverpModeError() * p * p, 0.f, *tracksterPtr, compatible);
-        cand.setP4(p4Along(gsf.momentum(), compatible ? combined : tracksterPtr->regressed_energy(), 0.f));
+        const auto combined =
+            combinedEnergy(p, gsfMomentumErrorScale_ * gsf.qoverpModeError() * p * p, 0.f, *tracksterPtr);
+        cand.setP4(
+            p4Along(gsf.momentum(), combined.compatible ? combined.energy : tracksterPtr->regressed_energy(), 0.f));
       } else {
         // No GSF track: the constructor sets the kinematics from the track and the trackster.
         cand.setPdgId(11 * tk.charge());
       }
       resultCandidates->push_back(cand);
-    } else if (mode == 4) {
+    } else if (mode == TrackMode::kJetMember) {
       // Jet member: a charged candidate from the track alone. The shared trackster goes to the neutral residual.
       edm::Ptr<Trackster> noTrackster;
       TICLCandidate cand(trackPtr, noTrackster);
@@ -417,22 +408,19 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
       if (tsIdx >= 0)
         trackSumP[tsIdx] += tk.p();
     } else if (tracksterPtr.isNonnull() && !tracksterPtr->isHadronic()) {
-      // Charged hadron or recovery on an EM trackster: the species from the trackster PID, the combined energy along the
-      // track. An excess of the trackster becomes a neutral residual below.
+      // Charged hadron or recovery on an EM trackster: an electron (the trackster PID), with the combined energy along
+      // the track. An excess of the trackster becomes a neutral residual below.
       TICLCandidate cand(trackPtr, tracksterPtr);
-      const float mass = std::abs(cand.pdgId()) == 11 ? 0.f : static_cast<float>(ticl::mpion);
-      bool compatible = false;
       const float p = tk.p();
       const float energy =
-          combinedEnergy(p, trackMomentumErrorScale_ * tk.qoverpError() * p * p, mass, *tracksterPtr, compatible);
-      cand.setP4(p4Along(tk.momentum(), energy, mass));
+          combinedEnergy(p, trackMomentumErrorScale_ * tk.qoverpError() * p * p, 0.f, *tracksterPtr).energy;
+      cand.setP4(p4Along(tk.momentum(), energy, 0.f));
       resultCandidates->push_back(cand);
       trackSumP[tsIdx] += energy;
     } else {
       // Charged hadron or recovery on a hadronic trackster or with no trackster: kinematics from the track. The
       // calorimetric excess of the trackster becomes a neutral residual below.
       TICLCandidate cand(trackPtr, tracksterPtr);
-      cand.setPdgId(211 * tk.charge());
       math::PtEtaPhiMLorentzVector p4Polar(tk.pt(), tk.eta(), tk.phi(), ticl::mpion);
       cand.setP4(p4Polar);
       resultCandidates->push_back(cand);
@@ -469,42 +457,6 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
     resultCandidates->push_back(cand);
   }
 
-  // Track-only candidates. The claim tracksters are not nearby energy.
-  {
-    const auto &tracksters = *tracksters_h;
-    std::vector<bool> isClaimTrackster(tracksters.size(), false);
-    for (int iClaim : evt.get(trackToClaimTrackster_token_))
-      if (iClaim >= 0) {
-        if (static_cast<size_t>(iClaim) >= tracksters.size())
-          throw cms::Exception("LogicError") << "TICLCandidateArbitrationProducer: claim trackster " << iClaim
-                                             << " is not in the " << tracksters.size() << " final tracksters";
-        isClaimTrackster[iClaim] = true;
-      }
-    for (size_t iTrack = 0; iTrack < trackMode.size(); ++iTrack) {
-      if (trackMode[iTrack] != 0)
-        continue;
-      auto const &tk = tracks[iTrack];
-      const auto dir = tk.outerOk() ? tk.outerMomentum() : tk.momentum();
-      float nearby = 0.f;
-      for (size_t iTs = 0; iTs < tracksters.size(); ++iTs) {
-        if (isClaimTrackster[iTs])
-          continue;
-        const auto &ts = tracksters[iTs];
-        const auto &bary = ts.barycenter();
-        if (bary.eta() * dir.eta() < 0.f)
-          continue;
-        if (reco::deltaR(bary.eta(), bary.phi(), dir.eta(), dir.phi()) < trackOnlyDeltaR_)
-          nearby += ts.raw_energy();
-      }
-      if (nearby >= std::max(trackOnlyNearbyEnergyFloor_, trackOnlyNearbyEnergyFraction_ * static_cast<float>(tk.p())))
-        continue;
-      auto trackPtr = edm::Ptr<reco::Track>(tracks_h, iTrack);
-      edm::Ptr<Trackster> noTrackster;
-      TICLCandidate cand(trackPtr, noTrackster);
-      resultCandidates->push_back(cand);
-    }
-  }
-
   ticl::assignTimeToCandidates(*resultCandidates,
                                inputTimingView,
                                {useMTDTiming_, useTimingAverage_, timingQualityThreshold_},
@@ -513,9 +465,8 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
                                *trackingGeometry_,
                                *hgcons_);
 
-  // Muons: a charged candidate whose track belongs to a muon (a PF muon without the tracker-muon flag, or a global muon
-  // when the candidate has no trackster) takes the kinematics of the best muon track. A loose muon is accepted for a
-  // muon candidate only.
+  // Muons: a charged candidate takes the kinematics of the best muon track when takesMuonKinematics holds. A loose muon
+  // is accepted for a muon candidate only.
   auto muonIndex = std::make_unique<std::vector<int>>(resultCandidates->size(), -1);
   auto muonTrackType = std::make_unique<std::vector<int>>(resultCandidates->size(), -1);
   const auto muonH = evt.getHandle(muons_token_);
@@ -528,8 +479,7 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
     if (muId < 0)
       continue;
     const reco::MuonRef muonRef(muonH, muId);
-    if (!((PFMuonAlgo::isMuon(muonRef) && !muonRef->isTrackerMuon()) ||
-          (cand.tracksters().empty() && muonRef->isGlobalMuon())))
+    if (!takesMuonKinematics(muonRef, !cand.tracksters().empty()))
       continue;
     const bool muonCandidate = std::abs(cand.pdgId()) == 13;
     reco::PFCandidate pf(cand.charge(), cand.p4(), muonCandidate ? reco::PFCandidate::mu : reco::PFCandidate::h);
@@ -561,10 +511,6 @@ void TICLCandidateArbitrationProducer::fillDescriptions(edm::ConfigurationDescri
   desc.add<bool>("useTimingAverage", true);
   desc.add<float>("timingQualityThreshold", 0.5f);
   desc.add<float>("delta_tk_gsf", 0.05f)->setComment("(eta,phi) window between an electron track and its GSF track.");
-  desc.add<float>("trackOnlyDeltaR", 0.1f)->setComment("(eta,phi) window for the nearby-energy veto.");
-  desc.add<float>("trackOnlyNearbyEnergyFloor", 2.0f)->setComment("Nearby-energy veto floor [GeV].");
-  desc.add<float>("trackOnlyNearbyEnergyFraction", 0.2f)
-      ->setComment("Nearby-energy veto as a fraction of the track momentum.");
   desc.add<float>("residualEnergyFloor", 2.0f)->setComment("Min energy [GeV] of a neutral residual.");
   desc.add<float>("residualEnergyFraction", 0.1f)
       ->setComment("Min energy of a neutral residual as a fraction of the trackster energy.");
@@ -585,7 +531,6 @@ void TICLCandidateArbitrationProducer::fillDescriptions(edm::ConfigurationDescri
   edm::ParameterSetDescription pfMuonAlgoDesc;
   PFMuonAlgo::fillPSetDescription(pfMuonAlgoDesc);
   desc.add<edm::ParameterSetDescription>("pfMuonAlgoParameters", pfMuonAlgoDesc);
-  desc.add<std::string>("detector", "HGCAL");
   desc.add<std::string>("propagator", "PropagatorWithMaterial");
   descriptions.add("ticlCandidateArbitrationProducer", desc);
 }
