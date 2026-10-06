@@ -14,10 +14,10 @@ class Propagator;
 
 namespace ticl {
 
-  // Path length [cm] of the track from its reference point to the HGCAL disk at z of its side, through its inner and
-  // outer states. 0 when a state is missing or a propagation fails.
+  // Path length [cm] of the track from its reference point to the HGCAL disk at |z| = zAbs on its side, through its
+  // inner and outer states. 0 when a state is missing or a propagation fails.
   float trackPathLengthToHGCal(const reco::Track &track,
-                               float z,
+                               float zAbs,
                                const MagneticField *field,
                                const Propagator &propagator,
                                const GlobalTrackingGeometry &trackingGeometry,

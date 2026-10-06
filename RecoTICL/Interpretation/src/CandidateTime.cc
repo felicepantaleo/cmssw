@@ -17,7 +17,7 @@
 namespace ticl {
 
   float trackPathLengthToHGCal(const reco::Track &track,
-                               float z,
+                               float zAbs,
                                const MagneticField *field,
                                const Propagator &propagator,
                                const GlobalTrackingGeometry &trackingGeometry,
@@ -40,8 +40,8 @@ namespace ticl {
     if (!t_inn_out.first.isValid())
       return 0.f;
     pathlength += t_inn_out.second;
-    std::pair<float, float> rMinMax = hgcons.rangeR(z, true);
-    const float zSide = (track.eta() > 0) ? z : -1.f * z;
+    std::pair<float, float> rMinMax = hgcons.rangeR(zAbs, true);
+    const float zSide = (track.eta() > 0) ? zAbs : -zAbs;
     const auto &disk = std::make_unique<GeomDet>(
         Disk::build(Disk::PositionType(0, 0, zSide),
                     Disk::RotationType(),
@@ -87,7 +87,7 @@ namespace ticl {
                      timing.pathLength()[trackIndex];
             } else {
               const float pathLength =
-                  trackPathLengthToHGCal(*cand.trackPtr(), z, field, propagator, trackingGeometry, hgcons);
+                  trackPathLengthToHGCal(*cand.trackPtr(), std::abs(z), field, propagator, trackingGeometry, hgcons);
               if (pathLength) {
                 path = pathLength;
               }
