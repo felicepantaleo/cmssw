@@ -9,6 +9,7 @@
 #include <memory>
 #include <algorithm>
 #include <map>
+#include <limits>
 
 #include "FWCore/Framework/interface/stream/EDProducer.h"
 #include "FWCore/Framework/interface/Event.h"
@@ -24,11 +25,15 @@
 #include "DataFormats/HGCalReco/interface/Common.h"
 #include "DataFormats/HGCalReco/interface/MtdHostCollection.h"
 #include "DataFormats/HGCalReco/interface/Trackster.h"
+#include "DataFormats/HGCalReco/interface/TICLLayerTile.h"
+#include "DataFormats/CaloRecHit/interface/CaloCluster.h"
 #include "DataFormats/HGCalReco/interface/TICLCandidate.h"
 #include "DataFormats/TrackReco/interface/Track.h"
 #include "DataFormats/MuonReco/interface/Muon.h"
 #include "DataFormats/ParticleFlowCandidate/interface/PFCandidate.h"
 #include "RecoParticleFlow/PFProducer/interface/PFMuonAlgo.h"
+#include "FWCore/ParameterSet/interface/FileInPath.h"
+#include "PhysicsTools/ONNXRuntime/interface/ONNXRuntime.h"
 #include "DataFormats/GsfTrackReco/interface/GsfTrack.h"
 #include "DataFormats/Math/interface/deltaR.h"
 #include "DataFormats/GeometryVector/interface/GlobalPoint.h"
@@ -102,6 +107,17 @@ private:
   // A charged candidate whose track belongs to a muon takes the kinematics of the best muon track (PFMuonAlgo).
   const edm::EDGetTokenT<reco::MuonCollection> muons_token_;
   std::unique_ptr<PFMuonAlgo> pfmu_;
+
+  // Share of a neutral trackster energy that comes from the particle it represents, predicted from 31 features of the
+  // trackster, its shape and its surroundings. A neutral candidate below neutralMinEnergy_ after the correction is not
+  // produced.
+  edm::EDGetTokenT<std::vector<reco::CaloCluster>> layerClustersToken_;
+  std::unique_ptr<cms::Ort::ONNXRuntime> neutralShareModel_;
+  float neutralMinEnergy_;
+  static constexpr unsigned int kNNeutralShareFeatures = 31;
+  std::vector<float> neutralEnergyShares(const std::vector<Trackster> &tracksters,
+                                         const std::vector<reco::CaloCluster> &layerClusters,
+                                         const std::vector<int> &neutralIdx) const;
 
   // Combined energy of a momentum p with error sigmaP, mass hypothesis mass, and an EM trackster; compatible is false
   // when they disagree, and the track energy is returned.
@@ -178,6 +194,10 @@ TICLCandidateArbitrationProducer::TICLCandidateArbitrationProducer(const edm::Pa
   if (useGsfTracks_) {
     gsf_tracks_token_ = consumes<std::vector<reco::GsfTrack>>(ps.getParameter<edm::InputTag>("gsf_tracks"));
   }
+  layerClustersToken_ = consumes<std::vector<reco::CaloCluster>>(ps.getParameter<edm::InputTag>("layerClusters"));
+  neutralShareModel_ =
+      std::make_unique<cms::Ort::ONNXRuntime>(ps.getParameter<edm::FileInPath>("neutralShareModel").fullPath());
+  neutralMinEnergy_ = ps.getParameter<float>("neutralMinEnergy");
   produces<std::vector<TICLCandidate>>();
   // Per candidate: the index of its muon in muonSrc and the type of the muon track it takes, -1 when none.
   produces<std::vector<int>>("muonIndex");
@@ -206,6 +226,107 @@ float TICLCandidateArbitrationProducer::combinedEnergy(
   const float wTrack = 1.f / std::max(sigmaTrack * sigmaTrack, 1e-12f);
   const float wTrackster = 1.f / (sigmaTrackster * sigmaTrackster);
   return (wTrack * eTrack + wTrackster * eTrackster) / (wTrack + wTrackster);
+}
+
+std::vector<float> TICLCandidateArbitrationProducer::neutralEnergyShares(
+    const std::vector<Trackster> &tracksters,
+    const std::vector<reco::CaloCluster> &layerClusters,
+    const std::vector<int> &neutralIdx) const {
+  std::vector<float> share(neutralIdx.size(), 1.f);
+  if (neutralIdx.empty())
+    return share;
+  float sideEnergy[2] = {0.f, 0.f};
+  for (auto const &ts : tracksters)
+    sideEnergy[ts.barycenter().z() > 0.f ? 1 : 0] += ts.raw_energy();
+  // Eta-phi tiles of the trackster barycenters, one per side, for the search of the tracksters within kNearDeltaR.
+  auto tiles = std::make_unique<std::array<ticl::TICLLayerTile, 2>>();
+  std::vector<float> barycenterEta(tracksters.size()), barycenterPhi(tracksters.size());
+  for (size_t j = 0; j < tracksters.size(); ++j) {
+    const auto &c = tracksters[j].barycenter();
+    barycenterEta[j] = c.eta();
+    barycenterPhi[j] = c.phi();
+    (*tiles)[c.z() > 0.f ? 1 : 0].fill(barycenterEta[j], barycenterPhi[j], j);
+  }
+  constexpr float kNearDeltaR = 0.2f;
+
+  std::vector<float> x;
+  x.reserve(neutralIdx.size() * kNNeutralShareFeatures);
+  for (const int idx : neutralIdx) {
+    const auto &ts = tracksters[idx];
+    const auto &b = ts.barycenter();
+    const float bEta = barycenterEta[idx], bPhi = barycenterPhi[idx];
+    const int side = b.z() > 0.f ? 1 : 0;
+    float nearEnergy = 0.f;
+    int nNear = 0;
+    const auto &tile = (*tiles)[side];
+    const auto box =
+        tile.searchBoxEtaPhi(bEta - kNearDeltaR, bEta + kNearDeltaR, bPhi - kNearDeltaR, bPhi + kNearDeltaR);
+    for (int iEta = box[0]; iEta <= box[1]; ++iEta)
+      for (int iPhi = box[2]; iPhi <= box[3]; ++iPhi)
+        for (const unsigned int j : tile[tile.globalBin(iEta, iPhi % ticl::TileConstants::nPhiBins)]) {
+          if (static_cast<int>(j) == idx ||
+              reco::deltaR2(barycenterEta[j], barycenterPhi[j], bEta, bPhi) >= kNearDeltaR * kNearDeltaR)
+            continue;
+          nearEnergy += tracksters[j].raw_energy();
+          ++nNear;
+        }
+    x.push_back(std::log(std::max(ts.regressed_energy(), 1e-3f)));
+    x.push_back(std::log(std::max(ts.raw_energy(), 1e-3f)));
+    x.push_back(ts.raw_em_energy() / std::max(ts.raw_energy(), 1e-6f));
+    x.push_back(std::abs(bEta));
+    x.push_back(std::log1p(static_cast<float>(ts.vertices().size())));
+    for (int k = 0; k < 8; ++k)
+      x.push_back(ts.id_probabilities(k));
+    x.push_back(std::log1p(nearEnergy));
+    x.push_back(std::log1p(sideEnergy[side]));
+    x.push_back(static_cast<float>(nNear));
+    for (int k = 0; k < 3; ++k)
+      x.push_back(std::log(std::max(ts.eigenvalues()[k], 1e-3f)));
+    for (int k = 0; k < 3; ++k)
+      x.push_back(ts.sigmasPCA()[k]);
+    for (int k = 0; k < 3; ++k)
+      x.push_back(ts.sigmas()[k]);
+    // Layer clusters: the largest energy share, the energy share within 2 and 5 cm of the main axis, the
+    // energy-weighted transverse rms (cm), the smallest |z| and the |z| extent.
+    auto axis = ts.eigenvectors(0);
+    if (!(axis.mag2() > 0.f) || !std::isfinite(axis.mag2()))
+      axis = b;
+    axis = axis.unit();
+    float eSum = 0.f, eMax = 0.f, eCore2 = 0.f, eCore5 = 0.f, r2Sum = 0.f;
+    float zMin = std::numeric_limits<float>::max(), zMax = 0.f;
+    for (size_t i = 0; i < ts.vertices().size(); ++i) {
+      const auto &lc = layerClusters[ts.vertices(i)];
+      const float e = lc.energy() / std::max<float>(1.f, ts.vertex_multiplicity(i));
+      const Trackster::Vector d(lc.x() - b.x(), lc.y() - b.y(), lc.z() - b.z());
+      const float along = d.Dot(axis);
+      const float r = std::sqrt(std::max(0.f, d.mag2() - along * along));
+      eSum += e;
+      eMax = std::max(eMax, e);
+      eCore2 += r < 2.f ? e : 0.f;
+      eCore5 += r < 5.f ? e : 0.f;
+      r2Sum += e * r * r;
+      zMin = std::min(zMin, std::abs(static_cast<float>(lc.z())));
+      zMax = std::max(zMax, std::abs(static_cast<float>(lc.z())));
+    }
+    if (eSum > 0.f)
+      x.insert(x.end(), {eMax / eSum, eCore2 / eSum, eCore5 / eSum, std::sqrt(r2Sum / eSum), zMin, zMax - zMin});
+    else
+      x.insert(x.end(), {-1.f, -1.f, -1.f, -1.f, -1.f, 0.f});
+  }
+  for (auto &v : x)
+    if (!std::isfinite(v))
+      v = 0.f;
+
+  const int64_t rows = neutralIdx.size();
+  cms::Ort::FloatArrays input{std::move(x)};
+  auto result = neutralShareModel_->run({"features"}, input, {{rows, kNNeutralShareFeatures}}, {}, rows);
+  if (result.empty() || result[0].size() != neutralIdx.size())
+    throw cms::Exception("LogicError") << "TICLCandidateArbitrationProducer: expected " << rows
+                                       << " outputs from the neutral share model";
+  // A trackster without layer clusters keeps its energy.
+  for (size_t k = 0; k < neutralIdx.size(); ++k)
+    share[k] = tracksters[neutralIdx[k]].vertices().empty() ? 1.f : result[0][k];
+  return share;
 }
 
 void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::EventSetup &es) {
@@ -350,13 +471,17 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
     resultCandidates->push_back(cand);
   }
 
-  // Neutral candidates.
+  // Neutral candidates. Each takes the share of its trackster energy that comes from the particle it represents.
+  const auto neutralShare = neutralEnergyShares(*tracksters_h, evt.get(layerClustersToken_), neutralIdx);
   for (size_t k = 0; k < neutralIdx.size(); ++k) {
     edm::Ptr<Trackster> tracksterPtr(tracksters_h, neutralIdx[k]);
     edm::Ptr<reco::Track> trackPtr;
     TICLCandidate cand(trackPtr, tracksterPtr);
     if (neutralPdg[k] != 0)
       cand.setPdgId(neutralPdg[k]);
+    cand.setP4(cand.p4() * neutralShare[k]);
+    if (cand.energy() < neutralMinEnergy_)
+      continue;
     resultCandidates->push_back(cand);
   }
 
@@ -567,6 +692,13 @@ void TICLCandidateArbitrationProducer::fillDescriptions(edm::ConfigurationDescri
   desc.add<float>("emTracksterConstant", 0.22f)->setComment("Constant term of the EM trackster resolution.");
   desc.add<float>("energyCompatibilityNSigma", 3.0f)
       ->setComment("Track and trackster energies agree within this number of combined errors.");
+  desc.add<edm::FileInPath>("neutralShareModel",
+                            edm::FileInPath("RecoTICL/Interpretation/data/neutralEnergy/neutralShare_mlp_v1.onnx"))
+      ->setComment("ONNX model of the share of a neutral trackster energy that comes from the particle it represents.");
+  desc.add<float>("neutralMinEnergy", 1.f)
+      ->setComment("Neutral candidates below this corrected energy are not produced.");
+  desc.add<edm::InputTag>("layerClusters", edm::InputTag("hgcalMergeLayerClusters"))
+      ->setComment("Layer clusters of the tracksters, read for the neutral energy share.");
   desc.add<edm::InputTag>("muonSrc", edm::InputTag("muons1stStep"));
   edm::ParameterSetDescription pfMuonAlgoDesc;
   PFMuonAlgo::fillPSetDescription(pfMuonAlgoDesc);
