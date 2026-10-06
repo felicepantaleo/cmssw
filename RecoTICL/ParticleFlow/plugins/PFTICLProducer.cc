@@ -5,6 +5,7 @@
 
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/Framework/interface/MakerMacros.h"
+#include "FWCore/Utilities/interface/Exception.h"
 
 #include "DataFormats/Common/interface/View.h"
 
@@ -27,8 +28,11 @@ public:
 private:
   // parameters
   const bool energy_from_regression_;
+  // The candidate producer has set the muon kinematics and records its muon decisions: the converter only copies them.
+  const bool muonsFromCandidates_;
   // inputs
   const edm::EDGetTokenT<edm::View<TICLCandidate>> ticl_candidates_;
+  edm::EDGetTokenT<std::vector<int>> muonIndex_, muonTrackType_;
   const edm::EDGetTokenT<reco::MuonCollection> muons_;
   // For PFMuonAlgo
   std::unique_ptr<PFMuonAlgo> pfmu_;
@@ -38,10 +42,16 @@ DEFINE_FWK_MODULE(PFTICLProducer);
 
 PFTICLProducer::PFTICLProducer(const edm::ParameterSet& conf)
     : energy_from_regression_(conf.getParameter<bool>("energyFromRegression")),
+      muonsFromCandidates_(conf.getParameter<bool>("muonsFromCandidates")),
       ticl_candidates_(consumes<edm::View<TICLCandidate>>(conf.getParameter<edm::InputTag>("ticlCandidateSrc"))),
       muons_(consumes<reco::MuonCollection>(conf.getParameter<edm::InputTag>("muonSrc"))),
       pfmu_(std::make_unique<PFMuonAlgo>(conf.getParameterSet("pfMuonAlgoParameters"),
                                          false)) {  // postMuonCleaning = false
+  if (muonsFromCandidates_) {
+    const auto& src = conf.getParameter<edm::InputTag>("ticlCandidateSrc");
+    muonIndex_ = consumes<std::vector<int>>(edm::InputTag(src.label(), "muonIndex", src.process()));
+    muonTrackType_ = consumes<std::vector<int>>(edm::InputTag(src.label(), "muonTrackType", src.process()));
+  }
   produces<reco::PFCandidateCollection>();
 }
 
@@ -49,6 +59,9 @@ void PFTICLProducer::fillDescriptions(edm::ConfigurationDescriptions& descriptio
   edm::ParameterSetDescription desc;
   desc.add<edm::InputTag>("ticlCandidateSrc", edm::InputTag("ticlCandidate"));
   desc.add<bool>("energyFromRegression", true);
+  desc.add<bool>("muonsFromCandidates", false)
+      ->setComment(
+          "Copy the muon decisions of the candidate producer (muonIndex, muonTrackType) instead of PFMuonAlgo.");
   // For PFMuonAlgo
   desc.add<edm::InputTag>("muonSrc", edm::InputTag("muons1stStep"));
   edm::ParameterSetDescription psd_PFMuonAlgo;
@@ -67,8 +80,17 @@ void PFTICLProducer::produce(edm::Event& evt, const edm::EventSetup& es) {
   const auto& muons = *muonH;
 
   auto candidates = std::make_unique<reco::PFCandidateCollection>();
+  static const std::vector<int> noMuons;
+  const auto& muonIndex = muonsFromCandidates_ ? evt.get(muonIndex_) : noMuons;
+  const auto& muonTrackType = muonsFromCandidates_ ? evt.get(muonTrackType_) : noMuons;
+  if (muonsFromCandidates_ &&
+      (muonIndex.size() != ticl_candidates.size() || muonTrackType.size() != ticl_candidates.size()))
+    throw cms::Exception("LogicError") << "PFTICLProducer: " << ticl_candidates.size() << " candidates but "
+                                       << muonIndex.size() << " muon indices and " << muonTrackType.size()
+                                       << " muon track types";
 
-  for (const auto& ticl_cand : ticl_candidates) {
+  for (size_t iCand = 0; iCand < ticl_candidates.size(); ++iCand) {
+    const auto& ticl_cand = ticl_candidates[iCand];
     const auto abs_pdg_id = std::abs(ticl_cand.pdgId());
     const auto charge = ticl_cand.charge();
     const auto& four_mom = ticl_cand.p4();
@@ -118,14 +140,18 @@ void PFTICLProducer::produce(edm::Event& evt, const edm::EventSetup& es) {
       // dynamic type checking or configuration) if additional track types are needed.
       reco::TrackRef trackref(ticl_cand.trackPtr().id(), int(ticl_cand.trackPtr().key()), &evt.productGetter());
       candidate.setTrackRef(trackref);
-      // Utilize PFMuonAlgo
-      const int muId = PFMuonAlgo::muAssocToTrack(trackref, muons);
-      if (muId != -1) {
+      if (muonsFromCandidates_) {
+        if (muonIndex[iCand] >= 0) {
+          candidate.setMuonRef(reco::MuonRef(muonH, muonIndex[iCand]));
+          candidate.setMuonTrackType(static_cast<reco::Muon::MuonTrackType>(muonTrackType[iCand]));
+          candidate.setVertex(ticl_cand.vertex());
+        }
+      } else if (const int muId = PFMuonAlgo::muAssocToTrack(trackref, muons); muId != -1) {
+        // Utilize PFMuonAlgo
         const reco::MuonRef muonref = reco::MuonRef(muonH, muId);
-        // A TICL muon candidate takes the kinematics of the muon of its track.
-        const bool allowLoose = (part_type == reco::PFCandidate::mu);
-        if (allowLoose or (PFMuonAlgo::isMuon(muonref) and not(*muonH)[muId].isTrackerMuon()) or
+        if ((PFMuonAlgo::isMuon(muonref) and not(*muonH)[muId].isTrackerMuon()) or
             (ticl_cand.tracksters().empty() and muonref.isNonnull() and muonref->isGlobalMuon())) {
+          const bool allowLoose = (part_type == reco::PFCandidate::mu);
           // Redefine pfmuon candidate kinematics and add muonref
           pfmu_->reconstructMuon(candidate, muonref, allowLoose);
         }
