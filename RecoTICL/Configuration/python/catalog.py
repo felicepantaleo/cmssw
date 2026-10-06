@@ -230,6 +230,7 @@ _SPECS = [
         ),
         consumes=(
             Consumed("interpretations", T_TRACKSTERS),
+            Consumed("layerClusters", T_CALOCLUSTERS),
         ),
         external_inputs=("tracks", "gsf_tracks", "timingSoA", "muonSrc"),
     ),
