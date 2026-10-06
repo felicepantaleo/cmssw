@@ -1189,10 +1189,10 @@ void TICLInterpretationProducer::fillDescriptions(edm::ConfigurationDescriptions
 
   desc.add<float>("arbitrationMaxSharedEnergyFraction", 0.2f)
       ->setComment("Two hypotheses conflict above this fraction of the smaller footprint energy in shared clusters.");
-  desc.add<std::string>("arbitrationModelFile", "RecoTICL/Interpretation/data/arbitration/hypothesis_mlp_v1.onnx")
+  desc.add<std::string>("arbitrationModelFile", "RecoTICL/Interpretation/data/arbitration/hypothesis_mlp_v2.onnx")
       ->setComment("ONNX model of the probability that a hypothesis is correct (logit).");
-  desc.add<float>("arbitrationPlattA", 0.9908671975135803f)->setComment("Platt calibration: logit' = a x logit + b.");
-  desc.add<float>("arbitrationPlattB", -0.02162671647965908f);
+  desc.add<float>("arbitrationPlattA", 0.9958741664886475f)->setComment("Platt calibration: logit' = a x logit + b.");
+  desc.add<float>("arbitrationPlattB", -0.012220372445881367f);
   desc.add<float>("arbitrationTrackBonus", 20.0f)->setComment("Weight added per track a hypothesis covers.");
   desc.add<float>("arbitrationTrackOnlyWeight", -1.0f)->setComment("Weight of a track-only hypothesis.");
   desc.add<unsigned int>("arbitrationMaxExactComponent", 64)
@@ -1211,7 +1211,7 @@ void TICLInterpretationProducer::fillDescriptions(edm::ConfigurationDescriptions
       ->setComment(
           "A neutral that lost a layer cluster to a winner or to the track claim is dropped below this raw "
           "energy [GeV].");
-  desc.add<std::string>("neutralModelFile", "RecoTICL/Interpretation/data/arbitration/neutralSpecies_mlp_v1.onnx")
+  desc.add<std::string>("neutralModelFile", "RecoTICL/Interpretation/data/arbitration/neutralSpecies_mlp_v2.onnx")
       ->setComment("ONNX 3-class model (photon, pi0, neutral hadron; logits) that types the neutral candidates.");
   desc.add<float>("neutralModelThreshold", 0.7f)->setComment("P(photon) + P(pi0) at and above which a neutral is EM.");
   desc.add<float>("emRawEnergyBelow", 50.f)
