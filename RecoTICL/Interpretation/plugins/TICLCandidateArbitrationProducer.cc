@@ -21,6 +21,7 @@
 #include "FWCore/Utilities/interface/ESGetToken.h"
 #include "FWCore/Utilities/interface/Exception.h"
 
+#include "DataFormats/Common/interface/ValueMap.h"
 #include "DataFormats/HGCalReco/interface/Common.h"
 #include "DataFormats/HGCalReco/interface/MtdHostCollection.h"
 #include "DataFormats/HGCalReco/interface/Trackster.h"
@@ -179,8 +180,8 @@ TICLCandidateArbitrationProducer::TICLCandidateArbitrationProducer(const edm::Pa
     gsf_tracks_token_ = consumes<std::vector<reco::GsfTrack>>(ps.getParameter<edm::InputTag>("gsf_tracks"));
   }
   produces<std::vector<TICLCandidate>>();
-  // Per candidate: the index of its muon in muonSrc and the type of the muon track it takes, -1 when none.
-  produces<std::vector<int>>("muonIndex");
+  // Per candidate: its muon (null when none) and the type of the muon track it takes (-1 when none).
+  produces<edm::ValueMap<reco::MuonRef>>("muons");
   produces<std::vector<int>>("muonTrackType");
 }
 
@@ -467,7 +468,7 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
 
   // Muons: a charged candidate takes the kinematics of the best muon track when takesMuonKinematics holds. A loose muon
   // is accepted for a muon candidate only.
-  auto muonIndex = std::make_unique<std::vector<int>>(resultCandidates->size(), -1);
+  std::vector<reco::MuonRef> candidateMuons(resultCandidates->size());
   auto muonTrackType = std::make_unique<std::vector<int>>(resultCandidates->size(), -1);
   const auto muonH = evt.getHandle(muons_token_);
   for (size_t i = 0; i < resultCandidates->size(); ++i) {
@@ -490,12 +491,16 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
     cand.setCharge(pf.charge());
     cand.setPdgId(-13 * pf.charge());
     cand.setVertex(pf.vertex());
-    (*muonIndex)[i] = muId;
+    candidateMuons[i] = muonRef;
     (*muonTrackType)[i] = pf.bestMuonTrackType();
   }
 
-  evt.put(std::move(resultCandidates));
-  evt.put(std::move(muonIndex), "muonIndex");
+  const auto candidates_h = evt.put(std::move(resultCandidates));
+  auto muonMap = std::make_unique<edm::ValueMap<reco::MuonRef>>();
+  edm::ValueMap<reco::MuonRef>::Filler filler(*muonMap);
+  filler.insert(candidates_h, candidateMuons.begin(), candidateMuons.end());
+  filler.fill();
+  evt.put(std::move(muonMap), "muons");
   evt.put(std::move(muonTrackType), "muonTrackType");
 }
 
