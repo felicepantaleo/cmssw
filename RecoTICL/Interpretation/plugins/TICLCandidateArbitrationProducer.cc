@@ -410,14 +410,13 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
         trackSumP[tsIdx] += tk.p();
     } else if (tracksterPtr.isNonnull() && !tracksterPtr->isHadronic()) {
       // Charged hadron or recovery on an EM trackster: an electron (the trackster PID), with the combined energy along
-      // the track. An excess of the trackster becomes a neutral residual below.
+      // the track. A compatible trackster is all in the combined energy; else its excess becomes a neutral residual below.
       TICLCandidate cand(trackPtr, tracksterPtr);
       const float p = tk.p();
-      const float energy =
-          combinedEnergy(p, trackMomentumErrorScale_ * tk.qoverpError() * p * p, 0.f, *tracksterPtr).energy;
-      cand.setP4(p4Along(tk.momentum(), energy, 0.f));
+      const auto combined = combinedEnergy(p, trackMomentumErrorScale_ * tk.qoverpError() * p * p, 0.f, *tracksterPtr);
+      cand.setP4(p4Along(tk.momentum(), combined.energy, 0.f));
       resultCandidates->push_back(cand);
-      trackSumP[tsIdx] += energy;
+      trackSumP[tsIdx] += combined.compatible ? tracksterPtr->regressed_energy() : combined.energy;
     } else {
       // Charged hadron or recovery on a hadronic trackster or with no trackster: kinematics from the track. The
       // calorimetric excess of the trackster becomes a neutral residual below.
