@@ -91,3 +91,26 @@ TEST_CASE("Equal weights go to the lower index", "[MaxWeightIndependentSet]") {
   ticl::MaxWeightIndependentSetStats stats;
   REQUIRE(ticl::maxWeightIndependentSet({1.f, 1.f}, adj, 64, 1000000, stats) == std::vector<bool>{true, false});
 }
+
+TEST_CASE("The set is maximal at every search budget", "[MaxWeightIndependentSet]") {
+  std::mt19937 gen(777);
+  std::uniform_real_distribution<float> uW(-2.f, 10.f);
+  for (unsigned long budget : {1UL, 3UL, 10UL, 100UL}) {
+    for (int trial = 0; trial < 100; ++trial) {
+      const unsigned int n = 20 + trial % 30;
+      const auto adj = randomGraph(n, 0.2f, gen);
+      std::vector<float> w(n);
+      for (auto& x : w)
+        x = uW(gen);
+      ticl::MaxWeightIndependentSetStats stats;
+      const auto sel = ticl::maxWeightIndependentSet(w, adj, 64, budget, stats);
+      REQUIRE(independent(sel, adj));
+      for (unsigned int a = 0; a < n; ++a) {
+        if (!(w[a] > 0.f) || sel[a])
+          continue;
+        const bool covered = std::any_of(adj[a].begin(), adj[a].end(), [&](unsigned int b) { return sel[b]; });
+        REQUIRE(covered);
+      }
+    }
+  }
+}
