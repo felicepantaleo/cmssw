@@ -32,20 +32,15 @@
 #include "DataFormats/MuonReco/interface/Muon.h"
 #include "DataFormats/ParticleFlowCandidate/interface/PFCandidate.h"
 #include "RecoParticleFlow/PFProducer/interface/PFMuonAlgo.h"
+#include "RecoTICL/Interpretation/interface/CandidateTime.h"
 #include "FWCore/ParameterSet/interface/FileInPath.h"
 #include "PhysicsTools/ONNXRuntime/interface/ONNXRuntime.h"
 #include "DataFormats/GsfTrackReco/interface/GsfTrack.h"
 #include "DataFormats/Math/interface/deltaR.h"
-#include "DataFormats/GeometryVector/interface/GlobalPoint.h"
-#include "DataFormats/GeometryVector/interface/GlobalVector.h"
-#include "DataFormats/GeometrySurface/interface/BoundDisk.h"
-#include "DataFormats/GeometrySurface/interface/SimpleDiskBounds.h"
 
-#include "TrackingTools/TrajectoryState/interface/TrajectoryStateTransform.h"
 #include "TrackingTools/GeomPropagators/interface/Propagator.h"
 #include "TrackingTools/Records/interface/TrackingComponentsRecord.h"
 #include "Geometry/CommonTopologies/interface/GlobalTrackingGeometry.h"
-#include "Geometry/CommonTopologies/interface/GeomDet.h"
 #include "Geometry/HGCalCommonData/interface/HGCalDDDConstants.h"
 #include "Geometry/Records/interface/IdealGeometryRecord.h"
 #include "MagneticField/Engine/interface/MagneticField.h"
@@ -62,12 +57,6 @@ public:
   static void fillDescriptions(edm::ConfigurationDescriptions &descriptions);
 
 private:
-  template <typename F>
-  void assignTimeToCandidates(std::vector<TICLCandidate> &resultCandidates,
-                              edm::Handle<std::vector<reco::Track>> track_h,
-                              MtdHostCollection::ConstView &inputTimingView,
-                              F func) const;
-
   const edm::EDGetTokenT<std::vector<Trackster>> tracksters_token_;
   const edm::EDGetTokenT<std::vector<int>> trackToTrackster_token_;
   const edm::EDGetTokenT<std::vector<int>> trackMode_token_;
@@ -133,8 +122,6 @@ private:
   edm::ESHandle<MagneticField> bfield_;
   edm::ESHandle<Propagator> propagator_;
   edm::ESHandle<GlobalTrackingGeometry> trackingGeometry_;
-  static constexpr float c_light_ = CLHEP::c_light * CLHEP::ns / CLHEP::cm;
-  static constexpr float timeRes = 0.02f;
 };
 
 TICLCandidateArbitrationProducer::TICLCandidateArbitrationProducer(const edm::ParameterSet &ps)
@@ -359,9 +346,6 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
     inputTimingView = (*inputTiming_h).const_view();
   }
 
-  auto const bFieldProd = bfield_.product();
-  const Propagator *propagator = propagator_.product();
-
   auto resultCandidates = std::make_unique<std::vector<TICLCandidate>>();
 
   // Summed energy given to the tracks of each trackster, for the neutral residuals.
@@ -521,43 +505,13 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
     }
   }
 
-  auto getPathLength = [&](const reco::Track &track, float zVal) {
-    if (!track.innerOk() || !track.outerOk()) {
-      return 0.f;
-    }
-    const auto &fts_inn = trajectoryStateTransform::innerFreeState(track, bFieldProd);
-    const auto &fts_out = trajectoryStateTransform::outerFreeState(track, bFieldProd);
-    const auto &surf_inn = trajectoryStateTransform::innerStateOnSurface(track, *trackingGeometry_, bFieldProd);
-    const auto &surf_out = trajectoryStateTransform::outerStateOnSurface(track, *trackingGeometry_, bFieldProd);
-
-    Basic3DVector<float> pos(track.referencePoint());
-    Basic3DVector<float> mom(track.momentum());
-    FreeTrajectoryState stateAtBeamspot{GlobalPoint(pos), GlobalVector(mom), track.charge(), bFieldProd};
-
-    float pathlength = propagator->propagateWithPath(stateAtBeamspot, surf_inn.surface()).second;
-    if (pathlength) {
-      const auto &t_inn_out = propagator->propagateWithPath(fts_inn, surf_out.surface());
-      if (t_inn_out.first.isValid()) {
-        pathlength += t_inn_out.second;
-        std::pair<float, float> rMinMax = hgcons_->rangeR(zVal, true);
-        int iSide = int(track.eta() > 0);
-        float zSide = (iSide == 0) ? (-1.f * zVal) : zVal;
-        const auto &disk = std::make_unique<GeomDet>(
-            Disk::build(Disk::PositionType(0, 0, zSide),
-                        Disk::RotationType(),
-                        SimpleDiskBounds(rMinMax.first, rMinMax.second, zSide - 0.5f, zSide + 0.5f))
-                .get());
-        const auto &tsos = propagator->propagateWithPath(fts_out, disk->surface());
-        if (tsos.first.isValid()) {
-          pathlength += tsos.second;
-          return pathlength;
-        }
-      }
-    }
-    return 0.f;
-  };
-
-  assignTimeToCandidates(*resultCandidates, tracks_h, inputTimingView, getPathLength);
+  ticl::assignTimeToCandidates(*resultCandidates,
+                               inputTimingView,
+                               {useMTDTiming_, useTimingAverage_, timingQualityThreshold_},
+                               bfield_.product(),
+                               *propagator_,
+                               *trackingGeometry_,
+                               *hgcons_);
 
   // Muons: a charged candidate whose track belongs to a muon (a PF muon without the tracker-muon flag, or a global muon
   // when the candidate has no trackster) takes the kinematics of the best muon track. A loose muon is accepted for a
@@ -593,78 +547,6 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
   evt.put(std::move(resultCandidates));
   evt.put(std::move(muonIndex), "muonIndex");
   evt.put(std::move(muonTrackType), "muonTrackType");
-}
-
-template <typename F>
-void TICLCandidateArbitrationProducer::assignTimeToCandidates(std::vector<TICLCandidate> &resultCandidates,
-                                                              edm::Handle<std::vector<reco::Track>> track_h,
-                                                              MtdHostCollection::ConstView &inputTimingView,
-                                                              F func) const {
-  for (auto &cand : resultCandidates) {
-    float beta = 1;
-    float time = 0.f;
-    float invTimeErr = 0.f;
-    float timeErr = -1.f;
-
-    const int trackIndex =
-        cand.trackPtr().isNonnull() ? (cand.trackPtr().get() - (edm::Ptr<reco::Track>(track_h, 0)).get()) : -1;
-    for (const auto &tr : cand.tracksters()) {
-      if (tr->timeError() > 0) {
-        const auto invTimeESq = pow(tr->timeError(), -2);
-        const auto x = tr->barycenter().X();
-        const auto y = tr->barycenter().Y();
-        const auto z = tr->barycenter().Z();
-        auto path = std::sqrt(x * x + y * y + z * z);
-        if (trackIndex != -1) {
-          if (useMTDTiming_ and inputTimingView.timeErr()[trackIndex] > 0) {
-            const auto xMtd = inputTimingView.posInMTD_x()[trackIndex];
-            const auto yMtd = inputTimingView.posInMTD_y()[trackIndex];
-            const auto zMtd = inputTimingView.posInMTD_z()[trackIndex];
-            beta = inputTimingView.beta()[trackIndex];
-            path = std::sqrt((x - xMtd) * (x - xMtd) + (y - yMtd) * (y - yMtd) + (z - zMtd) * (z - zMtd)) +
-                   inputTimingView.pathLength()[trackIndex];
-          } else {
-            float pathLength = func(*(cand.trackPtr().get()), z);
-            if (pathLength) {
-              path = pathLength;
-            }
-          }
-        }
-        time += (tr->time() - path / (beta * c_light_)) * invTimeESq;
-        invTimeErr += invTimeESq;
-      }
-    }
-    if (invTimeErr > 0) {
-      time = time / invTimeErr;
-      timeErr = sqrt(1.f / invTimeErr);
-      if (timeErr < timeRes)
-        timeErr = timeRes;
-      cand.setTime(time, timeErr);
-    }
-
-    if (useMTDTiming_ and cand.charge() and trackIndex != -1) {
-      const bool assocQuality = inputTimingView.MVAquality()[trackIndex] > timingQualityThreshold_;
-      if (assocQuality) {
-        const auto timeHGC = cand.time();
-        const auto timeEHGC = cand.timeError();
-        const auto timeMTD = inputTimingView.time0()[trackIndex];
-        const auto timeEMTD = inputTimingView.time0Err()[trackIndex];
-
-        if (useTimingAverage_ && (timeEMTD > 0 && timeEHGC > 0)) {
-          const auto invTimeESqHGC = pow(timeEHGC, -2);
-          const auto invTimeESqMTD = pow(timeEMTD, -2);
-          timeErr = 1.f / (invTimeESqHGC + invTimeESqMTD);
-          time = (timeHGC * invTimeESqHGC + timeMTD * invTimeESqMTD) * timeErr;
-          timeErr = sqrt(timeErr);
-        } else if (timeEMTD > 0) {
-          time = timeMTD;
-          timeErr = timeEMTD;
-        }
-      }
-      cand.setTime(time, timeErr);
-      cand.setMTDTime(inputTimingView.time()[trackIndex], inputTimingView.timeErr()[trackIndex]);
-    }
-  }
 }
 
 void TICLCandidateArbitrationProducer::fillDescriptions(edm::ConfigurationDescriptions &descriptions) {

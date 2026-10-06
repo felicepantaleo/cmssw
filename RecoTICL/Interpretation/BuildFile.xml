@@ -1,17 +1,21 @@
+<use name="clhep"/>
 <use name="DataFormats/CaloRecHit"/>
 <use name="DataFormats/Candidate"/>
 <use name="DataFormats/Common"/>
+<use name="DataFormats/GeometrySurface"/>
 <use name="DataFormats/HGCalReco"/>
 <use name="DataFormats/TrackReco"/>
 <use name="DataFormats/VertexReco"/>
 <use name="FWCore/Framework"/>
 <use name="FWCore/ParameterSet"/>
 <use name="FWCore/PluginManager"/>
+<use name="Geometry/CommonTopologies"/>
 <use name="Geometry/HGCalCommonData"/>
 <use name="MagneticField/Engine"/>
 <use name="PhysicsTools/ONNXRuntime"/>
 <use name="RecoLocalCalo/HGCalRecAlgos"/>
 <use name="TrackingTools/GeomPropagators"/>
+<use name="TrackingTools/TrajectoryState"/>
 <export>
   <lib name="1"/>
 </export>
