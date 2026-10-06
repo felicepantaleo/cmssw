@@ -480,9 +480,9 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
     if (muId < 0)
       continue;
     const reco::MuonRef muonRef(muonH, muId);
-    if (!takesMuonKinematics(muonRef, !cand.tracksters().empty()))
-      continue;
     const bool muonCandidate = std::abs(cand.pdgId()) == 13;
+    if (!takesMuonKinematics(muonRef, muonCandidate, !cand.tracksters().empty()))
+      continue;
     reco::PFCandidate pf(cand.charge(), cand.p4(), muonCandidate ? reco::PFCandidate::mu : reco::PFCandidate::h);
     pf.setTrackRef(trackRef);
     if (!pfmu_->reconstructMuon(pf, muonRef, muonCandidate))
