@@ -156,8 +156,8 @@ void PFTICLProducer::produce(edm::Event& evt, const edm::EventSetup& es) {
       } else if (const int muId = PFMuonAlgo::muAssocToTrack(trackref, *muonH); muId != -1) {
         // Utilize PFMuonAlgo
         const reco::MuonRef muonref = reco::MuonRef(muonH, muId);
-        if (ticl::takesMuonKinematics(muonref, !ticl_cand.tracksters().empty())) {
-          const bool allowLoose = (part_type == reco::PFCandidate::mu);
+        const bool allowLoose = (part_type == reco::PFCandidate::mu);
+        if (ticl::takesMuonKinematics(muonref, allowLoose, !ticl_cand.tracksters().empty())) {
           // Redefine pfmuon candidate kinematics and add muonref
           pfmu_->reconstructMuon(candidate, muonref, allowLoose);
         }
