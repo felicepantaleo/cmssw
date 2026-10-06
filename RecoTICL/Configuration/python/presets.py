@@ -216,41 +216,27 @@ def links_defaults():
 
 
 def cornetto_links_defaults():
-    """``ticlTracksterLinks`` overrides for v6: :func:`links_defaults` with the Cornetto linking plugin and its
+    """``ticlTracksterLinks`` overrides for v6: :func:`links_defaults` with the Cornetto linking plugin at its
     defaults."""
     d = links_defaults()
-    d["linkingPSet"] = cms.PSet(
-        type=cms.string("Cornetto"),
-        algo_verbosity=cms.int32(0),
-        etaWindow=cms.float(0.3),
-        maxLongitudinalDistance=cms.float(60.0),
-        maxBackwardDistance=cms.float(20.0),
-        transverseRadius0=cms.float(4.0),
-        transverseSlope=cms.float(0.05),
-        timeCompatibilityNSigma=cms.float(3.0),
-        timeResolutionFloor=cms.float(0.05),
-        typeVetoProbability=cms.float(0.6),
-        minEmittedEnergy=cms.float(1.0),
-        minEmittedPt=cms.float(0.5),
-    )
+    d["linkingPSet"] = cms.PSet(type=cms.string("Cornetto"), algo_verbosity=cms.int32(0))
     return d
 
 
-def supercluster_dnn_defaults(pid_threshold=0.8, emission_pid_threshold=0.0,
-                              pid_categories=None):
+def supercluster_dnn_defaults(pid_threshold=None, emission_pid_threshold=None, pid_categories=None):
     """Standard ``ticlTracksterLinksSuperclusteringDNN`` overrides. ``pid_threshold``: min EM probability of a seed.
     ``emission_pid_threshold``: min EM probability of a single-trackster supercluster. ``pid_categories``: the
-    ``Trackster::ParticleType`` slots of the EM probability (None: the plugin default, photon and electron). The
-    defaults give v5."""
+    ``Trackster::ParticleType`` slots of the EM probability. None keeps the plugin default. The defaults give v5."""
     pset = cms.PSet(
         type=cms.string("SuperClusteringDNN"),
         algo_verbosity=cms.int32(0),
         onnxModelPath=cms.string("RecoHGCal/TICL/data/superclustering/supercls_v3.onnx"),
         nnWorkingPoint=cms.float(0.57247),
-        filterByTracksterPID=cms.bool(True),
-        PIDThreshold=cms.float(pid_threshold),
-        emissionPIDThreshold=cms.float(emission_pid_threshold),
     )
+    if pid_threshold is not None:
+        pset.PIDThreshold = cms.float(pid_threshold)
+    if emission_pid_threshold is not None:
+        pset.emissionPIDThreshold = cms.float(emission_pid_threshold)
     if pid_categories is not None:
         pset.tracksterPIDCategoriesToFilter = cms.vint32(*pid_categories)
     return dict(linkingPSet=pset)
@@ -306,14 +292,14 @@ def v5(name="v5"):
     return cfg
 
 
-def v6(name="v6"):
+def v6(name="v6", target="offline"):
     """Return a :class:`TICLConfig` for TICLv6, the configuration of the ``ticl_v6`` process modifier: Cornetto
     linking, the interpretation stage (hypotheses, global arbitration, track claim) and the candidates from its maps.
-    The interpretation and candidate parameters are the module defaults."""
-    # The PFN inference of the v5 candidates, on the footprints and on the final tracksters.
-    interp = candidate_defaults()
-    del interp["regressionAndPid"]
-    cfg = (TICLConfig(name)
+    The interpretation stage runs the PFN inference of the v5 candidates; the other parameters are the module
+    defaults."""
+    interp = dict(pluginInferenceAlgoTracksterInferenceByPFN=candidate_defaults()[
+        "pluginInferenceAlgoTracksterInferenceByPFN"])
+    cfg = (TICLConfig(name, target=target)
            .iteration("CLUE3DHigh").preset()
            .iteration("Recovery").preset()
            .links(["CLUE3DHigh", "Recovery"], **cornetto_links_defaults())
