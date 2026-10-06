@@ -27,16 +27,12 @@ public:
 
 private:
   // parameters
-  const bool useMTDTiming_;
-  const bool useTimingAverage_;
-  const float timingQualityThreshold_;
   const bool energy_from_regression_;
   // The candidate producer has set the muon kinematics and records its muon decisions: the converter only copies them.
   const bool muonsFromCandidates_;
   // inputs
   const edm::EDGetTokenT<edm::View<TICLCandidate>> ticl_candidates_;
   edm::EDGetTokenT<std::vector<int>> muonIndex_, muonTrackType_;
-  edm::EDGetTokenT<edm::ValueMap<float>> srcTrackTime_, srcTrackTimeError_, srcTrackTimeQuality_;
   const edm::EDGetTokenT<reco::MuonCollection> muons_;
   // For PFMuonAlgo
   std::unique_ptr<PFMuonAlgo> pfmu_;
@@ -45,10 +41,7 @@ private:
 DEFINE_FWK_MODULE(PFTICLProducer);
 
 PFTICLProducer::PFTICLProducer(const edm::ParameterSet& conf)
-    : useMTDTiming_(conf.getParameter<bool>("useMTDTiming")),
-      useTimingAverage_(conf.getParameter<bool>("useTimingAverage")),
-      timingQualityThreshold_(conf.getParameter<float>("timingQualityThreshold")),
-      energy_from_regression_(conf.getParameter<bool>("energyFromRegression")),
+    : energy_from_regression_(conf.getParameter<bool>("energyFromRegression")),
       muonsFromCandidates_(conf.getParameter<bool>("muonsFromCandidates")),
       ticl_candidates_(consumes<edm::View<TICLCandidate>>(conf.getParameter<edm::InputTag>("ticlCandidateSrc"))),
       muons_(consumes<reco::MuonCollection>(conf.getParameter<edm::InputTag>("muonSrc"))),
@@ -65,16 +58,10 @@ PFTICLProducer::PFTICLProducer(const edm::ParameterSet& conf)
 void PFTICLProducer::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
   edm::ParameterSetDescription desc;
   desc.add<edm::InputTag>("ticlCandidateSrc", edm::InputTag("ticlCandidate"));
-  desc.add<edm::InputTag>("trackTimeValueMap", edm::InputTag("tofPID:t0"));
-  desc.add<edm::InputTag>("trackTimeErrorMap", edm::InputTag("tofPID:sigmat0"));
-  desc.add<edm::InputTag>("trackTimeQualityMap", edm::InputTag("mtdTrackQualityMVA:mtdQualMVA"));
   desc.add<bool>("energyFromRegression", true);
   desc.add<bool>("muonsFromCandidates", false)
       ->setComment(
           "Copy the muon decisions of the candidate producer (muonIndex, muonTrackType) instead of PFMuonAlgo.");
-  desc.add<float>("timingQualityThreshold", 0.5);
-  desc.add<bool>("useMTDTiming", true);
-  desc.add<bool>("useTimingAverage", false);
   // For PFMuonAlgo
   desc.add<edm::InputTag>("muonSrc", edm::InputTag("muons1stStep"));
   edm::ParameterSetDescription psd_PFMuonAlgo;
@@ -89,7 +76,6 @@ void PFTICLProducer::produce(edm::Event& evt, const edm::EventSetup& es) {
   edm::Handle<edm::View<TICLCandidate>> ticl_cand_h;
   evt.getByToken(ticl_candidates_, ticl_cand_h);
   const auto ticl_candidates = *ticl_cand_h;
-  edm::Handle<edm::ValueMap<float>> trackTimeH, trackTimeErrH, trackTimeQualH;
   const auto muonH = evt.getHandle(muons_);
   const auto& muons = *muonH;
 
