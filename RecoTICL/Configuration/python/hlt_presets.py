@@ -106,14 +106,10 @@ def hlt_clue3dhigh_inference():
 
 
 def hlt_candidate_defaults():
-    """Overrides for hltTiclCandidate (PFN inference + HLT track/muon inputs)."""
+    """Overrides for hltTiclCandidate (PFN inference). The HLT target sets the track, muon and timing inputs."""
     return dict(
         inferenceAlgo=cms.string("TracksterInferenceByPFN"),
         regressionAndPid=cms.bool(True),
-        tracks=cms.InputTag("hltGeneralTracks"),
-        muons=cms.InputTag("hltPhase2L3Muons"),
-        useMTDTiming=cms.bool(False),
-        useTimingAverage=cms.bool(False),
         pluginInferenceAlgoTracksterInferenceByPFN=cms.PSet(
             algo_verbosity=cms.int32(0),
             doPID=cms.int32(1),
@@ -131,13 +127,6 @@ def hlt_candidate_defaults():
     )
 
 
-def hlt_pf_defaults():
-    """Overrides for hltPfTICL (HLT muon source)."""
-    return dict(
-        muonSrc=cms.InputTag("hltPhase2L3Muons"),
-    )
-
-
 def v5_hlt(name="v5_hlt"):
     """Return a :class:`TICLConfig` reproducing HLTIterTICLSequence (9 modules)."""
     cfg = (TICLConfig(name, target="HLT")
@@ -145,6 +134,6 @@ def v5_hlt(name="v5_hlt"):
            .iteration("Recovery").preset().masks_from("CLUE3DHigh")
            .links(["CLUE3DHigh", "Recovery"], **hlt_links_defaults())
            .candidate(**hlt_candidate_defaults())
-           .pf(**hlt_pf_defaults()))
+           .pf())
     cfg.include_mtd = False   # the HLT iterTICL sequence has no mtdSoA stage
     return cfg
