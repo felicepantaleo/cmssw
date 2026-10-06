@@ -5,6 +5,7 @@
 // TICLInterpretationProducer. The GSF tracks are downstream of the final tracksters: an electron candidate takes the
 // direction and the charge of its GSF track.
 
+#include <cmath>
 #include <memory>
 #include <algorithm>
 #include <map>
@@ -84,6 +85,20 @@ private:
   // at least max(floor, fraction x E).
   const float residualEnergyFloor_;
   const float residualEnergyFraction_;
+  // A charged candidate on an EM trackster takes the inverse-variance mean of the track energy and the trackster energy
+  // when they agree within energyCompatibilityNSigma. Otherwise a charged hadron takes the track energy and an electron
+  // keeps the trackster energy. Momentum error: trackMomentumErrorScale x sigma(p) of the track, or
+  // gsfMomentumErrorScale x sigma(p) of the GSF mode for an electron with a GSF track. EM trackster error:
+  // sigma/E = sqrt(S^2/E + C^2) at the track energy.
+  const float trackMomentumErrorScale_;
+  const float gsfMomentumErrorScale_;
+  const float emTracksterStochastic_;
+  const float emTracksterConstant_;
+  const float energyCompatibilityNSigma_;
+
+  // Combined energy of a momentum p with error sigmaP, mass hypothesis mass, and an EM trackster; compatible is false
+  // when they disagree, and the track energy is returned.
+  float combinedEnergy(float p, float sigmaP, float mass, const Trackster &ts, bool &compatible) const;
 
   const std::string propName_;
   const edm::ESGetToken<MagneticField, IdealMagneticFieldRecord> bfield_token_;
@@ -132,6 +147,11 @@ TICLCandidateArbitrationProducer::TICLCandidateArbitrationProducer(const edm::Pa
       trackOnlyNearbyEnergyFraction_(ps.getParameter<float>("trackOnlyNearbyEnergyFraction")),
       residualEnergyFloor_(ps.getParameter<float>("residualEnergyFloor")),
       residualEnergyFraction_(ps.getParameter<float>("residualEnergyFraction")),
+      trackMomentumErrorScale_(ps.getParameter<float>("trackMomentumErrorScale")),
+      gsfMomentumErrorScale_(ps.getParameter<float>("gsfMomentumErrorScale")),
+      emTracksterStochastic_(ps.getParameter<float>("emTracksterStochastic")),
+      emTracksterConstant_(ps.getParameter<float>("emTracksterConstant")),
+      energyCompatibilityNSigma_(ps.getParameter<float>("energyCompatibilityNSigma")),
       propName_(ps.getParameter<std::string>("propagator")),
       bfield_token_(esConsumes<MagneticField, IdealMagneticFieldRecord, edm::Transition::BeginRun>()),
       propagator_token_(
@@ -158,6 +178,22 @@ void TICLCandidateArbitrationProducer::beginRun(edm::Run const &, edm::EventSetu
   bfield_ = es.getHandle(bfield_token_);
   propagator_ = es.getHandle(propagator_token_);
   trackingGeometry_ = es.getHandle(trackingGeometry_token_);
+}
+
+float TICLCandidateArbitrationProducer::combinedEnergy(
+    float p, float sigmaP, float mass, const Trackster &ts, bool &compatible) const {
+  const float eTrack = std::sqrt(p * p + mass * mass);
+  const float sigmaTrack = sigmaP;
+  const float eTrackster = ts.regressed_energy();
+  const float sigmaTrackster =
+      eTrack * std::sqrt(emTracksterStochastic_ * emTracksterStochastic_ / std::max(eTrack, 0.1f) +
+                         emTracksterConstant_ * emTracksterConstant_);
+  compatible = std::abs(eTrackster - eTrack) < energyCompatibilityNSigma_ * std::hypot(sigmaTrack, sigmaTrackster);
+  if (!compatible)
+    return eTrack;
+  const float wTrack = 1.f / std::max(sigmaTrack * sigmaTrack, 1e-12f);
+  const float wTrackster = 1.f / (sigmaTrackster * sigmaTrackster);
+  return (wTrack * eTrack + wTrackster * eTrackster) / (wTrack + wTrackster);
 }
 
 void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::EventSetup &es) {
@@ -195,8 +231,14 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
 
   auto resultCandidates = std::make_unique<std::vector<TICLCandidate>>();
 
-  // Summed momentum of the tracks that take their energy from the track, per trackster, for the neutral residuals.
+  // Summed energy given to the tracks of each trackster, for the neutral residuals.
   std::map<int, float> trackSumP;
+  // Four-momentum of the given energy and mass along a direction.
+  auto p4Along = [](const math::XYZVector &dir, float energy, float mass) {
+    const float pMag = std::sqrt(std::max(energy * energy - mass * mass, 0.f));
+    const auto u = dir.unit();
+    return math::XYZTLorentzVector(pMag * u.x(), pMag * u.y(), pMag * u.z(), energy);
+  };
   // A GSF track goes to one electron only.
   std::vector<bool> gsfUsed(gsfTracks.size(), false);
 
@@ -239,10 +281,12 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
         cand.addGsfTrackPtr(edm::Ptr<reco::GsfTrack>(gsfTracks_h, bestGsf));
         cand.setPdgId(11 * gsf.charge());
         cand.setCharge(gsf.charge());
-        const auto dir = gsf.momentum().unit();
-        const float energy = tracksterPtr->regressed_energy();
-        math::XYZTLorentzVector p4(energy * dir.x(), energy * dir.y(), energy * dir.z(), energy);
-        cand.setP4(p4);
+        // The GSF mode momentum combined with the trackster energy, or the trackster energy when they disagree.
+        bool compatible = false;
+        const float p = gsf.pMode();
+        const float combined =
+            combinedEnergy(p, gsfMomentumErrorScale_ * gsf.qoverpModeError() * p * p, 0.f, *tracksterPtr, compatible);
+        cand.setP4(p4Along(gsf.momentum(), compatible ? combined : tracksterPtr->regressed_energy(), 0.f));
       } else {
         // No GSF track: the constructor sets the kinematics from the track and the trackster.
         cand.setPdgId(11 * tk.charge());
@@ -255,13 +299,21 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
       resultCandidates->push_back(cand);
       if (tsIdx >= 0)
         trackSumP[tsIdx] += tk.p();
-    } else if (mode == 5 && tracksterPtr.isNonnull() && !tracksterPtr->isHadronic()) {
-      // Recovery on an EM trackster: the constructor gives an electron with the trackster energy.
+    } else if (tracksterPtr.isNonnull() && !tracksterPtr->isHadronic()) {
+      // Charged hadron or recovery on an EM trackster: the species from the trackster PID, the combined energy along the
+      // track. An excess of the trackster becomes a neutral residual below.
       TICLCandidate cand(trackPtr, tracksterPtr);
+      const float mass = std::abs(cand.pdgId()) == 11 ? 0.f : static_cast<float>(ticl::mpion);
+      bool compatible = false;
+      const float p = tk.p();
+      const float energy =
+          combinedEnergy(p, trackMomentumErrorScale_ * tk.qoverpError() * p * p, mass, *tracksterPtr, compatible);
+      cand.setP4(p4Along(tk.momentum(), energy, mass));
       resultCandidates->push_back(cand);
-    } else if (mode == 5 || tracksterPtr.isNull() || tracksterPtr->isHadronic()) {
-      // Recovery, or charged hadron on a hadronic trackster: kinematics from the track. The calorimetric excess of the
-      // trackster becomes a neutral residual below.
+      trackSumP[tsIdx] += energy;
+    } else {
+      // Charged hadron or recovery on a hadronic trackster or with no trackster: kinematics from the track. The
+      // calorimetric excess of the trackster becomes a neutral residual below.
       TICLCandidate cand(trackPtr, tracksterPtr);
       cand.setPdgId(211 * tk.charge());
       math::PtEtaPhiMLorentzVector p4Polar(tk.pt(), tk.eta(), tk.phi(), ticl::mpion);
@@ -269,10 +321,6 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
       resultCandidates->push_back(cand);
       if (tsIdx >= 0)
         trackSumP[tsIdx] += tk.p();
-    } else {
-      // Charged hadron on an EM trackster: the constructor sets the kinematics and the species from the trackster.
-      TICLCandidate cand(trackPtr, tracksterPtr);
-      resultCandidates->push_back(cand);
     }
   }
 
@@ -468,6 +516,12 @@ void TICLCandidateArbitrationProducer::fillDescriptions(edm::ConfigurationDescri
   desc.add<float>("residualEnergyFloor", 2.0f)->setComment("Min energy [GeV] of a neutral residual.");
   desc.add<float>("residualEnergyFraction", 0.1f)
       ->setComment("Min energy of a neutral residual as a fraction of the trackster energy.");
+  desc.add<float>("trackMomentumErrorScale", 2.0f)->setComment("Scale of the track momentum error.");
+  desc.add<float>("gsfMomentumErrorScale", 3.8f)->setComment("Scale of the GSF mode momentum error.");
+  desc.add<float>("emTracksterStochastic", 0.30f)->setComment("Stochastic term of the EM trackster resolution.");
+  desc.add<float>("emTracksterConstant", 0.22f)->setComment("Constant term of the EM trackster resolution.");
+  desc.add<float>("energyCompatibilityNSigma", 3.0f)
+      ->setComment("Track and trackster energies agree within this number of combined errors.");
   desc.add<std::string>("detector", "HGCAL");
   desc.add<std::string>("propagator", "PropagatorWithMaterial");
   descriptions.add("ticlCandidateArbitrationProducer", desc);
