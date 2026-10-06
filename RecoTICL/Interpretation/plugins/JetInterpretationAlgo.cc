@@ -4,7 +4,6 @@
 #include <cmath>
 
 #include "DataFormats/Math/interface/deltaR.h"
-#include "RecoTICL/Interpretation/interface/TrackStraightLine.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 
 using namespace ticl;
@@ -15,35 +14,26 @@ JetInterpretationAlgo::JetInterpretationAlgo(const edm::ParameterSet &conf, edm:
       min_trackster_energy_(conf.getParameter<float>("min_trackster_energy")),
       recovery_min_eop_(conf.getParameter<float>("recovery_min_eop")),
       recovery_max_eop_(conf.getParameter<float>("recovery_max_eop")),
-      recovery_max_distance_(conf.getParameter<float>("recovery_max_distance")),
-      hgcons_(nullptr) {}
+      recovery_max_distance_(conf.getParameter<float>("recovery_max_distance")) {}
 
 JetInterpretationAlgo::~JetInterpretationAlgo() {}
 
-void JetInterpretationAlgo::initialize(const HGCalDDDConstants *hgcons,
-                                       const ticlgeom::Tools rhtools,
+void JetInterpretationAlgo::initialize(const HGCalDDDConstants * /*hgcons*/,
+                                       const ticlgeom::Tools /*rhtools*/,
                                        const edm::ESHandle<MagneticField> /*bfieldH*/,
-                                       const edm::ESHandle<Propagator> /*propH*/) {
-  hgcons_ = hgcons;
-  rhtools_ = rhtools;
-}
+                                       const edm::ESHandle<Propagator> /*propH*/) {}
 
 float JetInterpretationAlgo::trackDistance(const Inputs &input,
                                            const reco::Track &tk,
                                            size_t iTrack,
                                            const Vector &point) const {
-  const auto &impact = (*input.impacts)[iTrack];
-  if (impact.valid)
-    return impactTransverseDistance(impact, point);
-  return straightLineTransverseDistance(tk, point);
+  return trackTransverseDistance((*input.impacts)[iTrack], tk, point);
 }
 
 bool JetInterpretationAlgo::inTrackWindow(size_t iTrack, unsigned iTs) const {
   const auto &w = windows_[iTrack];
   const auto &t = tracksterAxes_[iTs];
-  if (w.atImpact)
-    return t.z * w.zImpact > 0.f && reco::deltaR(t.eta, t.phi, w.etaImpact, w.phiImpact) < delta_tk_ts_;
-  return t.z * w.zMomentum > 0.f && reco::deltaR(t.eta, t.phi, w.etaMomentum, w.phiMomentum) < delta_tk_ts_;
+  return t.z * w.z > 0.f && reco::deltaR(t.eta, t.phi, w.eta, w.phi) < delta_tk_ts_;
 }
 
 void JetInterpretationAlgo::fillEventCache(const Inputs &input) {
@@ -60,15 +50,10 @@ void JetInterpretationAlgo::fillEventCache(const Inputs &input) {
     auto &w = windows_[iTrack];
     if ((*input.impacts)[iTrack].valid) {
       const auto &pos = (*input.impacts)[iTrack].position;
-      w.atImpact = true;
-      w.etaImpact = pos.eta();
-      w.phiImpact = pos.barePhi();
-      w.zImpact = pos.z();
+      w = {pos.eta(), pos.barePhi(), pos.z()};
     } else {
       const auto dir = tk.outerOk() ? tk.outerMomentum() : tk.momentum();
-      w.etaMomentum = dir.eta();
-      w.phiMomentum = dir.phi();
-      w.zMomentum = dir.z();
+      w = {static_cast<float>(dir.eta()), static_cast<float>(dir.phi()), static_cast<float>(dir.z())};
     }
   }
   tracksterAxes_.resize(tracksters.size());
@@ -82,13 +67,6 @@ void JetInterpretationAlgo::fillEventCache(const Inputs &input) {
     if (maskTracks[iTrack])
       footprints_[iTrack] = footprint(input, iTrack, footprintEnergies_[iTrack]);
 }
-
-void JetInterpretationAlgo::makeCandidates(const Inputs & /*input*/,
-                                           edm::Handle<MtdHostCollection> /*inputTiming_h*/,
-                                           std::vector<Trackster> & /*resultTracksters*/,
-                                           std::vector<int> & /*resultCandidate*/,
-                                           std::vector<bool> & /*maskedTracksters*/,
-                                           std::vector<std::vector<unsigned int>> & /*linkedResultTracksters*/) {}
 
 void JetInterpretationAlgo::makeOpinions(const Inputs &input,
                                          edm::Handle<MtdHostCollection> /*inputTiming_h*/,
