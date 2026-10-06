@@ -26,6 +26,9 @@
 #include "DataFormats/HGCalReco/interface/Trackster.h"
 #include "DataFormats/HGCalReco/interface/TICLCandidate.h"
 #include "DataFormats/TrackReco/interface/Track.h"
+#include "DataFormats/MuonReco/interface/Muon.h"
+#include "DataFormats/ParticleFlowCandidate/interface/PFCandidate.h"
+#include "RecoParticleFlow/PFProducer/interface/PFMuonAlgo.h"
 #include "DataFormats/GsfTrackReco/interface/GsfTrack.h"
 #include "DataFormats/Math/interface/deltaR.h"
 #include "DataFormats/GeometryVector/interface/GlobalPoint.h"
@@ -96,6 +99,10 @@ private:
   const float emTracksterConstant_;
   const float energyCompatibilityNSigma_;
 
+  // A charged candidate whose track belongs to a muon takes the kinematics of the best muon track (PFMuonAlgo).
+  const edm::EDGetTokenT<reco::MuonCollection> muons_token_;
+  std::unique_ptr<PFMuonAlgo> pfmu_;
+
   // Combined energy of a momentum p with error sigmaP, mass hypothesis mass, and an EM trackster; compatible is false
   // when they disagree, and the track energy is returned.
   float combinedEnergy(float p, float sigmaP, float mass, const Trackster &ts, bool &compatible) const;
@@ -152,6 +159,8 @@ TICLCandidateArbitrationProducer::TICLCandidateArbitrationProducer(const edm::Pa
       emTracksterStochastic_(ps.getParameter<float>("emTracksterStochastic")),
       emTracksterConstant_(ps.getParameter<float>("emTracksterConstant")),
       energyCompatibilityNSigma_(ps.getParameter<float>("energyCompatibilityNSigma")),
+      muons_token_(consumes<reco::MuonCollection>(ps.getParameter<edm::InputTag>("muonSrc"))),
+      pfmu_(std::make_unique<PFMuonAlgo>(ps.getParameterSet("pfMuonAlgoParameters"), false)),
       propName_(ps.getParameter<std::string>("propagator")),
       bfield_token_(esConsumes<MagneticField, IdealMagneticFieldRecord, edm::Transition::BeginRun>()),
       propagator_token_(
@@ -170,6 +179,9 @@ TICLCandidateArbitrationProducer::TICLCandidateArbitrationProducer(const edm::Pa
     gsf_tracks_token_ = consumes<std::vector<reco::GsfTrack>>(ps.getParameter<edm::InputTag>("gsf_tracks"));
   }
   produces<std::vector<TICLCandidate>>();
+  // Per candidate: the index of its muon in muonSrc and the type of the muon track it takes, -1 when none.
+  produces<std::vector<int>>("muonIndex");
+  produces<std::vector<int>>("muonTrackType");
 }
 
 void TICLCandidateArbitrationProducer::beginRun(edm::Run const &, edm::EventSetup const &es) {
@@ -422,7 +434,40 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
 
   assignTimeToCandidates(*resultCandidates, tracks_h, inputTimingView, getPathLength);
 
+  // Muons: a charged candidate whose track belongs to a muon (a PF muon without the tracker-muon flag, or a global muon
+  // when the candidate has no trackster) takes the kinematics of the best muon track. A loose muon is accepted for a
+  // muon candidate only.
+  auto muonIndex = std::make_unique<std::vector<int>>(resultCandidates->size(), -1);
+  auto muonTrackType = std::make_unique<std::vector<int>>(resultCandidates->size(), -1);
+  const auto muonH = evt.getHandle(muons_token_);
+  for (size_t i = 0; i < resultCandidates->size(); ++i) {
+    auto &cand = (*resultCandidates)[i];
+    if (cand.charge() == 0 || cand.trackPtr().isNull())
+      continue;
+    const reco::TrackRef trackRef(tracks_h, cand.trackPtr().key());
+    const int muId = PFMuonAlgo::muAssocToTrack(trackRef, *muonH);
+    if (muId < 0)
+      continue;
+    const reco::MuonRef muonRef(muonH, muId);
+    if (!((PFMuonAlgo::isMuon(muonRef) && !muonRef->isTrackerMuon()) ||
+          (cand.tracksters().empty() && muonRef->isGlobalMuon())))
+      continue;
+    const bool muonCandidate = std::abs(cand.pdgId()) == 13;
+    reco::PFCandidate pf(cand.charge(), cand.p4(), muonCandidate ? reco::PFCandidate::mu : reco::PFCandidate::h);
+    pf.setTrackRef(trackRef);
+    if (!pfmu_->reconstructMuon(pf, muonRef, muonCandidate))
+      continue;
+    cand.setP4(pf.p4());
+    cand.setCharge(pf.charge());
+    cand.setPdgId(-13 * pf.charge());
+    cand.setVertex(pf.vertex());
+    (*muonIndex)[i] = muId;
+    (*muonTrackType)[i] = pf.bestMuonTrackType();
+  }
+
   evt.put(std::move(resultCandidates));
+  evt.put(std::move(muonIndex), "muonIndex");
+  evt.put(std::move(muonTrackType), "muonTrackType");
 }
 
 template <typename F>
@@ -522,6 +567,10 @@ void TICLCandidateArbitrationProducer::fillDescriptions(edm::ConfigurationDescri
   desc.add<float>("emTracksterConstant", 0.22f)->setComment("Constant term of the EM trackster resolution.");
   desc.add<float>("energyCompatibilityNSigma", 3.0f)
       ->setComment("Track and trackster energies agree within this number of combined errors.");
+  desc.add<edm::InputTag>("muonSrc", edm::InputTag("muons1stStep"));
+  edm::ParameterSetDescription pfMuonAlgoDesc;
+  PFMuonAlgo::fillPSetDescription(pfMuonAlgoDesc);
+  desc.add<edm::ParameterSetDescription>("pfMuonAlgoParameters", pfMuonAlgoDesc);
   desc.add<std::string>("detector", "HGCAL");
   desc.add<std::string>("propagator", "PropagatorWithMaterial");
   descriptions.add("ticlCandidateArbitrationProducer", desc);
