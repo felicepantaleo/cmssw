@@ -216,23 +216,10 @@ def links_defaults():
 
 
 def cornetto_links_defaults():
-    """``ticlTracksterLinks`` overrides for v6: :func:`links_defaults` with the Cornetto linking plugin and its
+    """``ticlTracksterLinks`` overrides for v6: :func:`links_defaults` with the Cornetto linking plugin at its
     defaults."""
     d = links_defaults()
-    d["linkingPSet"] = cms.PSet(
-        type=cms.string("Cornetto"),
-        algo_verbosity=cms.int32(0),
-        etaWindow=cms.float(0.3),
-        maxLongitudinalDistance=cms.float(60.0),
-        maxBackwardDistance=cms.float(20.0),
-        transverseRadius0=cms.float(4.0),
-        transverseSlope=cms.float(0.05),
-        timeCompatibilityNSigma=cms.float(3.0),
-        timeResolutionFloor=cms.float(0.05),
-        typeVetoProbability=cms.float(0.6),
-        minEmittedEnergy=cms.float(1.0),
-        minEmittedPt=cms.float(0.5),
-    )
+    d["linkingPSet"] = cms.PSet(type=cms.string("Cornetto"), algo_verbosity=cms.int32(0))
     return d
 
 
@@ -305,14 +292,14 @@ def v5(name="v5"):
     return cfg
 
 
-def v6(name="v6"):
+def v6(name="v6", target="offline"):
     """Return a :class:`TICLConfig` for TICLv6, the configuration of the ``ticl_v6`` process modifier: Cornetto
     linking, the interpretation stage (hypotheses, global arbitration, track claim) and the candidates from its maps.
-    The interpretation and candidate parameters are the module defaults."""
-    # The PFN inference of the v5 candidates, on the footprints and on the final tracksters.
-    interp = candidate_defaults()
-    del interp["regressionAndPid"]
-    cfg = (TICLConfig(name)
+    The interpretation stage runs the PFN inference of the v5 candidates; the other parameters are the module
+    defaults."""
+    interp = dict(pluginInferenceAlgoTracksterInferenceByPFN=candidate_defaults()[
+        "pluginInferenceAlgoTracksterInferenceByPFN"])
+    cfg = (TICLConfig(name, target=target)
            .iteration("CLUE3DHigh").preset()
            .iteration("Recovery").preset()
            .links(["CLUE3DHigh", "Recovery"], **cornetto_links_defaults())

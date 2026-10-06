@@ -21,9 +21,9 @@ EXPECTED_DELTA = {
         "linkingPSet.type": ("Skeletons", "Cornetto"),
     },
     "ticlTracksterLinksSuperclusteringDNN": {
-        "linkingPSet.PIDThreshold": (0.8, 0.1),
-        "linkingPSet.emissionPIDThreshold": (0.0, 0.3),
-        # absent in v5, so it carries the plugin default (photon, electron) there
+        # absent in v5, so v5 carries the plugin defaults (0.8, 0, photon and electron)
+        "linkingPSet.PIDThreshold": (None, 0.1),
+        "linkingPSet.emissionPIDThreshold": (None, 0.3),
         "linkingPSet.tracksterPIDCategoriesToFilter": (None, [0, 1, 3]),
     },
     # The v6 candidates carry the muon kinematics; pfTICL copies their muon decisions.
