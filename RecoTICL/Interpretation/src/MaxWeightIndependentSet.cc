@@ -97,6 +97,15 @@ namespace ticl {
       ++stats.exactComponents;
       if (calls > searchBudget)
         ++stats.budgetExhausted;
+      // A search that reached the budget can leave a set that is not maximal: add the free nodes, heaviest first.
+      uint64_t free = all;
+      for (uint64_t c = bestSet; c; c &= c - 1)
+        free &= ~(uint64_t(1) << std::countr_zero(c)) & ~nbr[std::countr_zero(c)];
+      while (free) {
+        const int v = std::countr_zero(free);
+        bestSet |= uint64_t(1) << v;
+        free &= ~(uint64_t(1) << v) & ~nbr[v];
+      }
       for (uint64_t c = bestSet; c; c &= c - 1)
         selected[nodes[std::countr_zero(c)]] = true;
     }

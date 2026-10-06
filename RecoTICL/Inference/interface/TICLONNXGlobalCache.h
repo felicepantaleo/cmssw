@@ -76,7 +76,8 @@ namespace ticl {
     // Loads the model at modelPath (CMSSW search path) with the session options of initialize, unless it is loaded.
     void loadModel(std::string const& modelPath) {
       const std::string fullPath = edm::FileInPath(modelPath).fullPath();
-      sessionsByFullPath.try_emplace(fullPath, std::make_unique<cms::Ort::ONNXRuntime>(fullPath, &sessionOptions_));
+      if (!sessionsByFullPath.contains(fullPath))
+        sessionsByFullPath.emplace(fullPath, std::make_unique<cms::Ort::ONNXRuntime>(fullPath, &sessionOptions_));
     }
 
   private:
@@ -92,8 +93,8 @@ namespace ticl {
       }
 
       const std::string fullPath = edm::FileInPath(model).fullPath();
-
-      sessionsByFullPath.try_emplace(fullPath, std::make_unique<cms::Ort::ONNXRuntime>(fullPath, &sess_opts));
+      if (!sessionsByFullPath.contains(fullPath))
+        sessionsByFullPath.emplace(fullPath, std::make_unique<cms::Ort::ONNXRuntime>(fullPath, &sess_opts));
     }
   };
 

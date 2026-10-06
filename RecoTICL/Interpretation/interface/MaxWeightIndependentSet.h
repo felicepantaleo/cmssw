@@ -15,7 +15,8 @@ namespace ticl {
   // Maximum-weight independent set of the nodes with a positive weight. adjacency[i] lists the neighbours of node i,
   // sorted and without repetition. Each connected component is solved exactly by branch and bound, up to
   // maxExactSize (at most 64) nodes and searchBudget calls; a larger component is solved greedily by weight. Ties go
-  // to the lower index. Returns the selection flag of each node.
+  // to the lower index. The set is maximal: every positive-weight node is selected or has a selected neighbour.
+  // Returns the selection flag of each node.
   std::vector<bool> maxWeightIndependentSet(const std::vector<float>& weights,
                                             const std::vector<std::vector<unsigned int>>& adjacency,
                                             unsigned int maxExactSize,

@@ -21,14 +21,6 @@ namespace ticl {
     JetInterpretationAlgo(const edm::ParameterSet &conf, edm::ConsumesCollector iC);
     ~JetInterpretationAlgo() override;
 
-    // Opinion-only algorithm: makeCandidates does nothing.
-    void makeCandidates(const Inputs &input,
-                        edm::Handle<MtdHostCollection> inputTiming_h,
-                        std::vector<Trackster> &resultTracksters,
-                        std::vector<int> &resultCandidate,
-                        std::vector<bool> &maskedTracksters,
-                        std::vector<std::vector<unsigned int>> &linkedResultTracksters) override;
-
     void makeOpinions(const Inputs &input,
                       edm::Handle<MtdHostCollection> inputTiming_h,
                       std::vector<Trackster> &hypothesisTracksters,
@@ -46,11 +38,9 @@ namespace ticl {
     struct TracksterAxis {
       float eta, phi, z;
     };
-    // Centre of the (eta, phi) window of a track: the HGCAL impact (float), or the outermost momentum (double).
+    // Centre of the (eta, phi) window of a track: the HGCAL impact, or the outermost momentum.
     struct TrackWindow {
-      bool atImpact = false;
-      float etaImpact = 0.f, phiImpact = 0.f, zImpact = 0.f;
-      double etaMomentum = 0., phiMomentum = 0., zMomentum = 0.;
+      float eta = 0.f, phi = 0.f, z = 0.f;
     };
 
     // Windows, trackster axes and footprints of the current event.
@@ -79,8 +69,6 @@ namespace ticl {
     // first, up to the track momentum.
     const float recovery_max_distance_;
 
-    const HGCalDDDConstants *hgcons_;
-    ticlgeom::Tools rhtools_;
     std::vector<TrackWindow> windows_;
     std::vector<TracksterAxis> tracksterAxes_;
     std::vector<std::vector<unsigned>> footprints_;

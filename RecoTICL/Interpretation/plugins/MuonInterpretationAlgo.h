@@ -53,9 +53,6 @@ namespace ticl {
     const float mip_energy_max_;
     // Hypotheses: the tracksters in the delta_tk_ts window within this transverse distance [cm] of the track.
     const float max_distance_;
-
-    const HGCalDDDConstants *hgcons_;
-    ticlgeom::Tools rhtools_;
   };
 
 }  // namespace ticl

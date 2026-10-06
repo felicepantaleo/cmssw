@@ -209,7 +209,6 @@ _SPECS = [
             Product(T_INTS, "fixed:trackMode"),
             Product(T_INTS, "fixed:neutralIdx"),
             Product(T_INTS, "fixed:neutralPdg"),
-            Product(T_INTS, "fixed:trackToClaimTrackster"),
         ),
         consumes=(
             Consumed("layer_clusters", T_CALOCLUSTERS),

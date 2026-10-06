@@ -285,7 +285,6 @@ void TICLCandidateProducer::produce(edm::Event &evt, const edm::EventSetup &es) 
     inputTimingView = (*inputTiming_h).const_view();
   }
 
-
   // loop over the original_masks_tokens_ and get the original masks collections and multiply them
   // to get the global mask
   std::vector<float> original_global_mask(layerClusters.size(), 1.f);

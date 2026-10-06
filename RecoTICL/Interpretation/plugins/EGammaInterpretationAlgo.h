@@ -16,14 +16,6 @@ namespace ticl {
     EGammaInterpretationAlgo(const edm::ParameterSet &conf, edm::ConsumesCollector iC);
     ~EGammaInterpretationAlgo() override;
 
-    // The algorithm gives hypotheses only: makeCandidates does nothing.
-    void makeCandidates(const Inputs &input,
-                        edm::Handle<MtdHostCollection> inputTiming_h,
-                        std::vector<Trackster> &resultTracksters,
-                        std::vector<int> &resultCandidate,
-                        std::vector<bool> &maskedTracksters,
-                        std::vector<std::vector<unsigned int>> &linkedResultTracksters) override;
-
     void makeOpinions(const Inputs &input,
                       edm::Handle<MtdHostCollection> inputTiming_h,
                       std::vector<Trackster> &hypothesisTracksters,

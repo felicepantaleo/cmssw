@@ -4,12 +4,8 @@
 
 #include "DataFormats/Math/interface/deltaR.h"
 #include "RecoTICL/Interpretation/interface/TrackImpact.h"
-#include "RecoTICL/Interpretation/interface/TrackStraightLine.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/Utilities/interface/Exception.h"
-
-// Muon interpretation: a track whose trajectory in HGCAL meets only MIP-like energy is a muon; it takes the
-// tracksters along the trajectory.
 
 using namespace ticl;
 
@@ -17,21 +13,17 @@ MuonInterpretationAlgo::MuonInterpretationAlgo(const edm::ParameterSet &conf, ed
     : TICLInterpretationAlgoBase(conf, iC),
       delta_tk_ts_(conf.getParameter<float>("delta_tk_ts")),
       mip_energy_max_(conf.getParameter<float>("mip_energy_max")),
-      max_distance_(conf.getParameter<float>("max_distance")),
-      hgcons_(nullptr) {
+      max_distance_(conf.getParameter<float>("max_distance")) {
   if (!(max_distance_ > 0.f))
     throw cms::Exception("Configuration") << "MuonInterpretationAlgo: max_distance must be positive";
 }
 
 MuonInterpretationAlgo::~MuonInterpretationAlgo() {}
 
-void MuonInterpretationAlgo::initialize(const HGCalDDDConstants *hgcons,
-                                        const ticlgeom::Tools rhtools,
+void MuonInterpretationAlgo::initialize(const HGCalDDDConstants * /*hgcons*/,
+                                        const ticlgeom::Tools /*rhtools*/,
                                         const edm::ESHandle<MagneticField> /*bfieldH*/,
-                                        const edm::ESHandle<Propagator> /*propH*/) {
-  hgcons_ = hgcons;
-  rhtools_ = rhtools;
-}
+                                        const edm::ESHandle<Propagator> /*propH*/) {}
 
 bool MuonInterpretationAlgo::isMuonLike(float nearbyEnergy, unsigned /*nNearbyTracksters*/) const {
   // A muon deposits a MIP: the tracksters around its trajectory carry little energy.
@@ -127,9 +119,7 @@ void MuonInterpretationAlgo::makeOpinions(const Inputs &input,
     const float tkPhi = dir.phi();
     // Distance to the propagated track; to the straight line from the outermost state when the propagation failed.
     const auto &impact = (*input.impacts)[iTrack];
-    auto distance = [&](const Vector &point) {
-      return impact.valid ? impactTransverseDistance(impact, point) : straightLineTransverseDistance(tk, point);
-    };
+    auto distance = [&](const Vector &point) { return trackTransverseDistance(impact, tk, point); };
 
     std::vector<unsigned> nearby;
     float nearbyEnergy = 0.f;
@@ -147,7 +137,7 @@ void MuonInterpretationAlgo::makeOpinions(const Inputs &input,
     Hypothesis h;
     h.type = Hypothesis::Type::Muon;
     h.trackIdx = static_cast<int>(iTrack);
-    h.score = static_cast<float>(std::max(0.f, 1.f - nearbyEnergy / mip_energy_max_));
+    h.score = std::max(0.f, 1.f - nearbyEnergy / mip_energy_max_);
     if (!nearby.empty()) {
       Trackster muonTrackster;
       muonTrackster.mergeTracksters(tracksters, nearby);
