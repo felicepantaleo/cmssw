@@ -23,3 +23,5 @@
       command="python3 ${LOCALTOP}/src/RecoTICL/Configuration/test/test_graph.py"/>
 <test name="testPyTICLV6Modifier"
       command="python3 ${LOCALTOP}/src/RecoTICL/Configuration/test/test_ticl_v6_modifier.py"/>
+<test name="testPyTICLV6HLTInputs"
+      command="python3 ${LOCALTOP}/src/RecoTICL/Configuration/test/test_v6_hlt_inputs.py"/>
