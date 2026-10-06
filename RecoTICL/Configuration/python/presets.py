@@ -323,5 +323,6 @@ def v6(name="v6"):
                                                             pid_categories=(0, 1, 3)))
            .interpretations(**interp)
            .candidate()
-           .pf(**pf_defaults()))
+           # The candidate producer sets the muon kinematics; pfTICL copies its muon decisions.
+           .pf(muonsFromCandidates=cms.bool(True), **pf_defaults()))
     return cfg
