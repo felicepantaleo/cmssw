@@ -12,6 +12,7 @@
 #include <map>
 #include <memory>
 #include <numeric>
+#include <optional>
 #include <type_traits>
 #include <unordered_map>
 #include <tuple>
@@ -941,28 +942,42 @@ void TICLInterpretationProducer::produce(edm::Event &evt, const edm::EventSetup 
   }
   const auto claimingTrack = claimAlongTracks(opinions, accepted, tracks, impacts, layerClusters, pool);
 
-  // Final tracksters: the winners, the neutrals without the claimed layer clusters, and one claim trackster per
-  // claiming track. A neutral is kept when layer clusters are left and, if the claim took one, its raw energy is at
-  // least claimMinEnergy.
+  // Final tracksters: the winners, each without the layer clusters of the heavier winners; the leftovers without the
+  // claimed layer clusters; and one claim trackster per claiming track. A trackster that lost a layer cluster is kept
+  // when its raw energy is at least claimMinEnergy. A charged winner that loses its footprint keeps its track. The
+  // claim pool has no winner layer cluster.
   auto result = std::make_unique<std::vector<Trackster>>();
   std::vector<bool> claimed(layerClusters.size());
   for (unsigned int v = 0; v < claimingTrack.size(); ++v)
     claimed[v] = claimingTrack[v] >= 0;
-  std::vector<int> winnerResultIdx(hypotheses.size(), -1);
-  for (unsigned int idx = 0; idx < hypotheses.size(); ++idx) {
-    if (!accepted[idx] || hypotheses[idx].tracksterIdx < 0)
-      continue;
+  std::vector<unsigned int> winners;
+  for (unsigned int idx = 0; idx < hypotheses.size(); ++idx)
+    if (accepted[idx] && hypotheses[idx].tracksterIdx >= 0)
+      winners.push_back(idx);
+  std::stable_sort(winners.begin(), winners.end(), [&](unsigned int a, unsigned int b) {
+    return solverWeights[a] > solverWeights[b];
+  });
+  std::vector<bool> heldByWinner(layerClusters.size(), false);
+  std::vector<std::optional<Trackster>> winnerTrackster(hypotheses.size());
+  for (unsigned int idx : winners) {
     const auto &ts = opinions.tracksters[hypotheses[idx].tracksterIdx];
-    if (isNeutral(hypotheses[idx])) {
-      auto [pruned, keep] = without(ts, claimed, layerClusters);
+    if (std::none_of(ts.vertices().begin(), ts.vertices().end(), [&](unsigned int v) { return heldByWinner[v]; })) {
+      winnerTrackster[idx] = ts;
+    } else {
+      auto [pruned, keep] = without(ts, heldByWinner, layerClusters);
       if (!keep)
         continue;
-      winnerResultIdx[idx] = static_cast<int>(result->size());
-      result->push_back(std::move(pruned));
-      continue;
+      winnerTrackster[idx] = std::move(pruned);
     }
+    for (auto v : winnerTrackster[idx]->vertices())
+      heldByWinner[v] = true;
+  }
+  std::vector<int> winnerResultIdx(hypotheses.size(), -1);
+  for (unsigned int idx = 0; idx < hypotheses.size(); ++idx) {
+    if (!winnerTrackster[idx])
+      continue;
     winnerResultIdx[idx] = static_cast<int>(result->size());
-    result->push_back(ts);
+    result->push_back(std::move(*winnerTrackster[idx]));
   }
   std::vector<int> leftoverResultIdx;
   for (auto const &leftover : leftovers) {
