@@ -26,6 +26,10 @@ EXPECTED_DELTA = {
         # absent in v5, so it carries the plugin default (photon, electron) there
         "linkingPSet.tracksterPIDCategoriesToFilter": (None, [0, 1, 3]),
     },
+    # The v6 candidates carry the muon kinematics; pfTICL copies their muon decisions.
+    "pfTICL": {
+        "muonsFromCandidates": (False, True),
+    },
 }
 
 # The interpretation stage exists only in v6.

@@ -231,7 +231,7 @@ _SPECS = [
         consumes=(
             Consumed("interpretations", T_TRACKSTERS),
         ),
-        external_inputs=("tracks", "gsf_tracks", "timingSoA"),
+        external_inputs=("tracks", "gsf_tracks", "timingSoA", "muonSrc"),
     ),
     ModuleSpec(
         key="MTDSoAProducer",
