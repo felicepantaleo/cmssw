@@ -20,6 +20,7 @@
 #include "Geometry/HGCalCommonData/interface/HGCalDDDConstants.h"
 #include "DataFormats/HGCalReco/interface/Common.h"
 #include "FWCore/Framework/interface/ConsumesCollector.h"
+#include "FWCore/Utilities/interface/Exception.h"
 #include "DataFormats/Common/interface/MultiSpan.h"
 #include "PhysicsTools/ONNXRuntime/interface/ONNXRuntime.h"
 #include "RecoTICL/Interpretation/interface/TrackImpact.h"
@@ -51,7 +52,7 @@ namespace ticl {
   public:
     TICLInterpretationAlgoBase(const edm::ParameterSet& conf, edm::ConsumesCollector)
         : algo_verbosity_(conf.getParameter<int>("algo_verbosity")) {}
-    virtual ~TICLInterpretationAlgoBase() {}
+    virtual ~TICLInterpretationAlgoBase() = default;
     struct Inputs {
       const edm::Event& ev;
       const edm::EventSetup& es;
@@ -81,39 +82,26 @@ namespace ticl {
             impacts(imp) {}
     };
 
-    struct TrackTimingInformation {
-      const edm::Handle<edm::ValueMap<float>> tkTime_h;
-      const edm::Handle<edm::ValueMap<float>> tkTimeErr_h;
-      const edm::Handle<edm::ValueMap<float>> tkQuality_h;
-      const edm::Handle<edm::ValueMap<float>> tkBeta_h;
-      const edm::Handle<edm::ValueMap<float>> tkPath_h;
-      const edm::Handle<edm::ValueMap<GlobalPoint>> tkMtdPos_h;
-
-      TrackTimingInformation(const edm::Handle<edm::ValueMap<float>> tkT,
-                             const edm::Handle<edm::ValueMap<float>> tkTE,
-                             const edm::Handle<edm::ValueMap<float>> tkQ,
-                             const edm::Handle<edm::ValueMap<float>> tkB,
-                             const edm::Handle<edm::ValueMap<float>> tkP,
-                             const edm::Handle<edm::ValueMap<GlobalPoint>> mtdPos)
-          : tkTime_h(tkT), tkTimeErr_h(tkTE), tkQuality_h(tkQ), tkBeta_h(tkB), tkPath_h(tkP), tkMtdPos_h(mtdPos) {}
-    };
-
     // maskedTracksters is indexed over input.tracksters and lets several interpretation
     // passes run in sequence. A pass grows it to input.tracksters.size(), skips the
-    // tracksters it finds marked, and marks every trackster it consumes. The default makes no candidates.
+    // tracksters it finds marked, and marks every trackster it consumes. An algorithm without this pass throws.
     virtual void makeCandidates(const Inputs& input,
                                 edm::Handle<MtdHostCollection> inputTiming_h,
                                 std::vector<Trackster>& resultTracksters,
                                 std::vector<int>& resultCandidate,
                                 std::vector<bool>& maskedTracksters,
-                                std::vector<std::vector<unsigned int>>& linkedResultTracksters) {}
+                                std::vector<std::vector<unsigned int>>& linkedResultTracksters) {
+      throw cms::Exception("Configuration") << "this interpretation algorithm makes no candidates";
+    }
 
     // Appends the hypotheses of the algorithm and their footprint tracksters. The interpretations share
-    // hypothesisTracksters: an algorithm only appends to it. The default gives no hypotheses.
+    // hypothesisTracksters: an algorithm only appends to it. An algorithm without this pass throws.
     virtual void makeOpinions(const Inputs& input,
                               edm::Handle<MtdHostCollection> inputTiming_h,
                               std::vector<Trackster>& hypothesisTracksters,
-                              std::vector<Hypothesis>& hypotheses) {}
+                              std::vector<Hypothesis>& hypotheses) {
+      throw cms::Exception("Configuration") << "this interpretation algorithm makes no hypotheses";
+    }
 
     virtual void initialize(const HGCalDDDConstants* hgcons,
                             const ticlgeom::Tools rhtools,

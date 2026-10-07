@@ -222,14 +222,15 @@ std::vector<float> TICLCandidateArbitrationProducer::neutralEnergyShares(
   float sideEnergy[2] = {0.f, 0.f};
   for (auto const &ts : tracksters)
     sideEnergy[ts.barycenter().z() > 0.f ? 1 : 0] += ts.raw_energy();
-  // Eta-phi tiles of the trackster barycenters, one per side, for the search of the tracksters within kNearDeltaR.
+  // Eta-phi tiles of the finite trackster barycenters, one per side, to find the tracksters within kNearDeltaR.
   auto tiles = std::make_unique<std::array<ticl::TICLLayerTile, 2>>();
   std::vector<float> barycenterEta(tracksters.size()), barycenterPhi(tracksters.size());
   for (size_t j = 0; j < tracksters.size(); ++j) {
     const auto &c = tracksters[j].barycenter();
     barycenterEta[j] = c.eta();
     barycenterPhi[j] = c.phi();
-    (*tiles)[c.z() > 0.f ? 1 : 0].fill(barycenterEta[j], barycenterPhi[j], j);
+    if (std::isfinite(barycenterEta[j]) && std::isfinite(barycenterPhi[j]))
+      (*tiles)[c.z() > 0.f ? 1 : 0].fill(barycenterEta[j], barycenterPhi[j], j);
   }
   constexpr float kNearDeltaR = 0.2f;
 
@@ -243,17 +244,19 @@ std::vector<float> TICLCandidateArbitrationProducer::neutralEnergyShares(
     float nearEnergy = 0.f;
     int nNear = 0;
     const auto &tile = (*tiles)[side];
-    const auto box =
-        tile.searchBoxEtaPhi(bEta - kNearDeltaR, bEta + kNearDeltaR, bPhi - kNearDeltaR, bPhi + kNearDeltaR);
-    for (int iEta = box[0]; iEta <= box[1]; ++iEta)
-      for (int iPhi = box[2]; iPhi <= box[3]; ++iPhi)
-        for (const unsigned int j : tile[tile.globalBin(iEta, iPhi % ticl::TileConstants::nPhiBins)]) {
-          if (static_cast<int>(j) == idx ||
-              reco::deltaR2(barycenterEta[j], barycenterPhi[j], bEta, bPhi) >= kNearDeltaR * kNearDeltaR)
-            continue;
-          nearEnergy += tracksters[j].raw_energy();
-          ++nNear;
-        }
+    if (std::isfinite(bEta) && std::isfinite(bPhi)) {
+      const auto box =
+          tile.searchBoxEtaPhi(bEta - kNearDeltaR, bEta + kNearDeltaR, bPhi - kNearDeltaR, bPhi + kNearDeltaR);
+      for (int iEta = box[0]; iEta <= box[1]; ++iEta)
+        for (int iPhi = box[2]; iPhi <= box[3]; ++iPhi)
+          for (const unsigned int j : tile[tile.globalBin(iEta, iPhi % ticl::TileConstants::nPhiBins)]) {
+            if (static_cast<int>(j) == idx ||
+                reco::deltaR2(barycenterEta[j], barycenterPhi[j], bEta, bPhi) >= kNearDeltaR * kNearDeltaR)
+              continue;
+            nearEnergy += tracksters[j].raw_energy();
+            ++nNear;
+          }
+    }
     x.push_back(std::log(std::max(ts.regressed_energy(), 1e-3f)));
     x.push_back(std::log(std::max(ts.raw_energy(), 1e-3f)));
     x.push_back(ts.raw_em_energy() / std::max(ts.raw_energy(), 1e-6f));
