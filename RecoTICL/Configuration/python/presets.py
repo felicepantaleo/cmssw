@@ -311,4 +311,6 @@ def v6(name="v6", target="offline"):
            .candidate()
            # The candidate producer sets the muon kinematics; pfTICL copies its muon decisions.
            .pf(muonsFromCandidates=cms.bool(True), **pf_defaults()))
+    if cfg.target.timing_label is None:
+        cfg.include_mtd = False  # a target without MTD timing has no mtdSoA stage
     return cfg

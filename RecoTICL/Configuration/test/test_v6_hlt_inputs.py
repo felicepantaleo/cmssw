@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""The v6 configuration on the HLT target reads no offline input: tracks, muons, GSF tracks, MTD timing, layer
-clusters and tracksters all come from the HLT target."""
+"""No producer of the v6 configuration on the HLT target reads an offline input: tracks, muons, GSF tracks, MTD
+timing, layer clusters and tracksters all come from the HLT target."""
 
 import sys
 
@@ -27,11 +27,12 @@ def main():
     process = cms.Process("TEST")
     presets.v6(target="HLT").assemble().add_to_process(process)
     failures = []
-    for label in ("hltTiclTracksterInterpretations", "hltTiclCandidate", "hltPfTICL"):
-        module = getattr(process, label)
-        # Inputs that a switch turns off are not read.
+    for label, module in sorted(process.producers_().items()):
+        # Inputs that a switch turns off are not read; the HFNose tiles are read only by an HFNose iteration.
         off = {name for name, switch in (("timingSoA", "useMTDTiming"), ("gsf_tracks", "useGsfTracks"))
                if hasattr(module, switch) and not getattr(module, switch).value()}
+        if hasattr(module, "detector") and module.detector.value() != "HFNose":
+            off.add("layer_clusters_hfnose_tiles")
         for name, used in input_labels(module):
             if name in off:
                 continue
