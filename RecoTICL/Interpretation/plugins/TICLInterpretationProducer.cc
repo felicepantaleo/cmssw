@@ -202,7 +202,8 @@ private:
                     std::vector<bool> &selected,
                     std::vector<bool> &muonTracks) const;
   // Runs the inference once per distinct trackster of the event and copies the result to the others: the PID, and the
-  // regressed energy when withRegression is set. Tracksters with a barrel layer cluster are not changed.
+  // regressed energy when withRegression is set or when the PID and the regression cannot run apart. Tracksters with a
+  // barrel layer cluster are not changed.
   void runInference(const std::vector<reco::CaloCluster> &layerClusters,
                     std::vector<Trackster> &tracksters,
                     InferenceCache &cache,
@@ -232,9 +233,9 @@ private:
   std::vector<Trackster> selectLeftovers(const edm::MultiSpan<Trackster> &tracksters,
                                          const std::vector<reco::CaloCluster> &layerClusters,
                                          std::vector<bool> &held) const;
-  // Track claim: each accepted charged hadron, recovery, track-only hypothesis and jet track takes the pool layer
-  // clusters along its propagated track up to its expected deposit minus its footprint. Returns the claiming track of
-  // each layer cluster (-1: none).
+  // Track claim: each accepted charged hadron, recovery and track-only hypothesis that is not a single track on an EM
+  // footprint, and each jet track, takes the pool layer clusters along its propagated track up to its expected deposit
+  // minus its footprint. Returns the claiming track of each layer cluster (-1: none).
   std::vector<int> claimAlongTracks(const Opinions &opinions,
                                     const std::vector<bool> &accepted,
                                     const std::vector<reco::Track> &tracks,
@@ -512,8 +513,7 @@ TICLInterpretationProducer::Opinions TICLInterpretationProducer::makeOpinions(
   egammaAlgo_->makeOpinions(egammaInput, timing_h, opinions.tracksters, opinions.hypotheses);
   jetAlgo_->makeOpinions(allInput, timing_h, opinions.tracksters, opinions.hypotheses);
 
-  // One PID for all the footprints: the photon and the neutral-hadron hypotheses of the same energy take their scores
-  // from it.
+  // The PID of each footprint gives the scores of its photon and neutral-hadron hypotheses.
   if (!opinions.tracksters.empty()) {
     const auto &layerClusters = allInput.layerClusters;
     assignPCAtoTracksters(opinions.tracksters,

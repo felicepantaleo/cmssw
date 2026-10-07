@@ -1,5 +1,5 @@
-#ifndef RecoHGCal_TICL_EGammaInterpretationAlgo_h
-#define RecoHGCal_TICL_EGammaInterpretationAlgo_h
+#ifndef RecoTICL_Interpretation_EGammaInterpretationAlgo_h
+#define RecoTICL_Interpretation_EGammaInterpretationAlgo_h
 
 // e/gamma interpretation: an electron hypothesis per track matched to a supercluster, and a photon hypothesis per
 // EM-like supercluster. The input tracksters are the superclusters.

@@ -1,5 +1,5 @@
 # Original Author: Felice Pantaleo, CERN, felice.pantaleo@cern.ch
-"""Standard TICL v5 iteration & singleton presets.
+"""Standard TICL iteration and singleton presets, and the v5 and v6 configurations.
 
 The algorithm parameter sets here are transcribed verbatim from the baseline
 ``RecoTICL`` cff files (``CLUE3DHighStep_cff``, ``PRbyRecovery_cff``,

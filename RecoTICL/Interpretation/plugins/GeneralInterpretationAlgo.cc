@@ -123,7 +123,7 @@ void GeneralInterpretationAlgo::findTrackstersInWindow(const edm::MultiSpan<Trac
       }
     }
 
-    // sort tracksters found in ascending order of their distances from the seed
+    // Sort the tracksters in the window by descending energy.
     std::vector<unsigned> indices(in_delta.size());
     std::iota(indices.begin(), indices.end(), 0);
     std::sort(indices.begin(), indices.end(), [&](unsigned i, unsigned j) { return energies[i] > energies[j]; });
@@ -398,8 +398,7 @@ void GeneralInterpretationAlgo::makeCandidates(const Inputs &input,
         resultCandidate[iTrack] = resultTracksters.size();
         resultTracksters.push_back(input.tracksters[tracksterId]);
       } else {
-        // in this case mergeTracksters() clears the pid probabilities and the regressed energy is not set
-        // TODO: fix probabilities when CNN will be splitted
+        // The merged trackster has no PID and no regressed energy: the track makes it a charged hadron or an electron.
         Trackster outTrackster;
         bool isHadron = false;
         for (auto const tracksterId : trackstersInTrackIndices[iTrack]) {
