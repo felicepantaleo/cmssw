@@ -219,7 +219,12 @@ def _build_pf(overrides, target):
     base = _cfi_default("PFTICLProducer")
     ov = dict(ticlCandidateSrc=cms.InputTag(target.candidate_label), muonSrc=cms.InputTag(target.muons_label))
     ov.update(overrides or {})
-    return base.clone(**ov)
+    pf = base.clone(**ov)
+    if pf.muonsFromCandidates.value():
+        # The candidates carry the muon decisions: pfTICL reads no muons and runs no PFMuonAlgo.
+        del pf.muonSrc
+        del pf.pfMuonAlgoParameters
+    return pf
 
 
 # --------------------------------------------------------------------------- #

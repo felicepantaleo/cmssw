@@ -13,6 +13,7 @@ from RecoTICL.Configuration import presets
 # module -> subtrees that differ as a whole: a new plugin type replaces the whole parameter set.
 EXPECTED_WHOLESALE = {
     "ticlTracksterLinks": ("linkingPSet",),
+    "pfTICL": ("pfMuonAlgoParameters",),
 }
 
 # module -> {parameter path: (v5 value, v6 value)}. The path is dotted for nested PSets.
@@ -26,9 +27,10 @@ EXPECTED_DELTA = {
         "linkingPSet.emissionPIDThreshold": (None, 0.3),
         "linkingPSet.tracksterPIDCategoriesToFilter": (None, [0, 1, 3]),
     },
-    # The v6 candidates carry the muon kinematics; pfTICL copies their muon decisions.
+    # The v6 candidates carry the muon kinematics; pfTICL copies their muon decisions and reads no muons.
     "pfTICL": {
         "muonsFromCandidates": (False, True),
+        "muonSrc": ("muons1stStep", None),
     },
 }
 

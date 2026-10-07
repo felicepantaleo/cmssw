@@ -9,7 +9,8 @@ from Configuration.ProcessModifiers.ticl_v6_cff import ticl_v6
 
 from RecoTICL.Configuration import presets
 
-LABELS = ("ticlTracksterLinks", "ticlTracksterLinksSuperclusteringDNN", "ticlTracksterInterpretations", "ticlCandidate")
+LABELS = ("ticlTracksterLinks", "ticlTracksterLinksSuperclusteringDNN", "ticlTracksterInterpretations", "ticlCandidate",
+          "pfTICL")
 
 
 def main():

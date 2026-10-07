@@ -229,4 +229,4 @@ ticl_v6.toReplaceWith(ticlTracksterLinksSuperclusteringDNN, _ticlV6Modules["ticl
 ticl_v6.toReplaceWith(ticlCandidate, _ticlV6Modules["ticlCandidate"])
 ticl_v6.toModify(ticlCandidateTask, lambda t: t.add(ticlTracksterInterpretations))
 # TICLv6 candidates carry the muon kinematics; pfTICL copies their muon decisions.
-ticl_v6.toModify(pfTICL, muonsFromCandidates=True)
+ticl_v6.toReplaceWith(pfTICL, _ticlV6Modules["pfTICL"])
