@@ -136,7 +136,11 @@ namespace {
 
 std::unique_ptr<cms::Ort::ONNXRuntime> TICLCandidateArbitrationProducer::initializeGlobalCache(
     const edm::ParameterSet &ps) {
-  return std::make_unique<cms::Ort::ONNXRuntime>(ps.getParameter<edm::FileInPath>("neutralShareModel").fullPath());
+  // One session for all the streams, with one intra-op and one inter-op thread.
+  auto options = cms::Ort::ONNXRuntime::defaultSessionOptions();
+  options.SetInterOpNumThreads(1);
+  return std::make_unique<cms::Ort::ONNXRuntime>(ps.getParameter<edm::FileInPath>("neutralShareModel").fullPath(),
+                                                 &options);
 }
 
 TICLCandidateArbitrationProducer::TICLCandidateArbitrationProducer(const edm::ParameterSet &ps,
@@ -303,8 +307,11 @@ std::vector<float> TICLCandidateArbitrationProducer::neutralEnergyShares(
     throw cms::Exception("LogicError") << "TICLCandidateArbitrationProducer: expected " << rows
                                        << " outputs from the neutral share model";
   // A trackster without layer clusters keeps its energy.
-  for (size_t k = 0; k < neutralIdx.size(); ++k)
+  for (size_t k = 0; k < neutralIdx.size(); ++k) {
+    if (!std::isfinite(result[0][k]))
+      throw cms::Exception("LogicError") << "TICLCandidateArbitrationProducer: non-finite neutral share";
     share[k] = tracksters[neutralIdx[k]].vertices().empty() ? 1.f : result[0][k];
+  }
   return share;
 }
 
