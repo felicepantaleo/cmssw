@@ -90,6 +90,7 @@ T_TILES_HFNOSE = "ticl::TICLLayerTilesHFNose"
 T_PFCANDS = "reco::PFCandidateCollection"
 T_SUPERCLUSTERS = "reco::SuperClusterCollection"
 T_MTDSOA = "MtdHostCollection"
+T_MUONREFS = "edm::ValueMap<reco::MuonRef>"
 
 
 # --------------------------------------------------------------------------- #
@@ -209,9 +210,12 @@ _SPECS = [
         key="TICLCandidateArbitrationProducer",
         cfi_module="RecoTICL.Interpretation.ticlCandidateArbitrationProducer_cfi",
         cfi_symbol="ticlCandidateArbitrationProducer",
-        # The candidates from the final tracksters and the assignment maps of TICLInterpretationProducer.
+        # The candidates from the final tracksters and the assignment maps of TICLInterpretationProducer, and the muon
+        # decisions that pfTICL copies: the muon of each candidate and its track type.
         produces=(
             Product(T_CANDIDATES),
+            Product(T_MUONREFS, "fixed:muons"),
+            Product(T_INTS, "fixed:muonTrackType"),
         ),
         consumes=(
             Consumed("interpretations", T_TRACKSTERS),
