@@ -53,6 +53,7 @@
 #include "RecoTICL/Inference/interface/TracksterInferenceAlgoFactory.h"
 #include "RecoTICL/Interpretation/interface/AssignmentMaps.h"
 #include "RecoTICL/Interpretation/interface/MaxWeightIndependentSet.h"
+#include "RecoTICL/Interpretation/interface/MuonKinematics.h"
 #include "RecoTICL/Interpretation/interface/TICLInterpretationAlgoBase.h"
 #include "TICLInterpretationPluginFactory.h"
 #include "RecoTICL/Interpretation/interface/TrackImpact.h"
@@ -195,12 +196,14 @@ private:
     std::vector<Hypothesis> hypotheses;
   };
 
-  // Selected tracks: cutTk, energy (pion mass) at least tkEnergyCut, and not a muon without a tracker-muon fit. Among
+  // Selected tracks: energy (pion mass) at least tkEnergyCut, cutTk, and not a muon without a tracker-muon fit. Among
   // them, the tracks of identified muons.
-  void selectTracks(const edm::Handle<std::vector<reco::Track>> &tracks_h,
-                    const edm::Handle<std::vector<reco::Muon>> &muons_h,
-                    std::vector<bool> &selected,
-                    std::vector<bool> &muonTracks) const;
+  struct TrackSelection {
+    std::vector<bool> selected;
+    std::vector<bool> muon;
+  };
+  TrackSelection selectTracks(const edm::Handle<std::vector<reco::Track>> &tracks_h,
+                              const edm::Handle<std::vector<reco::Muon>> &muons_h) const;
   // Runs the inference once per distinct trackster of the event and copies the result to the others: the PID, and the
   // regressed energy when withRegression is set or when the PID and the regression cannot run apart. Tracksters with a
   // barrel layer cluster are not changed.
@@ -424,24 +427,23 @@ void TICLInterpretationProducer::endStream() {
                                          << " solved greedily";
 }
 
-void TICLInterpretationProducer::selectTracks(const edm::Handle<std::vector<reco::Track>> &tracks_h,
-                                              const edm::Handle<std::vector<reco::Muon>> &muons_h,
-                                              std::vector<bool> &selected,
-                                              std::vector<bool> &muonTracks) const {
+TICLInterpretationProducer::TrackSelection TICLInterpretationProducer::selectTracks(
+    const edm::Handle<std::vector<reco::Track>> &tracks_h, const edm::Handle<std::vector<reco::Muon>> &muons_h) const {
   const auto &tracks = *tracks_h;
-  selected.assign(tracks.size(), false);
-  muonTracks.assign(tracks.size(), false);
+  TrackSelection selection{std::vector<bool>(tracks.size(), false), std::vector<bool>(tracks.size(), false)};
+  const auto muonOf = muonOfTrack(tracks_h, *muons_h);
   for (unsigned int i = 0; i < tracks.size(); ++i) {
     const auto &tk = tracks[i];
-    const int muId = PFMuonAlgo::muAssocToTrack(reco::TrackRef(tracks_h, i), *muons_h);
+    if (std::sqrt(tk.p() * tk.p() + mpion2) < tkEnergyCut_ || !cutTk_(tk))
+      continue;
+    const int muId = muonOf[i];
     const bool isMuon = muId != -1 && PFMuonAlgo::isMuon(reco::MuonRef(muons_h, muId));
-    if (!cutTk_(tk) || (isMuon && !(*muons_h)[muId].isTrackerMuon()))
+    if (isMuon && !(*muons_h)[muId].isTrackerMuon())
       continue;
-    if (std::sqrt(tk.p() * tk.p() + mpion2) < tkEnergyCut_)
-      continue;
-    selected[i] = true;
-    muonTracks[i] = isMuon;
+    selection.selected[i] = true;
+    selection.muon[i] = isMuon;
   }
+  return selection;
 }
 
 void TICLInterpretationProducer::runInference(const std::vector<reco::CaloCluster> &layerClusters,
@@ -898,8 +900,7 @@ void TICLInterpretationProducer::produce(edm::Event &evt, const edm::EventSetup 
   if (useMTDTiming_)
     timing_h = evt.getHandle(timing_token_);
 
-  std::vector<bool> selected, muonTracks;
-  selectTracks(tracks_h, muons_h, selected, muonTracks);
+  const auto [selected, muonTracks] = selectTracks(tracks_h, muons_h);
   std::vector<TrackImpact> impacts(tracks.size());
   for (size_t i = 0; i < tracks.size(); ++i)
     if (selected[i])
