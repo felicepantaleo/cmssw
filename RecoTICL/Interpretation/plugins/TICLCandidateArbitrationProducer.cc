@@ -395,7 +395,7 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
         gsfUsed[bestGsf] = true;
         const auto &gsf = gsfTracks[bestGsf];
         cand.addGsfTrackPtr(edm::Ptr<reco::GsfTrack>(gsfTracks_h, bestGsf));
-        cand.setPdgId(11 * gsf.charge());
+        cand.setPdgId(-11 * gsf.charge());
         cand.setCharge(gsf.charge());
         // The GSF mode momentum combined with the trackster energy, or the trackster energy when they disagree.
         const float p = gsf.pMode();
@@ -405,7 +405,7 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
             p4Along(gsf.momentum(), combined.compatible ? combined.energy : tracksterPtr->regressed_energy(), 0.f));
       } else {
         // No GSF track: the constructor sets the kinematics from the track and the trackster.
-        cand.setPdgId(11 * tk.charge());
+        cand.setPdgId(-11 * tk.charge());
       }
       resultCandidates->push_back(cand);
     } else if (mode == TrackMode::kJetMember) {
