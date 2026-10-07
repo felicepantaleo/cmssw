@@ -205,8 +205,8 @@ private:
   TrackSelection selectTracks(const edm::Handle<std::vector<reco::Track>> &tracks_h,
                               const edm::Handle<std::vector<reco::Muon>> &muons_h) const;
   // Runs the inference once per distinct trackster of the event and copies the result to the others: the PID, and the
-  // regressed energy when withRegression is set or when the PID and the regression cannot run apart. Tracksters with a
-  // barrel layer cluster are not changed.
+  // regressed energy when withRegression is set or when the PID and the regression cannot run apart. An EM trackster
+  // below emRawEnergyBelow with a known PID gets no regression. Tracksters with a barrel layer cluster are not changed.
   void runInference(const std::vector<reco::CaloCluster> &layerClusters,
                     std::vector<Trackster> &tracksters,
                     InferenceCache &cache,
@@ -470,7 +470,13 @@ void TICLInterpretationProducer::runInference(const std::vector<reco::CaloCluste
     if (queued[e])
       continue;
     const bool needPID = !cache[e].hasPID;
-    const bool needRegression = !cache[e].hasRegression && (withRegression || !split);
+    // An EM trackster below emRawEnergyBelow keeps its raw energy: with a known PID, its regression is not needed.
+    const auto &p = cache[e].probabilities;
+    const bool regressionUnused = !needPID && ts.raw_energy() < emRawEnergyBelow_ &&
+                                  !(p[static_cast<int>(Trackster::ParticleType::photon)] +
+                                        p[static_cast<int>(Trackster::ParticleType::electron)] <
+                                    0.5f);
+    const bool needRegression = !cache[e].hasRegression && (withRegression || !split) && !regressionUnused;
     if (needPID && (needRegression || !split)) {
       both.push_back(ts);
       bothEntry.push_back(e);
