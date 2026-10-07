@@ -2,3 +2,8 @@
   <use name="RecoTICL/Interpretation"/>
   <use name="catch2"/>
 </bin>
+<bin name="testNeutralShareModel" file="NeutralShareModel_t.cpp">
+  <use name="FWCore/ParameterSet"/>
+  <use name="PhysicsTools/ONNXRuntime"/>
+  <use name="catch2"/>
+</bin>
