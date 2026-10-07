@@ -31,9 +31,12 @@ float JetInterpretationAlgo::trackDistance(const Inputs &input,
 }
 
 bool JetInterpretationAlgo::inTrackWindow(size_t iTrack, unsigned iTs) const {
+  // deltaR is at least |deta| up to float rounding, so the |deta| test with a margin rejects no window pair.
+  constexpr float kEtaMargin = 1.001f;
   const auto &w = windows_[iTrack];
   const auto &t = tracksterAxes_[iTs];
-  return t.z * w.z > 0.f && reco::deltaR(t.eta, t.phi, w.eta, w.phi) < delta_tk_ts_;
+  return t.z * w.z > 0.f && std::abs(t.eta - w.eta) < kEtaMargin * delta_tk_ts_ &&
+         reco::deltaR(t.eta, t.phi, w.eta, w.phi) < delta_tk_ts_;
 }
 
 void JetInterpretationAlgo::fillEventCache(const Inputs &input) {
@@ -42,10 +45,12 @@ void JetInterpretationAlgo::fillEventCache(const Inputs &input) {
   const auto &tracksters = input.tracksters;
   if (input.impacts == nullptr)
     throw cms::Exception("Configuration") << "JetInterpretationAlgo: the track impacts are required";
+  selectedTracks_.clear();
+  for (unsigned iTrack = 0; iTrack < tracks.size(); ++iTrack)
+    if (maskTracks[iTrack])
+      selectedTracks_.push_back(iTrack);
   windows_.assign(tracks.size(), TrackWindow());
-  for (size_t iTrack = 0; iTrack < tracks.size(); ++iTrack) {
-    if (!maskTracks[iTrack])
-      continue;
+  for (const unsigned iTrack : selectedTracks_) {
     const auto &tk = tracks[iTrack];
     auto &w = windows_[iTrack];
     if ((*input.impacts)[iTrack].valid) {
@@ -63,9 +68,8 @@ void JetInterpretationAlgo::fillEventCache(const Inputs &input) {
   }
   footprints_.assign(tracks.size(), {});
   footprintEnergies_.assign(tracks.size(), 0.f);
-  for (size_t iTrack = 0; iTrack < tracks.size(); ++iTrack)
-    if (maskTracks[iTrack])
-      footprints_[iTrack] = footprint(input, iTrack, footprintEnergies_[iTrack]);
+  for (const unsigned iTrack : selectedTracks_)
+    footprints_[iTrack] = footprint(input, iTrack, footprintEnergies_[iTrack]);
 }
 
 void JetInterpretationAlgo::makeOpinions(const Inputs &input,
@@ -73,7 +77,6 @@ void JetInterpretationAlgo::makeOpinions(const Inputs &input,
                                          std::vector<Trackster> &hypothesisTracksters,
                                          std::vector<Hypothesis> &hypotheses) {
   const auto &tracks = *input.tracksHandle;
-  const auto &maskTracks = input.maskedTracks;
   const auto &tracksters = input.tracksters;
   fillEventCache(input);
 
@@ -84,8 +87,8 @@ void JetInterpretationAlgo::makeOpinions(const Inputs &input,
       continue;
     std::vector<int> inTracks;
     float sumP = 0.f;
-    for (size_t iTrack = 0; iTrack < tracks.size(); ++iTrack) {
-      if (maskTracks[iTrack] && inTrackWindow(iTrack, iTs)) {
+    for (const unsigned iTrack : selectedTracks_) {
+      if (inTrackWindow(iTrack, iTs)) {
         inTracks.push_back(static_cast<int>(iTrack));
         sumP += tracks[iTrack].p();
       }
@@ -114,11 +117,10 @@ void JetInterpretationAlgo::makeRecoveryOpinions(const Inputs &input,
                                                  std::vector<Hypothesis> &hypotheses) const {
   // A track with a footprint of E/p in [recovery_min_eop, recovery_max_eop] gives a charged hadron on that footprint.
   const auto &tracks = *input.tracksHandle;
-  const auto &maskTracks = input.maskedTracks;
   const auto &tracksters = input.tracksters;
-  for (size_t iTrack = 0; iTrack < tracks.size(); ++iTrack) {
+  for (const unsigned iTrack : selectedTracks_) {
     const auto &nearby = footprints_[iTrack];
-    if (!maskTracks[iTrack] || nearby.empty())
+    if (nearby.empty())
       continue;
     const float p = tracks[iTrack].p();
     const float sumE = footprintEnergies_[iTrack];
