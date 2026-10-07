@@ -2,12 +2,21 @@
 #include "RecoTICL/Inference/interface/TracksterInferenceAlgoFactory.h"
 
 #include <algorithm>
-#include <array>
 #include <cmath>
 #include <limits>
-#include <numeric>
-#include <span>
+#include <utility>
 #include <vector>
+
+namespace {
+  // The layer and the angles of a layer cluster, computed once per call of runInference.
+  struct ClusterFeatures {
+    static constexpr int kNotComputed = std::numeric_limits<int>::min();
+    int layer = kNotComputed;
+    bool hasAngles = false;
+    float absEta = 0.f;
+    float phi = 0.f;
+  };
+}  // namespace
 
 namespace ticl {
 
@@ -79,7 +88,9 @@ namespace ticl {
 
     // Reused within the event to avoid minibatch-level churn.
     std::vector<int> seenClusters(eidNLayers_);
-    std::vector<int> clusterIndices;
+    // (energy, index in the trackster) of the layer clusters of one trackster, in descending energy.
+    std::vector<std::pair<double, int>> byEnergy;
+    std::vector<ClusterFeatures> clusterFeatures(layerClusters.size());
 
     for (int start = 0; start < total; start += mb) {
       const int n = std::min(mb, total - start);
@@ -113,34 +124,40 @@ namespace ticl {
         trTensor[base_tr + 6] = static_cast<float>(ts.barycenter().phi());
 
         const int vtxCount = static_cast<int>(ts.vertices().size());
-        clusterIndices.resize(vtxCount);
-        std::iota(clusterIndices.begin(), clusterIndices.end(), 0);
-
-        std::sort(clusterIndices.begin(), clusterIndices.end(), [&layerClusters, &ts](int a, int b) {
-          return layerClusters[ts.vertices(a)].energy() > layerClusters[ts.vertices(b)].energy();
-        });
+        byEnergy.clear();
+        for (int k = 0; k < vtxCount; ++k)
+          byEnergy.emplace_back(layerClusters[ts.vertices(k)].energy(), k);
+        std::sort(byEnergy.begin(), byEnergy.end(), [](auto const& a, auto const& b) { return a.first > b.first; });
 
         std::fill(seenClusters.begin(), seenClusters.end(), 0);
 
-        for (int k : clusterIndices) {
+        for (auto const& [clusterEnergy, k] : byEnergy) {
           const unsigned int v = ts.vertices(k);
           auto const& cl = layerClusters[v];
+          auto& features = clusterFeatures[v];
+          if (features.layer == ClusterFeatures::kNotComputed)
+            features.layer = rhtools.getLayerWithOffset(cl.hitsAndFractions()[0].first) - 1;
 
-          const int j = rhtools.getLayerWithOffset(cl.hitsAndFractions()[0].first) - 1;
+          const int j = features.layer;
           if (j < 0 || j >= eidNLayers_) {
             continue;
           }
           if (seenClusters[j] >= eidNClusters_) {
             continue;
           }
+          if (!features.hasAngles) {
+            features.absEta = static_cast<float>(std::abs(cl.eta()));
+            features.phi = static_cast<float>(cl.phi());
+            features.hasAngles = true;
+          }
 
           const size_t base_lc =
               (static_cast<size_t>(bi) * eidNLayers_ + static_cast<size_t>(j)) * (eidNClusters_ * eidNFeatures_) +
               static_cast<size_t>(seenClusters[j]) * eidNFeatures_;
 
-          lcTensor[base_lc + 0] = static_cast<float>(cl.energy() / static_cast<float>(ts.vertex_multiplicity(k)));
-          lcTensor[base_lc + 1] = static_cast<float>(std::abs(cl.eta()));
-          lcTensor[base_lc + 2] = static_cast<float>(cl.phi());
+          lcTensor[base_lc + 0] = static_cast<float>(clusterEnergy / static_cast<float>(ts.vertex_multiplicity(k)));
+          lcTensor[base_lc + 1] = features.absEta;
+          lcTensor[base_lc + 2] = features.phi;
           lcTensor[base_lc + 3] = static_cast<float>(cl.x());
           lcTensor[base_lc + 4] = static_cast<float>(cl.y());
           lcTensor[base_lc + 5] = static_cast<float>(std::abs(cl.z()));
