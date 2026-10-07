@@ -752,18 +752,44 @@ std::vector<int> TICLInterpretationProducer::claimAlongTracks(const Opinions &op
                                                               const std::vector<unsigned int> &pool) const {
   const auto &hypotheses = opinions.hypotheses;
   std::vector<int> claimingTrack(layerClusters.size(), -1);
-  // The pool, binned in (|eta|, phi) per endcap. Grid key: (endcap x kSideStride + |eta| bin) x kEtaStride + phi bin.
+  // The pool, binned in (|eta|, phi) per endcap with bins of kBin: the clusters of bin b are
+  // binned[binStart[b]] to binned[binStart[b + 1] - 1], in pool order, with the fields that the search reads.
   constexpr float kBin = 0.05f;
-  constexpr int kSideStride = 200;
-  constexpr int kEtaStride = 1000;
-  auto key = [](float eta, float phi, int side) {
-    return (side * kSideStride + static_cast<int>(std::floor(std::abs(eta) / kBin))) * kEtaStride +
-           static_cast<int>(std::floor((phi + static_cast<float>(M_PI)) / kBin));
+  const int nPhi = static_cast<int>(std::ceil(2.f * static_cast<float>(M_PI) / kBin));
+  auto etaBin = [](float eta) { return static_cast<int>(std::floor(std::abs(eta) / kBin)); };
+  auto phiBin = [](float phi) { return static_cast<int>(std::floor((phi + static_cast<float>(M_PI)) / kBin)); };
+  struct PoolCluster {
+    math::XYZPoint position;
+    float absZ;
+    bool inCEE;
+    unsigned int index;
   };
-  std::unordered_map<int, std::vector<unsigned int>> grid;
-  for (unsigned int v : pool) {
-    const auto &lc = layerClusters[v];
-    grid[key(lc.eta(), lc.phi(), lc.z() > 0 ? 1 : 0)].push_back(v);
+  std::vector<int> etaBinOf(pool.size()), phiBinOf(pool.size());
+  int nEta = 1;
+  for (std::size_t k = 0; k < pool.size(); ++k) {
+    const auto &lc = layerClusters[pool[k]];
+    etaBinOf[k] = etaBin(lc.eta());
+    phiBinOf[k] = phiBin(lc.phi());
+    nEta = std::max(nEta, etaBinOf[k] + 1);
+  }
+  auto bin = [&](int side, int ie, int ip) { return (side * nEta + ie) * nPhi + ip; };
+  std::vector<int> binStart(2 * nEta * nPhi + 1, 0);
+  auto inGrid = [&](std::size_t k) { return etaBinOf[k] >= 0 && phiBinOf[k] >= 0 && phiBinOf[k] < nPhi; };
+  for (std::size_t k = 0; k < pool.size(); ++k)
+    if (inGrid(k))
+      ++binStart[bin(layerClusters[pool[k]].z() > 0 ? 1 : 0, etaBinOf[k], phiBinOf[k]) + 1];
+  std::partial_sum(binStart.begin(), binStart.end(), binStart.begin());
+  std::vector<PoolCluster> binned(binStart.back());
+  {
+    std::vector<int> next(binStart.begin(), binStart.end() - 1);
+    for (std::size_t k = 0; k < pool.size(); ++k) {
+      if (!inGrid(k))
+        continue;
+      const unsigned int v = pool[k];
+      const auto &lc = layerClusters[v];
+      binned[next[bin(lc.z() > 0 ? 1 : 0, etaBinOf[k], phiBinOf[k])]++] = {
+          lc.position(), std::abs(static_cast<float>(lc.z())), lc.seed().det() == DetId::HGCalEE, v};
+    }
   }
   // Sources: (expected deposit still to claim, track). A single-track hypothesis on an EM footprint does not claim:
   // its candidate combines the track and the trackster energies.
@@ -796,7 +822,6 @@ std::vector<int> TICLInterpretationProducer::claimAlongTracks(const Opinions &op
     const double pa = tracks[a.second].p(), pb = tracks[b.second].p();
     return pa != pb ? pa > pb : a.second < b.second;
   });
-  const int nPhi = static_cast<int>(std::ceil(2.f * static_cast<float>(M_PI) / kBin));
   const float maxRadius = claimRadius0_ + claimRadiusSlope_ * kClaimMaxDepth;
   // Clusters up to kFrontTolerance [cm] in front of the impact are kept.
   constexpr float kFrontTolerance = 1.f;
@@ -823,24 +848,23 @@ std::vector<int> TICLInterpretationProducer::claimAlongTracks(const Opinions &op
     // A phi bin is visited at most once.
     const int dpLow = std::min(0, dpDeep) - nWin;
     const int dpHigh = std::min(std::max(0, dpDeep) + nWin, dpLow + nPhi - 1);
-    for (int ie = std::min(ieFront, ieDeep) - nWin; ie <= std::max(ieFront, ieDeep) + nWin; ++ie)
+    for (int ie = std::max(std::min(ieFront, ieDeep) - nWin, 0);
+         ie <= std::min(std::max(ieFront, ieDeep) + nWin, nEta - 1);
+         ++ie)
       for (int dp = dpLow; dp <= dpHigh; ++dp) {
-        const int ip = ((ip0 + dp) % nPhi + nPhi) % nPhi;
-        auto it = grid.find((side * kSideStride + ie) * kEtaStride + ip);
-        if (it == grid.end())
-          continue;
-        for (auto v : it->second) {
-          if (claimingTrack[v] >= 0)
+        const int b = bin(side, ie, ((ip0 + dp) % nPhi + nPhi) % nPhi);
+        for (int k = binStart[b]; k < binStart[b + 1]; ++k) {
+          const auto &c = binned[k];
+          if (claimingTrack[c.index] >= 0)
             continue;
-          const auto &lc = layerClusters[v];
-          const float depth = std::abs(static_cast<float>(lc.z())) - zFront;
+          const float depth = c.absZ - zFront;
           if (depth < -kFrontTolerance)
             continue;
           float dist = 0.f;
           if (!impactTransverseDistanceBelow(
-                  impact, lc.position(), claimRadius0_ + claimRadiusSlope_ * std::max(depth, 0.f), dist))
+                  impact, c.position, claimRadius0_ + claimRadiusSlope_ * std::max(depth, 0.f), dist))
             continue;
-          candidates.emplace_back(lc.seed().det() == DetId::HGCalEE, dist, v);
+          candidates.emplace_back(c.inCEE, dist, c.index);
         }
       }
     std::sort(candidates.begin(), candidates.end());
