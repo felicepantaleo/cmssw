@@ -480,12 +480,13 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
   std::vector<reco::MuonRef> candidateMuons(resultCandidates->size());
   auto muonTrackType = std::make_unique<std::vector<int>>(resultCandidates->size(), -1);
   const auto muonH = evt.getHandle(muons_token_);
+  const auto muonOf = muonOfTrack(tracks_h, *muonH);
   for (size_t i = 0; i < resultCandidates->size(); ++i) {
     auto &cand = (*resultCandidates)[i];
     if (cand.charge() == 0 || cand.trackPtr().isNull())
       continue;
     const reco::TrackRef trackRef(tracks_h, cand.trackPtr().key());
-    const int muId = PFMuonAlgo::muAssocToTrack(trackRef, *muonH);
+    const int muId = muonOf[cand.trackPtr().key()];
     if (muId < 0)
       continue;
     const reco::MuonRef muonRef(muonH, muId);
