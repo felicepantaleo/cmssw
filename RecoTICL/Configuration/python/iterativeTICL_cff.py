@@ -230,3 +230,6 @@ ticl_v6.toReplaceWith(ticlCandidate, _ticlV6Modules["ticlCandidate"])
 ticl_v6.toModify(ticlCandidateTask, lambda t: t.add(ticlTracksterInterpretations))
 # TICLv6 candidates carry the muon kinematics; pfTICL copies their muon decisions.
 ticl_v6.toReplaceWith(pfTICL, _ticlV6Modules["pfTICL"])
+# With the Mustache superclustering, the interpretation stage reads the Mustache superclusters.
+(ticl_v6 & ticl_superclustering_mustache_ticl).toModify(
+    ticlTracksterInterpretations, egamma_tracksters_collections=["ticlTracksterLinksSuperclusteringMustache"])
