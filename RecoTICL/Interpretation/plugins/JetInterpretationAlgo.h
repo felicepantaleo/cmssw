@@ -1,5 +1,5 @@
-#ifndef RecoHGCal_TICL_JetInterpretationAlgo_h
-#define RecoHGCal_TICL_JetInterpretationAlgo_h
+#ifndef RecoTICL_Interpretation_JetInterpretationAlgo_h
+#define RecoTICL_Interpretation_JetInterpretationAlgo_h
 
 // Jet and recovery opinions. A Jet hypothesis holds several tracks and the trackster (or the union of footprints) they
 // point to, scored by the balance of E and the summed p. A recovery hypothesis holds one track and its footprint.
