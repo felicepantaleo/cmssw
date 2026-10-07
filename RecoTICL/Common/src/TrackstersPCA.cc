@@ -1,4 +1,5 @@
 #include <cmath>
+#include <limits>
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
 #include "DataFormats/Common/interface/ValueMap.h"
 #include "RecoLocalCalo/HGCalRecProducers/interface/ComputeClusterTime.h"
@@ -181,7 +182,7 @@ void ticl::assignPCAtoTracksters(std::vector<Trackster> &tracksters,
           // getRadiusToSide gives numeric_limits<float>::max() for a cell that is not in the geometry.
           const float rToSide = rhtools.getRadiusToSide(seed);
           const float siThickness = rhtools.getSiThickness(seed);
-          if (std::isfinite(rToSide) and std::isfinite(siThickness)) {
+          if (rToSide < std::numeric_limits<float>::max() and std::isfinite(siThickness)) {
             wEta = wPhi = 2.f * rToSide;
             wLong = 1e-4f * siThickness;  // um -> cm
           }
