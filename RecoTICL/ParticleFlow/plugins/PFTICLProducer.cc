@@ -5,6 +5,9 @@
 
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/Framework/interface/MakerMacros.h"
+#include "FWCore/ParameterSet/interface/ConfigurationDescriptions.h"
+#include "FWCore/ParameterSet/interface/EmptyGroupDescription.h"
+#include "FWCore/ParameterSet/interface/ParameterSetDescription.h"
 #include "FWCore/Utilities/interface/Exception.h"
 
 #include "DataFormats/Common/interface/ValueMap.h"
@@ -21,7 +24,6 @@
 class PFTICLProducer : public edm::stream::EDProducer<> {
 public:
   PFTICLProducer(const edm::ParameterSet&);
-  ~PFTICLProducer() override {}
 
   static void fillDescriptions(edm::ConfigurationDescriptions& descriptions);
 
@@ -34,13 +36,21 @@ private:
   const bool muonsFromCandidates_;
   // inputs
   const edm::EDGetTokenT<edm::View<TICLCandidate>> ticl_candidates_;
-  edm::EDGetTokenT<edm::ValueMap<reco::MuonRef>> candidateMuons_;
-  edm::EDGetTokenT<std::vector<int>> muonTrackType_;
-  // Read by PFMuonAlgo when the candidates do not carry the muon decisions.
+  // The muon decisions of the candidate producer, when muonsFromCandidates is set.
+  const edm::EDGetTokenT<edm::ValueMap<reco::MuonRef>> candidateMuons_;
+  const edm::EDGetTokenT<std::vector<int>> muonTrackType_;
+  // The muons and PFMuonAlgo, when muonsFromCandidates is not set.
   const edm::EDGetTokenT<reco::MuonCollection> muons_;
-  // For PFMuonAlgo
-  std::unique_ptr<PFMuonAlgo> pfmu_;
+  const std::unique_ptr<PFMuonAlgo> pfmu_;
 };
+
+namespace {
+  // A product of the candidate producer with the given instance label.
+  edm::InputTag candidateProduct(const edm::ParameterSet& conf, const std::string& instance) {
+    const auto& src = conf.getParameter<edm::InputTag>("ticlCandidateSrc");
+    return edm::InputTag(src.label(), instance, src.process());
+  }
+}  // namespace
 
 DEFINE_FWK_MODULE(PFTICLProducer);
 
@@ -48,15 +58,15 @@ PFTICLProducer::PFTICLProducer(const edm::ParameterSet& conf)
     : energy_from_regression_(conf.getParameter<bool>("energyFromRegression")),
       muonsFromCandidates_(conf.getParameter<bool>("muonsFromCandidates")),
       ticl_candidates_(consumes<edm::View<TICLCandidate>>(conf.getParameter<edm::InputTag>("ticlCandidateSrc"))),
+      candidateMuons_(muonsFromCandidates_ ? consumes<edm::ValueMap<reco::MuonRef>>(candidateProduct(conf, "muons"))
+                                           : edm::EDGetTokenT<edm::ValueMap<reco::MuonRef>>()),
+      muonTrackType_(muonsFromCandidates_ ? consumes<std::vector<int>>(candidateProduct(conf, "muonTrackType"))
+                                          : edm::EDGetTokenT<std::vector<int>>()),
       muons_(muonsFromCandidates_ ? edm::EDGetTokenT<reco::MuonCollection>()
                                   : consumes<reco::MuonCollection>(conf.getParameter<edm::InputTag>("muonSrc"))),
-      pfmu_(std::make_unique<PFMuonAlgo>(conf.getParameterSet("pfMuonAlgoParameters"),
-                                         false)) {  // postMuonCleaning = false
-  if (muonsFromCandidates_) {
-    const auto& src = conf.getParameter<edm::InputTag>("ticlCandidateSrc");
-    candidateMuons_ = consumes<edm::ValueMap<reco::MuonRef>>(edm::InputTag(src.label(), "muons", src.process()));
-    muonTrackType_ = consumes<std::vector<int>>(edm::InputTag(src.label(), "muonTrackType", src.process()));
-  }
+      pfmu_(muonsFromCandidates_ ? nullptr
+                                 : std::make_unique<PFMuonAlgo>(conf.getParameterSet("pfMuonAlgoParameters"),
+                                                                false)) {  // postMuonCleaning = false
   produces<reco::PFCandidateCollection>();
 }
 
@@ -64,23 +74,24 @@ void PFTICLProducer::fillDescriptions(edm::ConfigurationDescriptions& descriptio
   edm::ParameterSetDescription desc;
   desc.add<edm::InputTag>("ticlCandidateSrc", edm::InputTag("ticlCandidate"));
   desc.add<bool>("energyFromRegression", true);
-  desc.add<bool>("muonsFromCandidates", false)
-      ->setComment(
-          "Copy the muon decisions of the candidate producer (the muon of each candidate and its track type) instead "
-          "of PFMuonAlgo.");
-  // For PFMuonAlgo
-  desc.add<edm::InputTag>("muonSrc", edm::InputTag("muons1stStep"));
   edm::ParameterSetDescription psd_PFMuonAlgo;
   PFMuonAlgo::fillPSetDescription(psd_PFMuonAlgo);
-  desc.add<edm::ParameterSetDescription>("pfMuonAlgoParameters", psd_PFMuonAlgo);
-  //
+  // The muons and the PFMuonAlgo parameters exist only without the muon decisions of the candidates.
+  desc.ifValue(
+      edm::ParameterDescription<bool>("muonsFromCandidates",
+                                      false,
+                                      true,
+                                      edm::Comment("Copy the muon decisions of the candidate producer (the muon of "
+                                                   "each candidate and its track type) instead of PFMuonAlgo.")),
+      false >>
+              (edm::ParameterDescription<edm::InputTag>("muonSrc", edm::InputTag("muons1stStep"), true) and
+               edm::ParameterDescription<edm::ParameterSetDescription>("pfMuonAlgoParameters", psd_PFMuonAlgo, true)) or
+          true >> edm::EmptyGroupDescription());
   descriptions.add("pfTICLProducer", desc);
 }
 
 void PFTICLProducer::produce(edm::Event& evt, const edm::EventSetup& es) {
-  //get TICLCandidates
-  edm::Handle<edm::View<TICLCandidate>> ticl_cand_h;
-  evt.getByToken(ticl_candidates_, ticl_cand_h);
+  const auto ticl_cand_h = evt.getHandle(ticl_candidates_);
   const auto& ticl_candidates = *ticl_cand_h;
   edm::Handle<reco::MuonCollection> muonH;
   edm::Handle<edm::ValueMap<reco::MuonRef>> candidateMuonsH;

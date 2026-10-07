@@ -86,5 +86,7 @@ TICL_FEVTHLT.outputCommands.extend(TICL_FEVT.outputCommands)
 # TICLv6: the interpretation stage holds the final tracksters and the assignment maps.
 from Configuration.ProcessModifiers.ticl_v6_cff import ticl_v6
 _v6Reco = [k for k in keep_statements(presets.v6(), RECO) if k not in _recoTICL]
+# The muon decisions of the candidates serve pfTICL in the same job; the muons they point to are not in RECO.
+_v6Reco += ['drop *_ticlCandidate_muons_*', 'drop *_ticlCandidate_muonTrackType_*']
 for _block in (TICL_RECO, TICL_FEVT, TICL_FEVTHLT):
     ticl_v6.toModify(_block, lambda b: b.outputCommands.extend(_v6Reco))
