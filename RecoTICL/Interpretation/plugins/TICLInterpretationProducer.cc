@@ -299,8 +299,8 @@ private:
 
 std::unique_ptr<TICLONNXGlobalCache> TICLInterpretationProducer::initializeGlobalCache(const edm::ParameterSet &ps) {
   auto cache = TICLONNXGlobalCache::initialize(ps);
-  cache->loadModel(ps.getParameter<std::string>("arbitrationModelFile"));
-  cache->loadModel(ps.getParameter<std::string>("neutralModelFile"));
+  cache->loadModel(ps.getParameter<edm::FileInPath>("arbitrationModelFile").relativePath());
+  cache->loadModel(ps.getParameter<edm::FileInPath>("neutralModelFile").relativePath());
   return cache;
 }
 
@@ -322,7 +322,9 @@ TICLInterpretationProducer::TICLInterpretationProducer(const edm::ParameterSet &
       propagator_token_(esConsumes<Propagator, TrackingComponentsRecord, edm::Transition::BeginRun>(
           edm::ESInputTag("", ps.getParameter<std::string>("propagator")))),
       arbitrationModel_(
-          *cache->getByModelPathString(ps.getParameter<std::string>("arbitrationModelFile")), kNHypothesisFeatures, 1),
+          *cache->getByModelPathString(ps.getParameter<edm::FileInPath>("arbitrationModelFile").relativePath()),
+          kNHypothesisFeatures,
+          1),
       maxSharedEnergyFraction_(ps.getParameter<float>("arbitrationMaxSharedEnergyFraction")),
       plattA_(ps.getParameter<float>("arbitrationPlattA")),
       plattB_(ps.getParameter<float>("arbitrationPlattB")),
@@ -335,8 +337,9 @@ TICLInterpretationProducer::TICLInterpretationProducer(const edm::ParameterSet &
       claimRadius0_(ps.getParameter<float>("arbitrationTrackClaimRadius0")),
       claimRadiusSlope_(ps.getParameter<float>("arbitrationTrackClaimRadiusSlope")),
       claimMinEnergy_(ps.getParameter<float>("arbitrationTrackClaimMinEnergy")),
-      neutralModel_(
-          *cache->getByModelPathString(ps.getParameter<std::string>("neutralModelFile")), kNNeutralFeatures, kNSpecies),
+      neutralModel_(*cache->getByModelPathString(ps.getParameter<edm::FileInPath>("neutralModelFile").relativePath()),
+                    kNNeutralFeatures,
+                    kNSpecies),
       neutralModelThreshold_(ps.getParameter<float>("neutralModelThreshold")),
       emRawEnergyBelow_(ps.getParameter<float>("emRawEnergyBelow")) {
   for (auto const &tag : ps.getParameter<std::vector<edm::InputTag>>("tracksters_collections"))
@@ -1105,7 +1108,8 @@ void TICLInterpretationProducer::fillDescriptions(edm::ConfigurationDescriptions
 
   desc.add<float>("arbitrationMaxSharedEnergyFraction", 0.2f)
       ->setComment("Two hypotheses conflict above this fraction of the smaller footprint energy in shared clusters.");
-  desc.add<std::string>("arbitrationModelFile", "RecoTICL/Interpretation/data/arbitration/hypothesis_mlp_v2.onnx")
+  desc.add<edm::FileInPath>("arbitrationModelFile",
+                            edm::FileInPath("RecoTICL/Interpretation/data/arbitration/hypothesis_mlp_v2.onnx"))
       ->setComment("ONNX model of the probability that a hypothesis is correct (logit).");
   desc.add<float>("arbitrationPlattA", 0.9958741664886475f)->setComment("Platt calibration: logit' = a x logit + b.");
   desc.add<float>("arbitrationPlattB", -0.012220372445881367f);
@@ -1127,7 +1131,8 @@ void TICLInterpretationProducer::fillDescriptions(edm::ConfigurationDescriptions
       ->setComment(
           "A neutral that lost a layer cluster to a winner or to the track claim is dropped below this raw "
           "energy [GeV].");
-  desc.add<std::string>("neutralModelFile", "RecoTICL/Interpretation/data/arbitration/neutralSpecies_mlp_v2.onnx")
+  desc.add<edm::FileInPath>("neutralModelFile",
+                            edm::FileInPath("RecoTICL/Interpretation/data/arbitration/neutralSpecies_mlp_v2.onnx"))
       ->setComment("ONNX 3-class model (photon, pi0, neutral hadron; logits) that types the neutral candidates.");
   desc.add<float>("neutralModelThreshold", 0.7f)->setComment("P(photon) + P(pi0) at and above which a neutral is EM.");
   desc.add<float>("emRawEnergyBelow", 50.f)
