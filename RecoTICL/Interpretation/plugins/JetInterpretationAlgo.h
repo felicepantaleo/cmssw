@@ -69,6 +69,8 @@ namespace ticl {
     // first, up to the track momentum.
     const float recovery_max_distance_;
 
+    // Indices of the selected tracks, in increasing order.
+    std::vector<unsigned> selectedTracks_;
     std::vector<TrackWindow> windows_;
     std::vector<TracksterAxis> tracksterAxes_;
     std::vector<std::vector<unsigned>> footprints_;
