@@ -66,13 +66,15 @@ TracksterLinkingbyCornetto::Features TracksterLinkingbyCornetto::computeFeatures
     f.eta[i] = b.eta();
     f.phi[i] = b.phi();
     f.rad[i] = std::sqrt(b.Mag2());
+    // -1 for a trackster with no PID: no probability, or only unknown (a merged trackster).
     float sum = 0.f;
     for (float v : ts.id_probabilities())
       sum += v;
-    f.em[i] = sum > 0.f ? (ts.id_probability(Trackster::ParticleType::photon) +
-                           ts.id_probability(Trackster::ParticleType::electron)) /
-                              sum
-                        : -1.f;
+    f.em[i] = sum > ts.id_probability(Trackster::ParticleType::unknown)
+                  ? (ts.id_probability(Trackster::ParticleType::photon) +
+                     ts.id_probability(Trackster::ParticleType::electron)) /
+                        sum
+                  : -1.f;
   }
   return f;
 }
