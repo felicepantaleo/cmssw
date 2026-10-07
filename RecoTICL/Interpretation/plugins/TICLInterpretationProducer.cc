@@ -62,7 +62,8 @@
 using namespace ticl;
 
 namespace {
-  // A network with input "features" (rows x nFeatures) and one output, the logits (rows x nClasses).
+  // A network with input "features" (rows x nFeatures) and one output, the logits (rows x nClasses). A non-finite
+  // feature enters as 0; a non-finite logit throws.
   class ArbitrationModel {
   public:
     ArbitrationModel(const cms::Ort::ONNXRuntime &network, unsigned int nFeatures, unsigned int nClasses)
@@ -80,14 +81,21 @@ namespace {
             << "ArbitrationModel: expected one output with " << nClasses_ << " logits per row";
     }
 
-    std::vector<float> logits(const std::vector<float> &x, unsigned int rows) const {
+    std::vector<float> logits(std::vector<float> x, unsigned int rows) const {
       if (rows == 0)
         return {};
-      cms::Ort::FloatArrays input{x};
+      for (auto &v : x)
+        if (!std::isfinite(v))
+          v = 0.f;
+      cms::Ort::FloatArrays input;
+      input.push_back(std::move(x));
       auto result =
           network_.run({"features"}, input, {{static_cast<int64_t>(rows), static_cast<int64_t>(nFeatures_)}}, {}, rows);
       if (result.size() != 1 || result[0].size() != static_cast<std::size_t>(rows) * nClasses_)
-        throw cms::Exception("ArbitrationModel") << "expected " << rows * nClasses_ << " logits from the network";
+        throw cms::Exception("LogicError")
+            << "ArbitrationModel: expected " << rows * nClasses_ << " logits from the network";
+      if (std::any_of(result[0].begin(), result[0].end(), [](float v) { return !std::isfinite(v); }))
+        throw cms::Exception("LogicError") << "ArbitrationModel: non-finite logit";
       return std::move(result[0]);
     }
 
@@ -353,6 +361,9 @@ TICLInterpretationProducer::TICLInterpretationProducer(const edm::ParameterSet &
 
   if (maxExactComponent_ > 64)
     throw cms::Exception("Configuration") << "arbitrationMaxExactComponent must be at most 64";
+  // The track-only hypothesis must have a positive weight, so that every selected track gets an accepted hypothesis.
+  if (!(trackBonus_ + trackOnlyWeight_ > 0.f))
+    throw cms::Exception("Configuration") << "arbitrationTrackBonus + arbitrationTrackOnlyWeight must be positive";
   if (!(claimResponse_ > 0.f) || !(claimRadius0_ >= 0.f) || !(claimRadiusSlope_ >= 0.f) || !(claimMinEnergy_ >= 0.f))
     throw cms::Exception("Configuration")
         << "track claim: response > 0, radius0 >= 0, radiusSlope >= 0 and minEnergy >= 0 are required";
@@ -688,7 +699,7 @@ std::vector<float> TICLInterpretationProducer::modelWeights(const Opinions &opin
       for (int iTk : h.trackIdxs)
         countLeptonHyps(iTk);
   }
-  const std::vector<float> logits = arbitrationModel_.logits(features, rows.size());
+  const std::vector<float> logits = arbitrationModel_.logits(std::move(features), rows.size());
   std::vector<float> weights(nH, trackOnlyWeight_);
   for (unsigned int r = 0; r < rows.size(); ++r)
     weights[rows[r]] = plattA_ * logits[r] + plattB_;
@@ -858,7 +869,7 @@ void TICLInterpretationProducer::assignNeutralSpecies(const std::vector<Trackste
     x.push_back(std::abs(ts.barycenter().eta()));
     x.push_back(static_cast<float>(ts.vertices().size()));
   }
-  const auto logits = neutralModel_.logits(x, rows.size());
+  const auto logits = neutralModel_.logits(std::move(x), rows.size());
   for (unsigned int r = 0; r < rows.size(); ++r) {
     const float *m = &logits[r * kNSpecies];
     const float mMax = std::max({m[0], m[1], m[2]});
