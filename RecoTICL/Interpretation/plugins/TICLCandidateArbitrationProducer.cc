@@ -114,6 +114,26 @@ private:
   };
   CombinedEnergy combinedEnergy(float p, float sigmaP, float mass, const Trackster &ts) const;
 
+  // Neutral residuals: the energy of a trackster above the energy given to its tracks, typed by the trackster PID.
+  void appendNeutralResiduals(const edm::Handle<std::vector<Trackster>> &tracksters_h,
+                              const std::map<int, float> &trackSumP,
+                              std::vector<TICLCandidate> &candidates) const;
+  // Neutral candidates: each takes the share of its trackster energy that comes from the particle it represents.
+  void appendNeutralCandidates(const edm::Handle<std::vector<Trackster>> &tracksters_h,
+                               const std::vector<reco::CaloCluster> &layerClusters,
+                               const std::vector<int> &neutralIdx,
+                               const std::vector<int> &neutralPdg,
+                               std::vector<TICLCandidate> &candidates) const;
+  // Muons: a charged candidate takes the kinematics of the best muon track when takesMuonKinematics holds. A loose muon
+  // is accepted for a muon candidate only. Returns the muon of each candidate and the type of its muon track (-1: none).
+  struct CandidateMuons {
+    std::vector<reco::MuonRef> muons;
+    std::unique_ptr<std::vector<int>> trackType;
+  };
+  CandidateMuons applyMuonKinematics(const edm::Handle<std::vector<reco::Track>> &tracks_h,
+                                     const edm::Handle<reco::MuonCollection> &muons_h,
+                                     std::vector<TICLCandidate> &candidates) const;
+
   const std::string propName_;
   const edm::ESGetToken<MagneticField, IdealMagneticFieldRecord> bfield_token_;
   const edm::ESGetToken<Propagator, TrackingComponentsRecord> propagator_token_;
@@ -127,6 +147,13 @@ private:
 };
 
 namespace {
+  // Four-momentum of the given energy and mass along a direction.
+  math::XYZTLorentzVector p4Along(const math::XYZVector &dir, float energy, float mass) {
+    const float pMag = std::sqrt(std::max(energy * energy - mass * mass, 0.f));
+    const auto u = dir.unit();
+    return math::XYZTLorentzVector(pMag * u.x(), pMag * u.y(), pMag * u.z(), energy);
+  }
+
   // InputTag of a product instance of the interpretation stage.
   edm::InputTag interpretationTag(const edm::ParameterSet &ps, const char *instance) {
     const auto &tag = ps.getParameter<edm::InputTag>("interpretations");
@@ -277,49 +304,36 @@ std::vector<float> TICLCandidateArbitrationProducer::neutralEnergyShares(
 }
 
 void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::EventSetup &es) {
-  edm::Handle<std::vector<Trackster>> tracksters_h;
-  evt.getByToken(tracksters_token_, tracksters_h);
+  const auto tracksters_h = evt.getHandle(tracksters_token_);
   const auto &trackToTrackster = evt.get(trackToTrackster_token_);
   const auto &trackMode = evt.get(trackMode_token_);
   const auto &neutralIdx = evt.get(neutralIdx_token_);
   const auto &neutralPdg = evt.get(neutralPdg_token_);
-
-  edm::Handle<std::vector<reco::Track>> tracks_h;
-  evt.getByToken(tracks_token_, tracks_h);
-  const auto &tracks = *tracks_h;
-  if (trackMode.size() != tracks.size()) {
+  const auto tracks_h = evt.getHandle(tracks_token_);
+  if (trackMode.size() != tracks_h->size()) {
     throw cms::Exception("LogicError") << "TICLCandidateArbitrationProducer: the assignment maps cover "
                                        << trackMode.size() << " tracks but the configured tracks collection has "
-                                       << tracks.size() << "; the two producers must consume the same tracks.";
+                                       << tracks_h->size() << "; the two producers must consume the same tracks.";
   }
   edm::Handle<std::vector<reco::GsfTrack>> gsfTracks_h;
-  static const std::vector<reco::GsfTrack> emptyGsf;
-  if (useGsfTracks_) {
-    evt.getByToken(gsf_tracks_token_, gsfTracks_h);
+  if (useGsfTracks_)
+    gsfTracks_h = evt.getHandle(gsf_tracks_token_);
+  MtdHostCollection::ConstView inputTimingView;
+  edm::Handle<MtdHostCollection> inputTiming_h;
+  if (useMTDTiming_) {
+    inputTiming_h = evt.getHandle(inputTimingToken_);
+    inputTimingView = inputTiming_h->const_view();
   }
+
+  static const std::vector<reco::GsfTrack> emptyGsf;
   const auto &gsfTracks = useGsfTracks_ ? *gsfTracks_h : emptyGsf;
 
-  edm::Handle<MtdHostCollection> inputTiming_h;
-  MtdHostCollection::ConstView inputTimingView;
-  if (useMTDTiming_) {
-    evt.getByToken(inputTimingToken_, inputTiming_h);
-    inputTimingView = (*inputTiming_h).const_view();
-  }
-
-  auto resultCandidates = std::make_unique<std::vector<TICLCandidate>>();
-
-  // Summed energy given to the tracks of each trackster, for the neutral residuals.
+  // Charged candidates from the per-track assignment maps, in track order, and the energy given to the tracks of each
+  // trackster.
+  std::vector<TICLCandidate> candidates;
   std::map<int, float> trackSumP;
-  // Four-momentum of the given energy and mass along a direction.
-  auto p4Along = [](const math::XYZVector &dir, float energy, float mass) {
-    const float pMag = std::sqrt(std::max(energy * energy - mass * mass, 0.f));
-    const auto u = dir.unit();
-    return math::XYZTLorentzVector(pMag * u.x(), pMag * u.y(), pMag * u.z(), energy);
-  };
   // A GSF track goes to one electron only.
   std::vector<bool> gsfUsed(gsfTracks.size(), false);
-
-  // Charged candidates from the per-track assignment.
   for (size_t iTrack = 0; iTrack < trackMode.size(); ++iTrack) {
     const auto mode = static_cast<TrackMode>(trackMode[iTrack]);
     if (mode == TrackMode::kNotSelected)
@@ -337,7 +351,7 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
       cand.setPdgId(-13 * tk.charge());
       math::PtEtaPhiMLorentzVector p4Polar(tk.pt(), tk.eta(), tk.phi(), ticl::mmuon);
       cand.setP4(p4Polar);
-      resultCandidates->push_back(cand);
+      candidates.push_back(cand);
     } else if (mode == TrackMode::kElectron) {
       // Electron: the trackster energy along the direction of the GSF track.
       TICLCandidate cand(trackPtr, tracksterPtr);
@@ -368,36 +382,59 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
         // No GSF track: the constructor sets the kinematics from the track and the trackster.
         cand.setPdgId(-11 * tk.charge());
       }
-      resultCandidates->push_back(cand);
+      candidates.push_back(cand);
     } else if (mode == TrackMode::kJetMember) {
       // Jet member: a charged candidate from the track alone. The shared trackster goes to the neutral residual.
       edm::Ptr<Trackster> noTrackster;
       TICLCandidate cand(trackPtr, noTrackster);
-      resultCandidates->push_back(cand);
+      candidates.push_back(cand);
       if (tsIdx >= 0)
         trackSumP[tsIdx] += tk.p();
     } else if (tracksterPtr.isNonnull() && !tracksterPtr->isHadronic()) {
       // Charged hadron or recovery on an EM trackster: an electron (the trackster PID), with the combined energy along
-      // the track. A compatible trackster is all in the combined energy; else its excess becomes a neutral residual below.
+      // the track. A compatible trackster is all in the combined energy; else its excess becomes a neutral residual.
       TICLCandidate cand(trackPtr, tracksterPtr);
       const float p = tk.p();
       const auto combined = combinedEnergy(p, trackMomentumErrorScale_ * tk.qoverpError() * p * p, 0.f, *tracksterPtr);
       cand.setP4(p4Along(tk.momentum(), combined.energy, 0.f));
-      resultCandidates->push_back(cand);
+      candidates.push_back(cand);
       trackSumP[tsIdx] += combined.compatible ? tracksterPtr->regressed_energy() : combined.energy;
     } else {
       // Charged hadron or recovery on a hadronic trackster or with no trackster: kinematics from the track. The
-      // calorimetric excess of the trackster becomes a neutral residual below.
+      // calorimetric excess of the trackster becomes a neutral residual.
       TICLCandidate cand(trackPtr, tracksterPtr);
       math::PtEtaPhiMLorentzVector p4Polar(tk.pt(), tk.eta(), tk.phi(), ticl::mpion);
       cand.setP4(p4Polar);
-      resultCandidates->push_back(cand);
+      candidates.push_back(cand);
       if (tsIdx >= 0)
         trackSumP[tsIdx] += tk.p();
     }
   }
+  appendNeutralResiduals(tracksters_h, trackSumP, candidates);
+  appendNeutralCandidates(tracksters_h, evt.get(layerClustersToken_), neutralIdx, neutralPdg, candidates);
+  ticl::assignTimeToCandidates(candidates,
+                               inputTimingView,
+                               {.useMTDTiming = useMTDTiming_,
+                                .useTimingAverage = useTimingAverage_,
+                                .timingQualityThreshold = timingQualityThreshold_},
+                               bfield_.product(),
+                               *propagator_,
+                               *trackingGeometry_,
+                               *hgcons_);
+  auto muons = applyMuonKinematics(tracks_h, evt.getHandle(muons_token_), candidates);
 
-  // Neutral residuals, typed by the trackster PID.
+  const auto candidates_h = evt.put(std::make_unique<std::vector<TICLCandidate>>(std::move(candidates)));
+  auto muonMap = std::make_unique<edm::ValueMap<reco::MuonRef>>();
+  edm::ValueMap<reco::MuonRef>::Filler filler(*muonMap);
+  filler.insert(candidates_h, muons.muons.begin(), muons.muons.end());
+  filler.fill();
+  evt.put(std::move(muonMap), "muons");
+  evt.put(std::move(muons.trackType), "muonTrackType");
+}
+
+void TICLCandidateArbitrationProducer::appendNeutralResiduals(const edm::Handle<std::vector<Trackster>> &tracksters_h,
+                                                              const std::map<int, float> &trackSumP,
+                                                              std::vector<TICLCandidate> &candidates) const {
   for (auto const &[tsIdx, sumP] : trackSumP) {
     edm::Ptr<Trackster> tracksterPtr(tracksters_h, tsIdx);
     const float residual = tracksterPtr->regressed_energy() - sumP;
@@ -408,11 +445,16 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
     const auto dir = tracksterPtr->barycenter().unit();
     math::XYZTLorentzVector p4(residual * dir.x(), residual * dir.y(), residual * dir.z(), residual);
     cand.setP4(p4);
-    resultCandidates->push_back(cand);
+    candidates.push_back(cand);
   }
+}
 
-  // Neutral candidates. Each takes the share of its trackster energy that comes from the particle it represents.
-  const auto neutralShare = neutralEnergyShares(*tracksters_h, evt.get(layerClustersToken_), neutralIdx);
+void TICLCandidateArbitrationProducer::appendNeutralCandidates(const edm::Handle<std::vector<Trackster>> &tracksters_h,
+                                                               const std::vector<reco::CaloCluster> &layerClusters,
+                                                               const std::vector<int> &neutralIdx,
+                                                               const std::vector<int> &neutralPdg,
+                                                               std::vector<TICLCandidate> &candidates) const {
+  const auto neutralShare = neutralEnergyShares(*tracksters_h, layerClusters, neutralIdx);
   for (size_t k = 0; k < neutralIdx.size(); ++k) {
     edm::Ptr<Trackster> tracksterPtr(tracksters_h, neutralIdx[k]);
     edm::Ptr<reco::Track> trackPtr;
@@ -422,32 +464,26 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
     cand.setP4(cand.p4() * neutralShare[k]);
     if (cand.energy() < neutralMinEnergy_)
       continue;
-    resultCandidates->push_back(cand);
+    candidates.push_back(cand);
   }
+}
 
-  ticl::assignTimeToCandidates(*resultCandidates,
-                               inputTimingView,
-                               {useMTDTiming_, useTimingAverage_, timingQualityThreshold_},
-                               bfield_.product(),
-                               *propagator_,
-                               *trackingGeometry_,
-                               *hgcons_);
-
-  // Muons: a charged candidate takes the kinematics of the best muon track when takesMuonKinematics holds. A loose muon
-  // is accepted for a muon candidate only.
-  std::vector<reco::MuonRef> candidateMuons(resultCandidates->size());
-  auto muonTrackType = std::make_unique<std::vector<int>>(resultCandidates->size(), -1);
-  const auto muonH = evt.getHandle(muons_token_);
-  const auto muonOf = muonOfTrack(tracks_h, *muonH);
-  for (size_t i = 0; i < resultCandidates->size(); ++i) {
-    auto &cand = (*resultCandidates)[i];
+TICLCandidateArbitrationProducer::CandidateMuons TICLCandidateArbitrationProducer::applyMuonKinematics(
+    const edm::Handle<std::vector<reco::Track>> &tracks_h,
+    const edm::Handle<reco::MuonCollection> &muons_h,
+    std::vector<TICLCandidate> &candidates) const {
+  CandidateMuons muons{std::vector<reco::MuonRef>(candidates.size()),
+                       std::make_unique<std::vector<int>>(candidates.size(), -1)};
+  const auto muonOf = muonOfTrack(tracks_h, *muons_h);
+  for (size_t i = 0; i < candidates.size(); ++i) {
+    auto &cand = candidates[i];
     if (cand.charge() == 0 || cand.trackPtr().isNull())
       continue;
     const reco::TrackRef trackRef(tracks_h, cand.trackPtr().key());
     const int muId = muonOf[cand.trackPtr().key()];
     if (muId < 0)
       continue;
-    const reco::MuonRef muonRef(muonH, muId);
+    const reco::MuonRef muonRef(muons_h, muId);
     const bool muonCandidate = std::abs(cand.pdgId()) == 13;
     if (!takesMuonKinematics(muonRef, muonCandidate, !cand.tracksters().empty()))
       continue;
@@ -459,17 +495,10 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
     cand.setCharge(pf.charge());
     cand.setPdgId(-13 * pf.charge());
     cand.setVertex(pf.vertex());
-    candidateMuons[i] = muonRef;
-    (*muonTrackType)[i] = pf.bestMuonTrackType();
+    muons.muons[i] = muonRef;
+    (*muons.trackType)[i] = pf.bestMuonTrackType();
   }
-
-  const auto candidates_h = evt.put(std::move(resultCandidates));
-  auto muonMap = std::make_unique<edm::ValueMap<reco::MuonRef>>();
-  edm::ValueMap<reco::MuonRef>::Filler filler(*muonMap);
-  filler.insert(candidates_h, candidateMuons.begin(), candidateMuons.end());
-  filler.fill();
-  evt.put(std::move(muonMap), "muons");
-  evt.put(std::move(muonTrackType), "muonTrackType");
+  return muons;
 }
 
 void TICLCandidateArbitrationProducer::fillDescriptions(edm::ConfigurationDescriptions &descriptions) {
