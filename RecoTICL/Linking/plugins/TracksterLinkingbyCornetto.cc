@@ -56,6 +56,8 @@ TracksterLinkingbyCornetto::Features TracksterLinkingbyCornetto::computeFeatures
   f.phi.resize(n);
   f.rad.resize(n);
   f.em.resize(n);
+  f.time.resize(n);
+  f.timeError.resize(n);
   f.valid.resize(n);
   for (std::size_t i = 0; i < n; ++i) {
     auto const& ts = tracksters[i];
@@ -66,6 +68,8 @@ TracksterLinkingbyCornetto::Features TracksterLinkingbyCornetto::computeFeatures
     f.eta[i] = b.eta();
     f.phi[i] = b.phi();
     f.rad[i] = std::sqrt(b.Mag2());
+    f.time[i] = ts.time();
+    f.timeError[i] = ts.timeError();
     // -1 for a trackster with no PID: no probability, or only unknown (a merged trackster).
     float sum = 0.f;
     for (float v : ts.id_probabilities())
@@ -81,10 +85,7 @@ TracksterLinkingbyCornetto::Features TracksterLinkingbyCornetto::computeFeatures
 
 // A NaN position fails the cone and window tests. A NaN time error or EM probability
 // disables the time gate or the type veto for that pair.
-bool TracksterLinkingbyCornetto::compatible(const Inputs& input,
-                                            const Features& f,
-                                            unsigned int a,
-                                            unsigned int b) const {
+bool TracksterLinkingbyCornetto::compatible(const Features& f, unsigned int a, unsigned int b) const {
   if (!(f.bary[a].z() * f.bary[b].z() > 0.f))
     return false;  // same endcap only
   if (!(std::abs(f.eta[b] - f.eta[a]) <= etaWindow_) || !(std::abs(reco::deltaPhi(f.phi[b], f.phi[a])) <= etaWindow_))
@@ -92,9 +93,7 @@ bool TracksterLinkingbyCornetto::compatible(const Inputs& input,
   const auto s = cornetto::separationInCone(cone_, f.bary[a], f.rad[a], f.bary[b]);
   if (!s)
     return false;
-  auto const& ta = input.tracksters[a];
-  auto const& tb = input.tracksters[b];
-  if (!timeCompatible(ta.time(), ta.timeError(), tb.time(), tb.timeError(), *s))
+  if (!timeCompatible(f.time[a], f.timeError[a], f.time[b], f.timeError[b], *s))
     return false;
   if (typeVetoProbability_ > 0.f && f.em[a] >= 0.f && f.em[b] >= 0.f) {
     const float hi = typeVetoProbability_;
@@ -107,14 +106,9 @@ bool TracksterLinkingbyCornetto::compatible(const Inputs& input,
 
 // Each trackster searches the tile of its endcap within the window of cornetto::searchWindow, which
 // contains every anchor that can pass the cone.
-std::vector<unsigned int> TracksterLinkingbyCornetto::findParents(const Inputs& input,
-                                                                  const Features& f,
-                                                                  const Tiles& tiles) const {
+std::vector<unsigned int> TracksterLinkingbyCornetto::findParents(const Features& f, const Tiles& tiles) const {
   const auto n = static_cast<unsigned int>(f.energy.size());
-  // a ranks above b when it has more energy, or equal energy and a smaller index.
-  const auto ranksAbove = [&f](unsigned int a, unsigned int b) {
-    return f.energy[a] > f.energy[b] || (f.energy[a] == f.energy[b] && a < b);
-  };
+  const auto ranksAbove = [&f](unsigned int a, unsigned int b) { return cornetto::ranksAbove(f.energy, a, b); };
   std::vector<unsigned int> parents(n);
   for (unsigned int i = 0; i < n; ++i) {
     unsigned int best = i;
@@ -129,7 +123,7 @@ std::vector<unsigned int> TracksterLinkingbyCornetto::findParents(const Inputs& 
         for (int phiBin = box[2]; phiBin <= box[3]; ++phiBin) {
           for (unsigned int j : tile[tile.globalBin(etaBin, phiBin % TileConstants::nPhiBins)]) {
             const bool candidate = j != i && ranksAbove(j, i) && (best == i || ranksAbove(j, best));
-            if (candidate && compatible(input, f, j, i))
+            if (candidate && compatible(f, j, i))
               best = j;
           }
         }
@@ -138,38 +132,6 @@ std::vector<unsigned int> TracksterLinkingbyCornetto::findParents(const Inputs& 
     parents[i] = best;
   }
   return parents;
-}
-
-std::vector<std::vector<unsigned int>> TracksterLinkingbyCornetto::buildGroups(
-    const Inputs& input, const Features& f, const std::vector<unsigned int>& parents) const {
-  const auto n = static_cast<unsigned int>(parents.size());
-
-  // Pointer jumping to the root. Each round reads the result of the previous round only.
-  std::vector<unsigned int> root(parents);
-  std::vector<unsigned int> next(n);
-  for (bool changed = true; changed;) {
-    changed = false;
-    for (unsigned int i = 0; i < n; ++i) {
-      next[i] = root[root[i]];
-      changed |= next[i] != root[i];
-    }
-    root.swap(next);
-  }
-
-  // A trackster that is not compatible with its root leaves it.
-  std::vector<std::vector<unsigned int>> members(n);
-  for (unsigned int i = 0; i < n; ++i)
-    members[(root[i] == i || compatible(input, f, root[i], i)) ? root[i] : i].push_back(i);
-
-  std::vector<std::vector<unsigned int>> byMin(n);
-  for (auto& m : members)
-    if (!m.empty())
-      byMin[m.front()] = std::move(m);  // filled ascending, front() is the min
-  std::vector<std::vector<unsigned int>> groups;
-  for (auto& g : byMin)
-    if (!g.empty())
-      groups.push_back(std::move(g));
-  return groups;
 }
 
 void TracksterLinkingbyCornetto::linkTracksters(
@@ -185,7 +147,9 @@ void TracksterLinkingbyCornetto::linkTracksters(
     if (f.valid[i])
       (*tiles)[f.bary[i].z() > 0.f ? 1 : 0].fill(f.eta[i], f.phi[i], i);
 
-  auto groups = buildGroups(input, f, findParents(input, f, *tiles));
+  // A trackster that is not compatible with its root leaves it.
+  auto groups = cornetto::groups(cornetto::roots(findParents(f, *tiles)),
+                                 [&](unsigned int root, unsigned int i) { return compatible(f, root, i); });
 
   resultTracksters.reserve(resultTracksters.size() + groups.size());
   linkedResultTracksters.reserve(linkedResultTracksters.size() + groups.size());
