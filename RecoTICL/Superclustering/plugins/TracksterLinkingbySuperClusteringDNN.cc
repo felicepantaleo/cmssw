@@ -73,6 +73,9 @@ TracksterLinkingbySuperClusteringDNN::TracksterLinkingbySuperClusteringDNN(const
     throw cms::Exception("Configuration")
         << "TracksterLinkingbySuperClusteringDNN could not retrieve an ONNX session for 'onnxModelPath' = " << model;
   }
+  if (!filterByTracksterPID_ && emissionPIDThreshold_ != 0.f)
+    throw cms::Exception("Configuration")
+        << "TracksterLinkingbySuperClusteringDNN: emissionPIDThreshold applies only with filterByTracksterPID";
 }
 
 void TracksterLinkingbySuperClusteringDNN::initialize(const HGCalDDDConstants* hgcons,
@@ -105,18 +108,8 @@ float TracksterLinkingbySuperClusteringDNN::emProbability(const Trackster& tst) 
   return probTotal;
 }
 
-bool TracksterLinkingbySuperClusteringDNN::trackstersPassesPIDCut(const Trackster& tst) const {
-  if (filterByTracksterPID_) {
-    return emProbability(tst) >= PIDThreshold_;
-  } else
-    return true;
-}
-
-bool TracksterLinkingbySuperClusteringDNN::passesEmissionPIDCut(const Trackster& tst) const {
-  if (filterByTracksterPID_) {
-    return emProbability(tst) >= emissionPIDThreshold_;
-  } else
-    return true;
+bool TracksterLinkingbySuperClusteringDNN::passesPID(const Trackster& tst, float threshold) const {
+  return !filterByTracksterPID_ || emProbability(tst) >= threshold;
 }
 
 /**
@@ -294,7 +287,7 @@ void TracksterLinkingbySuperClusteringDNN::linkTracksters(
             break;
           }
 
-          if (!passesExplainedVarianceRatioCut(trackstersIndicesPt[seed_pt]) || !trackstersPassesPIDCut(ts_seed)) {
+          if (!passesExplainedVarianceRatioCut(trackstersIndicesPt[seed_pt]) || !passesPID(ts_seed, PIDThreshold_)) {
             continue;
           }
 
@@ -324,7 +317,7 @@ void TracksterLinkingbySuperClusteringDNN::linkTracksters(
   // A single trackster is a supercluster when it passes the emission PID cut.
   for (unsigned int ts_id = 0; ts_id < tracksterCount; ++ts_id) {
     if (!tracksterMask[ts_id] && inputTracksters[ts_id].raw_pt() >= seedPtThreshold_ &&
-        passesEmissionPIDCut(inputTracksters[ts_id])) {
+        passesPID(inputTracksters[ts_id], emissionPIDThreshold_)) {
       outputSuperclusters.emplace_back(std::initializer_list<unsigned int>{ts_id});
       resultTracksters.emplace_back(inputTracksters[ts_id]);
       linkedTracksterIdToInputTracksterId.emplace_back(std::initializer_list<unsigned int>{ts_id});
@@ -384,7 +377,7 @@ void TracksterLinkingbySuperClusteringDNN::fillPSetDescription(edm::ParameterSet
           {static_cast<int>(Trackster::ParticleType::photon), static_cast<int>(Trackster::ParticleType::electron)})
       ->setComment("List of PID particle types (ticl::Trackster::ParticleType enum) to consider for PID filtering");
   desc.add<float>("PIDThreshold", 0.8f)
-      ->setComment("Minimum summed PID score for a trackster to SEED a supercluster, i.e. to absorb others.");
+      ->setComment("Minimum summed PID score for a trackster to seed a supercluster, that is to absorb others.");
   desc.add<float>("emissionPIDThreshold", 0.f)
       ->setComment(
           "Minimum summed PID score for a trackster to be emitted as a standalone single-trackster supercluster. "
