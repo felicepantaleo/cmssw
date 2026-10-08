@@ -250,9 +250,11 @@ std::vector<std::vector<unsigned int>> GeneralInterpretationAlgo::link(const Inp
       fts = trajectoryStateTransform::initialFreeState(tk, bFieldProd);
     }
 
-    // to the HGCal front
-    const auto &tsos = prop.propagate(fts, firstDisk_[iSide]->surface());
-    if (tsos.isValid()) {
+    // to the HGCal front: the impact of the producer, when it gives the impacts
+    if (input.impacts != nullptr) {
+      if (const auto &impact = (*input.impacts)[i]; impact.valid)
+        trackPColl.emplace_back(Vector(impact.position.x(), impact.position.y(), impact.position.z()), i);
+    } else if (const auto &tsos = prop.propagate(fts, firstDisk_[iSide]->surface()); tsos.isValid()) {
       Vector trackP(tsos.globalPosition().x(), tsos.globalPosition().y(), tsos.globalPosition().z());
       trackPColl.emplace_back(trackP, i);
     }
@@ -331,44 +333,29 @@ std::vector<std::vector<unsigned int>> GeneralInterpretationAlgo::link(const Inp
           inputTimingView.posInMTD_x()[i], inputTimingView.posInMTD_y()[i], inputTimingView.posInMTD_z()[i]};
     }
 
-    for (auto const tsIdx : tsNearTk[i]) {
-      if (available[tsIdx] && timeAndEnergyCompatible(total_raw_energy,
-                                                      tracks[i],
-                                                      tracksters[tsIdx],
-                                                      track_time,
-                                                      track_timeErr,
-                                                      track_quality,
-                                                      track_beta,
-                                                      track_MtdPos,
-                                                      useMTDTiming)) {
-        // A trackster in both windows is linked once.
-        if (std::find(chargedCandidate.begin(), chargedCandidate.end(), tsIdx) != chargedCandidate.end())
-          continue;
-        chargedCandidate.push_back(tsIdx);
-        if (exclusive)
-          available[tsIdx] = false;
-        total_raw_energy += tracksters[tsIdx].raw_energy();
-      }
-    }
-    for (const unsigned tsIdx : tsNearTkAtInt[i]) {  // do the same for tk -> ts links at the interface
-      if (available[tsIdx] && timeAndEnergyCompatible(total_raw_energy,
-                                                      tracks[i],
-                                                      tracksters[tsIdx],
-                                                      track_time,
-                                                      track_timeErr,
-                                                      track_quality,
-                                                      track_beta,
-                                                      track_MtdPos,
-                                                      useMTDTiming)) {
-        // A trackster in both windows is linked once.
-        if (std::find(chargedCandidate.begin(), chargedCandidate.end(), tsIdx) != chargedCandidate.end())
-          continue;
-        chargedCandidate.push_back(tsIdx);
-        if (exclusive)
-          available[tsIdx] = false;
-        total_raw_energy += tracksters[tsIdx].raw_energy();
-      }
-    }
+    // The tracksters in the window at the front, then at the interface. A trackster in both windows is linked once.
+    auto tryLink = [&](unsigned int tsIdx) {
+      if (!available[tsIdx] || !timeAndEnergyCompatible(total_raw_energy,
+                                                        tracks[i],
+                                                        tracksters[tsIdx],
+                                                        track_time,
+                                                        track_timeErr,
+                                                        track_quality,
+                                                        track_beta,
+                                                        track_MtdPos,
+                                                        useMTDTiming))
+        return;
+      if (std::find(chargedCandidate.begin(), chargedCandidate.end(), tsIdx) != chargedCandidate.end())
+        return;
+      chargedCandidate.push_back(tsIdx);
+      if (exclusive)
+        available[tsIdx] = false;
+      total_raw_energy += tracksters[tsIdx].raw_energy();
+    };
+    for (const unsigned int tsIdx : tsNearTk[i])
+      tryLink(tsIdx);
+    for (const unsigned int tsIdx : tsNearTkAtInt[i])
+      tryLink(tsIdx);
     trackstersInTrackIndices[i] = chargedCandidate;
   }
   return trackstersInTrackIndices;
