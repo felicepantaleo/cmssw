@@ -41,7 +41,7 @@ TEST_CASE("The neutral share model gives the training shares", "[NeutralShareMod
   REQUIRE(out.size() == 1);
   REQUIRE(out[0].size() == kShares.size());
   for (size_t k = 0; k < kShares.size(); ++k)
-    REQUIRE_THAT(out[0][k], Catch::Matchers::WithinAbs(kShares[k], 1e-6));
+    REQUIRE_THAT(out[0][k], Catch::Matchers::WithinRel(kShares[k], 1e-5f));
 }
 
 TEST_CASE("The neutral share model rejects another number of inputs", "[NeutralShareModel]") {

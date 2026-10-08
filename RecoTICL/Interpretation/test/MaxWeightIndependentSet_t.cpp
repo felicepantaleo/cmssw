@@ -114,3 +114,32 @@ TEST_CASE("The set is maximal at every search budget", "[MaxWeightIndependentSet
     }
   }
 }
+
+TEST_CASE("A component of 64 nodes is solved exactly", "[MaxWeightIndependentSet]") {
+  // A path of 64 nodes: the best weight follows from dynamic programming over the path.
+  constexpr unsigned int n = 64;
+  Graph adj(n);
+  for (unsigned int i = 0; i + 1 < n; ++i) {
+    adj[i].push_back(i + 1);
+    adj[i + 1].push_back(i);
+  }
+  std::mt19937 gen(99);
+  std::uniform_real_distribution<float> uW(1.f, 10.f);
+  std::vector<float> w(n);
+  for (auto& x : w)
+    x = uW(gen);
+  // Best weight of the prefix with and without its last node.
+  float take = 0.f, skip = 0.f;
+  for (float x : w) {
+    const float t = skip + x;
+    skip = std::max(skip, take);
+    take = t;
+  }
+  ticl::MaxWeightIndependentSetStats stats;
+  const auto sel = ticl::maxWeightIndependentSet(w, adj, 64, 1000000, stats);
+  REQUIRE(independent(sel, adj));
+  REQUIRE(total(sel, w) == Catch::Approx(std::max(take, skip)).margin(1e-3));
+  REQUIRE(stats.exactComponents == 1);
+  REQUIRE(stats.greedyComponents == 0);
+  REQUIRE(stats.budgetExhausted == 0);
+}
