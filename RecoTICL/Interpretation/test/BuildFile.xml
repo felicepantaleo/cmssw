@@ -7,3 +7,14 @@
   <use name="PhysicsTools/ONNXRuntime"/>
   <use name="catch2"/>
 </bin>
+<bin name="testModelFeatures" file="ModelFeatures_t.cpp">
+  <use name="RecoTICL/Interpretation"/>
+  <use name="DataFormats/CaloRecHit"/>
+  <use name="DataFormats/HGCalReco"/>
+  <use name="DataFormats/Math"/>
+  <use name="DataFormats/TrackReco"/>
+  <use name="FWCore/ParameterSet"/>
+  <use name="PhysicsTools/ONNXRuntime"/>
+  <use name="eigen"/>
+  <use name="catch2"/>
+</bin>
