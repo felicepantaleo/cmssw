@@ -4,6 +4,7 @@
 <use name="DataFormats/Common"/>
 <use name="DataFormats/GeometrySurface"/>
 <use name="DataFormats/HGCalReco"/>
+<use name="DataFormats/Math"/>
 <use name="DataFormats/MuonReco"/>
 <use name="DataFormats/TrackReco"/>
 <use name="DataFormats/VertexReco"/>
