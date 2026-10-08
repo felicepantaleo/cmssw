@@ -1156,11 +1156,16 @@ void TICLInterpretationProducer::fillDescriptions(edm::ConfigurationDescriptions
   egammaDesc.addNode(edm::PluginDescription<TICLGeneralInterpretationPluginFactory>("type", "EGamma", true));
   desc.add<edm::ParameterSetDescription>("egammaInterpretationDescPSet", egammaDesc);
 
-  desc.add<std::string>("inferenceAlgo", "TracksterInferenceByPFN")
-      ->setComment("PID and energy regression of the footprints and of the final tracksters.");
   edm::ParameterSetDescription inferenceDesc;
   inferenceDesc.addNode(edm::PluginDescription<TracksterInferenceAlgoFactory>("type", "TracksterInferenceByPFN", true));
-  desc.add<edm::ParameterSetDescription>("pluginInferenceAlgoTracksterInferenceByPFN", inferenceDesc);
+  // The plugin and its parameter set pluginInferenceAlgo<plugin>.
+  desc.ifValue(edm::ParameterDescription<std::string>(
+                   "inferenceAlgo",
+                   "TracksterInferenceByPFN",
+                   true,
+                   edm::Comment("PID and energy regression of the footprints and of the final tracksters.")),
+               "TracksterInferenceByPFN" >> edm::ParameterDescription<edm::ParameterSetDescription>(
+                                                "pluginInferenceAlgoTracksterInferenceByPFN", inferenceDesc, true));
 
   desc.add<float>("arbitrationMaxSharedEnergyFraction", 0.2f)
       ->setComment("Two hypotheses conflict above this fraction of the smaller footprint energy in shared clusters.");
