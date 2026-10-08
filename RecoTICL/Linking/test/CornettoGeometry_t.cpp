@@ -68,3 +68,21 @@ TEST_CASE("A NaN position fails the cone test", "[CornettoGeometry]") {
   REQUIRE_FALSE(ticl::cornetto::separationInCone(cone, anchor, std::sqrt(anchor.Mag2()), nan));
   REQUIRE_FALSE(ticl::cornetto::separationInCone(cone, nan, std::sqrt(nan.Mag2()), anchor));
 }
+
+TEST_CASE("The cone test is the same in the two endcaps", "[CornettoGeometry]") {
+  const Cone cone{20.f, 60.f, 4.f, 0.05f};
+  std::mt19937 gen(777);
+  std::uniform_real_distribution<float> uEta(1.3f, 3.4f), uPhi(-3.14159265f, 3.14159265f), uZ(320.f, 520.f);
+  std::uniform_real_distribution<float> uShift(-10.f, 10.f);
+  auto mirror = [](const math::XYZVectorF& v) { return math::XYZVectorF(v.x(), v.y(), -v.z()); };
+  for (int k = 0; k < 100000; ++k) {
+    const auto anchor = fromEtaPhiZ(uEta(gen), uPhi(gen), uZ(gen));
+    const auto other = anchor + math::XYZVectorF(uShift(gen), uShift(gen), 4.f * uShift(gen));
+    const float rad = std::sqrt(anchor.Mag2());
+    const auto s = ticl::cornetto::separationInCone(cone, anchor, rad, other);
+    const auto sMirror = ticl::cornetto::separationInCone(cone, mirror(anchor), rad, mirror(other));
+    REQUIRE(s.has_value() == sMirror.has_value());
+    if (s)
+      REQUIRE(*s == *sMirror);
+  }
+}
