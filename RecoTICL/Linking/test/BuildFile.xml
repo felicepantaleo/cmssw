@@ -3,3 +3,7 @@
   <use name="DataFormats/Math"/>
   <use name="catch2"/>
 </bin>
+<bin name="testCornettoGrouping" file="CornettoGrouping_t.cpp">
+  <use name="RecoTICL/Linking"/>
+  <use name="catch2"/>
+</bin>

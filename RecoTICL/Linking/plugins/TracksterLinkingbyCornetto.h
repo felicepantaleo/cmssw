@@ -30,6 +30,7 @@
 
 #include "DataFormats/HGCalReco/interface/TICLLayerTile.h"
 #include "RecoTICL/Linking/interface/CornettoGeometry.h"
+#include "RecoTICL/Linking/interface/CornettoGrouping.h"
 #include "RecoTICL/Linking/interface/TracksterLinkingAlgoBase.h"
 
 namespace ticl {
@@ -91,17 +92,15 @@ namespace ticl {
       std::vector<float> phi;
       std::vector<float> rad;   // |bary|
       std::vector<float> em;    // EM probability, negative without a PID
+      std::vector<float> time;  // local to the barycenter [ns]
+      std::vector<float> timeError;
       std::vector<bool> valid;  // finite barycenter and energy
     };
 
     Features computeFeatures(const Inputs& input) const;
-    bool compatible(const Inputs& input, const Features& f, unsigned int a, unsigned int b) const;
+    bool compatible(const Features& f, unsigned int a, unsigned int b) const;
     bool timeCompatible(float tAnchor, float errAnchor, float tOther, float errOther, float path) const;
-    std::vector<unsigned int> findParents(const Inputs& input, const Features& f, const Tiles& tiles) const;
-    // Groups ordered by their smallest member. Each input trackster is in exactly one group.
-    std::vector<std::vector<unsigned int>> buildGroups(const Inputs& input,
-                                                       const Features& f,
-                                                       const std::vector<unsigned int>& parents) const;
+    std::vector<unsigned int> findParents(const Features& f, const Tiles& tiles) const;
 
     const float etaWindow_;
     const cornetto::Cone cone_;
