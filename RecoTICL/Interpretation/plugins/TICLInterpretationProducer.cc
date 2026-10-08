@@ -228,16 +228,54 @@ private:
   std::vector<float> modelWeights(const Opinions &opinions,
                                   const std::vector<std::vector<unsigned int>> &conflicts,
                                   const std::vector<reco::Track> &tracks) const;
-  // The trackster without the layer clusters that removed marks, and whether it is kept: layer clusters are left with
-  // a positive raw energy, at least claimMinEnergy when one was removed.
-  std::pair<Trackster, bool> without(const Trackster &ts,
-                                     const std::vector<bool> &removed,
-                                     const std::vector<reco::CaloCluster> &layerClusters) const;
+  // The trackster without the layer clusters that removed marks, when it is kept: layer clusters are left with a
+  // positive raw energy, at least claimMinEnergy when one was removed.
+  std::optional<Trackster> without(const Trackster &ts,
+                                   const std::vector<bool> &removed,
+                                   const std::vector<reco::CaloCluster> &layerClusters) const;
   // Leftovers: the input tracksters in descending raw energy, without the layer clusters that the winners and the
   // leftovers before them hold. held marks the layer clusters of the winners and of the leftovers.
   std::vector<Trackster> selectLeftovers(const edm::MultiSpan<Trackster> &tracksters,
                                          const std::vector<reco::CaloCluster> &layerClusters,
                                          std::vector<bool> &held) const;
+  // Leftovers and the pool of the track claim: the layer clusters of the leftovers and of the claimUnlinkedTracksters
+  // outside the input tracksters, without the winner footprints.
+  struct ClaimPool {
+    std::vector<Trackster> leftovers;
+    std::vector<unsigned int> pool;
+  };
+  ClaimPool claimPool(const edm::Event &evt,
+                      const Opinions &opinions,
+                      const std::vector<bool> &accepted,
+                      const edm::MultiSpan<Trackster> &tracksters,
+                      const std::vector<reco::CaloCluster> &layerClusters) const;
+  // Final tracksters: the winners, each without the layer clusters of the heavier winners; the leftovers without the
+  // claimed layer clusters; and one claim trackster per claiming track. A trackster that lost a layer cluster is kept
+  // when its raw energy is at least claimMinEnergy. A charged winner that loses its footprint keeps its track.
+  struct FinalTracksters {
+    std::unique_ptr<std::vector<Trackster>> tracksters;
+    std::vector<int> winnerIndex;    // the final trackster of each hypothesis (-1: none)
+    std::vector<int> leftoverIndex;  // the final trackster of each kept leftover
+  };
+  FinalTracksters finalTracksters(const Opinions &opinions,
+                                  const std::vector<bool> &accepted,
+                                  const std::vector<float> &solverWeights,
+                                  const std::vector<Trackster> &leftovers,
+                                  const std::vector<int> &claimingTrack,
+                                  const std::vector<reco::CaloCluster> &layerClusters,
+                                  std::size_t nTracks) const;
+  // Assignment maps: the mode and the final trackster of each track, the neutral final tracksters and their pdgId
+  // (0 until assignNeutralSpecies types them).
+  struct AssignmentProducts {
+    std::unique_ptr<std::vector<int>> trackToTrackster;
+    std::unique_ptr<std::vector<int>> trackMode;
+    std::unique_ptr<std::vector<int>> neutralIdx;
+    std::unique_ptr<std::vector<int>> neutralPdg;
+  };
+  static AssignmentProducts assignmentMaps(const std::vector<Hypothesis> &hypotheses,
+                                           const std::vector<bool> &accepted,
+                                           const FinalTracksters &finalTs,
+                                           std::size_t nTracks);
   // Track claim: each accepted charged hadron, recovery and track-only hypothesis that is not a single track on an EM
   // footprint, and each jet track, takes the pool layer clusters along its propagated track up to its expected deposit
   // minus its footprint. Returns the claiming track of each layer cluster (-1: none).
@@ -667,7 +705,7 @@ std::vector<float> TICLInterpretationProducer::modelWeights(const Opinions &opin
   return weights;
 }
 
-std::pair<Trackster, bool> TICLInterpretationProducer::without(
+std::optional<Trackster> TICLInterpretationProducer::without(
     const Trackster &ts, const std::vector<bool> &removed, const std::vector<reco::CaloCluster> &layerClusters) const {
   Trackster out(ts);
   out.vertices().clear();
@@ -679,8 +717,9 @@ std::pair<Trackster, bool> TICLInterpretationProducer::without(
       out.vertex_multiplicity().push_back(k < ts.vertex_multiplicity().size() ? ts.vertex_multiplicity()[k] : 1.f);
       raw += layerClusters[ts.vertices()[k]].energy();
     }
-  const bool keep = raw > 0.f && (out.vertices().size() == ts.vertices().size() || raw >= claimMinEnergy_);
-  return std::make_pair(std::move(out), keep);
+  if (!(raw > 0.f && (out.vertices().size() == ts.vertices().size() || raw >= claimMinEnergy_)))
+    return std::nullopt;
+  return out;
 }
 
 std::vector<Trackster> TICLInterpretationProducer::selectLeftovers(const edm::MultiSpan<Trackster> &tracksters,
@@ -693,12 +732,12 @@ std::vector<Trackster> TICLInterpretationProducer::selectLeftovers(const edm::Mu
   });
   std::vector<Trackster> leftovers;
   for (unsigned int iTs : order) {
-    auto [rest, keep] = without(tracksters[iTs], held, layerClusters);
-    if (!keep)
+    auto rest = without(tracksters[iTs], held, layerClusters);
+    if (!rest)
       continue;
-    for (auto v : rest.vertices())
+    for (auto v : rest->vertices())
       held[v] = true;
-    leftovers.push_back(std::move(rest));
+    leftovers.push_back(std::move(*rest));
   }
   return leftovers;
 }
@@ -905,24 +944,51 @@ void TICLInterpretationProducer::produce(edm::Event &evt, const edm::EventSetup 
   const auto accepted =
       maxWeightIndependentSet(solverWeights, conflicts, maxExactComponent_, searchBudget_, solverStats_);
 
-  // Leftovers and the track claim. The pool of the claim: the layer clusters of the leftovers and of the
-  // claimUnlinkedTracksters outside the input tracksters, without the winner footprints.
+  auto [leftovers, pool] = claimPool(evt, opinions, accepted, tracksters, layerClusters);
+  const auto claimingTrack = claimAlongTracks(opinions, accepted, tracks, impacts, layerClusters, pool);
+  auto finalTs =
+      finalTracksters(opinions, accepted, solverWeights, leftovers, claimingTrack, layerClusters, tracks.size());
+  auto &result = *finalTs.tracksters;
+  assignPCAtoTracksters(
+      result, layerClusters, layerClustersTimes, rhtools_.getPositionLayer(rhtools_.lastLayerEE()).z(), rhtools_, true);
+  runInference(layerClusters, result, inferenceCache, true);
+  // An EM trackster below emRawEnergyBelow keeps its raw energy: the regression is not trained for it.
+  for (auto &ts : result)
+    if (!ts.isHadronic() && ts.raw_energy() < emRawEnergyBelow_)
+      ts.setRegressedEnergy(ts.raw_energy());
+
+  auto maps = assignmentMaps(hypotheses, accepted, finalTs, tracks.size());
+  assignNeutralSpecies(result, *maps.neutralIdx, *maps.neutralPdg);
+
+  evt.put(std::move(finalTs.tracksters));
+  evt.put(std::move(maps.trackToTrackster), "trackToTrackster");
+  evt.put(std::move(maps.trackMode), "trackMode");
+  evt.put(std::move(maps.neutralIdx), "neutralIdx");
+  evt.put(std::move(maps.neutralPdg), "neutralPdg");
+}
+
+TICLInterpretationProducer::ClaimPool TICLInterpretationProducer::claimPool(
+    const edm::Event &evt,
+    const Opinions &opinions,
+    const std::vector<bool> &accepted,
+    const edm::MultiSpan<Trackster> &tracksters,
+    const std::vector<reco::CaloCluster> &layerClusters) const {
+  const auto &hypotheses = opinions.hypotheses;
   std::vector<bool> held(layerClusters.size(), false);
   std::vector<bool> inWinner(layerClusters.size(), false);
   for (unsigned int i = 0; i < hypotheses.size(); ++i)
     if (accepted[i] && hypotheses[i].tracksterIdx >= 0)
       for (auto v : opinions.tracksters[hypotheses[i].tracksterIdx].vertices())
         held[v] = inWinner[v] = true;
-  const auto leftovers = selectLeftovers(tracksters, layerClusters, held);
-  std::vector<unsigned int> pool;
+  ClaimPool claim{selectLeftovers(tracksters, layerClusters, held), {}};
   std::vector<bool> inPool(layerClusters.size(), false);
   auto addToPool = [&](unsigned int v) {
     if (!inWinner[v] && !inPool[v]) {
       inPool[v] = true;
-      pool.push_back(v);
+      claim.pool.push_back(v);
     }
   };
-  for (auto const &ts : leftovers)
+  for (auto const &ts : claim.leftovers)
     for (auto v : ts.vertices())
       addToPool(v);
   if (!claimUnlinkedTracksters_tokens_.empty()) {
@@ -936,13 +1002,20 @@ void TICLInterpretationProducer::produce(edm::Event &evt, const edm::EventSetup 
           if (!inInput[v])
             addToPool(v);
   }
-  const auto claimingTrack = claimAlongTracks(opinions, accepted, tracks, impacts, layerClusters, pool);
+  return claim;
+}
 
-  // Final tracksters: the winners, each without the layer clusters of the heavier winners; the leftovers without the
-  // claimed layer clusters; and one claim trackster per claiming track. A trackster that lost a layer cluster is kept
-  // when its raw energy is at least claimMinEnergy. A charged winner that loses its footprint keeps its track. The
-  // claim pool has no winner layer cluster.
-  auto result = std::make_unique<std::vector<Trackster>>();
+TICLInterpretationProducer::FinalTracksters TICLInterpretationProducer::finalTracksters(
+    const Opinions &opinions,
+    const std::vector<bool> &accepted,
+    const std::vector<float> &solverWeights,
+    const std::vector<Trackster> &leftovers,
+    const std::vector<int> &claimingTrack,
+    const std::vector<reco::CaloCluster> &layerClusters,
+    std::size_t nTracks) const {
+  const auto &hypotheses = opinions.hypotheses;
+  FinalTracksters finalTs{std::make_unique<std::vector<Trackster>>(), std::vector<int>(hypotheses.size(), -1), {}};
+  auto &result = *finalTs.tracksters;
   std::vector<bool> claimed(layerClusters.size());
   for (unsigned int v = 0; v < claimingTrack.size(); ++v)
     claimed[v] = claimingTrack[v] >= 0;
@@ -960,65 +1033,61 @@ void TICLInterpretationProducer::produce(edm::Event &evt, const edm::EventSetup 
     if (std::none_of(ts.vertices().begin(), ts.vertices().end(), [&](unsigned int v) { return heldByWinner[v]; })) {
       winnerTrackster[idx] = ts;
     } else {
-      auto [pruned, keep] = without(ts, heldByWinner, layerClusters);
-      if (!keep)
+      winnerTrackster[idx] = without(ts, heldByWinner, layerClusters);
+      if (!winnerTrackster[idx])
         continue;
-      winnerTrackster[idx] = std::move(pruned);
     }
     for (auto v : winnerTrackster[idx]->vertices())
       heldByWinner[v] = true;
   }
-  std::vector<int> winnerResultIdx(hypotheses.size(), -1);
   for (unsigned int idx = 0; idx < hypotheses.size(); ++idx) {
     if (!winnerTrackster[idx])
       continue;
-    winnerResultIdx[idx] = static_cast<int>(result->size());
-    result->push_back(std::move(*winnerTrackster[idx]));
+    finalTs.winnerIndex[idx] = static_cast<int>(result.size());
+    result.push_back(std::move(*winnerTrackster[idx]));
   }
-  std::vector<int> leftoverResultIdx;
   for (auto const &leftover : leftovers) {
-    auto [pruned, keep] = without(leftover, claimed, layerClusters);
-    if (!keep)
+    auto pruned = without(leftover, claimed, layerClusters);
+    if (!pruned)
       continue;
-    leftoverResultIdx.push_back(static_cast<int>(result->size()));
-    result->push_back(std::move(pruned));
+    finalTs.leftoverIndex.push_back(static_cast<int>(result.size()));
+    result.push_back(std::move(*pruned));
   }
   // One claim trackster per claiming track. No candidate uses it: the charged candidate takes its energy from the track.
-  std::vector<int> claimTracksterOfTrack(tracks.size(), -1);
+  std::vector<int> claimTracksterOfTrack(nTracks, -1);
   for (unsigned int v = 0; v < claimingTrack.size(); ++v) {
     if (claimingTrack[v] < 0)
       continue;
     int &iClaim = claimTracksterOfTrack[claimingTrack[v]];
     if (iClaim < 0) {
-      iClaim = static_cast<int>(result->size());
-      result->emplace_back();
+      iClaim = static_cast<int>(result.size());
+      result.emplace_back();
     }
-    (*result)[iClaim].vertices().push_back(v);
-    (*result)[iClaim].vertex_multiplicity().push_back(1.f);
+    result[iClaim].vertices().push_back(v);
+    result[iClaim].vertex_multiplicity().push_back(1.f);
   }
-  assignPCAtoTracksters(
-      *result, layerClusters, layerClustersTimes, rhtools_.getPositionLayer(rhtools_.lastLayerEE()).z(), rhtools_, true);
-  runInference(layerClusters, *result, inferenceCache, true);
-  // An EM trackster below emRawEnergyBelow keeps its raw energy: the regression is not trained for it.
-  for (auto &ts : *result)
-    if (!ts.isHadronic() && ts.raw_energy() < emRawEnergyBelow_)
-      ts.setRegressedEnergy(ts.raw_energy());
+  return finalTs;
+}
 
-  // Assignment maps.
-  auto trackToTrackster = std::make_unique<std::vector<int>>(tracks.size(), -1);
+TICLInterpretationProducer::AssignmentProducts TICLInterpretationProducer::assignmentMaps(
+    const std::vector<Hypothesis> &hypotheses,
+    const std::vector<bool> &accepted,
+    const FinalTracksters &finalTs,
+    std::size_t nTracks) {
   // The accepted set is maximal, so every selected track has an accepted hypothesis.
-  auto trackMode = std::make_unique<std::vector<int>>(tracks.size(), static_cast<int>(TrackMode::kNotSelected));
-  auto neutralIdx = std::make_unique<std::vector<int>>();
-  auto neutralPdg = std::make_unique<std::vector<int>>();
+  AssignmentProducts maps{std::make_unique<std::vector<int>>(nTracks, -1),
+                          std::make_unique<std::vector<int>>(nTracks, static_cast<int>(TrackMode::kNotSelected)),
+                          std::make_unique<std::vector<int>>(),
+                          std::make_unique<std::vector<int>>()};
   auto assign = [&](int iTrack, TrackMode mode, int iTrackster) {
-    (*trackMode)[iTrack] = static_cast<int>(mode);
-    (*trackToTrackster)[iTrack] = iTrackster;
+    (*maps.trackMode)[iTrack] = static_cast<int>(mode);
+    (*maps.trackToTrackster)[iTrack] = iTrackster;
   };
   for (unsigned int idx = 0; idx < hypotheses.size(); ++idx) {
     if (!accepted[idx])
       continue;
     const auto &h = hypotheses[idx];
-    const int iResult = winnerResultIdx[idx];
+    const int iResult = finalTs.winnerIndex[idx];
     switch (h.type) {
       case Hypothesis::Type::Muon:
         assign(h.trackIdx, TrackMode::kMuon, iResult);
@@ -1041,23 +1110,17 @@ void TICLInterpretationProducer::produce(edm::Event &evt, const edm::EventSetup 
         // A neutral winner the track claim emptied has no final trackster. A photon winner is a photon or a pi0; a
         // neutral-hadron winner is typed by the neutral species model, as a leftover.
         if (iResult >= 0) {
-          neutralIdx->push_back(iResult);
-          neutralPdg->push_back(h.type == Hypothesis::Type::Photon ? 22 : 0);
+          maps.neutralIdx->push_back(iResult);
+          maps.neutralPdg->push_back(h.type == Hypothesis::Type::Photon ? 22 : 0);
         }
         break;
     }
   }
-  for (int iTrackster : leftoverResultIdx) {
-    neutralIdx->push_back(iTrackster);
-    neutralPdg->push_back(0);
+  for (int iTrackster : finalTs.leftoverIndex) {
+    maps.neutralIdx->push_back(iTrackster);
+    maps.neutralPdg->push_back(0);
   }
-  assignNeutralSpecies(*result, *neutralIdx, *neutralPdg);
-
-  evt.put(std::move(result));
-  evt.put(std::move(trackToTrackster), "trackToTrackster");
-  evt.put(std::move(trackMode), "trackMode");
-  evt.put(std::move(neutralIdx), "neutralIdx");
-  evt.put(std::move(neutralPdg), "neutralPdg");
+  return maps;
 }
 
 void TICLInterpretationProducer::fillDescriptions(edm::ConfigurationDescriptions &descriptions) {
