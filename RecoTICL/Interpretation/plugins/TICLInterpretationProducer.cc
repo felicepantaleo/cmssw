@@ -53,6 +53,7 @@
 #include "RecoTICL/Inference/interface/TracksterInferenceAlgoFactory.h"
 #include "RecoTICL/Interpretation/interface/AssignmentMaps.h"
 #include "RecoTICL/Interpretation/interface/MaxWeightIndependentSet.h"
+#include "RecoTICL/Interpretation/interface/ModelFeatures.h"
 #include "RecoTICL/Interpretation/interface/MuonKinematics.h"
 #include "RecoTICL/Interpretation/interface/TICLInterpretationAlgoBase.h"
 #include "TICLInterpretationPluginFactory.h"
@@ -169,9 +170,6 @@ namespace {
     return h.type == Hypothesis::Type::Photon || h.type == Hypothesis::Type::NeutralHadron;
   }
 
-  // Number of features of the hypothesis model, and of the neutral species model.
-  constexpr unsigned int kNHypothesisFeatures = 30;
-  constexpr unsigned int kNNeutralFeatures = 12;
   // Classes of the neutral species model: photon, pi0, neutral hadron.
   constexpr unsigned int kNSpecies = 3;
 }  // namespace
@@ -222,6 +220,10 @@ private:
   // smaller footprint energy. Returns the sorted neighbours of each hypothesis.
   std::vector<std::vector<unsigned int>> conflictGraph(const Opinions &opinions,
                                                        const std::vector<reco::CaloCluster> &layerClusters) const;
+  // Size of the conflict component of each hypothesis, without the track-only hypotheses: the model was trained
+  // without them.
+  static std::vector<int> componentSizes(const std::vector<Hypothesis> &hypotheses,
+                                         const std::vector<std::vector<unsigned int>> &conflicts);
   // Platt-calibrated logit of the hypothesis model; trackOnlyWeight for a track-only hypothesis.
   std::vector<float> modelWeights(const Opinions &opinions,
                                   const std::vector<std::vector<unsigned int>> &conflicts,
@@ -335,7 +337,7 @@ TICLInterpretationProducer::TICLInterpretationProducer(const edm::ParameterSet &
           edm::ESInputTag("", ps.getParameter<std::string>("propagator")))),
       arbitrationModel_(
           *cache->getByModelPathString(ps.getParameter<edm::FileInPath>("arbitrationModelFile").relativePath()),
-          kNHypothesisFeatures,
+          modelfeatures::hypothesis::kN,
           1),
       maxSharedEnergyFraction_(ps.getParameter<float>("arbitrationMaxSharedEnergyFraction")),
       plattA_(ps.getParameter<float>("arbitrationPlattA")),
@@ -350,7 +352,7 @@ TICLInterpretationProducer::TICLInterpretationProducer(const edm::ParameterSet &
       claimRadiusSlope_(ps.getParameter<float>("arbitrationTrackClaimRadiusSlope")),
       claimMinEnergy_(ps.getParameter<float>("arbitrationTrackClaimMinEnergy")),
       neutralModel_(*cache->getByModelPathString(ps.getParameter<edm::FileInPath>("neutralModelFile").relativePath()),
-                    kNNeutralFeatures,
+                    modelfeatures::neutralSpecies::kN,
                     kNSpecies),
       neutralModelThreshold_(ps.getParameter<float>("neutralModelThreshold")),
       emRawEnergyBelow_(ps.getParameter<float>("emRawEnergyBelow")) {
@@ -602,13 +604,9 @@ std::vector<std::vector<unsigned int>> TICLInterpretationProducer::conflictGraph
   return adj;
 }
 
-std::vector<float> TICLInterpretationProducer::modelWeights(const Opinions &opinions,
-                                                            const std::vector<std::vector<unsigned int>> &conflicts,
-                                                            const std::vector<reco::Track> &tracks) const {
-  const auto &hypotheses = opinions.hypotheses;
+std::vector<int> TICLInterpretationProducer::componentSizes(const std::vector<Hypothesis> &hypotheses,
+                                                            const std::vector<std::vector<unsigned int>> &conflicts) {
   const unsigned int nH = hypotheses.size();
-  // Size of the conflict component of each hypothesis, without the track-only hypotheses: the model was trained
-  // without them.
   std::vector<unsigned int> compId(nH, nH);
   std::vector<int> compSize(nH, 1);
   for (unsigned int s0 = 0; s0 < nH; ++s0) {
@@ -629,6 +627,16 @@ std::vector<float> TICLInterpretationProducer::modelWeights(const Opinions &opin
     for (unsigned int v : members)
       compSize[v] = members.size();
   }
+  return compSize;
+}
+
+std::vector<float> TICLInterpretationProducer::modelWeights(const Opinions &opinions,
+                                                            const std::vector<std::vector<unsigned int>> &conflicts,
+                                                            const std::vector<reco::Track> &tracks) const {
+  using modelfeatures::hypothesis::kN;
+  const auto &hypotheses = opinions.hypotheses;
+  const unsigned int nH = hypotheses.size();
+  const auto compSize = componentSizes(hypotheses, conflicts);
   // Tracks that carry a muon or an electron hypothesis.
   std::vector<bool> muonTrack(tracks.size(), false), electronTrack(tracks.size(), false);
   for (auto const &h : hypotheses)
@@ -637,75 +645,20 @@ std::vector<float> TICLInterpretationProducer::modelWeights(const Opinions &opin
     else if (h.trackIdx >= 0 && h.type == Hypothesis::Type::Electron)
       electronTrack[h.trackIdx] = true;
 
-  // The model scores the hypotheses of the interpretations, with the features in the order of training.
+  // The model scores the hypotheses of the interpretations; a track-only hypothesis takes trackOnlyWeight.
   std::vector<unsigned int> rows;
   for (unsigned int i = 0; i < nH; ++i)
     if (!isTrackOnly(hypotheses[i]))
       rows.push_back(i);
-  std::vector<float> features(rows.size() * kNHypothesisFeatures, 0.f);
+  std::vector<float> features(rows.size() * kN, 0.f);
   for (unsigned int r = 0; r < rows.size(); ++r) {
     const auto &h = hypotheses[rows[r]];
-    float *x = &features[r * kNHypothesisFeatures];
-    static_assert(static_cast<int>(Hypothesis::Type::RecoveryChargedHadron) == 6, "one-hot slots 0-6 are the types");
-    x[static_cast<int>(h.type)] = 1.f;
-    x[7] = h.score;
-    const bool hasTs = h.tracksterIdx >= 0;
-    const Trackster *ts = hasTs ? &opinions.tracksters[h.tracksterIdx] : nullptr;
-    const float rawE = hasTs ? ts->raw_energy() : -1.f;
-    const bool hasE = rawE > 0.f;
-    const float tsEta = hasE ? ts->barycenter().eta() : -99.f;
-    const float tsPhi = hasE ? ts->barycenter().phi() : -99.f;
-    x[8] = hasE ? std::log1p(rawE) : -1.f;
-    x[9] = hasE ? ts->raw_em_energy() / std::max(rawE, 1e-6f) : -1.f;
-    x[10] = hasE ? std::abs(tsEta) : -1.f;
-    static_assert(std::tuple_size_v<InferenceCache::Probabilities> == 8, "the hypothesis model reads 8 PID classes");
-    if (hasTs)
-      std::copy(ts->id_probabilities().begin(), ts->id_probabilities().end(), x + 11);
-    else
-      std::fill(x + 11, x + 19, -1.f);
-    x[19] = hasTs ? static_cast<float>(ts->vertices().size()) : 0.f;
-    x[20] = static_cast<float>(h.trackIdxs.size());
-    float trackP = -1.f, trackPt = -1.f, trackEta = -1.f, dR = -1.f;
-    if (h.trackIdx >= 0) {
-      const auto &tk = tracks[h.trackIdx];
-      trackP = tk.p();
-      trackPt = tk.pt();
-      trackEta = tk.eta();
-      const auto dir = tk.outerOk() ? tk.outerMomentum() : tk.momentum();
-      dR = hasE ? reco::deltaR(dir.eta(), dir.phi(), tsEta, tsPhi) : -1.f;
-    } else if (!h.trackIdxs.empty()) {
-      // Jet: scalar sums of p and pt, direction of the summed outer momenta.
-      math::XYZVector sum;
-      trackP = trackPt = 0.f;
-      for (int iTk : h.trackIdxs) {
-        const auto &tk = tracks[iTk];
-        trackP += tk.p();
-        trackPt += tk.pt();
-        sum += tk.outerOk() ? tk.outerMomentum() : tk.momentum();
-      }
-      trackEta = sum.eta();
-      dR = hasE ? reco::deltaR(sum.eta(), sum.phi(), tsEta, tsPhi) : -1.f;
-    }
-    x[21] = trackP > 0.f ? std::log1p(trackP) : -1.f;
-    x[22] = trackPt;
-    x[23] = trackP > 0.f ? std::abs(trackEta) : -1.f;
-    const float eOverP = (hasE && trackP > 0.f) ? rawE / trackP : -1.f;
-    x[24] = std::clamp(eOverP, -1.f, 20.f);
-    x[25] = dR;
-    // x[26]: GSF track flag of the training sample, always 0.
-    x[27] = static_cast<float>(compSize[rows[r]]);
-    // Tracks of the hypothesis that also have a muon or an electron hypothesis.
-    auto countLeptonHyps = [&](int iTk) {
-      if (iTk >= 0) {
-        x[28] += muonTrack[iTk] ? 1.f : 0.f;
-        x[29] += electronTrack[iTk] ? 1.f : 0.f;
-      }
-    };
-    if (h.trackIdxs.empty())
-      countLeptonHyps(h.trackIdx);
-    else
-      for (int iTk : h.trackIdxs)
-        countLeptonHyps(iTk);
+    const Trackster *footprint = h.tracksterIdx >= 0 ? &opinions.tracksters[h.tracksterIdx] : nullptr;
+    modelfeatures::fillHypothesisFeatures(h,
+                                          footprint,
+                                          tracks,
+                                          {compSize[rows[r]], muonTrack, electronTrack},
+                                          std::span<float, kN>(features.data() + r * kN, kN));
   }
   const std::vector<float> logits = arbitrationModel_.logits(std::move(features), rows.size());
   std::vector<float> weights(nH, trackOnlyWeight_);
@@ -888,6 +841,7 @@ std::vector<int> TICLInterpretationProducer::claimAlongTracks(const Opinions &op
 void TICLInterpretationProducer::assignNeutralSpecies(const std::vector<Trackster> &tracksters,
                                                       const std::vector<int> &neutralIdx,
                                                       std::vector<int> &neutralPdg) const {
+  using modelfeatures::neutralSpecies::kN;
   std::vector<unsigned int> rows;
   std::vector<float> x;
   for (unsigned int k = 0; k < neutralIdx.size(); ++k) {
@@ -895,11 +849,8 @@ void TICLInterpretationProducer::assignNeutralSpecies(const std::vector<Trackste
     if (!(ts.raw_energy() > 0.f))
       continue;
     rows.push_back(k);
-    x.insert(x.end(), ts.id_probabilities().begin(), ts.id_probabilities().end());
-    x.push_back(ts.raw_em_energy() / ts.raw_energy());
-    x.push_back(std::log1p(ts.raw_energy()));
-    x.push_back(std::abs(ts.barycenter().eta()));
-    x.push_back(static_cast<float>(ts.vertices().size()));
+    x.resize(x.size() + kN, 0.f);
+    modelfeatures::fillNeutralSpeciesFeatures(ts, std::span<float, kN>(x.data() + x.size() - kN, kN));
   }
   const auto logits = neutralModel_.logits(std::move(x), rows.size());
   for (unsigned int r = 0; r < rows.size(); ++r) {

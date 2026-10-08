@@ -34,6 +34,7 @@
 #include "RecoParticleFlow/PFProducer/interface/PFMuonAlgo.h"
 #include "RecoTICL/Interpretation/interface/AssignmentMaps.h"
 #include "RecoTICL/Interpretation/interface/CandidateTime.h"
+#include "RecoTICL/Interpretation/interface/ModelFeatures.h"
 #include "RecoTICL/Interpretation/interface/MuonKinematics.h"
 #include "FWCore/ParameterSet/interface/FileInPath.h"
 #include "PhysicsTools/ONNXRuntime/interface/ONNXRuntime.h"
@@ -101,7 +102,6 @@ private:
   const edm::EDGetTokenT<std::vector<reco::CaloCluster>> layerClustersToken_;
   const cms::Ort::ONNXRuntime &neutralShareModel_;
   const float neutralMinEnergy_;
-  static constexpr unsigned int kNNeutralShareFeatures = 31;
   std::vector<float> neutralEnergyShares(const std::vector<Trackster> &tracksters,
                                          const std::vector<reco::CaloCluster> &layerClusters,
                                          const std::vector<int> &neutralIdx) const;
@@ -234,13 +234,13 @@ std::vector<float> TICLCandidateArbitrationProducer::neutralEnergyShares(
   }
   constexpr float kNearDeltaR = 0.2f;
 
-  std::vector<float> x;
-  x.reserve(neutralIdx.size() * kNNeutralShareFeatures);
-  for (const int idx : neutralIdx) {
+  using modelfeatures::neutralShare::kN;
+  std::vector<float> x(neutralIdx.size() * kN, 0.f);
+  for (size_t k = 0; k < neutralIdx.size(); ++k) {
+    const int idx = neutralIdx[k];
     const auto &ts = tracksters[idx];
-    const auto &b = ts.barycenter();
     const float bEta = barycenterEta[idx], bPhi = barycenterPhi[idx];
-    const int side = b.z() > 0.f ? 1 : 0;
+    const int side = ts.barycenter().z() > 0.f ? 1 : 0;
     float nearEnergy = 0.f;
     int nNear = 0;
     const auto &tile = (*tiles)[side];
@@ -257,55 +257,13 @@ std::vector<float> TICLCandidateArbitrationProducer::neutralEnergyShares(
             ++nNear;
           }
     }
-    x.push_back(std::log(std::max(ts.regressed_energy(), 1e-3f)));
-    x.push_back(std::log(std::max(ts.raw_energy(), 1e-3f)));
-    x.push_back(ts.raw_em_energy() / std::max(ts.raw_energy(), 1e-6f));
-    x.push_back(std::abs(bEta));
-    x.push_back(std::log1p(static_cast<float>(ts.vertices().size())));
-    x.insert(x.end(), ts.id_probabilities().begin(), ts.id_probabilities().end());
-    x.push_back(std::log1p(nearEnergy));
-    x.push_back(std::log1p(sideEnergy[side]));
-    x.push_back(static_cast<float>(nNear));
-    for (int k = 0; k < 3; ++k)
-      x.push_back(std::log(std::max(ts.eigenvalues()[k], 1e-3f)));
-    for (int k = 0; k < 3; ++k)
-      x.push_back(ts.sigmasPCA()[k]);
-    for (int k = 0; k < 3; ++k)
-      x.push_back(ts.sigmas()[k]);
-    // Layer clusters: the largest energy share, the energy share within 2 and 5 cm of the main axis, the
-    // energy-weighted transverse rms (cm), the smallest |z| and the |z| extent.
-    auto axis = ts.eigenvectors(0);
-    if (!(axis.mag2() > 0.f) || !std::isfinite(axis.mag2()))
-      axis = b;
-    axis = axis.unit();
-    float eSum = 0.f, eMax = 0.f, eCore2 = 0.f, eCore5 = 0.f, r2Sum = 0.f;
-    float zMin = std::numeric_limits<float>::max(), zMax = 0.f;
-    for (size_t i = 0; i < ts.vertices().size(); ++i) {
-      const auto &lc = layerClusters[ts.vertices(i)];
-      const float e = lc.energy() / std::max<float>(1.f, ts.vertex_multiplicity(i));
-      const Trackster::Vector d(lc.x() - b.x(), lc.y() - b.y(), lc.z() - b.z());
-      const float along = d.Dot(axis);
-      const float r = std::sqrt(std::max(0.f, d.mag2() - along * along));
-      eSum += e;
-      eMax = std::max(eMax, e);
-      eCore2 += r < 2.f ? e : 0.f;
-      eCore5 += r < 5.f ? e : 0.f;
-      r2Sum += e * r * r;
-      zMin = std::min(zMin, std::abs(static_cast<float>(lc.z())));
-      zMax = std::max(zMax, std::abs(static_cast<float>(lc.z())));
-    }
-    if (eSum > 0.f)
-      x.insert(x.end(), {eMax / eSum, eCore2 / eSum, eCore5 / eSum, std::sqrt(r2Sum / eSum), zMin, zMax - zMin});
-    else
-      x.insert(x.end(), {-1.f, -1.f, -1.f, -1.f, -1.f, 0.f});
+    modelfeatures::fillNeutralShareFeatures(
+        ts, layerClusters, {nearEnergy, nNear, sideEnergy[side]}, std::span<float, kN>(x.data() + k * kN, kN));
   }
-  for (auto &v : x)
-    if (!std::isfinite(v))
-      v = 0.f;
 
   const int64_t rows = neutralIdx.size();
   cms::Ort::FloatArrays input{std::move(x)};
-  auto result = neutralShareModel_.run({"features"}, input, {{rows, kNNeutralShareFeatures}}, {}, rows);
+  auto result = neutralShareModel_.run({"features"}, input, {{rows, static_cast<int64_t>(kN)}}, {}, rows);
   if (result.empty() || result[0].size() != neutralIdx.size())
     throw cms::Exception("LogicError") << "TICLCandidateArbitrationProducer: expected " << rows
                                        << " outputs from the neutral share model";
