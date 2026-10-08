@@ -442,7 +442,9 @@ void TICLCandidateProducer::produce(edm::Event &evt, const edm::EventSetup &es) 
 
   ticl::assignTimeToCandidates(*resultCandidates,
                                inputTimingView,
-                               {useMTDTiming_, useTimingAverage_, timingQualityThreshold_},
+                               {.useMTDTiming = useMTDTiming_,
+                                .useTimingAverage = useTimingAverage_,
+                                .timingQualityThreshold = timingQualityThreshold_},
                                bfield_.product(),
                                *propagator_,
                                *trackingGeometry_,
