@@ -23,6 +23,7 @@
 
 #include "DataFormats/CaloRecHit/interface/CaloCluster.h"
 #include "DataFormats/Phase2TrackerCluster/interface/Phase2TrackerCluster1D.h"
+#include "DataFormats/HGCalReco/interface/TICLCandidate.h"
 #include "DataFormats/HGCalReco/interface/Trackster.h"
 #include "DataFormats/TrackReco/interface/Track.h"
 #include "DataFormats/TrackerRecHit2D/interface/TrackerSingleRecHit.h"
@@ -139,6 +140,21 @@ namespace truth {
       const float multiplicity = v < multiplicities.size() && multiplicities[v] > 0.f ? multiplicities[v] : 1.f;
       for (auto const& [detId, fraction] : layerClusters[lc].hitsAndFractions())
         hits.push_back(RecoHit{.detId = detId.rawId(), .fraction = fraction / multiplicity});
+    }
+    sortAndCoalesce(hits);
+    return hits;
+  }
+
+  // TICLCandidate -> the (DetId, fraction) of the layer clusters of all its tracksters, each trackster as above.
+  // Empty for a candidate without a trackster, which only its track can match.
+  inline std::vector<RecoHit> recoHits(TICLCandidate const& candidate,
+                                       std::vector<reco::CaloCluster> const& layerClusters) {
+    std::vector<RecoHit> hits;
+    for (auto const& trackster : candidate.tracksters()) {
+      if (trackster.isNull())
+        continue;
+      auto const tracksterHits = recoHits(*trackster, layerClusters);
+      hits.insert(hits.end(), tracksterHits.begin(), tracksterHits.end());
     }
     sortAndCoalesce(hits);
     return hits;
