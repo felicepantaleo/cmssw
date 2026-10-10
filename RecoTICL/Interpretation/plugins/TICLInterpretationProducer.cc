@@ -1229,7 +1229,7 @@ void TICLInterpretationProducer::fillDescriptions(edm::ConfigurationDescriptions
       ->setComment("Max branch-and-bound calls per component; then the best set found is kept.");
   desc.add<bool>("arbitrationVetoJetOnEMFootprint", true)
       ->setComment("A jet hypothesis on an EM footprint (P(photon) + P(electron) >= 0.5) is never accepted.");
-  desc.add<float>("arbitrationTrackClaimProtectEMThreshold", 0.f)
+  desc.add<float>("arbitrationTrackClaimProtectEMThreshold", 0.5f)
       ->setComment(
           "A leftover whose input trackster has P(photon) + P(electron) at or above this value keeps its layer "
           "clusters out of the track claim. 0 disables the test.");
