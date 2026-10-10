@@ -53,6 +53,9 @@ namespace ticl {
     const float mip_energy_max_;
     // Hypotheses: the tracksters in the delta_tk_ts window within this transverse distance [cm] of the track.
     const float max_distance_;
+    // Hypotheses: the window is centred on the track impact at the HGCAL front when it is valid, else on the outermost
+    // momentum direction.
+    const bool windowAtImpact_;
   };
 
 }  // namespace ticl
