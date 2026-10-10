@@ -1227,7 +1227,7 @@ void TICLInterpretationProducer::fillDescriptions(edm::ConfigurationDescriptions
       ->setComment("Largest component solved by branch and bound (at most 64); larger ones are greedy.");
   desc.add<unsigned int>("arbitrationSearchBudget", 1000000)
       ->setComment("Max branch-and-bound calls per component; then the best set found is kept.");
-  desc.add<bool>("arbitrationVetoJetOnEMFootprint", false)
+  desc.add<bool>("arbitrationVetoJetOnEMFootprint", true)
       ->setComment("A jet hypothesis on an EM footprint (P(photon) + P(electron) >= 0.5) is never accepted.");
   desc.add<float>("arbitrationTrackClaimProtectEMThreshold", 0.f)
       ->setComment(
