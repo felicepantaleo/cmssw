@@ -531,7 +531,7 @@ void TICLCandidateArbitrationProducer::fillDescriptions(edm::ConfigurationDescri
   desc.add<float>("emTracksterConstant", 0.22f)->setComment("Constant term of the EM trackster resolution.");
   desc.add<float>("energyCompatibilityNSigma", 3.0f)
       ->setComment("Track and trackster energies agree within this number of combined errors.");
-  desc.add<float>("electronMinEOverP", 0.f)
+  desc.add<float>("electronMinEOverP", 0.7f)
       ->setComment(
           "A charged hadron or recovery winner on an EM trackster is an electron only above this trackster energy over "
           "track momentum, else a charged pion. 0 disables the test.");
