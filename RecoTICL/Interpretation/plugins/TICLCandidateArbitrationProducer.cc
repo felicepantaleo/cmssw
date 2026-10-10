@@ -91,6 +91,9 @@ private:
   const float emTracksterStochastic_;
   const float emTracksterConstant_;
   const float energyCompatibilityNSigma_;
+  // A charged hadron or recovery winner on an EM trackster is an electron only when the trackster energy over the track
+  // momentum is above electronMinEOverP_, else a charged pion. 0 disables the test.
+  const float electronMinEOverP_;
 
   // A charged candidate whose track belongs to a muon takes the kinematics of the best muon track (PFMuonAlgo).
   const edm::EDGetTokenT<reco::MuonCollection> muons_token_;
@@ -190,6 +193,7 @@ TICLCandidateArbitrationProducer::TICLCandidateArbitrationProducer(const edm::Pa
       emTracksterStochastic_(ps.getParameter<float>("emTracksterStochastic")),
       emTracksterConstant_(ps.getParameter<float>("emTracksterConstant")),
       energyCompatibilityNSigma_(ps.getParameter<float>("energyCompatibilityNSigma")),
+      electronMinEOverP_(ps.getParameter<float>("electronMinEOverP")),
       muons_token_(consumes<reco::MuonCollection>(ps.getParameter<edm::InputTag>("muonSrc"))),
       pfmu_(std::make_unique<PFMuonAlgo>(ps.getParameterSet("pfMuonAlgoParameters"), false)),
       layerClustersToken_(consumes<std::vector<reco::CaloCluster>>(ps.getParameter<edm::InputTag>("layerClusters"))),
@@ -391,12 +395,17 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
       if (tsIdx >= 0)
         trackSumP[tsIdx] += tk.p();
     } else if (tracksterPtr.isNonnull() && !tracksterPtr->isHadronic()) {
-      // Charged hadron or recovery on an EM trackster: an electron (the trackster PID), with the combined energy along
-      // the track. A compatible trackster is all in the combined energy; else its excess becomes a neutral residual.
+      // Charged hadron or recovery on an EM trackster: an electron (the trackster PID) when E/p passes
+      // electronMinEOverP_, else a charged pion, with the combined energy along the track. A compatible trackster is all
+      // in the combined energy; else its excess becomes a neutral residual.
       TICLCandidate cand(trackPtr, tracksterPtr);
       const float p = tk.p();
-      const auto combined = combinedEnergy(p, trackMomentumErrorScale_ * tk.qoverpError() * p * p, 0.f, *tracksterPtr);
-      cand.setP4(p4Along(tk.momentum(), combined.energy, 0.f));
+      const bool electron = electronMinEOverP_ <= 0.f || tracksterPtr->regressed_energy() > electronMinEOverP_ * p;
+      const float mass = electron ? 0.f : ticl::mpion;
+      if (!electron)
+        cand.setPdgId(211 * tk.charge());
+      const auto combined = combinedEnergy(p, trackMomentumErrorScale_ * tk.qoverpError() * p * p, mass, *tracksterPtr);
+      cand.setP4(p4Along(tk.momentum(), combined.energy, mass));
       candidates.push_back(cand);
       trackSumP[tsIdx] += combined.compatible ? tracksterPtr->regressed_energy() : combined.energy;
     } else {
@@ -522,6 +531,10 @@ void TICLCandidateArbitrationProducer::fillDescriptions(edm::ConfigurationDescri
   desc.add<float>("emTracksterConstant", 0.22f)->setComment("Constant term of the EM trackster resolution.");
   desc.add<float>("energyCompatibilityNSigma", 3.0f)
       ->setComment("Track and trackster energies agree within this number of combined errors.");
+  desc.add<float>("electronMinEOverP", 0.f)
+      ->setComment(
+          "A charged hadron or recovery winner on an EM trackster is an electron only above this trackster energy over "
+          "track momentum, else a charged pion. 0 disables the test.");
   desc.add<edm::FileInPath>("neutralShareModel",
                             edm::FileInPath("RecoTICL/Interpretation/data/neutralEnergy/neutralShare_mlp_v1.onnx"))
       ->setComment("ONNX model of the share of a neutral trackster energy that comes from the particle it represents.");
