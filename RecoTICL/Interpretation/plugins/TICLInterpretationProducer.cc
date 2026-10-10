@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <limits>
 #include <map>
 #include <memory>
 #include <numeric>
@@ -135,6 +136,16 @@ namespace {
       return entries_.size() - 1;
     }
     const Entry &operator[](unsigned int i) const { return entries_[i]; }
+    // The entry of ts, or nullptr when there is none.
+    const Entry *find(const Trackster &ts) const {
+      const auto range = index_.equal_range(hash(ts));
+      for (auto it = range.first; it != range.second; ++it) {
+        const auto &e = entries_[it->second];
+        if (e.vertices == ts.vertices() && e.multiplicities == ts.vertex_multiplicity())
+          return &e;
+      }
+      return nullptr;
+    }
     void storePID(unsigned int i, const Trackster &ts) {
       std::copy(ts.id_probabilities().begin(), ts.id_probabilities().end(), entries_[i].probabilities.begin());
       entries_[i].hasPID = true;
@@ -224,7 +235,8 @@ private:
   // without them.
   static std::vector<int> componentSizes(const std::vector<Hypothesis> &hypotheses,
                                          const std::vector<std::vector<unsigned int>> &conflicts);
-  // Platt-calibrated logit of the hypothesis model; trackOnlyWeight for a track-only hypothesis.
+  // Platt-calibrated logit of the hypothesis model; trackOnlyWeight for a track-only hypothesis; -infinity for a jet
+  // on an EM footprint when vetoJetOnEMFootprint is set.
   std::vector<float> modelWeights(const Opinions &opinions,
                                   const std::vector<std::vector<unsigned int>> &conflicts,
                                   const std::vector<reco::Track> &tracks) const;
@@ -234,12 +246,15 @@ private:
                                    const std::vector<bool> &removed,
                                    const std::vector<reco::CaloCluster> &layerClusters) const;
   // Leftovers: the input tracksters in descending raw energy, without the layer clusters that the winners and the
-  // leftovers before them hold. held marks the layer clusters of the winners and of the leftovers.
+  // leftovers before them hold. held marks the layer clusters of the winners and of the leftovers. source is the input
+  // trackster of each leftover.
   std::vector<Trackster> selectLeftovers(const edm::MultiSpan<Trackster> &tracksters,
                                          const std::vector<reco::CaloCluster> &layerClusters,
-                                         std::vector<bool> &held) const;
+                                         std::vector<bool> &held,
+                                         std::vector<unsigned int> &source) const;
   // Leftovers and the pool of the track claim: the layer clusters of the leftovers and of the claimUnlinkedTracksters
-  // outside the input tracksters, without the winner footprints.
+  // outside the input tracksters, without the winner footprints. With claimProtectEMThreshold, a leftover whose input
+  // trackster has P(photon) + P(electron) at or above it keeps its layer clusters out of the pool.
   struct ClaimPool {
     std::vector<Trackster> leftovers;
     std::vector<unsigned int> pool;
@@ -247,6 +262,7 @@ private:
   ClaimPool claimPool(const edm::Event &evt,
                       const Opinions &opinions,
                       const std::vector<bool> &accepted,
+                      const InferenceCache &inferenceCache,
                       const edm::MultiSpan<Trackster> &tracksters,
                       const std::vector<reco::CaloCluster> &layerClusters) const;
   // Final tracksters: the winners, each without the layer clusters of the heavier winners; the leftovers without the
@@ -334,6 +350,10 @@ private:
   const float trackOnlyWeight_;
   const unsigned int maxExactComponent_;
   const unsigned long searchBudget_;
+  // A jet hypothesis on an EM footprint is never accepted.
+  const bool vetoJetOnEMFootprint_;
+  // A leftover of an EM input trackster keeps its layer clusters out of the track claim; 0 disables the test.
+  const float claimProtectEMThreshold_;
   MaxWeightIndependentSetStats solverStats_;
   // Track claim: expected raw deposit (response + responseLogSlope x ln p) x p, search radius radius0 + radiusSlope x
   // depth.
@@ -384,6 +404,8 @@ TICLInterpretationProducer::TICLInterpretationProducer(const edm::ParameterSet &
       trackOnlyWeight_(ps.getParameter<float>("arbitrationTrackOnlyWeight")),
       maxExactComponent_(ps.getParameter<unsigned int>("arbitrationMaxExactComponent")),
       searchBudget_(ps.getParameter<unsigned int>("arbitrationSearchBudget")),
+      vetoJetOnEMFootprint_(ps.getParameter<bool>("arbitrationVetoJetOnEMFootprint")),
+      claimProtectEMThreshold_(ps.getParameter<float>("arbitrationTrackClaimProtectEMThreshold")),
       claimResponse_(ps.getParameter<float>("arbitrationTrackClaimResponse")),
       claimResponseLogSlope_(ps.getParameter<float>("arbitrationTrackClaimResponseLogSlope")),
       claimRadius0_(ps.getParameter<float>("arbitrationTrackClaimRadius0")),
@@ -413,6 +435,8 @@ TICLInterpretationProducer::TICLInterpretationProducer(const edm::ParameterSet &
         << "track claim: response > 0, radius0 >= 0, radiusSlope >= 0 and minEnergy >= 0 are required";
   if (!(neutralModelThreshold_ > 0.f && neutralModelThreshold_ < 1.f))
     throw cms::Exception("Configuration") << "neutralModelThreshold must be in (0, 1)";
+  if (!(claimProtectEMThreshold_ >= 0.f && claimProtectEMThreshold_ <= 1.f))
+    throw cms::Exception("Configuration") << "arbitrationTrackClaimProtectEMThreshold must be in [0, 1]";
 
   auto makeAlgo = [&](const char *name) {
     const auto pset = ps.getParameter<edm::ParameterSet>(name);
@@ -702,6 +726,13 @@ std::vector<float> TICLInterpretationProducer::modelWeights(const Opinions &opin
   std::vector<float> weights(nH, trackOnlyWeight_);
   for (unsigned int r = 0; r < rows.size(); ++r)
     weights[rows[r]] = plattA_ * logits[r] + plattB_;
+  // The solver selects only positive weights, whatever the track bonus.
+  if (vetoJetOnEMFootprint_)
+    for (unsigned int i = 0; i < nH; ++i) {
+      const auto &h = hypotheses[i];
+      if (h.type == Hypothesis::Type::Jet && h.tracksterIdx >= 0 && !opinions.tracksters[h.tracksterIdx].isHadronic())
+        weights[i] = -std::numeric_limits<float>::infinity();
+    }
   return weights;
 }
 
@@ -724,13 +755,15 @@ std::optional<Trackster> TICLInterpretationProducer::without(
 
 std::vector<Trackster> TICLInterpretationProducer::selectLeftovers(const edm::MultiSpan<Trackster> &tracksters,
                                                                    const std::vector<reco::CaloCluster> &layerClusters,
-                                                                   std::vector<bool> &held) const {
+                                                                   std::vector<bool> &held,
+                                                                   std::vector<unsigned int> &source) const {
   std::vector<unsigned int> order(tracksters.size());
   std::iota(order.begin(), order.end(), 0u);
   std::stable_sort(order.begin(), order.end(), [&](unsigned int a, unsigned int b) {
     return tracksters[a].raw_energy() > tracksters[b].raw_energy();
   });
   std::vector<Trackster> leftovers;
+  source.clear();
   for (unsigned int iTs : order) {
     auto rest = without(tracksters[iTs], held, layerClusters);
     if (!rest)
@@ -738,6 +771,7 @@ std::vector<Trackster> TICLInterpretationProducer::selectLeftovers(const edm::Mu
     for (auto v : rest->vertices())
       held[v] = true;
     leftovers.push_back(std::move(*rest));
+    source.push_back(iTs);
   }
   return leftovers;
 }
@@ -944,7 +978,7 @@ void TICLInterpretationProducer::produce(edm::Event &evt, const edm::EventSetup 
   const auto accepted =
       maxWeightIndependentSet(solverWeights, conflicts, maxExactComponent_, searchBudget_, solverStats_);
 
-  auto [leftovers, pool] = claimPool(evt, opinions, accepted, tracksters, layerClusters);
+  auto [leftovers, pool] = claimPool(evt, opinions, accepted, inferenceCache, tracksters, layerClusters);
   const auto claimingTrack = claimAlongTracks(opinions, accepted, tracks, impacts, layerClusters, pool);
   auto finalTs =
       finalTracksters(opinions, accepted, solverWeights, leftovers, claimingTrack, layerClusters, tracks.size());
@@ -971,6 +1005,7 @@ TICLInterpretationProducer::ClaimPool TICLInterpretationProducer::claimPool(
     const edm::Event &evt,
     const Opinions &opinions,
     const std::vector<bool> &accepted,
+    const InferenceCache &inferenceCache,
     const edm::MultiSpan<Trackster> &tracksters,
     const std::vector<reco::CaloCluster> &layerClusters) const {
   const auto &hypotheses = opinions.hypotheses;
@@ -980,7 +1015,8 @@ TICLInterpretationProducer::ClaimPool TICLInterpretationProducer::claimPool(
     if (accepted[i] && hypotheses[i].tracksterIdx >= 0)
       for (auto v : opinions.tracksters[hypotheses[i].tracksterIdx].vertices())
         held[v] = inWinner[v] = true;
-  ClaimPool claim{selectLeftovers(tracksters, layerClusters, held), {}};
+  std::vector<unsigned int> leftoverSource;
+  ClaimPool claim{selectLeftovers(tracksters, layerClusters, held, leftoverSource), {}};
   std::vector<bool> inPool(layerClusters.size(), false);
   auto addToPool = [&](unsigned int v) {
     if (!inWinner[v] && !inPool[v]) {
@@ -988,9 +1024,20 @@ TICLInterpretationProducer::ClaimPool TICLInterpretationProducer::claimPool(
       claim.pool.push_back(v);
     }
   };
-  for (auto const &ts : claim.leftovers)
-    for (auto v : ts.vertices())
+  // The PID of an input trackster is in the inference cache when a hypothesis has it as its footprint.
+  auto isEM = [&](const Trackster &ts) {
+    const auto *e = inferenceCache.find(ts);
+    return e != nullptr && e->hasPID &&
+           e->probabilities[static_cast<int>(Trackster::ParticleType::photon)] +
+                   e->probabilities[static_cast<int>(Trackster::ParticleType::electron)] >=
+               claimProtectEMThreshold_;
+  };
+  for (std::size_t k = 0; k < claim.leftovers.size(); ++k) {
+    if (claimProtectEMThreshold_ > 0.f && isEM(tracksters[leftoverSource[k]]))
+      continue;
+    for (auto v : claim.leftovers[k].vertices())
       addToPool(v);
+  }
   if (!claimUnlinkedTracksters_tokens_.empty()) {
     std::vector<bool> inInput(layerClusters.size(), false);
     for (unsigned int j = 0; j < tracksters.size(); ++j)
@@ -1180,6 +1227,12 @@ void TICLInterpretationProducer::fillDescriptions(edm::ConfigurationDescriptions
       ->setComment("Largest component solved by branch and bound (at most 64); larger ones are greedy.");
   desc.add<unsigned int>("arbitrationSearchBudget", 1000000)
       ->setComment("Max branch-and-bound calls per component; then the best set found is kept.");
+  desc.add<bool>("arbitrationVetoJetOnEMFootprint", false)
+      ->setComment("A jet hypothesis on an EM footprint (P(photon) + P(electron) >= 0.5) is never accepted.");
+  desc.add<float>("arbitrationTrackClaimProtectEMThreshold", 0.f)
+      ->setComment(
+          "A leftover whose input trackster has P(photon) + P(electron) at or above this value keeps its layer "
+          "clusters out of the track claim. 0 disables the test.");
   desc.add<float>("arbitrationTrackClaimResponse", 0.67f)
       ->setComment("Track claim: expected raw HGCAL deposit of a charged hadron per GeV of track momentum.");
   desc.add<float>("arbitrationTrackClaimResponseLogSlope", 0.04f)
