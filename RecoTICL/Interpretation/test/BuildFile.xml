@@ -12,6 +12,8 @@
   <use name="DataFormats/CaloRecHit"/>
   <use name="DataFormats/HGCalReco"/>
   <use name="DataFormats/Math"/>
+  <use name="DataFormats/SiPixelDetId"/>
+  <use name="DataFormats/TrackingRecHit"/>
   <use name="DataFormats/TrackReco"/>
   <use name="FWCore/ParameterSet"/>
   <use name="PhysicsTools/ONNXRuntime"/>

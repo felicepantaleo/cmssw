@@ -14,7 +14,8 @@
 
 namespace ticl::modelfeatures {
 
-  // Hypothesis model (data/arbitration/hypothesis_mlp_v2.onnx): one row per hypothesis with a footprint or tracks.
+  // Hypothesis model: one row per hypothesis with a footprint or tracks. data/arbitration/hypothesis_mlp_v2.onnx reads
+  // the first kNv2 slots.
   namespace hypothesis {
     enum Slot : unsigned int {
       kType = 0,  // 7 one-hot slots, in the order of Hypothesis::Type
@@ -34,18 +35,24 @@ namespace ticl::modelfeatures {
       kComponentSize,
       kMuonTracks,
       kElectronTracks,
+      kNv2,
+      kEMRecoveryTracks = kNv2,  // tracks whose Recovery hypothesis has an EM footprint
+      kMissingInnerHitTracks,    // tracks with at least one missing inner hit
       kN
     };
   }  // namespace hypothesis
-  static_assert(hypothesis::kN == 30);
+  static_assert(hypothesis::kNv2 == 30);
+  static_assert(hypothesis::kN == 32);
   static_assert(static_cast<int>(Hypothesis::Type::RecoveryChargedHadron) == 6, "one-hot slots 0-6 are the types");
 
   // Context of a hypothesis in its event: the size of its conflict component (without the track-only hypotheses) and,
-  // by track, whether the track also has a muon or an electron hypothesis.
+  // by track, whether the track also has a muon or an electron hypothesis, and whether its Recovery hypothesis has an
+  // EM footprint.
   struct HypothesisContext {
     int componentSize;
     const std::vector<bool> &muonTrack;
     const std::vector<bool> &electronTrack;
+    const std::vector<bool> &emRecoveryTrack;
   };
 
   // Fills x, hypothesis::kN zero-initialized slots, for hypothesis h with footprint (null for none).
