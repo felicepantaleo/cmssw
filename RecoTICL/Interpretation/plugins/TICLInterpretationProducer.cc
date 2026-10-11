@@ -298,6 +298,13 @@ private:
                                            const std::vector<bool> &accepted,
                                            const FinalTracksters &finalTs,
                                            std::size_t nTracks);
+  // For each track, the final trackster that holds the largest energy of the footprint of the track's Electron
+  // hypothesis with the highest model weight (-1: no Electron hypothesis, or no final trackster holds its footprint).
+  static std::vector<int> electronTracksters(const Opinions &opinions,
+                                             const std::vector<float> &weights,
+                                             const std::vector<Trackster> &finalTracksters,
+                                             const std::vector<reco::CaloCluster> &layerClusters,
+                                             std::size_t nTracks);
   // Track claim: each accepted charged hadron, recovery and track-only hypothesis that is not a single track on an EM
   // footprint, and each jet track, takes the pool layer clusters along its propagated track up to its expected deposit
   // minus its footprint. Returns the claiming track of each layer cluster (-1: none).
@@ -488,6 +495,7 @@ TICLInterpretationProducer::TICLInterpretationProducer(const edm::ParameterSet &
   produces<std::vector<int>>("trackMode");
   produces<std::vector<int>>("neutralIdx");
   produces<std::vector<int>>("neutralPdg");
+  produces<std::vector<int>>("electronTrackster");
 }
 
 void TICLInterpretationProducer::beginRun(edm::Run const &, edm::EventSetup const &es) {
@@ -1089,12 +1097,15 @@ void TICLInterpretationProducer::produce(edm::Event &evt, const edm::EventSetup 
 
   auto maps = assignmentMaps(hypotheses, accepted, finalTs, tracks.size());
   assignNeutralSpecies(result, *maps.neutralIdx, *maps.neutralPdg);
+  auto electronTrackster =
+      std::make_unique<std::vector<int>>(electronTracksters(opinions, weights, result, layerClusters, tracks.size()));
 
   evt.put(std::move(finalTs.tracksters));
   evt.put(std::move(maps.trackToTrackster), "trackToTrackster");
   evt.put(std::move(maps.trackMode), "trackMode");
   evt.put(std::move(maps.neutralIdx), "neutralIdx");
   evt.put(std::move(maps.neutralPdg), "neutralPdg");
+  evt.put(std::move(electronTrackster), "electronTrackster");
 }
 
 TICLInterpretationProducer::ClaimPool TICLInterpretationProducer::claimPool(
@@ -1264,6 +1275,49 @@ TICLInterpretationProducer::AssignmentProducts TICLInterpretationProducer::assig
     maps.neutralPdg->push_back(0);
   }
   return maps;
+}
+
+std::vector<int> TICLInterpretationProducer::electronTracksters(const Opinions &opinions,
+                                                                const std::vector<float> &weights,
+                                                                const std::vector<Trackster> &finalTracksters,
+                                                                const std::vector<reco::CaloCluster> &layerClusters,
+                                                                std::size_t nTracks) {
+  const auto &hypotheses = opinions.hypotheses;
+  std::vector<int> best(nTracks, -1);
+  for (unsigned int i = 0; i < hypotheses.size(); ++i) {
+    const auto &h = hypotheses[i];
+    if (h.type != Hypothesis::Type::Electron || h.trackIdx < 0 || h.tracksterIdx < 0)
+      continue;
+    int &b = best[h.trackIdx];
+    if (b < 0 || weights[i] > weights[b])
+      b = static_cast<int>(i);
+  }
+  std::vector<int> owner(layerClusters.size(), -1);
+  for (unsigned int k = 0; k < finalTracksters.size(); ++k)
+    for (auto v : finalTracksters[k].vertices())
+      if (owner[v] < 0)
+        owner[v] = static_cast<int>(k);
+  std::vector<int> result(nTracks, -1);
+  std::vector<std::pair<int, float>> shares;
+  for (std::size_t iTrack = 0; iTrack < nTracks; ++iTrack) {
+    if (best[iTrack] < 0)
+      continue;
+    shares.clear();
+    for (auto v : opinions.tracksters[hypotheses[best[iTrack]].tracksterIdx].vertices()) {
+      if (owner[v] < 0)
+        continue;
+      auto it = std::find_if(shares.begin(), shares.end(), [&](const auto &s) { return s.first == owner[v]; });
+      if (it == shares.end())
+        shares.emplace_back(owner[v], layerClusters[v].energy());
+      else
+        it->second += layerClusters[v].energy();
+    }
+    const auto it = std::max_element(
+        shares.begin(), shares.end(), [](const auto &a, const auto &b) { return a.second < b.second; });
+    if (it != shares.end())
+      result[iTrack] = it->first;
+  }
+  return result;
 }
 
 void TICLInterpretationProducer::fillDescriptions(edm::ConfigurationDescriptions &descriptions) {
