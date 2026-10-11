@@ -227,6 +227,12 @@ private:
                         const Inputs &egammaInput,
                         const edm::Handle<MtdHostCollection> &timing_h,
                         InferenceCache &cache) const;
+  // For each Jet hypothesis and each Electron hypothesis of one of its tracks: the Jet without that track, on the
+  // footprint without the layer clusters of the Electron footprint, scored by the balance of E and the summed p. Two
+  // tracks or more left give a Jet hypothesis, one track a Recovery hypothesis.
+  static void addJetVariantsWithoutElectrons(Opinions &opinions,
+                                             const std::vector<reco::Track> &tracks,
+                                             const std::vector<reco::CaloCluster> &layerClusters);
   // Two hypotheses conflict when they share a track, or layer clusters with more than maxSharedEnergyFraction of the
   // smaller footprint energy. Returns the sorted neighbours of each hypothesis.
   std::vector<std::vector<unsigned int>> conflictGraph(const Opinions &opinions,
@@ -352,6 +358,12 @@ private:
   const unsigned long searchBudget_;
   // A jet hypothesis on an EM footprint is never accepted.
   const bool vetoJetOnEMFootprint_;
+  // The track of a Muon hypothesis with a positive score (a MIP-like footprint) is in no Jet or Recovery hypothesis.
+  const bool mipMuonsOutOfJets_;
+  const bool jetVariantsWithoutElectrons_;
+  // Without neutral-hadron hypotheses, their footprints only give the PID of the input tracksters to the inference
+  // cache.
+  const bool neutralHadronHypotheses_;
   // A leftover of an EM input trackster keeps its layer clusters out of the track claim; 0 disables the test.
   const float claimProtectEMThreshold_;
   MaxWeightIndependentSetStats solverStats_;
@@ -405,6 +417,9 @@ TICLInterpretationProducer::TICLInterpretationProducer(const edm::ParameterSet &
       maxExactComponent_(ps.getParameter<unsigned int>("arbitrationMaxExactComponent")),
       searchBudget_(ps.getParameter<unsigned int>("arbitrationSearchBudget")),
       vetoJetOnEMFootprint_(ps.getParameter<bool>("arbitrationVetoJetOnEMFootprint")),
+      mipMuonsOutOfJets_(ps.getParameter<bool>("arbitrationMIPMuonsOutOfJets")),
+      jetVariantsWithoutElectrons_(ps.getParameter<bool>("arbitrationJetVariantsWithoutElectrons")),
+      neutralHadronHypotheses_(ps.getParameter<bool>("arbitrationNeutralHadronHypotheses")),
       claimProtectEMThreshold_(ps.getParameter<float>("arbitrationTrackClaimProtectEMThreshold")),
       claimResponse_(ps.getParameter<float>("arbitrationTrackClaimResponse")),
       claimResponseLogSlope_(ps.getParameter<float>("arbitrationTrackClaimResponseLogSlope")),
@@ -583,7 +598,25 @@ TICLInterpretationProducer::Opinions TICLInterpretationProducer::makeOpinions(
   muonAlgo_->makeOpinions(muonInput, timing_h, opinions.tracksters, opinions.hypotheses);
   chargedHadronAlgo_->makeOpinions(allInput, timing_h, opinions.tracksters, opinions.hypotheses);
   egammaAlgo_->makeOpinions(egammaInput, timing_h, opinions.tracksters, opinions.hypotheses);
-  jetAlgo_->makeOpinions(allInput, timing_h, opinions.tracksters, opinions.hypotheses);
+  if (mipMuonsOutOfJets_) {
+    std::vector<bool> jetTracks(allInput.maskedTracks);
+    for (auto const &h : opinions.hypotheses)
+      if (h.type == Hypothesis::Type::Muon && h.score > 0.f)
+        jetTracks[h.trackIdx] = false;
+    const Inputs jetInput(allInput.ev,
+                          allInput.es,
+                          allInput.layerClusters,
+                          allInput.layerClustersTime,
+                          allInput.tracksters,
+                          allInput.tracksHandle,
+                          jetTracks,
+                          allInput.impacts);
+    jetAlgo_->makeOpinions(jetInput, timing_h, opinions.tracksters, opinions.hypotheses);
+  } else {
+    jetAlgo_->makeOpinions(allInput, timing_h, opinions.tracksters, opinions.hypotheses);
+  }
+  if (jetVariantsWithoutElectrons_)
+    addJetVariantsWithoutElectrons(opinions, *allInput.tracksHandle, allInput.layerClusters);
 
   // The PID of each footprint gives the scores of its photon and neutral-hadron hypotheses.
   if (!opinions.tracksters.empty()) {
@@ -609,6 +642,8 @@ TICLInterpretationProducer::Opinions TICLInterpretationProducer::makeOpinions(
       }
     }
   }
+  if (!neutralHadronHypotheses_)
+    std::erase_if(opinions.hypotheses, [](const Hypothesis &h) { return h.type == Hypothesis::Type::NeutralHadron; });
 
   const auto &selected = allInput.maskedTracks;
   for (size_t iTrack = 0; iTrack < selected.size(); ++iTrack)
@@ -619,6 +654,71 @@ TICLInterpretationProducer::Opinions TICLInterpretationProducer::makeOpinions(
       opinions.hypotheses.push_back(h);
     }
   return opinions;
+}
+
+void TICLInterpretationProducer::addJetVariantsWithoutElectrons(Opinions &opinions,
+                                                                const std::vector<reco::Track> &tracks,
+                                                                const std::vector<reco::CaloCluster> &layerClusters) {
+  auto &hypotheses = opinions.hypotheses;
+  std::vector<std::vector<unsigned int>> electronsOf(tracks.size());
+  for (unsigned int i = 0; i < hypotheses.size(); ++i)
+    if (hypotheses[i].type == Hypothesis::Type::Electron && hypotheses[i].tracksterIdx >= 0)
+      electronsOf[hypotheses[i].trackIdx].push_back(i);
+
+  std::vector<bool> removed(layerClusters.size(), false);
+  const unsigned int nHypotheses = hypotheses.size();
+  for (unsigned int j = 0; j < nHypotheses; ++j) {
+    if (hypotheses[j].type != Hypothesis::Type::Jet || hypotheses[j].tracksterIdx < 0)
+      continue;
+    const std::vector<int> jetTracks = hypotheses[j].trackIdxs;
+    const int jetTracksterIdx = hypotheses[j].tracksterIdx;
+    for (const int iElectronTrack : jetTracks) {
+      for (const unsigned int e : electronsOf[iElectronTrack]) {
+        const Trackster &electronTs = opinions.tracksters[hypotheses[e].tracksterIdx];
+        for (auto v : electronTs.vertices())
+          removed[v] = true;
+        const Trackster &jetTs = opinions.tracksters[jetTracksterIdx];
+        Trackster variant;
+        float energy = 0.f;
+        for (size_t k = 0; k < jetTs.vertices().size(); ++k) {
+          const auto v = jetTs.vertices()[k];
+          if (removed[v])
+            continue;
+          const float multiplicity = k < jetTs.vertex_multiplicity().size() ? jetTs.vertex_multiplicity()[k] : 1.f;
+          variant.vertices().push_back(v);
+          variant.vertex_multiplicity().push_back(multiplicity);
+          energy += layerClusters[v].energy() / multiplicity;
+        }
+        for (auto v : electronTs.vertices())
+          removed[v] = false;
+
+        std::vector<int> left;
+        float sumP = 0.f;
+        for (const int iTk : jetTracks)
+          if (iTk != iElectronTrack) {
+            left.push_back(iTk);
+            sumP += tracks[iTk].p();
+          }
+        if (!(energy > 0.f) || left.empty())
+          continue;
+        const float balance = 1.f - std::abs(energy - sumP) / std::max(energy, sumP);
+        if (balance <= 0.f)
+          continue;
+        Hypothesis h;
+        h.score = balance;
+        if (left.size() >= 2) {
+          h.type = Hypothesis::Type::Jet;
+          h.trackIdxs = std::move(left);
+        } else {
+          h.type = Hypothesis::Type::RecoveryChargedHadron;
+          h.trackIdx = left.front();
+        }
+        h.tracksterIdx = static_cast<int>(opinions.tracksters.size());
+        opinions.tracksters.push_back(std::move(variant));
+        hypotheses.push_back(std::move(h));
+      }
+    }
+  }
 }
 
 std::vector<std::vector<unsigned int>> TICLInterpretationProducer::conflictGraph(
@@ -1229,6 +1329,19 @@ void TICLInterpretationProducer::fillDescriptions(edm::ConfigurationDescriptions
       ->setComment("Max branch-and-bound calls per component; then the best set found is kept.");
   desc.add<bool>("arbitrationVetoJetOnEMFootprint", true)
       ->setComment("A jet hypothesis on an EM footprint (P(photon) + P(electron) >= 0.5) is never accepted.");
+  desc.add<bool>("arbitrationMIPMuonsOutOfJets", false)
+      ->setComment(
+          "The track of a Muon hypothesis with a positive score (a MIP-like footprint) is in no Jet or Recovery "
+          "hypothesis.");
+  desc.add<bool>("arbitrationJetVariantsWithoutElectrons", false)
+      ->setComment(
+          "For each Jet hypothesis and each Electron hypothesis of one of its tracks, add the Jet without that track, "
+          "on the footprint without the layer clusters of the Electron footprint (one track left: a Recovery "
+          "hypothesis).");
+  desc.add<bool>("arbitrationNeutralHadronHypotheses", true)
+      ->setComment(
+          "Neutral-hadron hypotheses take part in the arbitration. When false, their footprints only give the PID of "
+          "the input tracksters to the inference cache.");
   desc.add<float>("arbitrationTrackClaimProtectEMThreshold", 0.5f)
       ->setComment(
           "A leftover whose input trackster has P(photon) + P(electron) at or above this value keeps its layer "
