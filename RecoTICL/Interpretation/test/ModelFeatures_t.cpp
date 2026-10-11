@@ -7,6 +7,8 @@
 #include <catch2/catch_all.hpp>
 
 #include "DataFormats/Math/interface/deltaR.h"
+#include "DataFormats/SiPixelDetId/interface/PixelSubdetector.h"
+#include "DataFormats/TrackingRecHit/interface/TrackingRecHit.h"
 #include "FWCore/ParameterSet/interface/FileInPath.h"
 #include "PhysicsTools/ONNXRuntime/interface/ONNXRuntime.h"
 #include "RecoTICL/Interpretation/interface/ModelFeatures.h"
@@ -48,10 +50,12 @@ namespace {
   }
 }  // namespace
 
-TEST_CASE("The hypothesis features are in the slots of hypothesis_mlp_v2", "[ModelFeatures]") {
+TEST_CASE("The hypothesis features are in the slots of hypothesis_mlp_v2 and of the 32-input model",
+          "[ModelFeatures]") {
   const auto ts = makeTrackster();
-  const std::vector<reco::Track> tracks{makeTrack(3., 4.2, 36.), makeTrack(1., 1., 9.)};
-  const std::vector<bool> muonTrack{false, true}, electronTrack{true, false};
+  std::vector<reco::Track> tracks{makeTrack(3., 4.2, 36.), makeTrack(1., 1., 9.)};
+  tracks[1].appendTrackerHitPattern(PixelSubdetector::PixelBarrel, 1, 0, TrackingRecHit::missing_inner);
+  const std::vector<bool> muonTrack{false, true}, electronTrack{true, false}, emRecoveryTrack{false, true};
 
   SECTION("a charged hadron with a footprint") {
     Hypothesis h;
@@ -59,8 +63,8 @@ TEST_CASE("The hypothesis features are in the slots of hypothesis_mlp_v2", "[Mod
     h.score = 0.8f;
     h.trackIdx = 0;
     h.tracksterIdx = 0;
-    std::array<float, 30> x{};
-    fillHypothesisFeatures(h, &ts, tracks, {3, muonTrack, electronTrack}, x);
+    std::array<float, hypothesis::kN> x{};
+    fillHypothesisFeatures(h, &ts, tracks, {3, muonTrack, electronTrack, emRecoveryTrack}, x);
     for (int k = 0; k < 7; ++k)
       CHECK(x[k] == (k == 3 ? 1.f : 0.f));
     CHECK(x[7] == 0.8f);
@@ -82,6 +86,8 @@ TEST_CASE("The hypothesis features are in the slots of hypothesis_mlp_v2", "[Mod
     CHECK(x[27] == 3.f);
     CHECK(x[28] == 0.f);
     CHECK(x[29] == 1.f);
+    CHECK(x[30] == 0.f);
+    CHECK(x[31] == 0.f);
   }
 
   SECTION("a jet without a footprint") {
@@ -89,8 +95,8 @@ TEST_CASE("The hypothesis features are in the slots of hypothesis_mlp_v2", "[Mod
     h.type = Hypothesis::Type::Jet;
     h.score = 0.5f;
     h.trackIdxs = {0, 1};
-    std::array<float, 30> x{};
-    fillHypothesisFeatures(h, nullptr, tracks, {1, muonTrack, electronTrack}, x);
+    std::array<float, hypothesis::kN> x{};
+    fillHypothesisFeatures(h, nullptr, tracks, {1, muonTrack, electronTrack, emRecoveryTrack}, x);
     CHECK(x[5] == 1.f);
     for (int k = 8; k <= 10; ++k)
       CHECK(x[k] == -1.f);
@@ -106,6 +112,8 @@ TEST_CASE("The hypothesis features are in the slots of hypothesis_mlp_v2", "[Mod
     CHECK(x[27] == 1.f);
     CHECK(x[28] == 1.f);
     CHECK(x[29] == 1.f);
+    CHECK(x[30] == 1.f);
+    CHECK(x[31] == 1.f);
   }
 }
 

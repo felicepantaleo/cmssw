@@ -64,17 +64,20 @@ namespace ticl::modelfeatures {
     x[kEOverP] = std::clamp(eOverP, -1.f, 20.f);
     x[kDeltaR] = dR;
     x[kComponentSize] = static_cast<float>(context.componentSize);
-    auto countLeptonHyps = [&](int iTk) {
+    auto countTrack = [&](int iTk) {
       if (iTk >= 0) {
         x[kMuonTracks] += context.muonTrack[iTk] ? 1.f : 0.f;
         x[kElectronTracks] += context.electronTrack[iTk] ? 1.f : 0.f;
+        x[kEMRecoveryTracks] += context.emRecoveryTrack[iTk] ? 1.f : 0.f;
+        x[kMissingInnerHitTracks] +=
+            tracks[iTk].hitPattern().numberOfLostHits(reco::HitPattern::MISSING_INNER_HITS) > 0 ? 1.f : 0.f;
       }
     };
     if (h.trackIdxs.empty())
-      countLeptonHyps(h.trackIdx);
+      countTrack(h.trackIdx);
     else
       for (int iTk : h.trackIdxs)
-        countLeptonHyps(iTk);
+        countTrack(iTk);
   }
 
   void fillNeutralSpeciesFeatures(const Trackster &ts, std::span<float, neutralSpecies::kN> x) {
