@@ -1,6 +1,10 @@
+<use name="DataFormats/CaloRecHit"/>
 <use name="DataFormats/Common"/>
+<use name="DataFormats/EgammaReco"/>
 <use name="DataFormats/HGCalReco"/>
 <use name="DataFormats/ParticleFlowCandidate"/>
+<use name="DataFormats/ParticleFlowReco"/>
+<use name="DataFormats/TrackReco"/>
 <use name="FWCore/Framework"/>
 <use name="RecoParticleFlow/PFProducer"/>
 <use name="RecoTICL/Interpretation"/>
