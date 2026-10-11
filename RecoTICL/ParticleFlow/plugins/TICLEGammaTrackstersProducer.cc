@@ -1,5 +1,5 @@
-// The final tracksters of the interpretation stage that it types as electrons or as EM neutrals: the input of the HGCAL
-// PF clusters of the e/gamma objects.
+// The final tracksters of the interpretation stage that it types as electrons or as EM neutrals, the input of the HGCAL
+// PF clusters of the e/gamma objects, and their indices in the final tracksters (interpretationIndex).
 
 #include <string>
 #include <utility>
@@ -31,6 +31,7 @@ private:
   const edm::EDGetTokenT<std::vector<int>> neutralPdg_token_;
   const std::vector<int> neutralPdgs_;
   const edm::EDPutTokenT<std::vector<ticl::Trackster>> put_token_;
+  const edm::EDPutTokenT<std::vector<int>> index_put_token_;
 };
 
 namespace {
@@ -48,7 +49,8 @@ TICLEGammaTrackstersProducer::TICLEGammaTrackstersProducer(const edm::ParameterS
       neutralIdx_token_(consumes(interpretationTag(ps, "neutralIdx"))),
       neutralPdg_token_(consumes(interpretationTag(ps, "neutralPdg"))),
       neutralPdgs_(ps.getParameter<std::vector<int>>("neutralPdgs")),
-      put_token_(produces()) {}
+      put_token_(produces()),
+      index_put_token_(produces<std::vector<int>>("interpretationIndex")) {}
 
 void TICLEGammaTrackstersProducer::produce(edm::StreamID, edm::Event &evt, const edm::EventSetup &) const {
   const auto &tracksters = evt.get(tracksters_token_);
@@ -58,13 +60,16 @@ void TICLEGammaTrackstersProducer::produce(edm::StreamID, edm::Event &evt, const
   const auto &neutralPdg = evt.get(neutralPdg_token_);
   if (trackToTrackster.size() != trackMode.size() || neutralIdx.size() != neutralPdg.size())
     throw cms::Exception("LogicError") << "TICLEGammaTrackstersProducer: the interpretation maps differ in size";
+  auto indices = ticl::eGammaTracksterIndices(trackToTrackster, trackMode, neutralIdx, neutralPdg, neutralPdgs_);
   std::vector<ticl::Trackster> result;
-  for (int i : ticl::eGammaTracksterIndices(trackToTrackster, trackMode, neutralIdx, neutralPdg, neutralPdgs_)) {
+  result.reserve(indices.size());
+  for (int i : indices) {
     if (i >= static_cast<int>(tracksters.size()))
       throw cms::Exception("LogicError") << "TICLEGammaTrackstersProducer: trackster index " << i << " out of range";
     result.push_back(tracksters[i]);
   }
   evt.emplace(put_token_, std::move(result));
+  evt.emplace(index_put_token_, std::move(indices));
 }
 
 void TICLEGammaTrackstersProducer::fillDescriptions(edm::ConfigurationDescriptions &descriptions) {
