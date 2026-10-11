@@ -160,7 +160,6 @@ ticl_v6.toModify(
     ticlIterLabelsPSet,
     labels=["ticlTracksterInterpretations" if label == "ticlCandidate" else label for label in ticlIterLabelsPSet.labels]
 )
-ticl_v6.toModify(_particleFlowClusterHGCal, initialClusteringStep=dict(tracksterSrc="ticlTracksterInterpretations"))
 
 associatorsInstances = []
 for labelts in ticlIterLabelsPSet.labels:
@@ -230,6 +229,17 @@ ticl_v6.toReplaceWith(ticlCandidate, _ticlV6Modules["ticlCandidate"])
 ticl_v6.toModify(ticlCandidateTask, lambda t: t.add(ticlTracksterInterpretations))
 # TICLv6 candidates carry the muon kinematics; pfTICL copies their muon decisions.
 ticl_v6.toReplaceWith(pfTICL, _ticlV6Modules["pfTICL"])
+# TICLv6: the HGCAL PF clusters of the e/gamma objects are the final tracksters that the interpretation types as
+# electrons or EM neutrals; particleFlowClusterHGCal does not run.
+from RecoTICL.ParticleFlow.ticlEGammaTrackstersProducer_cfi import ticlEGammaTrackstersProducer as _ticlEGammaTrackstersProducer
+from RecoEcal.EgammaClusterProducers.particleFlowSuperClusteringSequence_cff import particleFlowSuperClusterHGCal as _particleFlowSuperClusterHGCal
+from RecoLocalCalo.Configuration.hgcalLocalReco_cff import hgcalLocalRecoTask as _hgcalLocalRecoTask
+ticlEGammaTracksters = _ticlEGammaTrackstersProducer.clone()
+particleFlowClusterTICL = _particleFlowClusterHGCal.clone(
+    initialClusteringStep=dict(tracksterSrc="ticlEGammaTracksters", filterByTracksterPID=False))
+ticl_v6.toModify(ticlPFTask, lambda t: t.add(ticlEGammaTracksters, particleFlowClusterTICL))
+ticl_v6.toModify(_particleFlowSuperClusterHGCal, PFClusters="particleFlowClusterTICL")
+ticl_v6.toReplaceWith(_hgcalLocalRecoTask, _hgcalLocalRecoTask.copyAndExclude([_particleFlowClusterHGCal]))
 # With the Mustache superclustering, the interpretation stage reads the Mustache superclusters.
 (ticl_v6 & ticl_superclustering_mustache_ticl).toModify(
     ticlTracksterInterpretations, egamma_tracksters_collections=["ticlTracksterLinksSuperclusteringMustache"])
