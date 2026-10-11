@@ -256,9 +256,9 @@ void JetInterpretationAlgo::fillPSetDescription(edm::ParameterSetDescription &de
       ->setComment(
           "Recovery footprint: the tracksters in the window within this transverse distance [cm] of the track, nearest "
           "first, up to the expected deposit.");
-  desc.add<float>("recovery_budget_response", 1.f)
+  desc.add<float>("recovery_budget_response", 0.67f)
       ->setComment("Expected raw deposit of a track: (recovery_budget_response + recovery_budget_log_slope ln p) p.");
-  desc.add<float>("recovery_budget_log_slope", 0.f)
+  desc.add<float>("recovery_budget_log_slope", 0.04f)
       ->setComment("Expected raw deposit of a track: (recovery_budget_response + recovery_budget_log_slope ln p) p.");
   TICLInterpretationAlgoBase::fillPSetDescription(desc);
 }
