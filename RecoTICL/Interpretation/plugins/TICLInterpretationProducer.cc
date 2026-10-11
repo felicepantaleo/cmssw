@@ -361,7 +361,6 @@ private:
   // A jet hypothesis on an EM footprint is never accepted.
   const bool vetoJetOnEMFootprint_;
   // The track of a Muon hypothesis with a positive score (a MIP-like footprint) is in no Jet or Recovery hypothesis.
-  const bool mipMuonsOutOfJets_;
   const bool jetVariantsWithoutElectrons_;
   // Without neutral-hadron hypotheses, their footprints only give the PID of the input tracksters to the inference
   // cache.
@@ -420,7 +419,6 @@ TICLInterpretationProducer::TICLInterpretationProducer(const edm::ParameterSet &
       maxExactComponent_(ps.getParameter<unsigned int>("arbitrationMaxExactComponent")),
       searchBudget_(ps.getParameter<unsigned int>("arbitrationSearchBudget")),
       vetoJetOnEMFootprint_(ps.getParameter<bool>("arbitrationVetoJetOnEMFootprint")),
-      mipMuonsOutOfJets_(ps.getParameter<bool>("arbitrationMIPMuonsOutOfJets")),
       jetVariantsWithoutElectrons_(ps.getParameter<bool>("arbitrationJetVariantsWithoutElectrons")),
       neutralHadronHypotheses_(ps.getParameter<bool>("arbitrationNeutralHadronHypotheses")),
       claimProtectEMThreshold_(ps.getParameter<float>("arbitrationTrackClaimProtectEMThreshold")),
@@ -604,23 +602,7 @@ TICLInterpretationProducer::Opinions TICLInterpretationProducer::makeOpinions(
   muonAlgo_->makeOpinions(muonInput, timing_h, opinions.tracksters, opinions.hypotheses);
   chargedHadronAlgo_->makeOpinions(allInput, timing_h, opinions.tracksters, opinions.hypotheses);
   egammaAlgo_->makeOpinions(egammaInput, timing_h, opinions.tracksters, opinions.hypotheses);
-  if (mipMuonsOutOfJets_) {
-    std::vector<bool> jetTracks(allInput.maskedTracks);
-    for (auto const &h : opinions.hypotheses)
-      if (h.type == Hypothesis::Type::Muon && h.score > 0.f)
-        jetTracks[h.trackIdx] = false;
-    const Inputs jetInput(allInput.ev,
-                          allInput.es,
-                          allInput.layerClusters,
-                          allInput.layerClustersTime,
-                          allInput.tracksters,
-                          allInput.tracksHandle,
-                          jetTracks,
-                          allInput.impacts);
-    jetAlgo_->makeOpinions(jetInput, timing_h, opinions.tracksters, opinions.hypotheses);
-  } else {
-    jetAlgo_->makeOpinions(allInput, timing_h, opinions.tracksters, opinions.hypotheses);
-  }
+  jetAlgo_->makeOpinions(allInput, timing_h, opinions.tracksters, opinions.hypotheses);
   if (jetVariantsWithoutElectrons_)
     addJetVariantsWithoutElectrons(opinions, *allInput.tracksHandle, allInput.layerClusters);
 
@@ -1347,16 +1329,12 @@ void TICLInterpretationProducer::fillDescriptions(edm::ConfigurationDescriptions
       ->setComment("Max branch-and-bound calls per component; then the best set found is kept.");
   desc.add<bool>("arbitrationVetoJetOnEMFootprint", true)
       ->setComment("A jet hypothesis on an EM footprint (P(photon) + P(electron) >= 0.5) is never accepted.");
-  desc.add<bool>("arbitrationMIPMuonsOutOfJets", false)
-      ->setComment(
-          "The track of a Muon hypothesis with a positive score (a MIP-like footprint) is in no Jet or Recovery "
-          "hypothesis.");
-  desc.add<bool>("arbitrationJetVariantsWithoutElectrons", false)
+  desc.add<bool>("arbitrationJetVariantsWithoutElectrons", true)
       ->setComment(
           "For each Jet hypothesis and each Electron hypothesis of one of its tracks, add the Jet without that track, "
           "on the footprint without the layer clusters of the Electron footprint (one track left: a Recovery "
           "hypothesis).");
-  desc.add<bool>("arbitrationNeutralHadronHypotheses", true)
+  desc.add<bool>("arbitrationNeutralHadronHypotheses", false)
       ->setComment(
           "Neutral-hadron hypotheses take part in the arbitration. When false, their footprints only give the PID of "
           "the input tracksters to the inference cache.");
