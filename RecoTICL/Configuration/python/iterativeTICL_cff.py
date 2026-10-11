@@ -237,9 +237,20 @@ from RecoLocalCalo.Configuration.hgcalLocalReco_cff import hgcalLocalRecoTask as
 ticlEGammaTracksters = _ticlEGammaTrackstersProducer.clone()
 particleFlowClusterTICL = _particleFlowClusterHGCal.clone(
     initialClusteringStep=dict(tracksterSrc="ticlEGammaTracksters", filterByTracksterPID=False))
-ticl_v6.toModify(ticlPFTask, lambda t: t.add(ticlEGammaTracksters, particleFlowClusterTICL))
 ticl_v6.toModify(_particleFlowSuperClusterHGCal, PFClusters="particleFlowClusterTICL")
 ticl_v6.toReplaceWith(_hgcalLocalRecoTask, _hgcalLocalRecoTask.copyAndExclude([_particleFlowClusterHGCal]))
+# Electron seeds of the HGCAL superclusters: from the KF track of a TICL electron, and from the supercluster only when
+# no trackster is typed electron and a track has its Electron hypothesis on one.
+from RecoTICL.ParticleFlow.ticlElectronSuperClustersProducer_cfi import ticlElectronSuperClustersProducer as _ticlElectronSuperClustersProducer
+from RecoTICL.ParticleFlow.ticlElectronSeedsProducer_cfi import ticlElectronSeedsProducer as _ticlElectronSeedsProducer
+from RecoEgamma.EgammaElectronProducers.ecalDrivenElectronSeeds_cff import ecalDrivenElectronSeeds as _ecalDrivenElectronSeeds
+from RecoParticleFlow.PFTracking.mergedElectronSeeds_cfi import electronMergedSeeds as _electronMergedSeeds
+ticlElectronSuperClusters = _ticlElectronSuperClustersProducer.clone()
+ticlElectronSeeds = _ticlElectronSeedsProducer.clone()
+ticl_v6.toModify(ticlPFTask, lambda t: t.add(ticlEGammaTracksters, particleFlowClusterTICL, ticlElectronSuperClusters,
+                                              ticlElectronSeeds))
+ticl_v6.toModify(_ecalDrivenElectronSeeds, endcapSuperClusters="ticlElectronSuperClusters")
+ticl_v6.toModify(_electronMergedSeeds, EcalBasedSeeds="ticlElectronSeeds")
 # With the Mustache superclustering, the interpretation stage reads the Mustache superclusters.
 (ticl_v6 & ticl_superclustering_mustache_ticl).toModify(
     ticlTracksterInterpretations, egamma_tracksters_collections=["ticlTracksterLinksSuperclusteringMustache"])

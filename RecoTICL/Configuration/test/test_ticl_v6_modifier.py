@@ -34,6 +34,8 @@ def main():
     process.load("DPGAnalysis.HGCalNanoAOD.hgcalTICLCandidates_cfi")
     process.load("RecoEcal.EgammaClusterProducers.particleFlowSuperClusteringSequence_cff")
     process.load("RecoLocalCalo.Configuration.hgcalLocalReco_cff")
+    process.load("RecoEgamma.EgammaElectronProducers.ecalDrivenElectronSeeds_cff")
+    process.load("RecoParticleFlow.PFTracking.mergedElectronSeeds_cfi")
     expected = {
         "hgcalValidator.mergedTracksters": "ticlTracksterInterpretations",
         "hltHgcalValidator.mergedTracksters": "hltTiclCandidate",
@@ -41,11 +43,17 @@ def main():
         "ticlEGammaTracksters.interpretations": "ticlTracksterInterpretations",
         "particleFlowClusterTICL.initialClusteringStep.tracksterSrc": "ticlEGammaTracksters",
         "particleFlowSuperClusterHGCal.PFClusters": "particleFlowClusterTICL",
+        "ticlElectronSuperClusters.superClusters": "particleFlowSuperClusterHGCal",
+        "ticlElectronSuperClusters.pfClusters": "particleFlowClusterTICL",
+        "ticlElectronSuperClusters.eGammaTracksters": "ticlEGammaTracksters",
+        "ecalDrivenElectronSeeds.endcapSuperClusters": "ticlElectronSuperClusters",
+        "ticlElectronSeeds.seeds": "ecalDrivenElectronSeeds",
+        "electronMergedSeeds.EcalBasedSeeds": "ticlElectronSeeds",
     }
     # The e/gamma PF clusters are the typed tracksters, without the PID cut; particleFlowClusterHGCal does not run.
     if process.particleFlowClusterTICL.initialClusteringStep.filterByTracksterPID.value():
         failures.append("particleFlowClusterTICL filters by the trackster PID")
-    for label in ("ticlEGammaTracksters", "particleFlowClusterTICL"):
+    for label in ("ticlEGammaTracksters", "particleFlowClusterTICL", "ticlElectronSuperClusters", "ticlElectronSeeds"):
         if label not in process.iterTICLTask.moduleNames():
             failures.append("%s is not in iterTICLTask" % label)
     if "particleFlowClusterHGCal" in process.hgcalLocalRecoTask.moduleNames():
