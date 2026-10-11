@@ -347,7 +347,9 @@ private:
   std::unique_ptr<TracksterInferenceAlgoBase> inferencePIDOnly_;
   std::unique_ptr<TracksterInferenceAlgoBase> inferenceRegressionOnly_;
 
-  // Global arbitration: weight = Platt-calibrated logit of the hypothesis model + trackBonus per track.
+  // Global arbitration: weight = Platt-calibrated logit of the hypothesis model + trackBonus per track. The model reads
+  // the first modelFeatures_ slots of each row.
+  const unsigned int modelFeatures_;
   const ArbitrationModel arbitrationModel_;
   const float maxSharedEnergyFraction_;
   const float plattA_;
@@ -405,9 +407,10 @@ TICLInterpretationProducer::TICLInterpretationProducer(const edm::ParameterSet &
       bfield_token_(esConsumes<MagneticField, IdealMagneticFieldRecord, edm::Transition::BeginRun>()),
       propagator_token_(esConsumes<Propagator, TrackingComponentsRecord, edm::Transition::BeginRun>(
           edm::ESInputTag("", ps.getParameter<std::string>("propagator")))),
+      modelFeatures_(ps.getParameter<unsigned int>("arbitrationModelFeatures")),
       arbitrationModel_(
           *cache->getByModelPathString(ps.getParameter<edm::FileInPath>("arbitrationModelFile").relativePath()),
-          modelfeatures::hypothesis::kN,
+          modelFeatures_,
           1),
       maxSharedEnergyFraction_(ps.getParameter<float>("arbitrationMaxSharedEnergyFraction")),
       plattA_(ps.getParameter<float>("arbitrationPlattA")),
@@ -442,6 +445,9 @@ TICLInterpretationProducer::TICLInterpretationProducer(const edm::ParameterSet &
 
   if (maxExactComponent_ > 64)
     throw cms::Exception("Configuration") << "arbitrationMaxExactComponent must be at most 64";
+  if (modelFeatures_ != modelfeatures::hypothesis::kNv2 && modelFeatures_ != modelfeatures::hypothesis::kN)
+    throw cms::Exception("Configuration") << "arbitrationModelFeatures must be " << modelfeatures::hypothesis::kNv2
+                                          << " or " << modelfeatures::hypothesis::kN;
   // The track-only hypothesis must have a positive weight, so that every selected track gets an accepted hypothesis.
   if (!(trackBonus_ + trackOnlyWeight_ > 0.f))
     throw cms::Exception("Configuration") << "arbitrationTrackBonus + arbitrationTrackOnlyWeight must be positive";
@@ -799,28 +805,36 @@ std::vector<float> TICLInterpretationProducer::modelWeights(const Opinions &opin
   const auto &hypotheses = opinions.hypotheses;
   const unsigned int nH = hypotheses.size();
   const auto compSize = componentSizes(hypotheses, conflicts);
-  // Tracks that carry a muon or an electron hypothesis.
-  std::vector<bool> muonTrack(tracks.size(), false), electronTrack(tracks.size(), false);
+  // Tracks that carry a muon or an electron hypothesis, and tracks whose Recovery hypothesis has an EM footprint:
+  // P(photon) + P(electron) >= 0.5 or a raw EM fraction above 0.9.
+  std::vector<bool> muonTrack(tracks.size(), false), electronTrack(tracks.size(), false),
+      emRecoveryTrack(tracks.size(), false);
   for (auto const &h : hypotheses)
     if (h.trackIdx >= 0 && h.type == Hypothesis::Type::Muon)
       muonTrack[h.trackIdx] = true;
     else if (h.trackIdx >= 0 && h.type == Hypothesis::Type::Electron)
       electronTrack[h.trackIdx] = true;
+    else if (h.trackIdx >= 0 && h.type == Hypothesis::Type::RecoveryChargedHadron && h.tracksterIdx >= 0) {
+      const auto &ts = opinions.tracksters[h.tracksterIdx];
+      if (!ts.isHadronic() || ts.raw_em_energy() > 0.9f * ts.raw_energy())
+        emRecoveryTrack[h.trackIdx] = true;
+    }
 
-  // The model scores the hypotheses of the interpretations; a track-only hypothesis takes trackOnlyWeight.
+  // The model scores the hypotheses of the interpretations; a track-only hypothesis takes trackOnlyWeight. A model
+  // with arbitrationModelFeatures inputs reads the first slots of each row.
   std::vector<unsigned int> rows;
   for (unsigned int i = 0; i < nH; ++i)
     if (!isTrackOnly(hypotheses[i]))
       rows.push_back(i);
-  std::vector<float> features(rows.size() * kN, 0.f);
+  std::vector<float> features(rows.size() * modelFeatures_, 0.f);
+  std::array<float, kN> x;
   for (unsigned int r = 0; r < rows.size(); ++r) {
     const auto &h = hypotheses[rows[r]];
     const Trackster *footprint = h.tracksterIdx >= 0 ? &opinions.tracksters[h.tracksterIdx] : nullptr;
-    modelfeatures::fillHypothesisFeatures(h,
-                                          footprint,
-                                          tracks,
-                                          {compSize[rows[r]], muonTrack, electronTrack},
-                                          std::span<float, kN>(features.data() + r * kN, kN));
+    x.fill(0.f);
+    modelfeatures::fillHypothesisFeatures(
+        h, footprint, tracks, {compSize[rows[r]], muonTrack, electronTrack, emRecoveryTrack}, x);
+    std::copy_n(x.begin(), modelFeatures_, features.begin() + r * modelFeatures_);
   }
   const std::vector<float> logits = arbitrationModel_.logits(std::move(features), rows.size());
   std::vector<float> weights(nH, trackOnlyWeight_);
@@ -1319,6 +1333,10 @@ void TICLInterpretationProducer::fillDescriptions(edm::ConfigurationDescriptions
   desc.add<edm::FileInPath>("arbitrationModelFile",
                             edm::FileInPath("RecoTICL/Interpretation/data/arbitration/hypothesis_mlp_v2.onnx"))
       ->setComment("ONNX model of the probability that a hypothesis is correct (logit).");
+  desc.add<unsigned int>("arbitrationModelFeatures", modelfeatures::hypothesis::kNv2)
+      ->setComment(
+          "Inputs of the hypothesis model per row: 30 (hypothesis_mlp_v2), or 32 with the tracks whose Recovery "
+          "hypothesis has an EM footprint and the tracks with a missing inner hit.");
   desc.add<float>("arbitrationPlattA", 0.9958741664886475f)->setComment("Platt calibration: logit' = a x logit + b.");
   desc.add<float>("arbitrationPlattB", -0.012220372445881367f);
   desc.add<float>("arbitrationTrackBonus", 20.0f)->setComment("Weight added per track a hypothesis covers.");
