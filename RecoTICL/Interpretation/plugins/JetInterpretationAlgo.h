@@ -58,16 +58,20 @@ namespace ticl {
     float trackDistance(const Inputs &input, const reco::Track &tk, size_t iTrack, const Vector &point) const;
     // True when the trackster barycenter is in the delta_tk_ts window of the track.
     bool inTrackWindow(size_t iTrack, unsigned iTs) const;
+    // Expected raw deposit of a track of momentum p: (recovery_budget_response + recovery_budget_log_slope ln p) p.
+    float expectedDeposit(float p) const;
 
     const float delta_tk_ts_;
     // Min trackster raw energy for a jet on one trackster.
     const float min_trackster_energy_;
-    // E/p band of a recovery footprint.
+    // Band of the footprint raw energy over the expected deposit of the track.
     const float recovery_min_eop_;
     const float recovery_max_eop_;
     // Recovery footprint: the tracksters in the window within this transverse distance [cm] of the track, nearest
-    // first, up to the track momentum.
+    // first, up to the expected deposit.
     const float recovery_max_distance_;
+    const float recovery_budget_response_;
+    const float recovery_budget_log_slope_;
 
     // Indices of the selected tracks, in increasing order.
     std::vector<unsigned> selectedTracks_;
