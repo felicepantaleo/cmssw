@@ -53,6 +53,7 @@
 #include "RecoTICL/Inference/interface/TICLONNXGlobalCache.h"
 #include "RecoTICL/Inference/interface/TracksterInferenceAlgoFactory.h"
 #include "RecoTICL/Interpretation/interface/AssignmentMaps.h"
+#include "RecoTICL/Interpretation/interface/TypeProbabilities.h"
 #include "RecoTICL/Interpretation/interface/MaxWeightIndependentSet.h"
 #include "RecoTICL/Interpretation/interface/ModelFeatures.h"
 #include "RecoTICL/Interpretation/interface/MuonKinematics.h"
@@ -173,10 +174,6 @@ namespace {
     std::unordered_multimap<std::size_t, unsigned int> index_;
   };
 
-  // A charged hadron from the track alone, with no footprint.
-  bool isTrackOnly(const Hypothesis &h) {
-    return h.tracksterIdx < 0 && h.type == Hypothesis::Type::RecoveryChargedHadron;
-  }
   bool isNeutral(const Hypothesis &h) {
     return h.type == Hypothesis::Type::Photon || h.type == Hypothesis::Type::NeutralHadron;
   }
@@ -314,11 +311,20 @@ private:
                                     const std::vector<TrackImpact> &impacts,
                                     const std::vector<reco::CaloCluster> &layerClusters,
                                     const std::vector<unsigned int> &pool) const;
-  // Species of the neutral candidates: photon (22), pi0 (111) or neutral hadron (130). A photon winner is EM and only
-  // chooses between 22 and 111.
+  // Species of the neutral candidates: photon (22), pi0 (111) or neutral hadron (130), and their probabilities (photon,
+  // pi0, neutral hadron; 0 for a neutral without raw energy). A photon winner is EM and only chooses between 22 and 111.
   void assignNeutralSpecies(const std::vector<Trackster> &tracksters,
                             const std::vector<int> &neutralIdx,
-                            std::vector<int> &neutralPdg) const;
+                            std::vector<int> &neutralPdg,
+                            std::vector<float> &probabilities) const;
+  // Species of the final tracksters of the tracks (0 for the other tracksters), the type of the neutral residuals of
+  // TICLCandidateArbitrationProducer, and their probabilities (photon, pi0, neutral hadron per trackster).
+  std::vector<int> trackTracksterSpecies(const std::vector<Trackster> &tracksters,
+                                         const std::vector<int> &trackToTrackster,
+                                         std::vector<float> &probabilities) const;
+  // 22, 111 or 130 from the logits of the neutral species model; an EM trackster is 22 or 111. The species
+  // probabilities go to p (photon, pi0, neutral hadron).
+  int speciesPdg(const float *logits, bool em, float *p) const;
 
   std::vector<edm::EDGetTokenT<std::vector<Trackster>>> tracksters_tokens_;
   std::vector<edm::EDGetTokenT<std::vector<Trackster>>> egamma_tracksters_tokens_;
@@ -386,6 +392,7 @@ private:
   static constexpr float kClaimMaxDepth = 200.f;
   const ArbitrationModel neutralModel_;
   const float neutralModelThreshold_;
+  const bool tracksterSpeciesForTracks_;
   const float emRawEnergyBelow_;
 };
 
@@ -438,6 +445,7 @@ TICLInterpretationProducer::TICLInterpretationProducer(const edm::ParameterSet &
                     modelfeatures::neutralSpecies::kN,
                     kNSpecies),
       neutralModelThreshold_(ps.getParameter<float>("neutralModelThreshold")),
+      tracksterSpeciesForTracks_(ps.getParameter<bool>("tracksterSpeciesForTracks")),
       emRawEnergyBelow_(ps.getParameter<float>("emRawEnergyBelow")) {
   for (auto const &tag : ps.getParameter<std::vector<edm::InputTag>>("tracksters_collections"))
     tracksters_tokens_.emplace_back(consumes<std::vector<Trackster>>(tag));
@@ -496,6 +504,10 @@ TICLInterpretationProducer::TICLInterpretationProducer(const edm::ParameterSet &
   produces<std::vector<int>>("neutralIdx");
   produces<std::vector<int>>("neutralPdg");
   produces<std::vector<int>>("electronTrackster");
+  produces<std::vector<int>>("tracksterSpecies");
+  produces<std::vector<float>>("tracksterSpeciesProbabilities");
+  produces<std::vector<float>>("trackTypeProbabilities");
+  produces<std::vector<float>>("neutralSpeciesProbabilities");
 }
 
 void TICLInterpretationProducer::beginRun(edm::Run const &, edm::EventSetup const &es) {
@@ -1017,8 +1029,10 @@ std::vector<int> TICLInterpretationProducer::claimAlongTracks(const Opinions &op
 
 void TICLInterpretationProducer::assignNeutralSpecies(const std::vector<Trackster> &tracksters,
                                                       const std::vector<int> &neutralIdx,
-                                                      std::vector<int> &neutralPdg) const {
+                                                      std::vector<int> &neutralPdg,
+                                                      std::vector<float> &probabilities) const {
   using modelfeatures::neutralSpecies::kN;
+  probabilities.assign(kNSpecies * neutralIdx.size(), 0.f);
   std::vector<unsigned int> rows;
   std::vector<float> x;
   for (unsigned int k = 0; k < neutralIdx.size(); ++k) {
@@ -1031,16 +1045,45 @@ void TICLInterpretationProducer::assignNeutralSpecies(const std::vector<Trackste
   }
   const auto logits = neutralModel_.logits(std::move(x), rows.size());
   for (unsigned int r = 0; r < rows.size(); ++r) {
-    const float *m = &logits[r * kNSpecies];
-    const float mMax = std::max({m[0], m[1], m[2]});
-    const float pPhoton = std::exp(m[0] - mMax), pPi0 = std::exp(m[1] - mMax), pHadron = std::exp(m[2] - mMax);
-    const float pEM = (pPhoton + pPi0) / (pPhoton + pPi0 + pHadron);
     int &pdg = neutralPdg[rows[r]];
-    if (pdg == 22 || pEM >= neutralModelThreshold_)
-      pdg = pPi0 > pPhoton ? 111 : 22;
-    else
-      pdg = 130;
+    pdg = speciesPdg(&logits[r * kNSpecies], pdg == 22, &probabilities[kNSpecies * rows[r]]);
   }
+}
+
+int TICLInterpretationProducer::speciesPdg(const float *m, bool em, float *p) const {
+  const float mMax = std::max({m[0], m[1], m[2]});
+  const float pPhoton = std::exp(m[0] - mMax), pPi0 = std::exp(m[1] - mMax), pHadron = std::exp(m[2] - mMax);
+  const float sum = pPhoton + pPi0 + pHadron;
+  const float pEM = (pPhoton + pPi0) / sum;
+  p[0] = pPhoton / sum;
+  p[1] = pPi0 / sum;
+  p[2] = pHadron / sum;
+  if (em || pEM >= neutralModelThreshold_)
+    return pPi0 > pPhoton ? 111 : 22;
+  return 130;
+}
+
+std::vector<int> TICLInterpretationProducer::trackTracksterSpecies(const std::vector<Trackster> &tracksters,
+                                                                   const std::vector<int> &trackToTrackster,
+                                                                   std::vector<float> &probabilities) const {
+  using modelfeatures::neutralSpecies::kN;
+  std::vector<int> species(tracksters.size(), 0);
+  probabilities.assign(kNSpecies * tracksters.size(), 0.f);
+  std::vector<bool> seen(tracksters.size(), false);
+  std::vector<unsigned int> rows;
+  std::vector<float> x;
+  for (int iTs : trackToTrackster) {
+    if (iTs < 0 || seen[iTs] || !(tracksters[iTs].raw_energy() > 0.f))
+      continue;
+    seen[iTs] = true;
+    rows.push_back(iTs);
+    x.resize(x.size() + kN, 0.f);
+    modelfeatures::fillNeutralSpeciesFeatures(tracksters[iTs], std::span<float, kN>(x.data() + x.size() - kN, kN));
+  }
+  const auto logits = neutralModel_.logits(std::move(x), rows.size());
+  for (unsigned int r = 0; r < rows.size(); ++r)
+    species[rows[r]] = speciesPdg(&logits[r * kNSpecies], false, &probabilities[kNSpecies * rows[r]]);
+  return species;
 }
 
 void TICLInterpretationProducer::produce(edm::Event &evt, const edm::EventSetup &es) {
@@ -1096,9 +1139,16 @@ void TICLInterpretationProducer::produce(edm::Event &evt, const edm::EventSetup 
       ts.setRegressedEnergy(ts.raw_energy());
 
   auto maps = assignmentMaps(hypotheses, accepted, finalTs, tracks.size());
-  assignNeutralSpecies(result, *maps.neutralIdx, *maps.neutralPdg);
+  auto neutralProbabilities = std::make_unique<std::vector<float>>();
+  assignNeutralSpecies(result, *maps.neutralIdx, *maps.neutralPdg, *neutralProbabilities);
+  auto trackProbabilities =
+      std::make_unique<std::vector<float>>(trackTypeProbabilities(hypotheses, weights, tracks.size()));
   auto electronTrackster =
       std::make_unique<std::vector<int>>(electronTracksters(opinions, weights, result, layerClusters, tracks.size()));
+  auto tracksterSpecies = std::make_unique<std::vector<int>>();
+  auto tracksterProbabilities = std::make_unique<std::vector<float>>();
+  if (tracksterSpeciesForTracks_)
+    *tracksterSpecies = trackTracksterSpecies(result, *maps.trackToTrackster, *tracksterProbabilities);
 
   evt.put(std::move(finalTs.tracksters));
   evt.put(std::move(maps.trackToTrackster), "trackToTrackster");
@@ -1106,6 +1156,10 @@ void TICLInterpretationProducer::produce(edm::Event &evt, const edm::EventSetup 
   evt.put(std::move(maps.neutralIdx), "neutralIdx");
   evt.put(std::move(maps.neutralPdg), "neutralPdg");
   evt.put(std::move(electronTrackster), "electronTrackster");
+  evt.put(std::move(tracksterSpecies), "tracksterSpecies");
+  evt.put(std::move(tracksterProbabilities), "tracksterSpeciesProbabilities");
+  evt.put(std::move(trackProbabilities), "trackTypeProbabilities");
+  evt.put(std::move(neutralProbabilities), "neutralSpeciesProbabilities");
 }
 
 TICLInterpretationProducer::ClaimPool TICLInterpretationProducer::claimPool(
@@ -1412,6 +1466,10 @@ void TICLInterpretationProducer::fillDescriptions(edm::ConfigurationDescriptions
                             edm::FileInPath("RecoTICL/Interpretation/data/arbitration/neutralSpecies_mlp_v2.onnx"))
       ->setComment("ONNX 3-class model (photon, pi0, neutral hadron; logits) that types the neutral candidates.");
   desc.add<float>("neutralModelThreshold", 0.7f)->setComment("P(photon) + P(pi0) at and above which a neutral is EM.");
+  desc.add<bool>("tracksterSpeciesForTracks", true)
+      ->setComment(
+          "Put the species of the final tracksters of the tracks and their probabilities (instances "
+          "tracksterSpecies, tracksterSpeciesProbabilities); empty if false.");
   desc.add<float>("emRawEnergyBelow", 50.f)
       ->setComment("EM final tracksters below this raw energy [GeV] keep the raw energy.");
   descriptions.add("ticlInterpretationProducer", desc);
