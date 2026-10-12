@@ -52,6 +52,7 @@
 #include "RecoTICL/Common/interface/TrackstersPCA.h"
 #include "RecoTICL/Inference/interface/TICLONNXGlobalCache.h"
 #include "RecoTICL/Inference/interface/TracksterInferenceAlgoFactory.h"
+#include "RecoTICL/Inference/interface/TracksterInferenceByPFN.h"
 #include "RecoTICL/Interpretation/interface/AssignmentMaps.h"
 #include "RecoTICL/Interpretation/interface/TypeProbabilities.h"
 #include "RecoTICL/Interpretation/interface/MaxWeightIndependentSet.h"
@@ -1443,16 +1444,17 @@ void TICLInterpretationProducer::fillDescriptions(edm::ConfigurationDescriptions
   egammaDesc.addNode(edm::PluginDescription<TICLGeneralInterpretationPluginFactory>("type", "EGamma", true));
   desc.add<edm::ParameterSetDescription>("egammaInterpretationDescPSet", egammaDesc);
 
-  edm::ParameterSetDescription inferenceDesc;
-  inferenceDesc.addNode(edm::PluginDescription<TracksterInferenceAlgoFactory>("type", "TracksterInferenceByPFN", true));
   // The plugin and its parameter set pluginInferenceAlgo<plugin>.
   desc.ifValue(edm::ParameterDescription<std::string>(
                    "inferenceAlgo",
                    "TracksterInferenceByPFN",
                    true,
                    edm::Comment("PID and energy regression of the footprints and of the final tracksters.")),
-               "TracksterInferenceByPFN" >> edm::ParameterDescription<edm::ParameterSetDescription>(
-                                                "pluginInferenceAlgoTracksterInferenceByPFN", inferenceDesc, true));
+               "TracksterInferenceByPFN" >>
+                   edm::ParameterDescription<edm::ParameterSetDescription>(
+                       "pluginInferenceAlgoTracksterInferenceByPFN",
+                       ticl::inferencePluginPSetDescription<ticl::TracksterInferenceByPFN>("TracksterInferenceByPFN"),
+                       true));
 
   desc.add<float>("arbitrationMaxSharedEnergyFraction", 0.2f)
       ->setComment("Two hypotheses conflict above this fraction of the smaller footprint energy in shared clusters.");
