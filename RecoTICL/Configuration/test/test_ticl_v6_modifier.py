@@ -29,6 +29,16 @@ def main():
     for block in ("TICL_RECO", "TICL_FEVT", "TICL_FEVTHLT"):
         if "keep *_ticlTracksterInterpretations_*_*" not in getattr(process, block).outputCommands:
             failures.append("%s does not keep ticlTracksterInterpretations" % block)
+    # MiniAOD keeps the candidates and the hypotheses; AOD keeps no product of the two modules.
+    process.load("Configuration.EventContent.EventContent_cff")
+    for block in ("MINIAODEventContent", "MINIAODSIMEventContent"):
+        for keep in ("keep TICLCandidates_ticlCandidate__*",
+                     "keep ticlInterpretationHypotheses_ticlTracksterInterpretations_hypotheses_*"):
+            if keep not in getattr(process, block).outputCommands:
+                failures.append("%s does not have '%s'" % (block, keep))
+    for command in process.AODSIMEventContent.outputCommands:
+        if "ticlCandidate" in command or "ticlTracksterInterpretations" in command:
+            failures.append("AODSIMEventContent has '%s'" % command)
     process.load("Validation.HGCalValidation.HGCalValidator_cff")
     process.load("Validation.HGCalValidation.HLTHGCalValidator_cff")
     process.load("DPGAnalysis.HGCalNanoAOD.hgcalTICLCandidates_cfi")

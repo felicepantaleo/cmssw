@@ -62,6 +62,7 @@ from RecoParticleFlow.Configuration.RecoParticleFlow_EventContent_cff import *
 from RecoVertex.BeamSpotProducer.BeamSpot_EventContent_cff import *
 from RecoPPS.Configuration.RecoCTPPS_EventContent_cff import *
 from RecoHGCal.Configuration.RecoHGCal_EventContent_cff import *
+from RecoTICL.Configuration.ticlEventContent_cff import TICL_MINIAOD
 
 # raw2digi that are already the final RECO/AOD products
 from EventFilter.ScalersRawToDigi.Scalers_EventContent_cff import *
@@ -994,6 +995,11 @@ MINIAODSIMEventContent= cms.PSet(
 )
 MINIAODSIMEventContent.outputCommands.extend(MicroEventContentMC.outputCommands)
 MINIAODSIMEventContent.outputCommands.extend(HLTriggerMINIAODSIM.outputCommands)
+
+phase2_hgcal.toModify(MINIAODEventContent,
+    outputCommands = MINIAODEventContent.outputCommands + TICL_MINIAOD.outputCommands)
+phase2_hgcal.toModify(MINIAODSIMEventContent,
+    outputCommands = MINIAODSIMEventContent.outputCommands + TICL_MINIAOD.outputCommands)
 
 phase2_l1scout.toModify(MINIAODSIMEventContent, outputCommands = L1TriggerPhase2L1Scout.outputCommands)
 
