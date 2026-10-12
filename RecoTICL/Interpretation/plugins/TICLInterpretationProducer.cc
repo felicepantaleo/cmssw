@@ -317,6 +317,11 @@ private:
                             const std::vector<int> &neutralIdx,
                             std::vector<int> &neutralPdg,
                             std::vector<float> &probabilities) const;
+  // The hypotheses with their model weights, acceptance, footprint energies and barycenters, and the conflict graph.
+  InterpretationHypotheses persistedHypotheses(const Opinions &opinions,
+                                               const std::vector<float> &weights,
+                                               const std::vector<bool> &accepted,
+                                               const std::vector<std::vector<unsigned int>> &conflicts) const;
   // Species of the final tracksters of the tracks (0 for the other tracksters), the type of the neutral residuals of
   // TICLCandidateArbitrationProducer, and their probabilities (photon, pi0, neutral hadron per trackster).
   std::vector<int> trackTracksterSpecies(const std::vector<Trackster> &tracksters,
@@ -508,6 +513,7 @@ TICLInterpretationProducer::TICLInterpretationProducer(const edm::ParameterSet &
   produces<std::vector<float>>("tracksterSpeciesProbabilities");
   produces<std::vector<float>>("trackTypeProbabilities");
   produces<std::vector<float>>("neutralSpeciesProbabilities");
+  produces<InterpretationHypotheses>("hypotheses");
 }
 
 void TICLInterpretationProducer::beginRun(edm::Run const &, edm::EventSetup const &es) {
@@ -1063,6 +1069,33 @@ int TICLInterpretationProducer::speciesPdg(const float *m, bool em, float *p) co
   return 130;
 }
 
+InterpretationHypotheses TICLInterpretationProducer::persistedHypotheses(
+    const Opinions &opinions,
+    const std::vector<float> &weights,
+    const std::vector<bool> &accepted,
+    const std::vector<std::vector<unsigned int>> &conflicts) const {
+  InterpretationHypotheses out;
+  out.setTrackBonus(trackBonus_);
+  std::vector<int> tracks;
+  for (unsigned int i = 0; i < opinions.hypotheses.size(); ++i) {
+    const auto &h = opinions.hypotheses[i];
+    tracks.clear();
+    if (h.trackIdx >= 0)
+      tracks.push_back(h.trackIdx);
+    tracks.insert(tracks.end(), h.trackIdxs.begin(), h.trackIdxs.end());
+    if (h.tracksterIdx >= 0) {
+      const auto &ts = opinions.tracksters[h.tracksterIdx];
+      out.add(h.type, tracks, weights[i], accepted[i], ts.raw_energy(), ts.raw_em_energy(), ts.barycenter());
+    } else {
+      out.add(h.type, tracks, weights[i], accepted[i], 0.f, 0.f, Trackster::Vector());
+    }
+    for (unsigned int j : conflicts[i])
+      if (j > i)
+        out.addConflict(i, j);
+  }
+  return out;
+}
+
 std::vector<int> TICLInterpretationProducer::trackTracksterSpecies(const std::vector<Trackster> &tracksters,
                                                                    const std::vector<int> &trackToTrackster,
                                                                    std::vector<float> &probabilities) const {
@@ -1124,6 +1157,8 @@ void TICLInterpretationProducer::produce(edm::Event &evt, const edm::EventSetup 
         trackBonus_ * static_cast<float>((hypotheses[i].trackIdx >= 0 ? 1 : 0) + hypotheses[i].trackIdxs.size());
   const auto accepted =
       maxWeightIndependentSet(solverWeights, conflicts, maxExactComponent_, searchBudget_, solverStats_);
+  auto hypothesisProduct =
+      std::make_unique<InterpretationHypotheses>(persistedHypotheses(opinions, weights, accepted, conflicts));
 
   auto [leftovers, pool] = claimPool(evt, opinions, accepted, inferenceCache, tracksters, layerClusters);
   const auto claimingTrack = claimAlongTracks(opinions, accepted, tracks, impacts, layerClusters, pool);
@@ -1156,6 +1191,7 @@ void TICLInterpretationProducer::produce(edm::Event &evt, const edm::EventSetup 
   evt.put(std::move(maps.neutralIdx), "neutralIdx");
   evt.put(std::move(maps.neutralPdg), "neutralPdg");
   evt.put(std::move(electronTrackster), "electronTrackster");
+  evt.put(std::move(hypothesisProduct), "hypotheses");
   evt.put(std::move(tracksterSpecies), "tracksterSpecies");
   evt.put(std::move(tracksterProbabilities), "tracksterSpeciesProbabilities");
   evt.put(std::move(trackProbabilities), "trackTypeProbabilities");
