@@ -88,5 +88,9 @@ from Configuration.ProcessModifiers.ticl_v6_cff import ticl_v6
 _v6Reco = [k for k in keep_statements(presets.v6(), RECO) if k not in _recoTICL]
 # The muon decisions of the candidates serve pfTICL in the same job; the muons they point to are not in RECO.
 _v6Reco += ['drop *_ticlCandidate_muons_*', 'drop *_ticlCandidate_muonTrackType_*']
+# The species and type probabilities serve the candidates in the same job; the candidates hold the type probabilities.
+_v6Reco += ['drop *_ticlTracksterInterpretations_%s_*' % _instance
+            for _instance in ('tracksterSpecies', 'tracksterSpeciesProbabilities', 'trackTypeProbabilities',
+                              'neutralSpeciesProbabilities')]
 for _block in (TICL_RECO, TICL_FEVT, TICL_FEVTHLT):
     ticl_v6.toModify(_block, lambda b: b.outputCommands.extend(_v6Reco))

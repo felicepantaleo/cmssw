@@ -21,11 +21,17 @@ namespace io_v1 {
     typedef ticl::Trackster::ParticleType ParticleType;
 
     TICLCandidate(Charge q, const LorentzVector& p4)
-        : LeafCandidate(q, p4), idProbabilities_{}, time_(0.f), timeError_(-1.f), rawEnergy_(0.f) {}
+        : LeafCandidate(q, p4),
+          idProbabilities_{},
+          typeProbabilities_{},
+          time_(0.f),
+          timeError_(-1.f),
+          rawEnergy_(0.f) {}
 
     TICLCandidate()
         : LeafCandidate(),
           idProbabilities_{},
+          typeProbabilities_{},
           time_(0.f),
           timeError_(-1.f),
           MTDtime_{0.f},
@@ -36,6 +42,7 @@ namespace io_v1 {
         : LeafCandidate(),
           tracksters_({trackster}),
           idProbabilities_{},
+          typeProbabilities_{},
           time_(trackster->time()),
           timeError_(trackster->timeError()),
           MTDtime_{0.f},
@@ -47,6 +54,7 @@ namespace io_v1 {
           tracksters_{},
           trackPtrs_{},
           idProbabilities_{},
+          typeProbabilities_{},
           time_(0.f),
           timeError_(-1.f),
           MTDtime_{0.f},
@@ -155,6 +163,13 @@ namespace io_v1 {
     void setIdProbabilities(const std::array<float, 8>& idProbs) { idProbabilities_ = idProbs; }
     inline void setIdProbability(ParticleType type, float value) { idProbabilities_[int(type)] = value; }
 
+    // Probability of each candidate type from the interpretation stage, in the order of ParticleType (0 when not set).
+    // A charged candidate holds the probabilities of the best hypothesis of each type of its track (electron, muon,
+    // charged hadron); a neutral candidate holds the species probabilities (photon, neutral pion, neutral hadron).
+    inline const std::array<float, 8>& typeProbabilities() const { return typeProbabilities_; }
+    inline float typeProbability(ParticleType type) const { return typeProbabilities_[int(type)]; }
+    void setTypeProbabilities(const std::array<float, 8>& probabilities) { typeProbabilities_ = probabilities; }
+
   private:
     // vector of Ptr so Tracksters can come from different collections
     // and there can be derived classes
@@ -163,6 +178,7 @@ namespace io_v1 {
     std::vector<edm::Ptr<reco::GsfTrack>> gsfTrackPtrs_;
     // Since it contains multiple tracksters, duplicate the probability interface
     std::array<float, 8> idProbabilities_;
+    std::array<float, 8> typeProbabilities_;
 
     float time_;
     float timeError_;
