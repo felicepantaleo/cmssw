@@ -4,6 +4,7 @@
 #include <memory>
 #include <vector>
 #include "DataFormats/CaloRecHit/interface/CaloCluster.h"
+#include "DataFormats/HGCalReco/interface/InterpretationHypotheses.h"
 #include "DataFormats/HGCalReco/interface/MtdHostCollection.h"
 #include "DataFormats/HGCalReco/interface/Trackster.h"
 #include "DataFormats/HGCalReco/interface/TICLCandidate.h"
@@ -39,7 +40,7 @@ namespace ticl {
   // An interpretation does not consume objects: the hypotheses overlap, and the interpretation producer chooses the
   // accepted set.
   struct Hypothesis {
-    enum class Type { Muon, Electron, Photon, ChargedHadron, NeutralHadron, Jet, RecoveryChargedHadron };
+    using Type = InterpretationHypotheses::Type;
     Type type = Type::ChargedHadron;
     float score = 0.f;           // in [0, 1]
     int trackIdx = -1;           // track of a single-track hypothesis (-1: none)
