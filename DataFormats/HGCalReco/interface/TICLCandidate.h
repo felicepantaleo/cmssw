@@ -11,6 +11,8 @@
 #include "DataFormats/TrackReco/interface/TrackFwd.h"
 #include "Common.h"
 
+#include "RtypesCore.h"
+
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
 
 // A TICLCandidate is a lightweight physics object made from one or multiple Tracksters.
@@ -177,8 +179,9 @@ namespace io_v1 {
     std::vector<edm::Ptr<reco::Track>> trackPtrs_;
     std::vector<edm::Ptr<reco::GsfTrack>> gsfTrackPtrs_;
     // Since it contains multiple tracksters, duplicate the probability interface
-    std::array<float, 8> idProbabilities_;
-    std::array<float, 8> typeProbabilities_;
+    // The probabilities are floats in memory and are written with 12 bits in [0, 1].
+    std::array<Float16_t, 8> idProbabilities_;    //[0,1,12]
+    std::array<Float16_t, 8> typeProbabilities_;  //[0,1,12]
 
     float time_;
     float timeError_;
