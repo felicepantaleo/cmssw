@@ -47,6 +47,11 @@ namespace ticl {
     std::vector<int> trackIdxs;  // tracks of a jet hypothesis
   };
 
+  // A charged hadron from the track alone, with no footprint.
+  inline bool isTrackOnly(const Hypothesis& h) {
+    return h.tracksterIdx < 0 && h.type == Hypothesis::Type::RecoveryChargedHadron;
+  }
+
   template <typename T>
   class TICLInterpretationAlgoBase {
   public:
