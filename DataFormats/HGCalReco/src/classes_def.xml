@@ -68,7 +68,8 @@
     <version ClassVersion="3" checksum="2436690028"/>
   </class>
   <class name="std::vector<io_v1::TICLCandidate>" />
-  <class name="ticl::io_v1::InterpretationHypotheses" ClassVersion="3">
+  <class name="ticl::io_v1::InterpretationHypotheses" ClassVersion="4">
+    <version ClassVersion="4" checksum="2596993785"/>
     <version ClassVersion="3" checksum="1398090763"/>
   </class>
   <class name="edm::Wrapper<ticl::io_v1::InterpretationHypotheses>" />
