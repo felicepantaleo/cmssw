@@ -13,8 +13,7 @@ MuonInterpretationAlgo::MuonInterpretationAlgo(const edm::ParameterSet &conf, ed
     : TICLInterpretationAlgoBase(conf, iC),
       delta_tk_ts_(conf.getParameter<float>("delta_tk_ts")),
       mip_energy_max_(conf.getParameter<float>("mip_energy_max")),
-      max_distance_(conf.getParameter<float>("max_distance")),
-      windowAtImpact_(conf.getParameter<bool>("windowAtImpact")) {
+      max_distance_(conf.getParameter<float>("max_distance")) {
   if (!(max_distance_ > 0.f))
     throw cms::Exception("Configuration") << "MuonInterpretationAlgo: max_distance must be positive";
 }
@@ -117,9 +116,8 @@ void MuonInterpretationAlgo::makeOpinions(const Inputs &input,
     const auto &tk = tracks[iTrack];
     const auto &impact = (*input.impacts)[iTrack];
     const auto dir = tk.outerOk() ? tk.outerMomentum() : tk.momentum();
-    const bool atImpact = windowAtImpact_ && impact.valid;
-    const float tkEta = atImpact ? impact.position.eta() : dir.eta();
-    const float tkPhi = atImpact ? impact.position.barePhi() : dir.phi();
+    const float tkEta = dir.eta();
+    const float tkPhi = dir.phi();
     // Distance to the propagated track; to the straight line from the outermost state when the propagation failed.
     auto distance = [&](const Vector &point) { return trackTransverseDistance(impact, tk, point); };
 
@@ -156,9 +154,5 @@ void MuonInterpretationAlgo::fillPSetDescription(edm::ParameterSetDescription &d
       ->setComment("Max summed raw energy [GeV] around the trajectory for a MIP-like (muon) signature.");
   desc.add<float>("max_distance", 3.f)
       ->setComment("Hypotheses: max transverse distance [cm] between a trackster barycenter and the track.");
-  desc.add<bool>("windowAtImpact", false)
-      ->setComment(
-          "Hypotheses: centre the window on the track impact at the HGCAL front when it is valid, else on the "
-          "outermost momentum direction.");
   TICLInterpretationAlgoBase::fillPSetDescription(desc);
 }

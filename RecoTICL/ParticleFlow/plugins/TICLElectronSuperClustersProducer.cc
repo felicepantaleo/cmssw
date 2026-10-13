@@ -38,7 +38,6 @@ private:
   const edm::EDGetTokenT<std::vector<int>> trackToTrackster_token_;
   const edm::EDGetTokenT<std::vector<int>> trackMode_token_;
   const edm::EDGetTokenT<std::vector<int>> electronTrackster_token_;
-  const bool superClusterSeedsForElectrons_;
   const edm::EDPutTokenT<reco::SuperClusterCollection> superClusters_put_token_;
   const edm::EDPutTokenT<std::vector<int>> superClusterIndex_put_token_;
   const edm::EDPutTokenT<std::vector<int>> trackSeedSuperCluster_put_token_;
@@ -60,7 +59,6 @@ TICLElectronSuperClustersProducer::TICLElectronSuperClustersProducer(const edm::
       trackToTrackster_token_(consumes(instanceTag(ps, "interpretations", "trackToTrackster"))),
       trackMode_token_(consumes(instanceTag(ps, "interpretations", "trackMode"))),
       electronTrackster_token_(consumes(instanceTag(ps, "interpretations", "electronTrackster"))),
-      superClusterSeedsForElectrons_(ps.getParameter<bool>("superClusterSeedsForElectrons")),
       superClusters_put_token_(produces()),
       superClusterIndex_put_token_(produces<std::vector<int>>("superClusterIndex")),
       trackSeedSuperCluster_put_token_(produces<std::vector<int>>("trackSeedSuperCluster")),
@@ -95,7 +93,7 @@ void TICLElectronSuperClustersProducer::produce(edm::StreamID, edm::Event &evt, 
             << "TICLElectronSuperClustersProducer: a supercluster has a cluster that is not from the pfClusters";
       clusterTracksters.push_back(static_cast<int>(pfCluster.key()));
     }
-    const auto seeding = ticl::superClusterSeeding(clusterTracksters, electrons, superClusterSeedsForElectrons_);
+    const auto seeding = ticl::superClusterSeeding(clusterTracksters, electrons);
     for (int iTrack : seeding.tracks) {
       trackSeedSuperCluster.push_back(static_cast<int>(iSC));
       trackSeedTrack.push_back(iTrack);
@@ -124,8 +122,6 @@ void TICLElectronSuperClustersProducer::fillDescriptions(edm::ConfigurationDescr
       ->setComment("E/gamma tracksters; their interpretationIndex instance gives their final trackster.");
   desc.add<edm::InputTag>("interpretations", edm::InputTag("ticlTracksterInterpretations"))
       ->setComment("Interpretation stage; its maps are the instances of the same label.");
-  desc.add<bool>("superClusterSeedsForElectrons", false)
-      ->setComment("Seeds from the supercluster also when a trackster of the supercluster is typed electron.");
   descriptions.add("ticlElectronSuperClustersProducer", desc);
 }
 

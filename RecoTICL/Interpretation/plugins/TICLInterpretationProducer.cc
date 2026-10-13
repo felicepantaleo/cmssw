@@ -55,6 +55,7 @@
 #include "RecoTICL/Inference/interface/TracksterInferenceAlgoFactory.h"
 #include "RecoTICL/Inference/interface/TracksterInferenceByPFN.h"
 #include "RecoTICL/Interpretation/interface/AssignmentMaps.h"
+#include "RecoTICL/Interpretation/interface/ExpectedDeposit.h"
 #include "RecoTICL/Interpretation/interface/TypeProbabilities.h"
 #include "RecoTICL/Interpretation/interface/MaxWeightIndependentSet.h"
 #include "RecoTICL/Interpretation/interface/ModelFeatures.h"
@@ -388,10 +389,10 @@ private:
   // A leftover of an EM input trackster keeps its layer clusters out of the track claim; 0 disables the test.
   const float claimProtectEMThreshold_;
   MaxWeightIndependentSetStats solverStats_;
-  // Track claim: expected raw deposit (response + responseLogSlope x ln p) x p, search radius radius0 + radiusSlope x
-  // depth.
-  const float claimResponse_;
-  const float claimResponseLogSlope_;
+  // Expected raw deposit of a charged hadron and the band of a recovery footprint: the track claim and the Jet
+  // interpretation use it.
+  const ExpectedDeposit expectedDeposit_;
+  // Track claim: search radius radius0 + radiusSlope x depth.
   const float claimRadius0_;
   const float claimRadiusSlope_;
   const float claimMinEnergy_;
@@ -443,8 +444,10 @@ TICLInterpretationProducer::TICLInterpretationProducer(const edm::ParameterSet &
       jetVariantsWithoutElectrons_(ps.getParameter<bool>("arbitrationJetVariantsWithoutElectrons")),
       neutralHadronHypotheses_(ps.getParameter<bool>("arbitrationNeutralHadronHypotheses")),
       claimProtectEMThreshold_(ps.getParameter<float>("arbitrationTrackClaimProtectEMThreshold")),
-      claimResponse_(ps.getParameter<float>("arbitrationTrackClaimResponse")),
-      claimResponseLogSlope_(ps.getParameter<float>("arbitrationTrackClaimResponseLogSlope")),
+      expectedDeposit_{ps.getParameter<float>("expectedDepositResponse"),
+                       ps.getParameter<float>("expectedDepositLogSlope"),
+                       ps.getParameter<float>("recoveryMinDepositFraction"),
+                       ps.getParameter<float>("recoveryMaxDepositFraction")},
       claimRadius0_(ps.getParameter<float>("arbitrationTrackClaimRadius0")),
       claimRadiusSlope_(ps.getParameter<float>("arbitrationTrackClaimRadiusSlope")),
       claimMinEnergy_(ps.getParameter<float>("arbitrationTrackClaimMinEnergy")),
@@ -471,9 +474,13 @@ TICLInterpretationProducer::TICLInterpretationProducer(const edm::ParameterSet &
   // The track-only hypothesis must have a positive weight, so that every selected track gets an accepted hypothesis.
   if (!(trackBonus_ + trackOnlyWeight_ > 0.f))
     throw cms::Exception("Configuration") << "arbitrationTrackBonus + arbitrationTrackOnlyWeight must be positive";
-  if (!(claimResponse_ > 0.f) || !(claimRadius0_ >= 0.f) || !(claimRadiusSlope_ >= 0.f) || !(claimMinEnergy_ >= 0.f))
+  if (!(expectedDeposit_.response > 0.f) ||
+      !(expectedDeposit_.minFraction >= 0.f && expectedDeposit_.maxFraction > expectedDeposit_.minFraction))
     throw cms::Exception("Configuration")
-        << "track claim: response > 0, radius0 >= 0, radiusSlope >= 0 and minEnergy >= 0 are required";
+        << "expectedDepositResponse > 0 and 0 <= recoveryMinDepositFraction < recoveryMaxDepositFraction are required";
+  if (!(claimRadius0_ >= 0.f) || !(claimRadiusSlope_ >= 0.f) || !(claimMinEnergy_ >= 0.f))
+    throw cms::Exception("Configuration")
+        << "track claim: radius0 >= 0, radiusSlope >= 0 and minEnergy >= 0 are required";
   if (!(neutralModelThreshold_ > 0.f && neutralModelThreshold_ < 1.f))
     throw cms::Exception("Configuration") << "neutralModelThreshold must be in (0, 1)";
   if (!(claimProtectEMThreshold_ >= 0.f && claimProtectEMThreshold_ <= 1.f))
@@ -487,7 +494,15 @@ TICLInterpretationProducer::TICLInterpretationProducer(const edm::ParameterSet &
   chargedHadronAlgo_ = makeAlgo("interpretationDescPSet");
   muonAlgo_ = makeAlgo("muonInterpretationDescPSet");
   egammaAlgo_ = makeAlgo("egammaInterpretationDescPSet");
-  jetAlgo_ = makeAlgo("jetInterpretationDescPSet");
+  // The Jet interpretation takes the expected deposit and the recovery band of this module.
+  edm::ParameterSet jetPSet;
+  jetPSet.copyForModify(ps.getParameter<edm::ParameterSet>("jetInterpretationDescPSet"));
+  jetPSet.addParameter<float>("expectedDepositResponse", expectedDeposit_.response);
+  jetPSet.addParameter<float>("expectedDepositLogSlope", expectedDeposit_.logSlope);
+  jetPSet.addParameter<float>("recoveryMinDepositFraction", expectedDeposit_.minFraction);
+  jetPSet.addParameter<float>("recoveryMaxDepositFraction", expectedDeposit_.maxFraction);
+  jetAlgo_ = TICLGeneralInterpretationPluginFactory::get()->create(
+      jetPSet.getParameter<std::string>("type"), jetPSet, consumesCollector());
 
   const std::string inferencePlugin = ps.getParameter<std::string>("inferenceAlgo");
   const auto inferencePSet = ps.getParameter<edm::ParameterSet>("pluginInferenceAlgo" + inferencePlugin);
@@ -966,7 +981,7 @@ std::vector<int> TICLInterpretationProducer::claimAlongTracks(const Opinions &op
     for (int t : tks) {
       const float p = static_cast<float>(tracks[t].p());
       sumP += tracks[t].p();
-      expected += (claimResponse_ + claimResponseLogSlope_ * std::log(p)) * p;
+      expected += expectedDeposit_(p);
     }
     const float deficit = expected - (footprint != nullptr ? footprint->raw_energy() : 0.f);
     if (!(deficit > 0.f) || !(sumP > 0.f))
@@ -1511,10 +1526,16 @@ void TICLInterpretationProducer::fillDescriptions(edm::ConfigurationDescriptions
       ->setComment(
           "A leftover whose input trackster has P(photon) + P(electron) at or above this value keeps its layer "
           "clusters out of the track claim. 0 disables the test.");
-  desc.add<float>("arbitrationTrackClaimResponse", 0.67f)
-      ->setComment("Track claim: expected raw HGCAL deposit of a charged hadron per GeV of track momentum.");
-  desc.add<float>("arbitrationTrackClaimResponseLogSlope", 0.04f)
-      ->setComment("Track claim: the expected deposit per GeV is response + this x ln(p / GeV).");
+  desc.add<float>("expectedDepositResponse", 0.67f)
+      ->setComment(
+          "Expected raw HGCAL deposit of a charged hadron per GeV of track momentum, for the track claim and the "
+          "recovery footprints of the Jet interpretation.");
+  desc.add<float>("expectedDepositLogSlope", 0.04f)
+      ->setComment("The expected deposit per GeV is expectedDepositResponse + this x ln(p / GeV).");
+  desc.add<float>("recoveryMinDepositFraction", 0.2f)
+      ->setComment("Min raw energy of a recovery footprint over the expected deposit of its track.");
+  desc.add<float>("recoveryMaxDepositFraction", 1.5f)
+      ->setComment("Max raw energy of a recovery footprint over the expected deposit of its track.");
   desc.add<float>("arbitrationTrackClaimRadius0", 3.f)
       ->setComment("Track claim: radius [cm] around the propagated track at the HGCAL front.");
   desc.add<float>("arbitrationTrackClaimRadiusSlope", 0.05f)
@@ -1530,7 +1551,8 @@ void TICLInterpretationProducer::fillDescriptions(edm::ConfigurationDescriptions
   desc.add<bool>("tracksterSpeciesForTracks", true)
       ->setComment(
           "Put the species of the final tracksters of the tracks and their probabilities (instances "
-          "tracksterSpecies, tracksterSpeciesProbabilities); empty if false.");
+          "tracksterSpecies, tracksterSpeciesProbabilities), which type the neutral residuals of the candidates; empty "
+          "if false.");
   desc.add<float>("emRawEnergyBelow", 50.f)
       ->setComment("EM final tracksters below this raw energy [GeV] keep the raw energy.");
   descriptions.add("ticlInterpretationProducer", desc);

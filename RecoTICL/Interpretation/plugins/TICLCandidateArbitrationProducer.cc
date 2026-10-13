@@ -81,12 +81,12 @@ private:
   // (eta, phi) window between an electron track and its GSF track.
   const float delta_tk_gsf_;
   // A trackster shared by tracks that take their energy from the track gives a neutral residual E - sum(p) when it is
-  // at least max(floor, fraction x E). With residualSpecies, the neutral species model types the residual.
+  // at least max(floor, fraction x E). When the interpretation stage gives the species of the tracksters
+  // (tracksterSpeciesForTracks), the species types the residual.
   const float residualEnergyFloor_;
   const float residualEnergyFraction_;
-  const bool residualSpecies_;
-  edm::EDGetTokenT<std::vector<int>> tracksterSpecies_token_;
-  edm::EDGetTokenT<std::vector<float>> tracksterSpeciesProbabilities_token_;
+  const edm::EDGetTokenT<std::vector<int>> tracksterSpecies_token_;
+  const edm::EDGetTokenT<std::vector<float>> tracksterSpeciesProbabilities_token_;
   // Type probabilities of the candidates (TICLCandidate::typeProbabilities): per track (electron, muon, charged
   // hadron) and per neutral (photon, pi0, neutral hadron), from the interpretation stage.
   const edm::EDGetTokenT<std::vector<float>> trackTypeProbabilities_token_;
@@ -213,7 +213,9 @@ TICLCandidateArbitrationProducer::TICLCandidateArbitrationProducer(const edm::Pa
       delta_tk_gsf_(ps.getParameter<float>("delta_tk_gsf")),
       residualEnergyFloor_(ps.getParameter<float>("residualEnergyFloor")),
       residualEnergyFraction_(ps.getParameter<float>("residualEnergyFraction")),
-      residualSpecies_(ps.getParameter<bool>("residualSpecies")),
+      tracksterSpecies_token_(consumes<std::vector<int>>(interpretationTag(ps, "tracksterSpecies"))),
+      tracksterSpeciesProbabilities_token_(
+          consumes<std::vector<float>>(interpretationTag(ps, "tracksterSpeciesProbabilities"))),
       trackTypeProbabilities_token_(consumes<std::vector<float>>(interpretationTag(ps, "trackTypeProbabilities"))),
       neutralSpeciesProbabilities_token_(
           consumes<std::vector<float>>(interpretationTag(ps, "neutralSpeciesProbabilities"))),
@@ -242,11 +244,6 @@ TICLCandidateArbitrationProducer::TICLCandidateArbitrationProducer(const edm::Pa
   }
   if (useGsfTracks_) {
     gsf_tracks_token_ = consumes<std::vector<reco::GsfTrack>>(ps.getParameter<edm::InputTag>("gsf_tracks"));
-  }
-  if (residualSpecies_) {
-    tracksterSpecies_token_ = consumes<std::vector<int>>(interpretationTag(ps, "tracksterSpecies"));
-    tracksterSpeciesProbabilities_token_ =
-        consumes<std::vector<float>>(interpretationTag(ps, "tracksterSpeciesProbabilities"));
   }
   produces<std::vector<TICLCandidate>>();
   // Per candidate: its muon (null when none) and the type of the muon track it takes (-1 when none).
@@ -471,17 +468,14 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
         trackSumP[tsIdx] += tk.p();
     }
   }
-  static const std::vector<int> noSpecies;
-  static const std::vector<float> noProbabilities;
-  const auto &tracksterSpecies = residualSpecies_ ? evt.get(tracksterSpecies_token_) : noSpecies;
-  const auto &tracksterSpeciesProbabilities =
-      residualSpecies_ ? evt.get(tracksterSpeciesProbabilities_token_) : noProbabilities;
-  if (residualSpecies_ && (tracksterSpecies.size() != tracksters_h->size() ||
-                           tracksterSpeciesProbabilities.size() != kNeutralSpecies * tracksters_h->size()))
-    throw cms::Exception("Configuration")
-        << "TICLCandidateArbitrationProducer: " << tracksterSpecies.size() << " trackster species and "
-        << tracksterSpeciesProbabilities.size() << " species probabilities for " << tracksters_h->size()
-        << " tracksters; residualSpecies needs tracksterSpeciesForTracks in the interpretation stage";
+  // Empty when the interpretation stage runs without tracksterSpeciesForTracks.
+  const auto &tracksterSpecies = evt.get(tracksterSpecies_token_);
+  const auto &tracksterSpeciesProbabilities = evt.get(tracksterSpeciesProbabilities_token_);
+  if (!tracksterSpecies.empty() && (tracksterSpecies.size() != tracksters_h->size() ||
+                                    tracksterSpeciesProbabilities.size() != kNeutralSpecies * tracksters_h->size()))
+    throw cms::Exception("LogicError") << "TICLCandidateArbitrationProducer: " << tracksterSpecies.size()
+                                       << " trackster species and " << tracksterSpeciesProbabilities.size()
+                                       << " species probabilities for " << tracksters_h->size() << " tracksters";
   appendNeutralResiduals(tracksters_h, trackSumP, tracksterSpecies, tracksterSpeciesProbabilities, candidates);
   appendNeutralCandidates(tracksters_h,
                           evt.get(layerClustersToken_),
@@ -607,8 +601,6 @@ void TICLCandidateArbitrationProducer::fillDescriptions(edm::ConfigurationDescri
   desc.add<float>("residualEnergyFloor", 2.0f)->setComment("Min energy [GeV] of a neutral residual.");
   desc.add<float>("residualEnergyFraction", 0.1f)
       ->setComment("Min energy of a neutral residual as a fraction of the trackster energy.");
-  desc.add<bool>("residualSpecies", true)
-      ->setComment("Type the residuals with the neutral species model (instance tracksterSpecies of interpretations).");
   desc.add<float>("trackMomentumErrorScale", 2.0f)->setComment("Scale of the track momentum error.");
   desc.add<float>("gsfMomentumErrorScale", 3.8f)->setComment("Scale of the GSF mode momentum error.");
   desc.add<float>("emTracksterStochastic", 0.30f)->setComment("Stochastic term of the EM trackster resolution.");
