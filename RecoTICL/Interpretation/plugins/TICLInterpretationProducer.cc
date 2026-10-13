@@ -14,6 +14,7 @@
 #include <memory>
 #include <numeric>
 #include <optional>
+#include <span>
 #include <type_traits>
 #include <unordered_map>
 #include <tuple>
@@ -179,8 +180,7 @@ namespace {
     return h.type == Hypothesis::Type::Photon || h.type == Hypothesis::Type::NeutralHadron;
   }
 
-  // Classes of the neutral species model: photon, pi0, neutral hadron.
-  constexpr unsigned int kNSpecies = 3;
+  constexpr unsigned int kNSpecies = modelfeatures::neutralSpecies::kNOutputs;
 }  // namespace
 
 class TICLInterpretationProducer
@@ -328,9 +328,9 @@ private:
   std::vector<int> trackTracksterSpecies(const std::vector<Trackster> &tracksters,
                                          const std::vector<int> &trackToTrackster,
                                          std::vector<float> &probabilities) const;
-  // 22, 111 or 130 from the logits of the neutral species model; an EM trackster is 22 or 111. The species
-  // probabilities go to p (photon, pi0, neutral hadron).
-  int speciesPdg(const float *logits, bool em, float *p) const;
+  // 22, 111 or 130 from the logits of the neutral species model; the trackster of a photon winner (em) is 22 or 111.
+  // The species probabilities go to p (photon, pi0, neutral hadron).
+  int speciesPdg(std::span<const float, kNSpecies> logits, bool em, std::span<float, kNSpecies> p) const;
 
   std::vector<edm::EDGetTokenT<std::vector<Trackster>>> tracksters_tokens_;
   std::vector<edm::EDGetTokenT<std::vector<Trackster>>> egamma_tracksters_tokens_;
@@ -379,7 +379,8 @@ private:
   const unsigned long searchBudget_;
   // A jet hypothesis on an EM footprint is never accepted.
   const bool vetoJetOnEMFootprint_;
-  // The track of a Muon hypothesis with a positive score (a MIP-like footprint) is in no Jet or Recovery hypothesis.
+  // Each Jet hypothesis also has a variant without the track and the footprint of each Electron hypothesis of its
+  // tracks.
   const bool jetVariantsWithoutElectrons_;
   // Without neutral-hadron hypotheses, their footprints only give the PID of the input tracksters to the inference
   // cache.
@@ -677,7 +678,8 @@ void TICLInterpretationProducer::addJetVariantsWithoutElectrons(Opinions &opinio
   auto &hypotheses = opinions.hypotheses;
   std::vector<std::vector<unsigned int>> electronsOf(tracks.size());
   for (unsigned int i = 0; i < hypotheses.size(); ++i)
-    if (hypotheses[i].type == Hypothesis::Type::Electron && hypotheses[i].tracksterIdx >= 0)
+    if (hypotheses[i].type == Hypothesis::Type::Electron && hypotheses[i].tracksterIdx >= 0 &&
+        hypotheses[i].trackIdx >= 0)
       electronsOf[hypotheses[i].trackIdx].push_back(i);
 
   std::vector<bool> removed(layerClusters.size(), false);
@@ -1053,18 +1055,24 @@ void TICLInterpretationProducer::assignNeutralSpecies(const std::vector<Trackste
   const auto logits = neutralModel_.logits(std::move(x), rows.size());
   for (unsigned int r = 0; r < rows.size(); ++r) {
     int &pdg = neutralPdg[rows[r]];
-    pdg = speciesPdg(&logits[r * kNSpecies], pdg == 22, &probabilities[kNSpecies * rows[r]]);
+    pdg = speciesPdg(std::span<const float>(logits).subspan(r * kNSpecies).first<kNSpecies>(),
+                     pdg == 22,
+                     std::span<float>(probabilities).subspan(kNSpecies * rows[r]).first<kNSpecies>());
   }
 }
 
-int TICLInterpretationProducer::speciesPdg(const float *m, bool em, float *p) const {
-  const float mMax = std::max({m[0], m[1], m[2]});
-  const float pPhoton = std::exp(m[0] - mMax), pPi0 = std::exp(m[1] - mMax), pHadron = std::exp(m[2] - mMax);
+int TICLInterpretationProducer::speciesPdg(std::span<const float, kNSpecies> m,
+                                           bool em,
+                                           std::span<float, kNSpecies> p) const {
+  using namespace modelfeatures::neutralSpecies;
+  const float mMax = std::max({m[kPhoton], m[kPi0], m[kNeutralHadron]});
+  const float pPhoton = std::exp(m[kPhoton] - mMax), pPi0 = std::exp(m[kPi0] - mMax),
+              pHadron = std::exp(m[kNeutralHadron] - mMax);
   const float sum = pPhoton + pPi0 + pHadron;
   const float pEM = (pPhoton + pPi0) / sum;
-  p[0] = pPhoton / sum;
-  p[1] = pPi0 / sum;
-  p[2] = pHadron / sum;
+  p[kPhoton] = pPhoton / sum;
+  p[kPi0] = pPi0 / sum;
+  p[kNeutralHadron] = pHadron / sum;
   if (em || pEM >= neutralModelThreshold_)
     return pPi0 > pPhoton ? 111 : 22;
   return 130;
@@ -1077,6 +1085,7 @@ InterpretationHypotheses TICLInterpretationProducer::persistedHypotheses(
     const std::vector<std::vector<unsigned int>> &conflicts) const {
   InterpretationHypotheses out;
   out.setTrackBonus(trackBonus_);
+  out.setSolverLimits(maxExactComponent_, searchBudget_);
   std::vector<int> tracks;
   for (unsigned int i = 0; i < opinions.hypotheses.size(); ++i) {
     const auto &h = opinions.hypotheses[i];
@@ -1086,9 +1095,21 @@ InterpretationHypotheses TICLInterpretationProducer::persistedHypotheses(
     tracks.insert(tracks.end(), h.trackIdxs.begin(), h.trackIdxs.end());
     if (h.tracksterIdx >= 0) {
       const auto &ts = opinions.tracksters[h.tracksterIdx];
-      out.add(h.type, tracks, weights[i], accepted[i], ts.raw_energy(), ts.raw_em_energy(), ts.barycenter());
+      out.add({.type = h.type,
+               .tracks = tracks,
+               .weight = weights[i],
+               .accepted = accepted[i],
+               .rawEnergy = ts.raw_energy(),
+               .rawEmEnergy = ts.raw_em_energy(),
+               .barycenter = ts.barycenter()});
     } else {
-      out.add(h.type, tracks, weights[i], accepted[i], 0.f, 0.f, Trackster::Vector());
+      out.add({.type = h.type,
+               .tracks = tracks,
+               .weight = weights[i],
+               .accepted = accepted[i],
+               .rawEnergy = 0.f,
+               .rawEmEnergy = 0.f,
+               .barycenter = Trackster::Vector()});
     }
     for (unsigned int j : conflicts[i])
       if (j > i)
@@ -1116,7 +1137,9 @@ std::vector<int> TICLInterpretationProducer::trackTracksterSpecies(const std::ve
   }
   const auto logits = neutralModel_.logits(std::move(x), rows.size());
   for (unsigned int r = 0; r < rows.size(); ++r)
-    species[rows[r]] = speciesPdg(&logits[r * kNSpecies], false, &probabilities[kNSpecies * rows[r]]);
+    species[rows[r]] = speciesPdg(std::span<const float>(logits).subspan(r * kNSpecies).first<kNSpecies>(),
+                                  false,
+                                  std::span<float>(probabilities).subspan(kNSpecies * rows[r]).first<kNSpecies>());
   return species;
 }
 

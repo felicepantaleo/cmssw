@@ -46,6 +46,7 @@ def main():
     process.load("RecoLocalCalo.Configuration.hgcalLocalReco_cff")
     process.load("RecoEgamma.EgammaElectronProducers.ecalDrivenElectronSeeds_cff")
     process.load("RecoParticleFlow.PFTracking.mergedElectronSeeds_cfi")
+    process.load("Validation.HGCalValidation.hgcalHitCalibration_cfi")
     expected = {
         "hgcalValidator.mergedTracksters": "ticlTracksterInterpretations",
         "hltHgcalValidator.mergedTracksters": "hltTiclCandidate",
@@ -59,6 +60,7 @@ def main():
         "ecalDrivenElectronSeeds.endcapSuperClusters": "ticlElectronSuperClusters",
         "ticlElectronSeeds.seeds": "ecalDrivenElectronSeeds",
         "electronMergedSeeds.EcalBasedSeeds": "ticlElectronSeeds",
+        "hgcalHitCalibration.hgcalMultiClusters": "particleFlowClusterTICL",
     }
     # The e/gamma PF clusters are the typed tracksters, without the PID cut; particleFlowClusterHGCal does not run.
     if process.particleFlowClusterTICL.initialClusteringStep.filterByTracksterPID.value():

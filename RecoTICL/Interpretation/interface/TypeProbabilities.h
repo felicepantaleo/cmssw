@@ -16,8 +16,8 @@ namespace ticl {
   constexpr unsigned int kTrackTypes = 3;
 
   // For each track, kTrackTypes values: the probability of the best hypothesis of each type that holds the track, the
-  // logistic of the weight that the solver compares (0 when the track has no hypothesis of the type). A track-only
-  // hypothesis has no model weight and does not count.
+  // logistic of its model weight, without the track bonus (0 when the track has no hypothesis of the type). A
+  // track-only hypothesis has no model weight and does not count.
   inline std::vector<float> trackTypeProbabilities(const std::vector<Hypothesis> &hypotheses,
                                                    const std::vector<float> &weights,
                                                    std::size_t nTracks) {
