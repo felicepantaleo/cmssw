@@ -11,7 +11,9 @@
 #include "DataFormats/TrackReco/interface/TrackFwd.h"
 #include "Common.h"
 
-#include "RtypesCore.h"
+#include <array>
+#include <cmath>
+#include <cstdint>
 
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
 
@@ -69,7 +71,7 @@ namespace io_v1 {
       if (tracksterPtr.isNonnull()) {
         tracksters_.push_back(tracksterPtr);
         auto const& trackster = tracksters_[0].get();
-        idProbabilities_ = trackster->id_probabilities();
+        setIdProbabilities(trackster->id_probabilities());
         if (trackPtr.isNonnull()) {
           trackPtrs_.push_back(trackPtr);
           auto const& tk = trackPtr.get();
@@ -151,38 +153,62 @@ namespace io_v1 {
     // convenience method to return the ID probability for a certain particle type
     inline float id_probability(ParticleType type) const {
       // probabilities are stored in the same order as defined in the ParticleType enum
-      return idProbabilities_[(int)type];
+      return decodeProbability(idProbabilities_[(int)type]);
     }
 
-    inline const std::array<float, 8>& idProbabilities() const { return idProbabilities_; }
+    inline std::array<float, 8> idProbabilities() const { return decodeProbabilities(idProbabilities_); }
 
-    void zeroProbabilities() {
-      for (auto& p : idProbabilities_) {
-        p = 0.f;
-      }
+    void zeroProbabilities() { idProbabilities_.fill(0); }
+
+    void setIdProbabilities(const std::array<float, 8>& idProbs) { idProbabilities_ = encodeProbabilities(idProbs); }
+    inline void setIdProbability(ParticleType type, float value) {
+      idProbabilities_[int(type)] = encodeProbability(value);
     }
-
-    void setIdProbabilities(const std::array<float, 8>& idProbs) { idProbabilities_ = idProbs; }
-    inline void setIdProbability(ParticleType type, float value) { idProbabilities_[int(type)] = value; }
 
     // Probability of each candidate type from the interpretation stage, in the order of ParticleType (0 when not set).
     // A charged candidate holds the probabilities of the best hypothesis of each type of its track (electron, muon,
     // charged hadron): independent probabilities of competing hypotheses, not a distribution, and 0 for a type with no
     // hypothesis. A neutral candidate holds the species probabilities (photon, neutral pion, neutral hadron).
-    inline const std::array<float, 8>& typeProbabilities() const { return typeProbabilities_; }
-    inline float typeProbability(ParticleType type) const { return typeProbabilities_[int(type)]; }
-    void setTypeProbabilities(const std::array<float, 8>& probabilities) { typeProbabilities_ = probabilities; }
+    inline std::array<float, 8> typeProbabilities() const { return decodeProbabilities(typeProbabilities_); }
+    inline float typeProbability(ParticleType type) const { return decodeProbability(typeProbabilities_[int(type)]); }
+    void setTypeProbabilities(const std::array<float, 8>& probabilities) {
+      typeProbabilities_ = encodeProbabilities(probabilities);
+    }
+
+    // A probability is stored as a 16-bit integer, with 65535 for 1, rounded to the nearest step.
+    // NaN and values below 0 are stored as 0, values above 1 as 65535.
+    static constexpr float kProbabilityScale = 65535.f;
+    static std::uint16_t encodeProbability(float p) {
+      if (!(p > 0.f))
+        return 0;
+      if (p >= 1.f)
+        return static_cast<std::uint16_t>(kProbabilityScale);
+      return static_cast<std::uint16_t>(std::lround(p * kProbabilityScale));
+    }
+    static float decodeProbability(std::uint16_t stored) { return stored / kProbabilityScale; }
 
   private:
+    static std::array<std::uint16_t, 8> encodeProbabilities(const std::array<float, 8>& probabilities) {
+      std::array<std::uint16_t, 8> stored;
+      for (unsigned int i = 0; i < stored.size(); ++i)
+        stored[i] = encodeProbability(probabilities[i]);
+      return stored;
+    }
+    static std::array<float, 8> decodeProbabilities(const std::array<std::uint16_t, 8>& stored) {
+      std::array<float, 8> probabilities;
+      for (unsigned int i = 0; i < probabilities.size(); ++i)
+        probabilities[i] = decodeProbability(stored[i]);
+      return probabilities;
+    }
+
     // vector of Ptr so Tracksters can come from different collections
     // and there can be derived classes. MiniAOD does not keep the products of these Ptrs; key() still gives the index.
     std::vector<edm::Ptr<ticl::Trackster>> tracksters_;
     std::vector<edm::Ptr<reco::Track>> trackPtrs_;
     std::vector<edm::Ptr<reco::GsfTrack>> gsfTrackPtrs_;
     // Since it contains multiple tracksters, duplicate the probability interface
-    // The probabilities are floats in memory and are written with 12 bits in [0, 1].
-    std::array<Float16_t, 8> idProbabilities_;    //[0,1,12]
-    std::array<Float16_t, 8> typeProbabilities_;  //[0,1,12]
+    std::array<std::uint16_t, 8> idProbabilities_;
+    std::array<std::uint16_t, 8> typeProbabilities_;
 
     float time_;
     float timeError_;
