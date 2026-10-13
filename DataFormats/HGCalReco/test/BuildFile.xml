@@ -6,3 +6,7 @@
   <use name="catch2"/>
   <use name="DataFormats/HGCalReco"/>
 </bin>
+<bin name="testTICLCandidate" file="TICLCandidate_t.cpp">
+  <use name="catch2"/>
+  <use name="DataFormats/HGCalReco"/>
+</bin>
