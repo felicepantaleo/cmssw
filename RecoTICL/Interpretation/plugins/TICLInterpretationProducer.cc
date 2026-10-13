@@ -56,6 +56,7 @@
 #include "RecoTICL/Inference/interface/TracksterInferenceByPFN.h"
 #include "RecoTICL/Interpretation/interface/AssignmentMaps.h"
 #include "RecoTICL/Interpretation/interface/ExpectedDeposit.h"
+#include "RecoTICL/Interpretation/interface/JetVariants.h"
 #include "RecoTICL/Interpretation/interface/TypeProbabilities.h"
 #include "RecoTICL/Interpretation/interface/MaxWeightIndependentSet.h"
 #include "RecoTICL/Interpretation/interface/ModelFeatures.h"
@@ -226,12 +227,11 @@ private:
                         const Inputs &egammaInput,
                         const edm::Handle<MtdHostCollection> &timing_h,
                         InferenceCache &cache) const;
-  // For each Jet hypothesis and each Electron hypothesis of one of its tracks: the Jet without that track, on the
-  // footprint without the layer clusters of the Electron footprint, scored by the balance of E and the summed p. Two
-  // tracks or more left give a Jet hypothesis, one track a Recovery hypothesis.
-  static void addJetVariantsWithoutElectrons(Opinions &opinions,
-                                             const std::vector<reco::Track> &tracks,
-                                             const std::vector<reco::CaloCluster> &layerClusters);
+  // The variants of the Jet hypotheses without the track and the footprint of each Electron hypothesis of their tracks
+  // (ticl::jetVariantsWithoutElectrons): a Jet hypothesis with two tracks or more left, else a Recovery hypothesis.
+  void addJetVariantsWithoutElectrons(Opinions &opinions,
+                                      const std::vector<reco::Track> &tracks,
+                                      const std::vector<reco::CaloCluster> &layerClusters) const;
   // Two hypotheses conflict when they share a track, or layer clusters with more than maxSharedEnergyFraction of the
   // smaller footprint energy. Returns the sorted neighbours of each hypothesis.
   std::vector<std::vector<unsigned int>> conflictGraph(const Opinions &opinions,
@@ -687,69 +687,48 @@ TICLInterpretationProducer::Opinions TICLInterpretationProducer::makeOpinions(
   return opinions;
 }
 
-void TICLInterpretationProducer::addJetVariantsWithoutElectrons(Opinions &opinions,
-                                                                const std::vector<reco::Track> &tracks,
-                                                                const std::vector<reco::CaloCluster> &layerClusters) {
+void TICLInterpretationProducer::addJetVariantsWithoutElectrons(
+    Opinions &opinions,
+    const std::vector<reco::Track> &tracks,
+    const std::vector<reco::CaloCluster> &layerClusters) const {
   auto &hypotheses = opinions.hypotheses;
-  std::vector<std::vector<unsigned int>> electronsOf(tracks.size());
-  for (unsigned int i = 0; i < hypotheses.size(); ++i)
-    if (hypotheses[i].type == Hypothesis::Type::Electron && hypotheses[i].tracksterIdx >= 0 &&
-        hypotheses[i].trackIdx >= 0)
-      electronsOf[hypotheses[i].trackIdx].push_back(i);
-
-  std::vector<bool> removed(layerClusters.size(), false);
-  const unsigned int nHypotheses = hypotheses.size();
-  for (unsigned int j = 0; j < nHypotheses; ++j) {
-    if (hypotheses[j].type != Hypothesis::Type::Jet || hypotheses[j].tracksterIdx < 0)
+  std::vector<std::vector<std::vector<unsigned int>>> electronFootprints(tracks.size());
+  for (const auto &h : hypotheses)
+    if (h.type == Hypothesis::Type::Electron && h.tracksterIdx >= 0 && h.trackIdx >= 0)
+      electronFootprints[h.trackIdx].push_back(opinions.tracksters[h.tracksterIdx].vertices());
+  std::vector<JetFootprint> jets;
+  for (const auto &h : hypotheses) {
+    if (h.type != Hypothesis::Type::Jet || h.tracksterIdx < 0)
       continue;
-    const std::vector<int> jetTracks = hypotheses[j].trackIdxs;
-    const int jetTracksterIdx = hypotheses[j].tracksterIdx;
-    for (const int iElectronTrack : jetTracks) {
-      for (const unsigned int e : electronsOf[iElectronTrack]) {
-        const Trackster &electronTs = opinions.tracksters[hypotheses[e].tracksterIdx];
-        for (auto v : electronTs.vertices())
-          removed[v] = true;
-        const Trackster &jetTs = opinions.tracksters[jetTracksterIdx];
-        Trackster variant;
-        float energy = 0.f;
-        for (size_t k = 0; k < jetTs.vertices().size(); ++k) {
-          const auto v = jetTs.vertices()[k];
-          if (removed[v])
-            continue;
-          const float multiplicity = k < jetTs.vertex_multiplicity().size() ? jetTs.vertex_multiplicity()[k] : 1.f;
-          variant.vertices().push_back(v);
-          variant.vertex_multiplicity().push_back(multiplicity);
-          energy += layerClusters[v].energy() / multiplicity;
-        }
-        for (auto v : electronTs.vertices())
-          removed[v] = false;
+    const Trackster &ts = opinions.tracksters[h.tracksterIdx];
+    JetFootprint jet{h.trackIdxs, ts.vertices(), {}};
+    for (size_t k = 0; k < ts.vertices().size(); ++k)
+      jet.multiplicities.push_back(k < ts.vertex_multiplicity().size() ? ts.vertex_multiplicity()[k] : 1.f);
+    jets.push_back(std::move(jet));
+  }
+  std::vector<double> lcEnergy(layerClusters.size());
+  for (size_t i = 0; i < layerClusters.size(); ++i)
+    lcEnergy[i] = layerClusters[i].energy();
+  std::vector<double> trackP(tracks.size());
+  for (size_t i = 0; i < tracks.size(); ++i)
+    trackP[i] = tracks[i].p();
 
-        std::vector<int> left;
-        float sumP = 0.f;
-        for (const int iTk : jetTracks)
-          if (iTk != iElectronTrack) {
-            left.push_back(iTk);
-            sumP += tracks[iTk].p();
-          }
-        if (!(energy > 0.f) || left.empty())
-          continue;
-        const float balance = 1.f - std::abs(energy - sumP) / std::max(energy, sumP);
-        if (balance <= 0.f)
-          continue;
-        Hypothesis h;
-        h.score = balance;
-        if (left.size() >= 2) {
-          h.type = Hypothesis::Type::Jet;
-          h.trackIdxs = std::move(left);
-        } else {
-          h.type = Hypothesis::Type::RecoveryChargedHadron;
-          h.trackIdx = left.front();
-        }
-        h.tracksterIdx = static_cast<int>(opinions.tracksters.size());
-        opinions.tracksters.push_back(std::move(variant));
-        hypotheses.push_back(std::move(h));
-      }
+  for (auto &variant : jetVariantsWithoutElectrons(jets, electronFootprints, lcEnergy, trackP, expectedDeposit_)) {
+    Trackster footprint;
+    footprint.vertices() = std::move(variant.vertices);
+    footprint.vertex_multiplicity() = std::move(variant.multiplicities);
+    Hypothesis h;
+    h.score = variant.score;
+    if (variant.tracks.size() >= 2) {
+      h.type = Hypothesis::Type::Jet;
+      h.trackIdxs = std::move(variant.tracks);
+    } else {
+      h.type = Hypothesis::Type::RecoveryChargedHadron;
+      h.trackIdx = variant.tracks.front();
     }
+    h.tracksterIdx = static_cast<int>(opinions.tracksters.size());
+    opinions.tracksters.push_back(std::move(footprint));
+    hypotheses.push_back(std::move(h));
   }
 }
 
