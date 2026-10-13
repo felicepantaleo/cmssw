@@ -66,6 +66,8 @@ namespace ticl::modelfeatures {
   // raw energy.
   namespace neutralSpecies {
     enum Slot : unsigned int { kPID = 0 /* 8 slots */, kEMFraction = 8, kLogRawEnergy, kAbsEta, kNLayerClusters, kN };
+    // The outputs of the model, in this order.
+    enum Output : unsigned int { kPhoton = 0, kPi0, kNeutralHadron, kNOutputs };
   }  // namespace neutralSpecies
   static_assert(neutralSpecies::kN == 12);
 

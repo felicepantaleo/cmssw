@@ -70,14 +70,23 @@ void TICLElectronSeedsProducer::produce(edm::StreamID, edm::Event &evt, const ed
 
   reco::ElectronSeedCollection result;
   result.reserve(seeds.size() + trackSeedTrack.size());
+  auto checkIndex = [](std::size_t index, std::size_t size, const char *what) {
+    if (index >= size)
+      throw cms::Exception("LogicError") << "TICLElectronSeedsProducer: " << what << " index " << index << " for "
+                                         << size << " entries";
+  };
   for (const auto &seed : seeds) {
     result.push_back(seed);
     const auto &cluster = seed.caloCluster();
-    if (cluster.isNonnull() && cluster.id() == seedingSuperClustersH.id())
+    if (cluster.isNonnull() && cluster.id() == seedingSuperClustersH.id()) {
+      checkIndex(superClusterIndex[cluster.key()], superClustersH->size(), "supercluster");
       result.back().setCaloCluster(
           reco::ElectronSeed::CaloClusterRef(reco::SuperClusterRef(superClustersH, superClusterIndex[cluster.key()])));
+    }
   }
   for (std::size_t i = 0; i < trackSeedTrack.size(); ++i) {
+    checkIndex(trackSeedTrack[i], tracksH->size(), "track");
+    checkIndex(trackSeedSuperCluster[i], superClustersH->size(), "supercluster");
     const reco::TrackRef track(tracksH, trackSeedTrack[i]);
     result.emplace_back(*track->seedRef());
     result.back().setCtfTrack(track);

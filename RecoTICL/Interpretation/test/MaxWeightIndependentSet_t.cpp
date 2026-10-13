@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <limits>
 #include <random>
 #include <vector>
 
@@ -84,6 +85,16 @@ TEST_CASE("A component above the exact size is solved greedily", "[MaxWeightInde
   REQUIRE(ticl::maxWeightIndependentSet(w, adj, 2, 1000000, stats) == std::vector<bool>{false, true, false});
   REQUIRE(stats.exactComponents == 1);
   REQUIRE(stats.greedyComponents == 1);
+}
+
+TEST_CASE("A vetoed node is never accepted and does not block its neighbours", "[MaxWeightIndependentSet]") {
+  const float inf = std::numeric_limits<float>::infinity();
+  // 0 - 1 - 2: node 1 is vetoed; node 3 is vetoed and has no conflict.
+  const Graph adj{{1}, {0, 2}, {1}, {}};
+  ticl::MaxWeightIndependentSetStats stats;
+  for (unsigned int maxExact : {64u, 1u})
+    REQUIRE(ticl::maxWeightIndependentSet({1.f, -inf, 2.f, -inf}, adj, maxExact, 1000000, stats) ==
+            std::vector<bool>{true, false, true, false});
 }
 
 TEST_CASE("Equal weights go to the lower index", "[MaxWeightIndependentSet]") {
