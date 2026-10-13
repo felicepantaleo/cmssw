@@ -55,22 +55,17 @@ TEST_CASE("superClusterSeeding seeds from electron tracks, and from the superclu
   // E/gamma tracksters: 0 typed electron (track 7), 1 with the Electron hypothesis of a track, 2 neither.
   const ticl::EGammaElectrons electrons{{7, -1, -1}, {true, true, false}};
   SECTION("a trackster typed electron gives a track seed only") {
-    const auto seeding = ticl::superClusterSeeding({1, 0, 0}, electrons, false);
+    const auto seeding = ticl::superClusterSeeding({1, 0, 0}, electrons);
     REQUIRE(seeding.tracks == std::vector<int>{7});
     REQUIRE(!seeding.fromSuperCluster);
   }
-  SECTION("with superClusterSeedsForElectrons it also gets supercluster seeds") {
-    const auto seeding = ticl::superClusterSeeding({0}, electrons, true);
-    REQUIRE(seeding.tracks == std::vector<int>{7});
-    REQUIRE(seeding.fromSuperCluster);
-  }
   SECTION("a tried track without an electron gives supercluster seeds") {
-    const auto seeding = ticl::superClusterSeeding({2, 1}, electrons, false);
+    const auto seeding = ticl::superClusterSeeding({2, 1}, electrons);
     REQUIRE(seeding.tracks.empty());
     REQUIRE(seeding.fromSuperCluster);
   }
   SECTION("no electron and no tried track gives no seed") {
-    const auto seeding = ticl::superClusterSeeding({2}, electrons, true);
+    const auto seeding = ticl::superClusterSeeding({2}, electrons);
     REQUIRE(seeding.tracks.empty());
     REQUIRE(!seeding.fromSuperCluster);
   }

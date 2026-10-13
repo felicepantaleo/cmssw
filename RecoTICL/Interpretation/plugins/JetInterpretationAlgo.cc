@@ -12,19 +12,13 @@ JetInterpretationAlgo::JetInterpretationAlgo(const edm::ParameterSet &conf, edm:
     : TICLInterpretationAlgoBase(conf, iC),
       delta_tk_ts_(conf.getParameter<float>("delta_tk_ts")),
       min_trackster_energy_(conf.getParameter<float>("min_trackster_energy")),
-      recovery_min_eop_(conf.getParameter<float>("recovery_min_eop")),
-      recovery_max_eop_(conf.getParameter<float>("recovery_max_eop")),
       recovery_max_distance_(conf.getParameter<float>("recovery_max_distance")),
-      recovery_budget_response_(conf.getParameter<float>("recovery_budget_response")),
-      recovery_budget_log_slope_(conf.getParameter<float>("recovery_budget_log_slope")) {}
+      expectedDeposit_{conf.getParameter<float>("expectedDepositResponse"),
+                       conf.getParameter<float>("expectedDepositLogSlope"),
+                       conf.getParameter<float>("recoveryMinDepositFraction"),
+                       conf.getParameter<float>("recoveryMaxDepositFraction")} {}
 
 JetInterpretationAlgo::~JetInterpretationAlgo() {}
-
-float JetInterpretationAlgo::expectedDeposit(float p) const {
-  if (recovery_budget_log_slope_ == 0.f)
-    return recovery_budget_response_ * p;
-  return (recovery_budget_response_ + recovery_budget_log_slope_ * std::log(p)) * p;
-}
 
 void JetInterpretationAlgo::initialize(const HGCalDDDConstants * /*hgcons*/,
                                        const ticlgeom::Tools /*rhtools*/,
@@ -123,8 +117,8 @@ void JetInterpretationAlgo::makeOpinions(const Inputs &input,
 void JetInterpretationAlgo::makeRecoveryOpinions(const Inputs &input,
                                                  std::vector<Trackster> &hypothesisTracksters,
                                                  std::vector<Hypothesis> &hypotheses) const {
-  // A track with a footprint raw energy in [recovery_min_eop, recovery_max_eop] times its expected deposit gives a
-  // charged hadron on that footprint.
+  // A track with a footprint raw energy in [recoveryMinDepositFraction, recoveryMaxDepositFraction] times its
+  // expected deposit gives a charged hadron on that footprint.
   const auto &tracks = *input.tracksHandle;
   const auto &tracksters = input.tracksters;
   for (const unsigned iTrack : selectedTracks_) {
@@ -134,13 +128,13 @@ void JetInterpretationAlgo::makeRecoveryOpinions(const Inputs &input,
     const float p = tracks[iTrack].p();
     if (p <= 0.f)
       continue;
-    const float deposit = expectedDeposit(p);
+    const float deposit = expectedDeposit_(p);
     const float sumE = footprintEnergies_[iTrack];
-    if (sumE < recovery_min_eop_ * deposit || sumE > recovery_max_eop_ * deposit)
+    if (!expectedDeposit_.inRecoveryBand(sumE, deposit))
       continue;
     Hypothesis h;
     h.type = Hypothesis::Type::RecoveryChargedHadron;
-    h.score = 1.f - std::abs(sumE - deposit) / std::max(sumE, deposit);
+    h.score = ExpectedDeposit::score(sumE, deposit);
     h.trackIdx = static_cast<int>(iTrack);
     Trackster merged;
     for (unsigned iTs : nearby)
@@ -154,11 +148,11 @@ void JetInterpretationAlgo::makeRecoveryOpinions(const Inputs &input,
 std::vector<unsigned> JetInterpretationAlgo::footprint(const Inputs &input, size_t iTrack, float &sumE) const {
   const auto &tk = (*input.tracksHandle)[iTrack];
   const auto &tracksters = input.tracksters;
-  const float deposit = expectedDeposit(tk.p());
+  const float deposit = expectedDeposit_(tk.p());
   std::vector<unsigned> nearby;
   sumE = 0.f;
-  // Nearest first. Skip a trackster that takes the sum above recovery_max_eop times the expected deposit. Stop at the
-  // expected deposit.
+  // Nearest first. Skip a trackster that takes the sum above recoveryMaxDepositFraction times the expected deposit. Stop
+  // at the expected deposit.
   std::vector<std::pair<float, unsigned>> byDistance;
   for (unsigned iTs = 0; iTs < tracksters.size(); ++iTs) {
     if (!inTrackWindow(iTrack, iTs))
@@ -172,7 +166,7 @@ std::vector<unsigned> JetInterpretationAlgo::footprint(const Inputs &input, size
     if (sumE >= deposit)
       break;
     const float e = tracksters[iTs].raw_energy();
-    if (sumE + e > recovery_max_eop_ * deposit)
+    if (sumE + e > expectedDeposit_.maxFraction * deposit)
       continue;
     nearby.push_back(iTs);
     sumE += e;
@@ -248,17 +242,11 @@ void JetInterpretationAlgo::fillPSetDescription(edm::ParameterSetDescription &de
   desc.add<float>("delta_tk_ts", 0.1f)->setComment("(eta,phi) window to associate tracks to a trackster.");
   desc.add<float>("min_trackster_energy", 5.0f)
       ->setComment("Min trackster raw energy [GeV] for a jet (multi-track) reading.");
-  desc.add<float>("recovery_min_eop", 0.2f)
-      ->setComment("Min footprint raw energy / expected deposit of the track for a single-track recovery.");
-  desc.add<float>("recovery_max_eop", 1.5f)
-      ->setComment("Max footprint raw energy / expected deposit of the track for a single-track recovery.");
   desc.add<float>("recovery_max_distance", 5.f)
       ->setComment(
           "Recovery footprint: the tracksters in the window within this transverse distance [cm] of the track, nearest "
           "first, up to the expected deposit.");
-  desc.add<float>("recovery_budget_response", 0.67f)
-      ->setComment("Expected raw deposit of a track: (recovery_budget_response + recovery_budget_log_slope ln p) p.");
-  desc.add<float>("recovery_budget_log_slope", 0.04f)
-      ->setComment("Expected raw deposit of a track: (recovery_budget_response + recovery_budget_log_slope ln p) p.");
+  // TICLInterpretationProducer adds expectedDepositResponse, expectedDepositLogSlope, recoveryMinDepositFraction and
+  // recoveryMaxDepositFraction from its own parameters.
   TICLInterpretationAlgoBase::fillPSetDescription(desc);
 }

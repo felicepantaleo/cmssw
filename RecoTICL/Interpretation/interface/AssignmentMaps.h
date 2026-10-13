@@ -67,15 +67,13 @@ namespace ticl {
   // Seeds of an HGCAL supercluster whose PF clusters come from the e/gamma tracksters clusterTracksters: a seed from the
   // KF track of each trackster typed electron (tracks, sorted and unique), and seeds from the supercluster itself
   // (fromSuperCluster) when no trackster is typed electron and the Electron hypothesis of a track is on one of them.
-  // With superClusterSeedsForElectrons, a supercluster with a trackster typed electron also gets them.
   struct SuperClusterSeeding {
     std::vector<int> tracks;
     bool fromSuperCluster = false;
   };
 
   inline SuperClusterSeeding superClusterSeeding(const std::vector<int> &clusterTracksters,
-                                                 const EGammaElectrons &electrons,
-                                                 bool superClusterSeedsForElectrons) {
+                                                 const EGammaElectrons &electrons) {
     SuperClusterSeeding seeding;
     bool electronHypothesis = false;
     for (int k : clusterTracksters) {
@@ -85,7 +83,7 @@ namespace ticl {
     }
     std::sort(seeding.tracks.begin(), seeding.tracks.end());
     seeding.tracks.erase(std::unique(seeding.tracks.begin(), seeding.tracks.end()), seeding.tracks.end());
-    seeding.fromSuperCluster = seeding.tracks.empty() ? electronHypothesis : superClusterSeedsForElectrons;
+    seeding.fromSuperCluster = seeding.tracks.empty() && electronHypothesis;
     return seeding;
   }
 
