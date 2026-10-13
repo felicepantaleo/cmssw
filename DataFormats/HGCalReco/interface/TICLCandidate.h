@@ -167,14 +167,15 @@ namespace io_v1 {
 
     // Probability of each candidate type from the interpretation stage, in the order of ParticleType (0 when not set).
     // A charged candidate holds the probabilities of the best hypothesis of each type of its track (electron, muon,
-    // charged hadron); a neutral candidate holds the species probabilities (photon, neutral pion, neutral hadron).
+    // charged hadron): independent probabilities of competing hypotheses, not a distribution, and 0 for a type with no
+    // hypothesis. A neutral candidate holds the species probabilities (photon, neutral pion, neutral hadron).
     inline const std::array<float, 8>& typeProbabilities() const { return typeProbabilities_; }
     inline float typeProbability(ParticleType type) const { return typeProbabilities_[int(type)]; }
     void setTypeProbabilities(const std::array<float, 8>& probabilities) { typeProbabilities_ = probabilities; }
 
   private:
     // vector of Ptr so Tracksters can come from different collections
-    // and there can be derived classes
+    // and there can be derived classes. MiniAOD does not keep the products of these Ptrs; key() still gives the index.
     std::vector<edm::Ptr<ticl::Trackster>> tracksters_;
     std::vector<edm::Ptr<reco::Track>> trackPtrs_;
     std::vector<edm::Ptr<reco::GsfTrack>> gsfTrackPtrs_;

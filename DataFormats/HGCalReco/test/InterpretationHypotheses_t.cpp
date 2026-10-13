@@ -11,11 +11,12 @@ TEST_CASE("InterpretationHypotheses keeps the hypotheses, their tracks and the c
   using V = ticl::InterpretationHypotheses::Vector;
   ticl::InterpretationHypotheses h;
   h.setTrackBonus(20.f);
+  h.setSolverLimits(64, 1000000);
   const std::vector<int> track3{3}, jet{3, 5}, none{};
   const float inf = std::numeric_limits<float>::infinity();
-  REQUIRE(h.add(T::Electron, track3, 1.5f, true, 10.f, 9.f, V(1.f, 2.f, 320.f)) == 0);
-  REQUIRE(h.add(T::Jet, jet, -inf, false, 30.f, 5.f, V(0.f, 1.f, 330.f)) == 1);
-  REQUIRE(h.add(T::Photon, none, 0.5f, false, 2.f, 2.f, V(1.f, 1.f, 321.f)) == 2);
+  REQUIRE(h.add({T::Electron, track3, 1.5f, true, 10.f, 9.f, V(1.f, 2.f, 320.f)}) == 0);
+  REQUIRE(h.add({T::Jet, jet, -inf, false, 30.f, 5.f, V(0.f, 1.f, 330.f)}) == 1);
+  REQUIRE(h.add({T::Photon, none, 0.5f, false, 2.f, 2.f, V(1.f, 1.f, 321.f)}) == 2);
   h.addConflict(0, 1);
   h.addConflict(0, 2);
 
@@ -33,6 +34,8 @@ TEST_CASE("InterpretationHypotheses keeps the hypotheses, their tracks and the c
   REQUIRE_FALSE(h.accepted(2));
   REQUIRE(h.rawEmEnergy(0) == 9.f);
   REQUIRE(h.barycenter(2).z() == 321.f);
+  REQUIRE(h.maxExactComponent() == 64);
+  REQUIRE(h.searchBudget() == 1000000);
   REQUIRE(h.nConflicts() == 2);
   REQUIRE(h.conflict(1) == std::pair<unsigned int, unsigned int>(0, 2));
 }

@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <map>
 #include <limits>
+#include <span>
 
 #include "FWCore/Framework/interface/stream/EDProducer.h"
 #include "FWCore/Framework/interface/Event.h"
@@ -163,15 +164,15 @@ private:
 };
 
 namespace {
-  // Species of the neutral species model: photon, pi0, neutral hadron.
-  constexpr unsigned int kNeutralSpecies = 3;
+  constexpr unsigned int kNeutralSpecies = modelfeatures::neutralSpecies::kNOutputs;
   // Type probabilities of a neutral candidate from its species probabilities, in the order of
   // TICLCandidate::ParticleType.
-  std::array<float, 8> neutralTypeProbabilities(const float *species) {
+  std::array<float, 8> neutralTypeProbabilities(std::span<const float, kNeutralSpecies> species) {
+    using namespace modelfeatures::neutralSpecies;
     std::array<float, 8> p{};
-    p[int(ticl::Trackster::ParticleType::photon)] = species[0];
-    p[int(ticl::Trackster::ParticleType::neutral_pion)] = species[1];
-    p[int(ticl::Trackster::ParticleType::neutral_hadron)] = species[2];
+    p[int(ticl::Trackster::ParticleType::photon)] = species[kPhoton];
+    p[int(ticl::Trackster::ParticleType::neutral_pion)] = species[kPi0];
+    p[int(ticl::Trackster::ParticleType::neutral_hadron)] = species[kNeutralHadron];
     return p;
   }
   // Four-momentum of the given energy and mass along a direction.
@@ -371,14 +372,14 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
   std::map<int, float> trackSumP;
   // A GSF track goes to one electron only.
   std::vector<bool> gsfUsed(gsfTracks.size(), false);
-  const auto &trackTypeProbabilities = evt.get(trackTypeProbabilities_token_);
-  if (trackTypeProbabilities.size() != kTrackTypes * trackMode.size())
-    throw cms::Exception("LogicError") << "TICLCandidateArbitrationProducer: " << trackTypeProbabilities.size()
+  const auto &probabilitiesOfTracks = evt.get(trackTypeProbabilities_token_);
+  if (probabilitiesOfTracks.size() != kTrackTypes * trackMode.size())
+    throw cms::Exception("LogicError") << "TICLCandidateArbitrationProducer: " << probabilitiesOfTracks.size()
                                        << " track type probabilities for " << trackMode.size() << " tracks";
   // Type probabilities of a charged candidate, in the order of TICLCandidate::ParticleType.
   auto chargedTypeProbabilities = [&](size_t iTrack) {
     std::array<float, 8> p{};
-    const float *t = &trackTypeProbabilities[kTrackTypes * iTrack];
+    const float *t = &probabilitiesOfTracks[kTrackTypes * iTrack];
     p[int(Trackster::ParticleType::electron)] = t[int(TrackType::kElectron)];
     p[int(Trackster::ParticleType::muon)] = t[int(TrackType::kMuon)];
     p[int(Trackster::ParticleType::charged_hadron)] = t[int(TrackType::kChargedHadron)];
@@ -522,7 +523,9 @@ void TICLCandidateArbitrationProducer::appendNeutralResiduals(const edm::Handle<
     TICLCandidate cand(noTrack, tracksterPtr);
     if (!tracksterSpecies.empty() && tracksterSpecies[tsIdx] != 0) {
       cand.setPdgId(tracksterSpecies[tsIdx]);
-      cand.setTypeProbabilities(neutralTypeProbabilities(&tracksterSpeciesProbabilities[kNeutralSpecies * tsIdx]));
+      cand.setTypeProbabilities(neutralTypeProbabilities(std::span<const float>(tracksterSpeciesProbabilities)
+                                                             .subspan(kNeutralSpecies * tsIdx)
+                                                             .first<kNeutralSpecies>()));
     }
     const auto dir = tracksterPtr->barycenter().unit();
     math::XYZTLorentzVector p4(residual * dir.x(), residual * dir.y(), residual * dir.z(), residual);
@@ -547,7 +550,8 @@ void TICLCandidateArbitrationProducer::appendNeutralCandidates(const edm::Handle
     TICLCandidate cand(trackPtr, tracksterPtr);
     if (neutralPdg[k] != 0)
       cand.setPdgId(neutralPdg[k]);
-    cand.setTypeProbabilities(neutralTypeProbabilities(&neutralSpeciesProbabilities[kNeutralSpecies * k]));
+    cand.setTypeProbabilities(neutralTypeProbabilities(
+        std::span<const float>(neutralSpeciesProbabilities).subspan(kNeutralSpecies * k).first<kNeutralSpecies>()));
     cand.setP4(cand.p4() * neutralShare[k]);
     if (cand.energy() < neutralMinEnergy_)
       continue;
