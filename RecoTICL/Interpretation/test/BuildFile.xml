@@ -28,3 +28,7 @@
   <use name="RecoTICL/Interpretation"/>
   <use name="catch2"/>
 </bin>
+<bin name="testJetVariants" file="JetVariants_t.cpp">
+  <use name="RecoTICL/Interpretation"/>
+  <use name="catch2"/>
+</bin>
