@@ -18,6 +18,9 @@ EXPECTED_WHOLESALE = {
 
 # module -> {parameter path: (v5 value, v6 value)}. The path is dotted for nested PSets.
 EXPECTED_DELTA = {
+    "ticlTrackstersCLUE3DHigh": {
+        "inferenceAlgo": ("TracksterInferenceByCNN", "TracksterInferenceByShowerShape"),
+    },
     "ticlTracksterLinks": {
         "linkingPSet.type": ("Skeletons", "Cornetto"),
     },
