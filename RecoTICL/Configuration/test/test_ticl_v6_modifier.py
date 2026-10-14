@@ -45,6 +45,10 @@ def main():
                      "keep recoCaloClusters_ticlEGammaSuperClusters_clusters_*"):
             if keep not in getattr(process, block).outputCommands:
                 failures.append("%s does not have '%s'" % (block, keep))
+        # AOD and RECO do not keep the HGCAL PF rec hits.
+        for command in getattr(process, block).outputCommands:
+            if "particleFlowRecHitHGC" in command:
+                failures.append("%s has '%s'" % (block, command))
     process.load("Validation.HGCalValidation.HGCalValidator_cff")
     process.load("Validation.HGCalValidation.HLTHGCalValidator_cff")
     process.load("DPGAnalysis.HGCalNanoAOD.hgcalTICLCandidates_cfi")
