@@ -73,6 +73,11 @@ ticlTrackstersCLUE3DHigh = _trackstersProducer.clone(
 
 )
 
+# TICLv6: EM identification from the shower shape, on the scale of the CNN of v5 (the same hadron mis-identification at
+# every threshold).
+from Configuration.ProcessModifiers.ticl_v6_cff import ticl_v6
+ticl_v6.toModify(ticlTrackstersCLUE3DHigh, inferenceAlgo = "TracksterInferenceByShowerShape")
+
 ticlCLUE3DHighStepTask = cms.Task(ticlSeedingGlobal
     ,filteredLayerClustersCLUE3DHigh
     ,ticlTrackstersCLUE3DHigh)
