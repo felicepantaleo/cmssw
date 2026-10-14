@@ -98,6 +98,10 @@ _v6Reco += ['drop *_ticlCandidate_muons_*', 'drop *_ticlCandidate_muonTrackType_
 _v6Reco += ['drop *_ticlTracksterInterpretations_%s_*' % _instance
             for _instance in ('tracksterSpecies', 'tracksterSpeciesProbabilities', 'trackTypeProbabilities',
                               'neutralSpeciesProbabilities')]
+# The HGCAL e/gamma superclusters of the electrons and photons and their clusters.
+_v6AOD = ['keep recoSuperClusters_ticlEGammaSuperClusters__*', 'keep recoCaloClusters_ticlEGammaSuperClusters_clusters_*']
+ticl_v6.toModify(TICL_AOD, lambda b: b.outputCommands.extend(_v6AOD))
+_v6Reco += _v6AOD
 for _block in (TICL_RECO, TICL_FEVT, TICL_FEVTHLT):
     ticl_v6.toModify(_block, lambda b: b.outputCommands.extend(_v6Reco))
 # MiniAOD keeps the candidates and the hypotheses with their conflicts, so that an analysis can solve the event again.
