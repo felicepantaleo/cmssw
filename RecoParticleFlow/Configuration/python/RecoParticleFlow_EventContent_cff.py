@@ -42,7 +42,9 @@ RecoParticleFlowAOD = cms.PSet(
 # Some SC content also defined in RecoEcal/Configuration/python/RecoEcal_EventContent_cff.py
 from Configuration.Eras.Modifier_phase2_hgcal_cff import phase2_hgcal
 from Configuration.Eras.Modifier_phase2_timing_cff import phase2_timing
-phase2_hgcal.toModify( RecoParticleFlowAOD,  
+from Configuration.ProcessModifiers.ticl_v6_cff import ticl_v6
+# With ticl_v6 no HGCAL PF cluster is made, so the HGCAL PF rec hits are not kept.
+(phase2_hgcal & ~ticl_v6).toModify( RecoParticleFlowAOD,
     outputCommands = RecoParticleFlowAOD.outputCommands + ['keep recoPFRecHits_particleFlowRecHitHGC_Cleaned_*'])
 phase2_timing.toModify( RecoParticleFlowAOD,
     outputCommands = RecoParticleFlowAOD.outputCommands + ['keep *_ecalBarrelClusterFastTimer_*_*'])
