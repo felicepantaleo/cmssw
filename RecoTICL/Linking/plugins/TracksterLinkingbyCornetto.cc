@@ -19,6 +19,10 @@ TracksterLinkingbyCornetto::TracksterLinkingbyCornetto(const edm::ParameterSet& 
             conf.getParameter<float>("maxLongitudinalDistance"),
             conf.getParameter<float>("transverseRadius0"),
             conf.getParameter<float>("transverseSlope")},
+      emCone_{cone_.maxBackward,
+              cone_.maxLongitudinal,
+              conf.getParameter<float>("emTransverseRadius0"),
+              conf.getParameter<float>("emTransverseSlope")},
       useTimeGate_(conf.getParameter<float>("timeCompatibilityNSigma") > 0.f),
       timeNSigma2_(conf.getParameter<float>("timeCompatibilityNSigma") *
                    conf.getParameter<float>("timeCompatibilityNSigma")),
@@ -29,11 +33,14 @@ TracksterLinkingbyCornetto::TracksterLinkingbyCornetto(const edm::ParameterSet& 
   const bool vetoValid = typeVetoProbability_ == 0.f || (typeVetoProbability_ >= 0.5f && typeVetoProbability_ <= 1.f);
   if (!(etaWindow_ > 0.f && etaWindow_ < std::numbers::pi_v<float>) || !(cone_.maxLongitudinal > 0.f) ||
       !(cone_.maxBackward >= 0.f) || !(cone_.radius0 >= 0.f) || !(cone_.slope >= 0.f) ||
+      !(emCone_.radius0 >= 0.f && emCone_.radius0 <= cone_.radius0) ||
+      !(emCone_.slope >= 0.f && emCone_.slope <= cone_.slope) ||
       !(conf.getParameter<float>("timeResolutionFloor") >= 0.f) || !vetoValid)
     throw cms::Exception("Configuration")
         << "TracksterLinkingbyCornetto: invalid parameters, see the parameter descriptions. etaWindow " << etaWindow_
         << ", maxLongitudinalDistance " << cone_.maxLongitudinal << ", maxBackwardDistance " << cone_.maxBackward
-        << ", transverseRadius0 " << cone_.radius0 << ", transverseSlope " << cone_.slope << ", timeResolutionFloor "
+        << ", transverseRadius0 " << cone_.radius0 << ", transverseSlope " << cone_.slope << ", emTransverseRadius0 "
+        << emCone_.radius0 << ", emTransverseSlope " << emCone_.slope << ", timeResolutionFloor "
         << conf.getParameter<float>("timeResolutionFloor") << ", typeVetoProbability " << typeVetoProbability_;
 }
 
@@ -90,7 +97,8 @@ bool TracksterLinkingbyCornetto::compatible(const Features& f, unsigned int a, u
     return false;  // same endcap only
   if (!(std::abs(f.eta[b] - f.eta[a]) <= etaWindow_) || !(std::abs(reco::deltaPhi(f.phi[b], f.phi[a])) <= etaWindow_))
     return false;
-  const auto s = cornetto::separationInCone(cone_, f.bary[a], f.rad[a], f.bary[b]);
+  const bool emAnchor = typeVetoProbability_ > 0.f && f.em[a] > typeVetoProbability_;
+  const auto s = cornetto::separationInCone(emAnchor ? emCone_ : cone_, f.bary[a], f.rad[a], f.bary[b]);
   if (!s)
     return false;
   if (!timeCompatible(f.time[a], f.timeError[a], f.time[b], f.timeError[b], *s))
