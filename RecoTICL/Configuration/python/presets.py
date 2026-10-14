@@ -301,6 +301,9 @@ def v6(name="v6", target="offline"):
         "pluginInferenceAlgoTracksterInferenceByPFN"])
     cfg = (TICLConfig(name, target=target)
            .iteration("CLUE3DHigh").preset()
+           # EM identification from the shower shape, on the scale of the CNN of v5 (the same hadron
+           # mis-identification at every threshold).
+           .trackster_params(inferenceAlgo=cms.string("TracksterInferenceByShowerShape"))
            .iteration("Recovery").preset()
            .links(["CLUE3DHigh", "Recovery"], **cornetto_links_defaults())
            # photon, electron AND neutral_pion: a pi0 is an electromagnetic object.
