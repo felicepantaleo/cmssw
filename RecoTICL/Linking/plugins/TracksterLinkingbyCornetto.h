@@ -8,6 +8,8 @@
 // dT = |D - s axis|, the pair is compatible when -maxBackwardDistance <= s <= maxLongitudinalDistance,
 // dT <= transverseRadius0 + transverseSlope * |s|, |deta| and |dphi| <= etaWindow, both are in the same
 // endcap, and:
+// - EM anchor: when typeVetoProbability > 0 and the EM probability of a is above typeVetoProbability, the
+//   transverse limit is emTransverseRadius0 + emTransverseSlope * |s| instead.
 // - time: when timeCompatibilityNSigma > 0 and both time errors are positive, t_b - t_a - s / c agrees
 //   with 0 within timeCompatibilityNSigma times the combined error, with timeResolutionFloor added in
 //   quadrature. The trackster times must be local to the barycenter.
@@ -63,6 +65,14 @@ namespace ticl {
           ->setComment("Max transverse distance at zero separation [cm]. Must not be negative.");
       iDesc.add<float>("transverseSlope", 0.05f)
           ->setComment("Growth of the max transverse distance per cm of separation. Must not be negative.");
+      iDesc.add<float>("emTransverseRadius0", 1.5f)
+          ->setComment(
+              "Max transverse distance at zero separation [cm] for an EM anchor. Must not be negative or above "
+              "transverseRadius0.");
+      iDesc.add<float>("emTransverseSlope", 0.05f)
+          ->setComment(
+              "Growth of the max transverse distance per cm of separation for an EM anchor. Must not be negative or "
+              "above transverseSlope.");
       iDesc.add<float>("timeCompatibilityNSigma", 3.f)
           ->setComment(
               "Max |time difference at the anchor barycenter depth| in combined sigmas. Applies when both time "
@@ -104,6 +114,7 @@ namespace ticl {
 
     const float etaWindow_;
     const cornetto::Cone cone_;
+    const cornetto::Cone emCone_;  // cone of an EM anchor, inside cone_
     const bool useTimeGate_;
     const float timeNSigma2_;
     const float timeFloor2_;
