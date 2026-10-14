@@ -102,7 +102,7 @@ void TICLElectronSeedsProducer::fillDescriptions(edm::ConfigurationDescriptions 
       ->setComment("Seeds of the ECAL-driven seeding, on the selected HGCAL superclusters and the barrel ones.");
   desc.add<edm::InputTag>("seedingSuperClusters", edm::InputTag("ticlElectronSuperClusters"))
       ->setComment("Supercluster selection; its index and track-seed lists are the instances of the same label.");
-  desc.add<edm::InputTag>("superClusters", edm::InputTag("particleFlowSuperClusterHGCal"))
+  desc.add<edm::InputTag>("superClusters", edm::InputTag("ticlEGammaSuperClusters"))
       ->setComment("HGCAL superclusters that the selection indexes.");
   desc.add<edm::InputTag>("tracks", edm::InputTag("generalTracks"))
       ->setComment("Tracks of the interpretation stage; the track indices of the selection refer to them.");

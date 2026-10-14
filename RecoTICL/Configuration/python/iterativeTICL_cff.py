@@ -229,16 +229,20 @@ ticl_v6.toReplaceWith(ticlCandidate, _ticlV6Modules["ticlCandidate"])
 ticl_v6.toModify(ticlCandidateTask, lambda t: t.add(ticlTracksterInterpretations))
 # TICLv6 candidates carry the muon kinematics; pfTICL copies their muon decisions.
 ticl_v6.toReplaceWith(pfTICL, _ticlV6Modules["pfTICL"])
-# TICLv6: the HGCAL PF clusters of the e/gamma objects are the final tracksters that the interpretation types as
-# electrons or EM neutrals; particleFlowClusterHGCal does not run.
+# TICLv6: the HGCAL e/gamma superclusters are the final tracksters that the interpretation types as electrons or EM
+# neutrals, one supercluster each; no HGCAL PF clusters and no HGCAL PF superclusters are made.
 from RecoTICL.ParticleFlow.ticlEGammaTrackstersProducer_cfi import ticlEGammaTrackstersProducer as _ticlEGammaTrackstersProducer
+from RecoTICL.ParticleFlow.ticlEGammaSuperClustersProducer_cfi import ticlEGammaSuperClustersProducer as _ticlEGammaSuperClustersProducer
 from RecoEcal.EgammaClusterProducers.particleFlowSuperClusteringSequence_cff import particleFlowSuperClusterHGCal as _particleFlowSuperClusterHGCal
+from RecoEcal.EgammaClusterProducers.particleFlowSuperClusteringSequence_cff import particleFlowSuperClusteringTask as _particleFlowSuperClusteringTask
 from RecoLocalCalo.Configuration.hgcalLocalReco_cff import hgcalLocalRecoTask as _hgcalLocalRecoTask
+from RecoEgamma.EgammaPhotonProducers.photonCore_cfi import photonCoreHGC as _photonCoreHGC
 ticlEGammaTracksters = _ticlEGammaTrackstersProducer.clone()
-particleFlowClusterTICL = _particleFlowClusterHGCal.clone(
-    initialClusteringStep=dict(tracksterSrc="ticlEGammaTracksters", filterByTracksterPID=False))
-ticl_v6.toModify(_particleFlowSuperClusterHGCal, PFClusters="particleFlowClusterTICL")
+ticlEGammaSuperClusters = _ticlEGammaSuperClustersProducer.clone()
 ticl_v6.toReplaceWith(_hgcalLocalRecoTask, _hgcalLocalRecoTask.copyAndExclude([_particleFlowClusterHGCal]))
+ticl_v6.toReplaceWith(_particleFlowSuperClusteringTask,
+                      _particleFlowSuperClusteringTask.copyAndExclude([_particleFlowSuperClusterHGCal]))
+ticl_v6.toModify(_photonCoreHGC, scIslandEndcapProducer="ticlEGammaSuperClusters")
 # Electron seeds of the HGCAL superclusters: from the KF track of a TICL electron, and from the supercluster only when
 # no trackster is typed electron and a track has its Electron hypothesis on one.
 from RecoTICL.ParticleFlow.ticlElectronSuperClustersProducer_cfi import ticlElectronSuperClustersProducer as _ticlElectronSuperClustersProducer
@@ -247,7 +251,7 @@ from RecoEgamma.EgammaElectronProducers.ecalDrivenElectronSeeds_cff import ecalD
 from RecoParticleFlow.PFTracking.mergedElectronSeeds_cfi import electronMergedSeeds as _electronMergedSeeds
 ticlElectronSuperClusters = _ticlElectronSuperClustersProducer.clone()
 ticlElectronSeeds = _ticlElectronSeedsProducer.clone()
-ticl_v6.toModify(ticlPFTask, lambda t: t.add(ticlEGammaTracksters, particleFlowClusterTICL, ticlElectronSuperClusters,
+ticl_v6.toModify(ticlPFTask, lambda t: t.add(ticlEGammaTracksters, ticlEGammaSuperClusters, ticlElectronSuperClusters,
                                               ticlElectronSeeds))
 ticl_v6.toModify(_ecalDrivenElectronSeeds, endcapSuperClusters="ticlElectronSuperClusters")
 ticl_v6.toModify(_electronMergedSeeds, EcalBasedSeeds="ticlElectronSeeds")

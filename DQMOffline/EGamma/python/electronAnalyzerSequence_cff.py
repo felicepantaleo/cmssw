@@ -73,4 +73,9 @@ phase2_hgcal.toReplaceWith(
 electronAnalyzerSequence, _electronAnalyzerSequenceHGC
 )
 
-
+# TICLv6: the HGCAL superclusters are the TICL e/gamma superclusters.
+from Configuration.ProcessModifiers.ticl_v6_cff import ticl_v6
+_ticlV6SuperClusters = cms.VInputTag(cms.InputTag("particleFlowSuperClusterECAL", "particleFlowSuperClusterECALBarrel"),
+                                     cms.InputTag("ticlEGammaSuperClusters"))
+ticl_v6.toModify(mergedSuperClusters, src = _ticlV6SuperClusters)
+ticl_v6.toModify(mergedSuperClustersHGC, src = _ticlV6SuperClusters)

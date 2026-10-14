@@ -2,12 +2,16 @@
 <use name="DataFormats/Common"/>
 <use name="DataFormats/EgammaReco"/>
 <use name="DataFormats/HGCalReco"/>
+<use name="DataFormats/Math"/>
 <use name="DataFormats/ParticleFlowCandidate"/>
-<use name="DataFormats/ParticleFlowReco"/>
 <use name="DataFormats/TrackReco"/>
 <use name="FWCore/Framework"/>
+<use name="FWCore/ParameterSet"/>
+<use name="FWCore/Utilities"/>
+<use name="PhysicsTools/ONNXRuntime"/>
 <use name="RecoParticleFlow/PFProducer"/>
 <use name="RecoTICL/Interpretation"/>
+<use name="RecoTICL/ParticleFlow"/>
 <library file="*.cc" name="RecoTICLParticleFlowPlugins">
   <flags EDM_PLUGIN="1"/>
 </library>

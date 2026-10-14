@@ -39,6 +39,12 @@ def main():
     for command in process.AODSIMEventContent.outputCommands:
         if "ticlCandidate" in command or "ticlTracksterInterpretations" in command:
             failures.append("AODSIMEventContent has '%s'" % command)
+    # The electrons and photons of AOD and RECO point to the TICL e/gamma superclusters.
+    for block in ("AODSIMEventContent", "RECOSIMEventContent"):
+        for keep in ("keep recoSuperClusters_ticlEGammaSuperClusters__*",
+                     "keep recoCaloClusters_ticlEGammaSuperClusters_clusters_*"):
+            if keep not in getattr(process, block).outputCommands:
+                failures.append("%s does not have '%s'" % (block, keep))
     process.load("Validation.HGCalValidation.HGCalValidator_cff")
     process.load("Validation.HGCalValidation.HLTHGCalValidator_cff")
     process.load("DPGAnalysis.HGCalNanoAOD.hgcalTICLCandidates_cfi")
@@ -46,30 +52,35 @@ def main():
     process.load("RecoLocalCalo.Configuration.hgcalLocalReco_cff")
     process.load("RecoEgamma.EgammaElectronProducers.ecalDrivenElectronSeeds_cff")
     process.load("RecoParticleFlow.PFTracking.mergedElectronSeeds_cfi")
-    process.load("Validation.HGCalValidation.hgcalHitCalibration_cfi")
+    process.load("RecoEgamma.EgammaPhotonProducers.photonCore_cfi")
     expected = {
         "hgcalValidator.mergedTracksters": "ticlTracksterInterpretations",
         "hltHgcalValidator.mergedTracksters": "hltTiclCandidate",
         "ticlCandidateExtraTable.tracksters": "ticlTracksterInterpretations",
         "ticlEGammaTracksters.interpretations": "ticlTracksterInterpretations",
-        "particleFlowClusterTICL.initialClusteringStep.tracksterSrc": "ticlEGammaTracksters",
-        "particleFlowSuperClusterHGCal.PFClusters": "particleFlowClusterTICL",
-        "ticlElectronSuperClusters.superClusters": "particleFlowSuperClusterHGCal",
-        "ticlElectronSuperClusters.pfClusters": "particleFlowClusterTICL",
+        "ticlEGammaSuperClusters.eGammaTracksters": "ticlEGammaTracksters",
+        "ticlElectronSuperClusters.superClusters": "ticlEGammaSuperClusters",
         "ticlElectronSuperClusters.eGammaTracksters": "ticlEGammaTracksters",
         "ecalDrivenElectronSeeds.endcapSuperClusters": "ticlElectronSuperClusters",
         "ticlElectronSeeds.seeds": "ecalDrivenElectronSeeds",
+        "ticlElectronSeeds.superClusters": "ticlEGammaSuperClusters",
         "electronMergedSeeds.EcalBasedSeeds": "ticlElectronSeeds",
-        "hgcalHitCalibration.hgcalMultiClusters": "particleFlowClusterTICL",
+        "photonCoreHGC.scIslandEndcapProducer": "ticlEGammaSuperClusters",
     }
-    # The e/gamma PF clusters are the typed tracksters, without the PID cut; particleFlowClusterHGCal does not run.
-    if process.particleFlowClusterTICL.initialClusteringStep.filterByTracksterPID.value():
-        failures.append("particleFlowClusterTICL filters by the trackster PID")
-    for label in ("ticlEGammaTracksters", "particleFlowClusterTICL", "ticlElectronSuperClusters", "ticlElectronSeeds"):
+    # The HGCAL e/gamma superclusters are the TICL e/gamma tracksters: no HGCAL PF clusters, no PF superclusters.
+    for label in ("ticlEGammaTracksters", "ticlEGammaSuperClusters", "ticlElectronSuperClusters", "ticlElectronSeeds"):
         if label not in process.iterTICLTask.moduleNames():
             failures.append("%s is not in iterTICLTask" % label)
     if "particleFlowClusterHGCal" in process.hgcalLocalRecoTask.moduleNames():
         failures.append("particleFlowClusterHGCal is in hgcalLocalRecoTask")
+    if "particleFlowSuperClusterHGCal" in process.particleFlowSuperClusteringTask.moduleNames():
+        failures.append("particleFlowSuperClusterHGCal is in particleFlowSuperClusteringTask")
+    # The e/gamma DQM merges the TICL e/gamma superclusters.
+    process.load("DQMOffline.EGamma.electronAnalyzerSequence_cff")
+    for label in ("mergedSuperClusters", "mergedSuperClustersHGC"):
+        sources = [tag.getModuleLabel() for tag in getattr(process, label).src]
+        if "ticlEGammaSuperClusters" not in sources or "particleFlowSuperClusterHGCal" in sources:
+            failures.append("%s reads %s" % (label, sources))
     for path, label in expected.items():
         obj = process
         for part in path.split("."):
