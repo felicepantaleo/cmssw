@@ -147,4 +147,20 @@ namespace ticl::modelfeatures {
         v = 0.f;
   }
 
+  void fillHadronicCalibrationFeatures(const Trackster &ts,
+                                       int nTracks,
+                                       int nJetMembers,
+                                       std::span<float, hadronicCalibration::kN> x) {
+    using namespace hadronicCalibration;
+    x[kLogRegressedEnergy] = std::log(std::max(ts.regressed_energy(), 1e-3f));
+    x[kLogRawEnergy] = std::log(std::max(ts.raw_energy(), 1e-3f));
+    x[kEMFraction] = ts.raw_em_energy() / std::max(ts.raw_energy(), 1e-3f);
+    x[kAbsEta] = std::abs(ts.barycenter().eta());
+    x[kLogNLayerClusters] = std::log1p(static_cast<float>(ts.vertices().size()));
+    for (int k = 0; k < 3; ++k)
+      x[kSigmasPCA + k] = ts.sigmasPCA()[k];
+    x[kNTracks] = static_cast<float>(nTracks);
+    x[kNJetMembers] = static_cast<float>(nJetMembers);
+  }
+
 }  // namespace ticl::modelfeatures

@@ -54,12 +54,19 @@
 
 using namespace ticl;
 
+// The ONNX models of the arbitration: the neutral share model, and the calibration of the hadronic tracksters that
+// charged hadrons share when hadronicTracksterCalibration is set.
+struct TICLArbitrationModels {
+  std::unique_ptr<cms::Ort::ONNXRuntime> neutralShare;
+  std::unique_ptr<cms::Ort::ONNXRuntime> hadronicCalibration;
+};
+
 class TICLCandidateArbitrationProducer
-    : public edm::stream::EDProducer<edm::GlobalCache<cms::Ort::ONNXRuntime>, edm::stream::WatchRuns> {
+    : public edm::stream::EDProducer<edm::GlobalCache<TICLArbitrationModels>, edm::stream::WatchRuns> {
 public:
-  TICLCandidateArbitrationProducer(const edm::ParameterSet &ps, const cms::Ort::ONNXRuntime *neutralShareModel);
-  static std::unique_ptr<cms::Ort::ONNXRuntime> initializeGlobalCache(const edm::ParameterSet &ps);
-  static void globalEndJob(const cms::Ort::ONNXRuntime *) {}
+  TICLCandidateArbitrationProducer(const edm::ParameterSet &ps, const TICLArbitrationModels *models);
+  static std::unique_ptr<TICLArbitrationModels> initializeGlobalCache(const edm::ParameterSet &ps);
+  static void globalEndJob(const TICLArbitrationModels *) {}
   void produce(edm::Event &, const edm::EventSetup &) override;
   void beginRun(edm::Run const &, edm::EventSetup const &) override;
   static void fillDescriptions(edm::ConfigurationDescriptions &descriptions);
@@ -93,13 +100,22 @@ private:
   const edm::EDGetTokenT<std::vector<float>> neutralSpeciesProbabilities_token_;
   // A charged candidate on an EM trackster takes the inverse-variance mean of the track energy and the trackster energy
   // when they agree within energyCompatibilityNSigma. Otherwise a charged hadron takes the track energy and an electron
-  // keeps the trackster energy. Momentum error: trackMomentumErrorScale x sigma(p) of the track, or
-  // gsfMomentumErrorScale x sigma(p) of the GSF mode for an electron with a GSF track. EM trackster error:
-  // sigma/E = sqrt(S^2/E + C^2) at the track energy.
+  // keeps the trackster energy. The charged hadrons on a hadronic trackster and the jet members that share a trackster
+  // take the inverse-variance weighted average of their track energy sum and the trackster energy when they agree:
+  // each track takes a share of the difference in proportion to its variance. Momentum error: trackMomentumErrorScale x
+  // sigma(p) of the track (hadronicTrackMomentumErrorScale for the charged hadrons that share a trackster), or
+  // gsfMomentumErrorScale x sigma(p) of the GSF mode for an electron with a GSF track.
+  // Trackster error: sigma/E = sqrt(S^2/E + C^2) at the track energy (the sum of the track energies of the charged
+  // hadrons that share it), with the EM or the hadronic terms. With the hadronic calibration model, a hadronic
+  // trackster of charged hadrons has the energy E_reg x q50 and the error E_reg x (q84 - q16) / 2 from the predicted
+  // quantiles of their true energy over its regressed energy.
   const float trackMomentumErrorScale_;
+  const float hadronicTrackMomentumErrorScale_;
   const float gsfMomentumErrorScale_;
   const float emTracksterStochastic_;
   const float emTracksterConstant_;
+  const float hadTracksterStochastic_;
+  const float hadTracksterConstant_;
   const float energyCompatibilityNSigma_;
   // A charged hadron or recovery winner on an EM trackster is an electron only when the trackster energy over the track
   // momentum is above electronMinEOverP_, else a charged pion. 0 disables the test.
@@ -114,6 +130,7 @@ private:
   // produced.
   const edm::EDGetTokenT<std::vector<reco::CaloCluster>> layerClustersToken_;
   const cms::Ort::ONNXRuntime &neutralShareModel_;
+  const cms::Ort::ONNXRuntime *hadronicCalibrationModel_;
   const float neutralMinEnergy_;
   std::vector<float> neutralEnergyShares(const std::vector<Trackster> &tracksters,
                                          const std::vector<reco::CaloCluster> &layerClusters,
@@ -126,6 +143,21 @@ private:
     bool compatible;
   };
   CombinedEnergy combinedEnergy(float p, float sigmaP, float mass, const Trackster &ts) const;
+  // Energy error of a trackster that measures the energy e.
+  float tracksterEnergyError(const Trackster &ts, float e) const;
+
+  // A charged hadron that shares the energy of a trackster with the other charged hadrons on it.
+  struct ChargedOnTrackster {
+    size_t candidate;
+    float energy;
+    float variance;
+    bool jetMember;
+  };
+  // Sets the weighted-average energies of the charged hadrons of each trackster and adds them to trackSumP.
+  void combineChargedHadrons(const edm::Handle<std::vector<Trackster>> &tracksters_h,
+                             const std::map<int, std::vector<ChargedOnTrackster>> &chargedOnTrackster,
+                             std::map<int, float> &trackSumP,
+                             std::vector<TICLCandidate> &candidates) const;
 
   // Neutral residuals: the energy of a trackster above the energy given to its tracks, typed by the trackster PID or,
   // when tracksterSpecies is not empty, by its species, with the species probabilities.
@@ -189,17 +221,23 @@ namespace {
   }
 }  // namespace
 
-std::unique_ptr<cms::Ort::ONNXRuntime> TICLCandidateArbitrationProducer::initializeGlobalCache(
+std::unique_ptr<TICLArbitrationModels> TICLCandidateArbitrationProducer::initializeGlobalCache(
     const edm::ParameterSet &ps) {
-  // One session for all the streams, with one intra-op and one inter-op thread.
+  // One session per model for all the streams, with one intra-op and one inter-op thread.
   auto options = cms::Ort::ONNXRuntime::defaultSessionOptions();
   options.SetInterOpNumThreads(1);
-  return std::make_unique<cms::Ort::ONNXRuntime>(ps.getParameter<edm::FileInPath>("neutralShareModel").fullPath(),
-                                                 &options);
+  auto models = std::make_unique<TICLArbitrationModels>();
+  models->neutralShare = std::make_unique<cms::Ort::ONNXRuntime>(
+      ps.getParameter<edm::FileInPath>("neutralShareModel").fullPath(), &options);
+  const auto &calibration = ps.getParameter<std::string>("hadronicTracksterCalibration");
+  if (!calibration.empty())
+    models->hadronicCalibration =
+        std::make_unique<cms::Ort::ONNXRuntime>(edm::FileInPath(calibration).fullPath(), &options);
+  return models;
 }
 
 TICLCandidateArbitrationProducer::TICLCandidateArbitrationProducer(const edm::ParameterSet &ps,
-                                                                   const cms::Ort::ONNXRuntime *neutralShareModel)
+                                                                   const TICLArbitrationModels *models)
     : tracksters_token_(consumes<std::vector<Trackster>>(ps.getParameter<edm::InputTag>("interpretations"))),
       trackToTrackster_token_(consumes<std::vector<int>>(interpretationTag(ps, "trackToTrackster"))),
       trackMode_token_(consumes<std::vector<int>>(interpretationTag(ps, "trackMode"))),
@@ -220,15 +258,19 @@ TICLCandidateArbitrationProducer::TICLCandidateArbitrationProducer(const edm::Pa
       neutralSpeciesProbabilities_token_(
           consumes<std::vector<float>>(interpretationTag(ps, "neutralSpeciesProbabilities"))),
       trackMomentumErrorScale_(ps.getParameter<float>("trackMomentumErrorScale")),
+      hadronicTrackMomentumErrorScale_(ps.getParameter<float>("hadronicTrackMomentumErrorScale")),
       gsfMomentumErrorScale_(ps.getParameter<float>("gsfMomentumErrorScale")),
       emTracksterStochastic_(ps.getParameter<float>("emTracksterStochastic")),
       emTracksterConstant_(ps.getParameter<float>("emTracksterConstant")),
+      hadTracksterStochastic_(ps.getParameter<float>("hadTracksterStochastic")),
+      hadTracksterConstant_(ps.getParameter<float>("hadTracksterConstant")),
       energyCompatibilityNSigma_(ps.getParameter<float>("energyCompatibilityNSigma")),
       electronMinEOverP_(ps.getParameter<float>("electronMinEOverP")),
       muons_token_(consumes<reco::MuonCollection>(ps.getParameter<edm::InputTag>("muonSrc"))),
       pfmu_(std::make_unique<PFMuonAlgo>(ps.getParameterSet("pfMuonAlgoParameters"), false)),
       layerClustersToken_(consumes<std::vector<reco::CaloCluster>>(ps.getParameter<edm::InputTag>("layerClusters"))),
-      neutralShareModel_(*neutralShareModel),
+      neutralShareModel_(*models->neutralShare),
+      hadronicCalibrationModel_(models->hadronicCalibration.get()),
       neutralMinEnergy_(ps.getParameter<float>("neutralMinEnergy")),
       propName_(ps.getParameter<std::string>("propagator")),
       bfield_token_(esConsumes<MagneticField, IdealMagneticFieldRecord, edm::Transition::BeginRun>()),
@@ -264,14 +306,84 @@ TICLCandidateArbitrationProducer::CombinedEnergy TICLCandidateArbitrationProduce
   const float eTrack = std::sqrt(p * p + mass * mass);
   const float sigmaTrack = sigmaP;
   const float eTrackster = ts.regressed_energy();
-  const float sigmaTrackster =
-      eTrack * std::sqrt(emTracksterStochastic_ * emTracksterStochastic_ / std::max(eTrack, 0.1f) +
-                         emTracksterConstant_ * emTracksterConstant_);
+  const float sigmaTrackster = tracksterEnergyError(ts, eTrack);
   if (!(std::abs(eTrackster - eTrack) < energyCompatibilityNSigma_ * std::hypot(sigmaTrack, sigmaTrackster)))
     return {eTrack, false};
   const float wTrack = 1.f / std::max(sigmaTrack * sigmaTrack, 1e-12f);
   const float wTrackster = 1.f / (sigmaTrackster * sigmaTrackster);
   return {(wTrack * eTrack + wTrackster * eTrackster) / (wTrack + wTrackster), true};
+}
+
+float TICLCandidateArbitrationProducer::tracksterEnergyError(const Trackster &ts, float e) const {
+  const float s = ts.isHadronic() ? hadTracksterStochastic_ : emTracksterStochastic_;
+  const float c = ts.isHadronic() ? hadTracksterConstant_ : emTracksterConstant_;
+  return e * std::sqrt(s * s / std::max(e, 0.1f) + c * c);
+}
+
+void TICLCandidateArbitrationProducer::combineChargedHadrons(
+    const edm::Handle<std::vector<Trackster>> &tracksters_h,
+    const std::map<int, std::vector<ChargedOnTrackster>> &chargedOnTrackster,
+    std::map<int, float> &trackSumP,
+    std::vector<TICLCandidate> &candidates) const {
+  // Calibrated energy and error of the hadronic tracksters, from the predicted quantiles of the calibration model.
+  std::map<int, std::pair<float, float>> calibrated;
+  if (hadronicCalibrationModel_ != nullptr) {
+    using modelfeatures::hadronicCalibration::kN;
+    std::vector<int> rows;
+    std::vector<float> x;
+    for (auto const &[tsIdx, charged] : chargedOnTrackster) {
+      const auto &ts = (*tracksters_h)[tsIdx];
+      if (!ts.isHadronic() || !(ts.regressed_energy() > 0.f))
+        continue;
+      const int nJetMembers =
+          std::count_if(charged.begin(), charged.end(), [](const ChargedOnTrackster &c) { return c.jetMember; });
+      x.resize(x.size() + kN);
+      modelfeatures::fillHadronicCalibrationFeatures(
+          ts, static_cast<int>(charged.size()), nJetMembers, std::span<float, kN>(x.end() - kN, kN));
+      rows.push_back(tsIdx);
+    }
+    if (!rows.empty()) {
+      const auto n = static_cast<int64_t>(rows.size());
+      cms::Ort::FloatArrays input{std::move(x)};
+      const auto output = hadronicCalibrationModel_->run({"input"}, input, {{n, static_cast<int64_t>(kN)}}, {}, n);
+      if (output.empty() || output[0].size() != 3 * rows.size())
+        throw cms::Exception("LogicError")
+            << "TICLCandidateArbitrationProducer: the hadronic calibration gives "
+            << (output.empty() ? 0 : output[0].size()) << " values for " << rows.size() << " tracksters";
+      for (size_t r = 0; r < rows.size(); ++r) {
+        const float e = (*tracksters_h)[rows[r]].regressed_energy();
+        const float *q = &output[0][3 * r];
+        calibrated[rows[r]] = {e * q[1], e * 0.5f * (q[2] - q[0])};
+      }
+    }
+  }
+  for (auto const &[tsIdx, charged] : chargedOnTrackster) {
+    const auto &ts = (*tracksters_h)[tsIdx];
+    float eSum = 0.f, varSum = 0.f;
+    for (auto const &c : charged) {
+      eSum += c.energy;
+      varSum += c.variance;
+    }
+    const auto cal = calibrated.find(tsIdx);
+    const float eTrackster = cal != calibrated.end() ? cal->second.first : ts.regressed_energy();
+    const float sigmaTrackster = cal != calibrated.end() ? cal->second.second : tracksterEnergyError(ts, eSum);
+    const float varTotal = varSum + sigmaTrackster * sigmaTrackster;
+    const float diff = eTrackster - eSum;
+    bool combine = std::abs(diff) < energyCompatibilityNSigma_ * std::sqrt(varTotal);
+    // The tracks keep their energies when the average would give one of them less than the pion mass.
+    for (auto const &c : charged)
+      combine = combine && c.energy + c.variance / varTotal * diff > ticl::mpion;
+    for (auto const &c : charged) {
+      auto &cand = candidates[c.candidate];
+      if (!combine) {
+        trackSumP[tsIdx] += cand.trackPtr()->p();
+        continue;
+      }
+      const float energy = c.energy + c.variance / varTotal * diff;
+      cand.setP4(p4Along(cand.trackPtr()->momentum(), energy, ticl::mpion));
+      trackSumP[tsIdx] += energy;
+    }
+  }
 }
 
 std::vector<float> TICLCandidateArbitrationProducer::neutralEnergyShares(
@@ -367,6 +479,13 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
   // trackster.
   std::vector<TICLCandidate> candidates;
   std::map<int, float> trackSumP;
+  std::map<int, std::vector<ChargedOnTrackster>> chargedOnTrackster;
+  // Energy and variance of the track of a charged hadron, with the pion mass.
+  auto chargedOnTrack = [&](const reco::Track &tk, bool jetMember) {
+    const float p = tk.p();
+    const float sigmaP = hadronicTrackMomentumErrorScale_ * tk.qoverpError() * p * p;
+    return ChargedOnTrackster{candidates.size() - 1, std::sqrt(p * p + ticl::mpion2), sigmaP * sigmaP, jetMember};
+  };
   // A GSF track goes to one electron only.
   std::vector<bool> gsfUsed(gsfTracks.size(), false);
   const auto &probabilitiesOfTracks = evt.get(trackTypeProbabilities_token_);
@@ -440,7 +559,7 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
       cand.setTypeProbabilities(chargedTypeProbabilities(iTrack));
       candidates.push_back(cand);
       if (tsIdx >= 0)
-        trackSumP[tsIdx] += tk.p();
+        chargedOnTrackster[tsIdx].push_back(chargedOnTrack(tk, true));
     } else if (tracksterPtr.isNonnull() && !tracksterPtr->isHadronic()) {
       // Charged hadron or recovery on an EM trackster: an electron (the trackster PID) when E/p passes
       // electronMinEOverP_, else a charged pion, with the combined energy along the track. A compatible trackster is all
@@ -457,17 +576,19 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
       candidates.push_back(cand);
       trackSumP[tsIdx] += combined.compatible ? tracksterPtr->regressed_energy() : combined.energy;
     } else {
-      // Charged hadron or recovery on a hadronic trackster or with no trackster: kinematics from the track. The
-      // calorimetric excess of the trackster becomes a neutral residual.
+      // Charged hadron or recovery on a hadronic trackster or with no trackster: kinematics from the track, then the
+      // weighted-average energy with the trackster (combineChargedHadrons). The calorimetric excess of the trackster
+      // becomes a neutral residual.
       TICLCandidate cand(trackPtr, tracksterPtr);
       math::PtEtaPhiMLorentzVector p4Polar(tk.pt(), tk.eta(), tk.phi(), ticl::mpion);
       cand.setP4(p4Polar);
       cand.setTypeProbabilities(chargedTypeProbabilities(iTrack));
       candidates.push_back(cand);
       if (tsIdx >= 0)
-        trackSumP[tsIdx] += tk.p();
+        chargedOnTrackster[tsIdx].push_back(chargedOnTrack(tk, false));
     }
   }
+  combineChargedHadrons(tracksters_h, chargedOnTrackster, trackSumP, candidates);
   // Empty when the interpretation stage runs without tracksterSpeciesForTracks.
   const auto &tracksterSpecies = evt.get(tracksterSpecies_token_);
   const auto &tracksterSpeciesProbabilities = evt.get(tracksterSpeciesProbabilities_token_);
@@ -602,9 +723,19 @@ void TICLCandidateArbitrationProducer::fillDescriptions(edm::ConfigurationDescri
   desc.add<float>("residualEnergyFraction", 0.1f)
       ->setComment("Min energy of a neutral residual as a fraction of the trackster energy.");
   desc.add<float>("trackMomentumErrorScale", 2.0f)->setComment("Scale of the track momentum error.");
+  desc.add<float>("hadronicTrackMomentumErrorScale", 1.0f)
+      ->setComment("Scale of the track momentum error of the charged hadrons that share a trackster.");
   desc.add<float>("gsfMomentumErrorScale", 3.8f)->setComment("Scale of the GSF mode momentum error.");
   desc.add<float>("emTracksterStochastic", 0.30f)->setComment("Stochastic term of the EM trackster resolution.");
   desc.add<float>("emTracksterConstant", 0.22f)->setComment("Constant term of the EM trackster resolution.");
+  desc.add<float>("hadTracksterStochastic", 2.32f)->setComment("Stochastic term of the hadronic trackster resolution.");
+  desc.add<float>("hadTracksterConstant", 0.0f)->setComment("Constant term of the hadronic trackster resolution.");
+  desc.add<std::string>("hadronicTracksterCalibration",
+                        "RecoTICL/Interpretation/data/chargedEnergy/hadronicTracksterCalibration_v1.onnx")
+      ->setComment(
+          "FileInPath of the ONNX calibration of the hadronic tracksters that charged hadrons share (16, 50 and 84% "
+          "quantiles of the true energy over the regressed energy); empty: the regressed energy and the hadronic "
+          "resolution terms.");
   desc.add<float>("energyCompatibilityNSigma", 3.0f)
       ->setComment("Track and trackster energies agree within this number of combined errors.");
   desc.add<float>("electronMinEOverP", 0.7f)

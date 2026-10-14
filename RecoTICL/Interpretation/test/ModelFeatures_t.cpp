@@ -165,6 +165,22 @@ TEST_CASE("The neutral share features are in the slots of neutralShare_mlp_v1", 
   CHECK(x[30] == 10.f);
 }
 
+TEST_CASE("The hadronic calibration features are in the slots of the training", "[ModelFeatures]") {
+  const auto ts = makeTrackster();
+  std::array<float, 10> x{};
+  fillHadronicCalibrationFeatures(ts, 3, 2, x);
+  CHECK_THAT(x[0], WithinRel(std::log(14.f), 1e-6f));
+  CHECK_THAT(x[1], WithinRel(std::log(12.5f), 1e-6f));
+  CHECK_THAT(x[2], WithinRel(0.32f, 1e-6f));
+  CHECK_THAT(x[3], WithinRel(std::asinh(7.f), 1e-5f));
+  CHECK_THAT(x[4], WithinRel(std::log1p(3.f), 1e-6f));
+  CHECK_THAT(x[5], WithinRel(4.f, 1e-6f));
+  CHECK_THAT(x[6], WithinRel(3.f, 1e-6f));
+  CHECK_THAT(x[7], WithinRel(2.f, 1e-6f));
+  CHECK(x[8] == 3.f);
+  CHECK(x[9] == 2.f);
+}
+
 TEST_CASE("The interpretation models give the logits of the training environment", "[ModelFeatures]") {
   // Inputs and logits from ONNX Runtime 1.26.0 in python.
   const std::vector<float> hypothesisInput{
