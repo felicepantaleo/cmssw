@@ -64,7 +64,7 @@ namespace ticl {
     return result;
   }
 
-  // Seeds of an HGCAL supercluster whose PF clusters come from the e/gamma tracksters clusterTracksters: a seed from the
+  // Seeds of an HGCAL supercluster whose clusters come from the e/gamma tracksters clusterTracksters: a seed from the
   // KF track of each trackster typed electron (tracks, sorted and unique), and seeds from the supercluster itself
   // (fromSuperCluster) when no trackster is typed electron and the Electron hypothesis of a track is on one of them.
   struct SuperClusterSeeding {
