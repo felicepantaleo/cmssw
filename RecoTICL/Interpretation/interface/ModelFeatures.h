@@ -1,8 +1,8 @@
 #ifndef RecoTICL_Interpretation_ModelFeatures_h
 #define RecoTICL_Interpretation_ModelFeatures_h
 
-// The input features of the three interpretation models, in the order of their training. A slot index is part of the
-// model: test/ModelFeatures_t.cpp checks each slot against the training order.
+// The input features of the models of the interpretation and the arbitration, in the order of their training. A slot
+// index is part of the model: test/ModelFeatures_t.cpp checks each slot against the training order.
 
 #include <span>
 #include <vector>
@@ -112,6 +112,29 @@ namespace ticl::modelfeatures {
                                 const std::vector<reco::CaloCluster> &layerClusters,
                                 const NeutralShareContext &context,
                                 std::span<float, neutralShare::kN> x);
+
+  // Calibration of a hadronic trackster that charged hadrons share: one row per trackster, calorimeter quantities and
+  // the number of its tracks and jet members. The model gives the 16, 50 and 84% quantiles of the true energy of the
+  // tracks' particles over the regressed energy.
+  namespace hadronicCalibration {
+    enum Slot : unsigned int {
+      kLogRegressedEnergy = 0,
+      kLogRawEnergy,
+      kEMFraction,
+      kAbsEta,
+      kLogNLayerClusters,
+      kSigmasPCA,  // 3 slots
+      kNTracks = kSigmasPCA + 3,
+      kNJetMembers,
+      kN
+    };
+  }  // namespace hadronicCalibration
+  static_assert(hadronicCalibration::kN == 10);
+
+  void fillHadronicCalibrationFeatures(const Trackster &ts,
+                                       int nTracks,
+                                       int nJetMembers,
+                                       std::span<float, hadronicCalibration::kN> x);
 
 }  // namespace ticl::modelfeatures
 
