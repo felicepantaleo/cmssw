@@ -295,10 +295,17 @@ def v5(name="v5"):
 def v6(name="v6", target="offline"):
     """Return a :class:`TICLConfig` for TICLv6, the configuration of the ``ticl_v6`` process modifier: Cornetto
     linking, the interpretation stage (hypotheses, global arbitration, track claim) and the candidates from its maps.
-    The interpretation stage runs the PFN inference of the v5 candidates; the other parameters are the module
-    defaults."""
-    interp = dict(pluginInferenceAlgoTracksterInferenceByPFN=candidate_defaults()[
-        "pluginInferenceAlgoTracksterInferenceByPFN"])
+    The interpretation stage runs the PFN energy regression of the v5 candidates and the shower-shape PID; the other
+    parameters are the module defaults."""
+    # The PFN gives the energy regression; the PID comes from the shower shape of the final tracksters and footprints,
+    # on the scale of the linking CNN of v5 (the same hadron mis-identification at every threshold).
+    pfn = candidate_defaults()["pluginInferenceAlgoTracksterInferenceByPFN"].clone(
+        doPID=cms.int32(0), onnxPIDModelPath=cms.string(""))
+    interp = dict(pluginInferenceAlgoTracksterInferenceByPFN=pfn,
+                  pidInferenceAlgo=cms.string("TracksterInferenceByShowerShape"),
+                  pluginInferenceAlgoTracksterInferenceByShowerShape=cms.PSet(
+                      onnxModelPath=cms.string("RecoTICL/Inference/data/showerShapePID/shapePIDFinal_v1.onnx"),
+                      type=cms.string("TracksterInferenceByShowerShape")))
     cfg = (TICLConfig(name, target=target)
            .iteration("CLUE3DHigh").preset()
            # EM identification from the shower shape, on the scale of the CNN of v5 (the same hadron
