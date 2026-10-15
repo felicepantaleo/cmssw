@@ -54,6 +54,7 @@
 #include "RecoTICL/Inference/interface/TICLONNXGlobalCache.h"
 #include "RecoTICL/Inference/interface/TracksterInferenceAlgoFactory.h"
 #include "RecoTICL/Inference/interface/TracksterInferenceByPFN.h"
+#include "RecoTICL/Inference/interface/TracksterInferenceByShowerShape.h"
 #include "RecoTICL/Interpretation/interface/AssignmentMaps.h"
 #include "RecoTICL/Interpretation/interface/ExpectedDeposit.h"
 #include "RecoTICL/Interpretation/interface/JetVariants.h"
@@ -220,6 +221,12 @@ private:
                     std::vector<Trackster> &tracksters,
                     InferenceCache &cache,
                     bool withRegression) const;
+  // runInference with the PID from pidInferenceAlgo_ and the regression from inferenceAlgo_. The PID runs first, so an
+  // EM trackster below emRawEnergyBelow gets no regression.
+  void runSeparateInference(const std::vector<reco::CaloCluster> &layerClusters,
+                            std::vector<Trackster> &tracksters,
+                            InferenceCache &cache,
+                            bool withRegression) const;
   // Hypotheses of the interpretations, with PCA and PID on their footprints, plus one track-only hypothesis per
   // selected track.
   Opinions makeOpinions(const Inputs &muonInput,
@@ -366,6 +373,8 @@ private:
   // The same inference with the PID only and with the regression only, when the plugin has doPID and doRegression.
   std::unique_ptr<TracksterInferenceAlgoBase> inferencePIDOnly_;
   std::unique_ptr<TracksterInferenceAlgoBase> inferenceRegressionOnly_;
+  // The PID plugin of pidInferenceAlgo; when it is set, inferenceAlgo gives the regression only.
+  std::unique_ptr<TracksterInferenceAlgoBase> pidInferenceAlgo_;
 
   // Global arbitration: weight = Platt-calibrated logit of the hypothesis model + trackBonus per track. The model reads
   // the first modelFeatures_ slots of each row.
@@ -408,6 +417,10 @@ std::unique_ptr<TICLONNXGlobalCache> TICLInterpretationProducer::initializeGloba
   auto cache = TICLONNXGlobalCache::initialize(ps);
   cache->loadModel(ps.getParameter<edm::FileInPath>("arbitrationModelFile").relativePath());
   cache->loadModel(ps.getParameter<edm::FileInPath>("neutralModelFile").relativePath());
+  const std::string pidPlugin = ps.getParameter<std::string>("pidInferenceAlgo");
+  if (!pidPlugin.empty())
+    cache->loadModel(ps.getParameter<edm::ParameterSet>("pluginInferenceAlgo" + pidPlugin)
+                         .getParameter<std::string>("onnxModelPath"));
   return cache;
 }
 
@@ -519,6 +532,10 @@ TICLInterpretationProducer::TICLInterpretationProducer(const edm::ParameterSet &
     inferencePIDOnly_ = only("doRegression");
     inferenceRegressionOnly_ = only("doPID");
   }
+  const std::string pidPlugin = ps.getParameter<std::string>("pidInferenceAlgo");
+  if (!pidPlugin.empty())
+    pidInferenceAlgo_ = TracksterInferenceAlgoFactory::get()->create(
+        pidPlugin, ps.getParameter<edm::ParameterSet>("pluginInferenceAlgo" + pidPlugin), cache);
 
   produces<std::vector<Trackster>>();
   produces<std::vector<int>>("trackToTrackster");
@@ -576,6 +593,10 @@ void TICLInterpretationProducer::runInference(const std::vector<reco::CaloCluste
                                               std::vector<Trackster> &tracksters,
                                               InferenceCache &cache,
                                               bool withRegression) const {
+  if (pidInferenceAlgo_) {
+    runSeparateInference(layerClusters, tracksters, cache, withRegression);
+    return;
+  }
   const bool split = inferencePIDOnly_ && inferenceRegressionOnly_;
   std::vector<int> entryOf(tracksters.size(), -1);
   // Representatives of the distinct tracksters that need the PID and the regression, the PID only, or the regression
@@ -627,6 +648,61 @@ void TICLInterpretationProducer::runInference(const std::vector<reco::CaloCluste
     inferenceRegressionOnly_->runInference(layerClusters, regressionOnly, rhtools_);
     for (unsigned int k = 0; k < regressionOnly.size(); ++k)
       cache.storeRegression(regressionOnlyEntry[k], regressionOnly[k]);
+  }
+  for (unsigned int i = 0; i < tracksters.size(); ++i)
+    if (entryOf[i] >= 0)
+      cache.apply(entryOf[i], tracksters[i]);
+}
+
+void TICLInterpretationProducer::runSeparateInference(const std::vector<reco::CaloCluster> &layerClusters,
+                                                      std::vector<Trackster> &tracksters,
+                                                      InferenceCache &cache,
+                                                      bool withRegression) const {
+  std::vector<int> entryOf(tracksters.size(), -1);
+  // One representative per distinct trackster: its index in tracksters.
+  std::vector<unsigned int> representatives;
+  std::vector<bool> queued;
+  for (unsigned int i = 0; i < tracksters.size(); ++i) {
+    const auto &ts = tracksters[i];
+    if (std::any_of(ts.vertices().begin(), ts.vertices().end(), [&](unsigned int v) {
+          return rhtools_.isBarrel(layerClusters[v].seed());
+        }))
+      continue;
+    const unsigned int e = cache.entry(ts);
+    entryOf[i] = static_cast<int>(e);
+    if (queued.size() <= e)
+      queued.resize(e + 1, false);
+    if (!queued[e])
+      representatives.push_back(i);
+    queued[e] = true;
+  }
+  std::vector<Trackster> pid;
+  std::vector<unsigned int> pidEntry;
+  for (unsigned int i : representatives)
+    if (!cache[entryOf[i]].hasPID) {
+      pid.push_back(tracksters[i]);
+      pidEntry.push_back(entryOf[i]);
+    }
+  pidInferenceAlgo_->runInference(layerClusters, pid, rhtools_);
+  for (unsigned int k = 0; k < pid.size(); ++k)
+    cache.storePID(pidEntry[k], pid[k]);
+  if (withRegression) {
+    std::vector<Trackster> regression;
+    std::vector<unsigned int> regressionEntry;
+    for (unsigned int i : representatives) {
+      const auto &entry = cache[entryOf[i]];
+      const auto &p = entry.probabilities;
+      const bool em = !(p[static_cast<int>(Trackster::ParticleType::photon)] +
+                            p[static_cast<int>(Trackster::ParticleType::electron)] <
+                        0.5f);
+      if (entry.hasRegression || (em && tracksters[i].raw_energy() < emRawEnergyBelow_))
+        continue;
+      regression.push_back(tracksters[i]);
+      regressionEntry.push_back(entryOf[i]);
+    }
+    inferenceAlgo_->runInference(layerClusters, regression, rhtools_);
+    for (unsigned int k = 0; k < regression.size(); ++k)
+      cache.storeRegression(regressionEntry[k], regression[k]);
   }
   for (unsigned int i = 0; i < tracksters.size(); ++i)
     if (entryOf[i] >= 0)
@@ -1472,6 +1548,13 @@ void TICLInterpretationProducer::fillDescriptions(edm::ConfigurationDescriptions
                        "pluginInferenceAlgoTracksterInferenceByPFN",
                        ticl::inferencePluginPSetDescription<ticl::TracksterInferenceByPFN>("TracksterInferenceByPFN"),
                        true));
+  desc.add<std::string>("pidInferenceAlgo", "")
+      ->setComment(
+          "PID plugin, with the parameter set pluginInferenceAlgo<plugin>; when set, inferenceAlgo gives the "
+          "energy regression only.");
+  desc.add<edm::ParameterSetDescription>(
+      "pluginInferenceAlgoTracksterInferenceByShowerShape",
+      ticl::inferencePluginPSetDescription<ticl::TracksterInferenceByShowerShape>("TracksterInferenceByShowerShape"));
 
   desc.add<float>("arbitrationMaxSharedEnergyFraction", 0.2f)
       ->setComment("Two hypotheses conflict above this fraction of the smaller footprint energy in shared clusters.");
