@@ -45,7 +45,8 @@ EXPECTED_REPLACED = {"ticlCandidate": ("TICLCandidateProducer", "TICLCandidateAr
 # The v6-only modules run with their module defaults, except these parameters (subtrees end with a dot).
 EXPECTED_FROM_DEFAULT = {
     "ticlTracksterInterpretations": ("tracksters_collections", "egamma_tracksters_collections",
-                                     "pluginInferenceAlgoTracksterInferenceByPFN."),
+                                     "pluginInferenceAlgoTracksterInferenceByPFN.", "pidInferenceAlgo",
+                                     "pluginInferenceAlgoTracksterInferenceByShowerShape."),
     "ticlCandidate": (),
 }
 CFI = {
