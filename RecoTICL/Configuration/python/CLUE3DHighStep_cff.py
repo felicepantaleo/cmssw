@@ -73,10 +73,16 @@ ticlTrackstersCLUE3DHigh = _trackstersProducer.clone(
 
 )
 
-# TICLv6: EM identification from the shower shape, on the scale of the CNN of v5 (the same hadron mis-identification at
-# every threshold).
+# TICLv6: identification from the shower shape and the layer-cluster profile, with the EM score on the scale of the CNN
+# of v5 in every energy bin.
 from Configuration.ProcessModifiers.ticl_v6_cff import ticl_v6
-ticl_v6.toModify(ticlTrackstersCLUE3DHigh, inferenceAlgo = "TracksterInferenceByShowerShape")
+ticl_v6.toModify(ticlTrackstersCLUE3DHigh,
+                 inferenceAlgo = "TracksterInferenceByShowerShape",
+                 pluginInferenceAlgoTracksterInferenceByShowerShape = cms.PSet(
+                     type = cms.string("TracksterInferenceByShowerShape"),
+                     mode = cms.string("mixture"),
+                     onnxModelPath = cms.string("RecoTICL/Inference/data/showerShapePID/mixPID_hi_v1.onnx"),
+                     outputNames = cms.vstring("pid")))
 
 ticlCLUE3DHighStepTask = cms.Task(ticlSeedingGlobal
     ,filteredLayerClustersCLUE3DHigh

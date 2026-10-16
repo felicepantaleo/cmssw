@@ -9,6 +9,7 @@
 
 #include "DataFormats/Math/interface/deltaR.h"
 #include "DataFormats/Math/interface/Vector3D.h"
+#include "RecoTICL/Inference/interface/TracksterLayerClusterProfile.h"
 
 namespace ticl::modelfeatures {
 
@@ -109,39 +110,8 @@ namespace ticl::modelfeatures {
       x[kSigmasPCA + k] = ts.sigmasPCA()[k];
       x[kSigmas + k] = ts.sigmas()[k];
     }
-    // Layer clusters: the largest energy share, the energy share within 2 and 5 cm of the main axis, the
-    // energy-weighted transverse rms (cm), the smallest |z| and the |z| extent.
-    auto axis = ts.eigenvectors(0);
-    if (!(axis.mag2() > 0.f) || !std::isfinite(axis.mag2()))
-      axis = b;
-    axis = axis.unit();
-    float eSum = 0.f, eMax = 0.f, eCore2 = 0.f, eCore5 = 0.f, r2Sum = 0.f;
-    float zMin = std::numeric_limits<float>::max(), zMax = 0.f;
-    for (size_t i = 0; i < ts.vertices().size(); ++i) {
-      const auto &lc = layerClusters[ts.vertices(i)];
-      const float e = lc.energy() / std::max<float>(1.f, ts.vertex_multiplicity(i));
-      const Trackster::Vector d(lc.x() - b.x(), lc.y() - b.y(), lc.z() - b.z());
-      const float along = d.Dot(axis);
-      const float r = std::sqrt(std::max(0.f, d.mag2() - along * along));
-      eSum += e;
-      eMax = std::max(eMax, e);
-      eCore2 += r < 2.f ? e : 0.f;
-      eCore5 += r < 5.f ? e : 0.f;
-      r2Sum += e * r * r;
-      zMin = std::min(zMin, std::abs(static_cast<float>(lc.z())));
-      zMax = std::max(zMax, std::abs(static_cast<float>(lc.z())));
-    }
-    if (eSum > 0.f) {
-      x[kMaxClusterShare] = eMax / eSum;
-      x[kCoreShare2] = eCore2 / eSum;
-      x[kCoreShare5] = eCore5 / eSum;
-      x[kTransverseRMS] = std::sqrt(r2Sum / eSum);
-      x[kMinAbsZ] = zMin;
-      x[kAbsZExtent] = zMax - zMin;
-    } else {
-      std::fill(x.begin() + kMaxClusterShare, x.begin() + kAbsZExtent, -1.f);
-      x[kAbsZExtent] = 0.f;
-    }
+    const auto profile = layerClusterProfile(ts, layerClusters);
+    std::copy(profile.begin(), profile.end(), x.begin() + kMaxClusterShare);
     for (auto &v : x)
       if (!std::isfinite(v))
         v = 0.f;

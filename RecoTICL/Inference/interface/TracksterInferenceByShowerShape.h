@@ -1,9 +1,10 @@
 #ifndef RecoTICL_Inference_TracksterInferenceByShowerShape_h
 #define RecoTICL_Inference_TracksterInferenceByShowerShape_h
 
-// EM identification of tracksters from their shower shape: one ONNX model on 16 trackster quantities gives the EM score
-// s, on the scale of the CNN identification that it replaces (the same hadron mis-identification at every threshold).
-// The trackster gets P(photon) = s and P(charged hadron) = 1 - s.
+// Identification of tracksters from their shower shape, with one ONNX model. Mode "em": 16 trackster quantities give
+// the EM score s; the trackster gets P(photon) = s and P(charged hadron) = 1 - s. Mode "mixture": the 16 quantities and
+// the 6 values of the layer-cluster profile give the 8 probabilities in ParticleType order. Both models map their EM
+// score onto the scale of the CNN identification that they replace.
 
 #include <array>
 #include <string>
@@ -22,6 +23,7 @@ namespace ticl {
   class TracksterInferenceByShowerShape : public TracksterInferenceAlgoBase {
   public:
     static constexpr std::size_t kNFeatures = 16;
+    static constexpr std::size_t kNMixtureFeatures = kNFeatures + 6;
 
     TracksterInferenceByShowerShape(const edm::ParameterSet& conf, TICLONNXGlobalCache const* cache);
 
@@ -37,6 +39,7 @@ namespace ticl {
     static std::array<float, kNFeatures> features(const Trackster& trackster);
 
   private:
+    bool mixture_;
     std::vector<std::string> inputNames_;
     std::vector<std::string> outputNames_;
     float minEnergy_;
