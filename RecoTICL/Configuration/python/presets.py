@@ -292,25 +292,33 @@ def v5(name="v5"):
     return cfg
 
 
+def shower_shape_pid(model):
+    """The PSet of the shower-shape identification in mixture mode with the model file `model` of
+    RecoTICL/Inference/data/showerShapePID."""
+    return cms.PSet(type=cms.string("TracksterInferenceByShowerShape"),
+                    mode=cms.string("mixture"),
+                    onnxModelPath=cms.string("RecoTICL/Inference/data/showerShapePID/" + model),
+                    outputNames=cms.vstring("pid"))
+
+
 def v6(name="v6", target="offline"):
     """Return a :class:`TICLConfig` for TICLv6, the configuration of the ``ticl_v6`` process modifier: Cornetto
     linking, the interpretation stage (hypotheses, global arbitration, track claim) and the candidates from its maps.
     The interpretation stage runs the PFN energy regression of the v5 candidates and the shower-shape PID; the other
     parameters are the module defaults."""
-    # The PFN gives the energy regression; the PID comes from the shower shape of the final tracksters and footprints,
-    # on the scale of the linking CNN of v5 (the same hadron mis-identification at every threshold).
+    # The PFN gives the energy regression; the PID comes from the shower shape and the layer-cluster profile of the
+    # final tracksters and footprints, with the EM score on the scale of the linking CNN of v5 in every energy bin.
     pfn = candidate_defaults()["pluginInferenceAlgoTracksterInferenceByPFN"].clone(
         doPID=cms.int32(0), onnxPIDModelPath=cms.string(""))
     interp = dict(pluginInferenceAlgoTracksterInferenceByPFN=pfn,
                   pidInferenceAlgo=cms.string("TracksterInferenceByShowerShape"),
-                  pluginInferenceAlgoTracksterInferenceByShowerShape=cms.PSet(
-                      onnxModelPath=cms.string("RecoTICL/Inference/data/showerShapePID/shapePIDFinal_v1.onnx"),
-                      type=cms.string("TracksterInferenceByShowerShape")))
+                  pluginInferenceAlgoTracksterInferenceByShowerShape=shower_shape_pid("mixPID_fin_v1.onnx"))
     cfg = (TICLConfig(name, target=target)
            .iteration("CLUE3DHigh").preset()
-           # EM identification from the shower shape, on the scale of the CNN of v5 (the same hadron
-           # mis-identification at every threshold).
-           .trackster_params(inferenceAlgo=cms.string("TracksterInferenceByShowerShape"))
+           # Identification from the shower shape and the layer-cluster profile, with the EM score on the scale of
+           # the CNN of v5 in every energy bin.
+           .trackster_params(inferenceAlgo=cms.string("TracksterInferenceByShowerShape"),
+                             pluginInferenceAlgoTracksterInferenceByShowerShape=shower_shape_pid("mixPID_hi_v1.onnx"))
            .iteration("Recovery").preset()
            .links(["CLUE3DHigh", "Recovery"], **cornetto_links_defaults())
            # photon, electron AND neutral_pion: a pi0 is an electromagnetic object.
