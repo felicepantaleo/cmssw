@@ -12,6 +12,7 @@ from RecoTICL.Configuration import presets
 
 # module -> subtrees that differ as a whole: a new plugin type replaces the whole parameter set.
 EXPECTED_WHOLESALE = {
+    "ticlTrackstersCLUE3DHigh": ("pluginInferenceAlgoTracksterInferenceByShowerShape",),
     "ticlTracksterLinks": ("linkingPSet",),
     "pfTICL": ("pfMuonAlgoParameters",),
 }
