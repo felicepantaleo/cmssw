@@ -1,21 +1,34 @@
 #include "RecoTICL/Inference/interface/TracksterInferenceByShowerShape.h"
 #include "RecoTICL/Inference/interface/TracksterInferenceAlgoFactory.h"
+#include "RecoTICL/Inference/interface/TracksterLayerClusterProfile.h"
 
 #include <algorithm>
 #include <cmath>
+#include <tuple>
+#include <type_traits>
+#include <utility>
 
 #include "FWCore/ParameterSet/interface/ParameterSetDescription.h"
 #include "FWCore/Utilities/interface/Exception.h"
 
 namespace ticl {
 
+  namespace {
+    constexpr std::size_t kNTypes =
+        std::tuple_size_v<std::remove_cvref_t<decltype(std::declval<const Trackster&>().id_probabilities())>>;
+  }  // namespace
+
   TracksterInferenceByShowerShape::TracksterInferenceByShowerShape(const edm::ParameterSet& conf,
                                                                    TICLONNXGlobalCache const* cache)
       : TracksterInferenceAlgoBase(conf, cache),
+        mixture_(conf.getParameter<std::string>("mode") == "mixture"),
         inputNames_(conf.getParameter<std::vector<std::string>>("inputNames")),
         outputNames_(conf.getParameter<std::vector<std::string>>("outputNames")),
         minEnergy_(conf.getParameter<double>("minEnergy")),
         doPID_(conf.getParameter<int>("doPID")) {
+    const std::string mode = conf.getParameter<std::string>("mode");
+    if (mode != "em" && mode != "mixture")
+      throw cms::Exception("Configuration") << "TracksterInferenceByShowerShape: unknown mode '" << mode << "'";
     const std::string modelPath = conf.getParameter<std::string>("onnxModelPath");
     if (cache_ != nullptr && !modelPath.empty())
       onnxSession_ = cache_->getByModelPathString(modelPath);
@@ -61,29 +74,45 @@ namespace ticl {
         continue;
       const auto x = features(tracksters[i]);
       input[0].insert(input[0].end(), x.begin(), x.end());
+      if (mixture_) {
+        const auto profile = layerClusterProfile(tracksters[i], layerClusters);
+        input[0].insert(input[0].end(), profile.begin(), profile.end());
+      }
       indices.push_back(i);
     }
     if (indices.empty())
       return;
     const auto n = static_cast<int64_t>(indices.size());
-    const auto output = onnxSession_->run(inputNames_, input, {{n, static_cast<int64_t>(kNFeatures)}}, outputNames_, n);
-    if (output.empty() || output[0].size() != indices.size())
+    const auto nFeatures = static_cast<int64_t>(mixture_ ? kNMixtureFeatures : kNFeatures);
+    const std::size_t nOut = mixture_ ? kNTypes : 1;
+    const auto output = onnxSession_->run(inputNames_, input, {{n, nFeatures}}, outputNames_, n);
+    if (output.empty() || output[0].size() != nOut * indices.size())
       throw cms::Exception("LogicError") << "TracksterInferenceByShowerShape: the model gives "
-                                         << (output.empty() ? 0 : output[0].size()) << " scores for " << indices.size()
-                                         << " tracksters";
+                                         << (output.empty() ? 0 : output[0].size()) << " values for " << indices.size()
+                                         << " tracksters, expected " << nOut << " per trackster";
     for (size_t k = 0; k < indices.size(); ++k) {
       auto& trackster = tracksters[indices[k]];
-      const float s = std::clamp(output[0][k], 0.f, 1.f);
       trackster.zeroProbabilities();
-      trackster.setIdProbability(Trackster::ParticleType::photon, s);
-      trackster.setIdProbability(Trackster::ParticleType::charged_hadron, 1.f - s);
+      if (mixture_) {
+        for (std::size_t c = 0; c < nOut; ++c)
+          trackster.setIdProbability(static_cast<Trackster::ParticleType>(c),
+                                     std::clamp(output[0][nOut * k + c], 0.f, 1.f));
+      } else {
+        const float s = std::clamp(output[0][k], 0.f, 1.f);
+        trackster.setIdProbability(Trackster::ParticleType::photon, s);
+        trackster.setIdProbability(Trackster::ParticleType::charged_hadron, 1.f - s);
+      }
     }
   }
 
   void TracksterInferenceByShowerShape::fillPSetDescription(edm::ParameterSetDescription& iDesc) {
     TracksterInferenceAlgoBase::fillPSetDescription(iDesc);
+    iDesc.add<std::string>("mode", "em")
+        ->setComment(
+            "em: input [N, 16], output [N] EM score; mixture: input [N, 22] (with the layer-cluster profile), "
+            "output [N, 8] probabilities in ParticleType order.");
     iDesc.add<std::string>("onnxModelPath", "RecoTICL/Inference/data/showerShapePID/shapePID_v1.onnx")
-        ->setComment("ONNX model: input [N, 16] trackster quantities, output [N] EM score.");
+        ->setComment("ONNX model of the mode.");
     iDesc.add<std::vector<std::string>>("inputNames", {"input"});
     iDesc.add<std::vector<std::string>>("outputNames", {"em"});
     iDesc.add<double>("minEnergy", 1.0)->setComment("Min raw energy [GeV] of a trackster to get an identification.");

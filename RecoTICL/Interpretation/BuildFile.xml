@@ -16,6 +16,7 @@
 <use name="MagneticField/Engine"/>
 <use name="PhysicsTools/ONNXRuntime"/>
 <use name="RecoParticleFlow/PFProducer"/>
+<use name="RecoTICL/Inference"/>
 <use name="RecoLocalCalo/HGCalRecAlgos"/>
 <use name="TrackingTools/GeomPropagators"/>
 <use name="TrackingTools/TrajectoryState"/>
