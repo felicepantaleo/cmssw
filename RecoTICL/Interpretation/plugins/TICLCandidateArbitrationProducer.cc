@@ -126,12 +126,13 @@ private:
   std::unique_ptr<PFMuonAlgo> pfmu_;
 
   // Share of a neutral trackster energy that comes from the particle it represents, predicted from 31 features of the
-  // trackster, its shape and its surroundings. A neutral candidate below neutralMinEnergy_ after the correction is not
-  // produced.
+  // trackster, its shape and its surroundings. A neutral candidate at or above neutralShareMinPt_ keeps the trackster
+  // energy. A neutral candidate below neutralMinEnergy_ after the correction is not produced.
   const edm::EDGetTokenT<std::vector<reco::CaloCluster>> layerClustersToken_;
   const cms::Ort::ONNXRuntime &neutralShareModel_;
   const cms::Ort::ONNXRuntime *hadronicCalibrationModel_;
   const float neutralMinEnergy_;
+  const float neutralShareMinPt_;
   std::vector<float> neutralEnergyShares(const std::vector<Trackster> &tracksters,
                                          const std::vector<reco::CaloCluster> &layerClusters,
                                          const std::vector<int> &neutralIdx) const;
@@ -272,6 +273,7 @@ TICLCandidateArbitrationProducer::TICLCandidateArbitrationProducer(const edm::Pa
       neutralShareModel_(*models->neutralShare),
       hadronicCalibrationModel_(models->hadronicCalibration.get()),
       neutralMinEnergy_(ps.getParameter<float>("neutralMinEnergy")),
+      neutralShareMinPt_(ps.getParameter<float>("neutralShareMinPt")),
       propName_(ps.getParameter<std::string>("propagator")),
       bfield_token_(esConsumes<MagneticField, IdealMagneticFieldRecord, edm::Transition::BeginRun>()),
       propagator_token_(
@@ -667,7 +669,9 @@ void TICLCandidateArbitrationProducer::appendNeutralCandidates(const edm::Handle
       cand.setPdgId(neutralPdg[k]);
     cand.setTypeProbabilities(neutralTypeProbabilities(
         std::span<const float>(neutralSpeciesProbabilities).subspan(kNeutralSpecies * k).first<kNeutralSpecies>()));
-    cand.setP4(cand.p4() * neutralShare[k]);
+    const bool keepTracksterEnergy = neutralShareMinPt_ > 0.f && cand.pt() >= neutralShareMinPt_;
+    if (!keepTracksterEnergy)
+      cand.setP4(cand.p4() * neutralShare[k]);
     if (cand.energy() < neutralMinEnergy_)
       continue;
     candidates.push_back(cand);
@@ -747,6 +751,8 @@ void TICLCandidateArbitrationProducer::fillDescriptions(edm::ConfigurationDescri
       ->setComment("ONNX model of the share of a neutral trackster energy that comes from the particle it represents.");
   desc.add<float>("neutralMinEnergy", 1.f)
       ->setComment("Neutral candidates below this corrected energy are not produced.");
+  desc.add<float>("neutralShareMinPt", 20.f)
+      ->setComment("A neutral candidate at or above this pT (GeV) keeps the trackster energy. 0 disables the test.");
   desc.add<edm::InputTag>("layerClusters", edm::InputTag("hgcalMergeLayerClusters"))
       ->setComment("Layer clusters of the tracksters, read for the neutral energy share.");
   desc.add<edm::InputTag>("muonSrc", edm::InputTag("muons1stStep"));
