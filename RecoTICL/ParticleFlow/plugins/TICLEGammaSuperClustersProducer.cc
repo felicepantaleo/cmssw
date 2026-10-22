@@ -7,6 +7,9 @@
 // (EGammaSuperClusterFeatures.h) when regressionModel is set, else the raw energy. The seed hit of a supercluster is
 // the seed hit of its seed cluster. The clusters are the instance "clusters", and tracksterIndex gives the e/gamma
 // trackster of each supercluster.
+// With maxTimeDifference > 0, when the seed input trackster (the one of largest energy) has a time, a supercluster
+// drops the layer clusters of each input trackster whose time at the origin differs from the one of the seed by
+// maxTimeDifference or more. An input trackster without time is kept.
 
 #include <algorithm>
 #include <cmath>
@@ -57,6 +60,7 @@ private:
   const edm::EDGetTokenT<std::vector<ticl::Trackster>> eGammaTracksters_token_;
   const edm::EDGetTokenT<std::vector<ticl::Trackster>> inputTracksters_token_;
   const edm::EDGetTokenT<std::vector<reco::CaloCluster>> layerClusters_token_;
+  const double maxTimeDifference_;
   const double superClusterEtThreshold_;
   const edm::EDPutTokenT<reco::CaloClusterCollection> clusters_put_token_;
   const edm::EDPutTokenT<reco::SuperClusterCollection> superClusters_put_token_;
@@ -68,10 +72,19 @@ TICLEGammaSuperClustersProducer::TICLEGammaSuperClustersProducer(const edm::Para
     : eGammaTracksters_token_(consumes(ps.getParameter<edm::InputTag>("eGammaTracksters"))),
       inputTracksters_token_(consumes(ps.getParameter<edm::InputTag>("inputTracksters"))),
       layerClusters_token_(consumes(ps.getParameter<edm::InputTag>("layerClusters"))),
+      maxTimeDifference_(ps.getParameter<double>("maxTimeDifference")),
       superClusterEtThreshold_(ps.getParameter<double>("superClusterEtThreshold")),
       clusters_put_token_(produces("clusters")),
       superClusters_put_token_(produces()),
       index_put_token_(produces<std::vector<int>>("tracksterIndex")) {}
+
+namespace {
+  // Time [ns] of a trackster at the origin: its time at the barycenter minus the flight time from the origin.
+  double timeAtOrigin(const ticl::Trackster &trackster) {
+    constexpr double kSpeedOfLight = 29.9792458;  // cm/ns
+    return trackster.time() - trackster.barycenter().r() / kSpeedOfLight;
+  }
+}  // namespace
 
 std::unique_ptr<cms::Ort::ONNXRuntime> TICLEGammaSuperClustersProducer::initializeGlobalCache(
     const edm::ParameterSet &ps) {
@@ -102,6 +115,8 @@ void TICLEGammaSuperClustersProducer::produce(edm::Event &evt, const edm::EventS
   std::vector<double> etaWidth(eGammaTracksters.size(), 0.), phiWidth(eGammaTracksters.size(), 0.);
   std::vector<math::XYZPoint> position(eGammaTracksters.size());
   std::vector<Part> parts;
+  std::vector<char> kept;
+  std::vector<std::pair<int, double>> inputEnergy;
   for (std::size_t k = 0; k < eGammaTracksters.size(); ++k) {
     const auto &ts = eGammaTracksters[k];
     const auto &vertices = ts.vertices();
@@ -110,13 +125,41 @@ void TICLEGammaSuperClustersProducer::produce(edm::Event &evt, const edm::EventS
       const float multiplicity = i < ts.vertex_multiplicity().size() ? ts.vertex_multiplicity(i) : 1.f;
       return multiplicity > 0.f ? 1.f / multiplicity : 1.f;
     };
-    parts.clear();
-    double energy = 0., x = 0., y = 0., z = 0.;
-    for (std::size_t i = 0; i < vertices.size(); ++i) {
-      const unsigned int v = vertices[i];
+    for (auto v : vertices)
       if (v >= layerClusters.size())
         throw cms::Exception("LogicError") << "TICLEGammaSuperClustersProducer: layer cluster " << v
                                            << " of e/gamma trackster " << k << " out of range";
+    kept.assign(vertices.size(), 1);
+    if (maxTimeDifference_ > 0.) {
+      inputEnergy.clear();
+      for (std::size_t i = 0; i < vertices.size(); ++i) {
+        const int input = inputOf[vertices[i]];
+        auto it =
+            std::find_if(inputEnergy.begin(), inputEnergy.end(), [input](const auto &p) { return p.first == input; });
+        if (it == inputEnergy.end()) {
+          inputEnergy.emplace_back(input, 0.);
+          it = inputEnergy.end() - 1;
+        }
+        it->second += layerClusters[vertices[i]].energy() * fraction(i);
+      }
+      const auto seed = std::max_element(
+          inputEnergy.begin(), inputEnergy.end(), [](const auto &a, const auto &b) { return a.second < b.second; });
+      if (seed != inputEnergy.end() && seed->first >= 0 && inputTracksters[seed->first].timeError() > 0.f) {
+        const double seedTime = timeAtOrigin(inputTracksters[seed->first]);
+        for (std::size_t i = 0; i < vertices.size(); ++i) {
+          const int input = inputOf[vertices[i]];
+          if (input < 0 || input == seed->first || inputTracksters[input].timeError() <= 0.f)
+            continue;
+          kept[i] = std::abs(timeAtOrigin(inputTracksters[input]) - seedTime) < maxTimeDifference_;
+        }
+      }
+    }
+    parts.clear();
+    double energy = 0., x = 0., y = 0., z = 0.;
+    for (std::size_t i = 0; i < vertices.size(); ++i) {
+      if (!kept[i])
+        continue;
+      const unsigned int v = vertices[i];
       const auto &lc = layerClusters[v];
       const float f = fraction(i);
       const double e = lc.energy() * f;
@@ -158,6 +201,8 @@ void TICLEGammaSuperClustersProducer::produce(edm::Event &evt, const edm::EventS
     position[k] = math::XYZPoint(x / energy, y / energy, z / energy);
     double eta2 = 0., phi2 = 0.;
     for (std::size_t i = 0; i < vertices.size(); ++i) {
+      if (!kept[i])
+        continue;
       const auto &lc = layerClusters[vertices[i]];
       const double e = lc.energy() * fraction(i);
       eta2 += e * std::pow(lc.eta() - position[k].eta(), 2);
@@ -229,6 +274,9 @@ void TICLEGammaSuperClustersProducer::fillDescriptions(edm::ConfigurationDescrip
       ->setComment(
           "Tracksters that the e/gamma superclustering groups; each one in an e/gamma trackster is a cluster.");
   desc.add<edm::InputTag>("layerClusters", edm::InputTag("hgcalMergeLayerClusters"));
+  desc.add<double>("maxTimeDifference", -1.)
+      ->setComment(
+          "Max difference [ns] of the times at the origin of a cluster and of the seed cluster; <= 0: no cut.");
   desc.add<double>("superClusterEtThreshold", 4.)
       ->setComment("Min transverse energy [GeV] of a supercluster, after the regression.");
   desc.add<std::string>("regressionModel", "RecoTICL/ParticleFlow/data/egammaSuperClusters/regression_v2.onnx")
