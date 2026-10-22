@@ -3,40 +3,53 @@
 // The final trackster of an electron or photon hypothesis is a supercluster of input tracksters: the layer clusters of
 // each input trackster in it make one cluster, and the cluster of the largest energy is the seed. The position is the
 // energy-weighted mean of the layer clusters, and the widths are their energy-weighted spreads in eta and phi. The
-// energy is the raw energy times the output of the energy regression on trackster features
-// (EGammaSuperClusterFeatures.h) when regressionModel is set, else the raw energy. The seed hit of a supercluster is
+// energy is the raw energy times the output of the energy regression on the first regressionInputs features of
+// EGammaSuperClusterFeatures.h when regressionModel is set, else the raw energy. With regressionMaxRatio > 0, the
+// output of the regression is at most regressionMaxRatio, and a supercluster whose raw transverse energy times
+// regressionMaxRatio is at or below superClusterEtThreshold keeps the raw energy. The seed hit of a supercluster is
 // the seed hit of its seed cluster. The clusters are the instance "clusters", and tracksterIndex gives the e/gamma
 // trackster of each supercluster.
-// With maxTimeDifference > 0, when the seed input trackster (the one of largest energy) has a time, a supercluster
-// drops the layer clusters of each input trackster whose time at the origin differs from the one of the seed by
-// maxTimeDifference or more. An input trackster without time is kept.
+// The seed input trackster is the one of largest energy. With seedOnlyMinAbsEta > 0, a supercluster whose seed input
+// trackster has |eta| >= seedOnlyMinAbsEta keeps only the layer clusters of the seed input trackster. Else, with
+// maxTimeDifference > 0 and a seed input trackster with a time, a supercluster drops the layer clusters of each input
+// trackster whose time at the origin differs from the one of the seed by maxTimeDifference or more. An input
+// trackster without time is kept.
 
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
 #include "DataFormats/CaloRecHit/interface/CaloCluster.h"
 #include "DataFormats/CaloRecHit/interface/CaloClusterFwd.h"
+#include "DataFormats/Common/interface/MultiSpan.h"
+#include "DataFormats/Common/interface/RefProdVector.h"
 #include "DataFormats/EgammaReco/interface/SuperCluster.h"
 #include "DataFormats/EgammaReco/interface/SuperClusterFwd.h"
+#include "DataFormats/HGCRecHit/interface/HGCRecHitCollections.h"
 #include "DataFormats/HGCalReco/interface/Trackster.h"
 #include "DataFormats/Math/interface/deltaPhi.h"
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/Framework/interface/MakerMacros.h"
+#include "FWCore/Framework/interface/Run.h"
 #include "FWCore/Framework/interface/stream/EDProducer.h"
 #include "FWCore/ParameterSet/interface/ConfigurationDescriptions.h"
 #include "FWCore/ParameterSet/interface/FileInPath.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/ParameterSet/interface/ParameterSetDescription.h"
+#include "FWCore/Utilities/interface/ESGetToken.h"
 #include "FWCore/Utilities/interface/Exception.h"
+#include "Geometry/Records/interface/CaloGeometryRecord.h"
 #include "PhysicsTools/ONNXRuntime/interface/ONNXRuntime.h"
+#include "RecoLocalCalo/HGCalRecAlgos/interface/TICLGeomTools.h"
 #include "RecoTICL/ParticleFlow/interface/EGammaSuperClusterFeatures.h"
 
-class TICLEGammaSuperClustersProducer : public edm::stream::EDProducer<edm::GlobalCache<cms::Ort::ONNXRuntime>> {
+class TICLEGammaSuperClustersProducer
+    : public edm::stream::EDProducer<edm::GlobalCache<cms::Ort::ONNXRuntime>, edm::stream::WatchRuns> {
 public:
   TICLEGammaSuperClustersProducer(const edm::ParameterSet &ps, const cms::Ort::ONNXRuntime *);
 
@@ -44,6 +57,7 @@ public:
   static void globalEndJob(const cms::Ort::ONNXRuntime *) {}
   static void fillDescriptions(edm::ConfigurationDescriptions &descriptions);
 
+  void beginRun(const edm::Run &, const edm::EventSetup &es) override;
   void produce(edm::Event &evt, const edm::EventSetup &) override;
 
 private:
@@ -60,8 +74,17 @@ private:
   const edm::EDGetTokenT<std::vector<ticl::Trackster>> eGammaTracksters_token_;
   const edm::EDGetTokenT<std::vector<ticl::Trackster>> inputTracksters_token_;
   const edm::EDGetTokenT<std::vector<reco::CaloCluster>> layerClusters_token_;
+  const edm::EDGetTokenT<std::unordered_map<DetId, const unsigned int>> hitMap_token_;
+  const edm::EDGetTokenT<edm::RefProdVector<HGCRecHitCollection>> hits_token_;
+  const edm::ESGetToken<TICLGeomHost, CaloGeometryRecord> ticlGeomToken_;
+  const edm::ESGetToken<TICLGeomLookupHost, CaloGeometryRecord> ticlGeomLookupToken_;
+  const edm::ESGetToken<TICLGeomLayersHost, CaloGeometryRecord> ticlGeomLayersToken_;
   const double maxTimeDifference_;
+  const double seedOnlyMinAbsEta_;
+  const unsigned int regressionInputs_;
+  const double regressionMaxRatio_;
   const double superClusterEtThreshold_;
+  ticlgeom::Tools tools_;
   const edm::EDPutTokenT<reco::CaloClusterCollection> clusters_put_token_;
   const edm::EDPutTokenT<reco::SuperClusterCollection> superClusters_put_token_;
   const edm::EDPutTokenT<std::vector<int>> index_put_token_;
@@ -72,11 +95,27 @@ TICLEGammaSuperClustersProducer::TICLEGammaSuperClustersProducer(const edm::Para
     : eGammaTracksters_token_(consumes(ps.getParameter<edm::InputTag>("eGammaTracksters"))),
       inputTracksters_token_(consumes(ps.getParameter<edm::InputTag>("inputTracksters"))),
       layerClusters_token_(consumes(ps.getParameter<edm::InputTag>("layerClusters"))),
+      hitMap_token_(consumes(ps.getParameter<edm::InputTag>("hitMap"))),
+      hits_token_(consumes(ps.getParameter<edm::InputTag>("hits"))),
+      ticlGeomToken_(esConsumes<TICLGeomHost, CaloGeometryRecord, edm::Transition::BeginRun>()),
+      ticlGeomLookupToken_(esConsumes<TICLGeomLookupHost, CaloGeometryRecord, edm::Transition::BeginRun>()),
+      ticlGeomLayersToken_(esConsumes<TICLGeomLayersHost, CaloGeometryRecord, edm::Transition::BeginRun>()),
       maxTimeDifference_(ps.getParameter<double>("maxTimeDifference")),
+      seedOnlyMinAbsEta_(ps.getParameter<double>("seedOnlyMinAbsEta")),
+      regressionInputs_(ps.getParameter<unsigned int>("regressionInputs")),
+      regressionMaxRatio_(ps.getParameter<double>("regressionMaxRatio")),
       superClusterEtThreshold_(ps.getParameter<double>("superClusterEtThreshold")),
       clusters_put_token_(produces("clusters")),
       superClusters_put_token_(produces()),
-      index_put_token_(produces<std::vector<int>>("tracksterIndex")) {}
+      index_put_token_(produces<std::vector<int>>("tracksterIndex")) {
+  if (regressionInputs_ < 1 || regressionInputs_ > ticl::egammaSuperCluster::kNFeatures)
+    throw cms::Exception("Configuration") << "TICLEGammaSuperClustersProducer: regressionInputs must be in [1, "
+                                          << ticl::egammaSuperCluster::kNFeatures << "]";
+}
+
+void TICLEGammaSuperClustersProducer::beginRun(const edm::Run &, const edm::EventSetup &es) {
+  tools_.setGeometry(es.getData(ticlGeomToken_), es.getData(ticlGeomLookupToken_), es.getData(ticlGeomLayersToken_));
+}
 
 namespace {
   // Time [ns] of a trackster at the origin: its time at the barycenter minus the flight time from the origin.
@@ -130,7 +169,7 @@ void TICLEGammaSuperClustersProducer::produce(edm::Event &evt, const edm::EventS
         throw cms::Exception("LogicError") << "TICLEGammaSuperClustersProducer: layer cluster " << v
                                            << " of e/gamma trackster " << k << " out of range";
     kept.assign(vertices.size(), 1);
-    if (maxTimeDifference_ > 0.) {
+    if (maxTimeDifference_ > 0. || seedOnlyMinAbsEta_ > 0.) {
       inputEnergy.clear();
       for (std::size_t i = 0; i < vertices.size(); ++i) {
         const int input = inputOf[vertices[i]];
@@ -144,13 +183,19 @@ void TICLEGammaSuperClustersProducer::produce(edm::Event &evt, const edm::EventS
       }
       const auto seed = std::max_element(
           inputEnergy.begin(), inputEnergy.end(), [](const auto &a, const auto &b) { return a.second < b.second; });
-      if (seed != inputEnergy.end() && seed->first >= 0 && inputTracksters[seed->first].timeError() > 0.f) {
-        const double seedTime = timeAtOrigin(inputTracksters[seed->first]);
-        for (std::size_t i = 0; i < vertices.size(); ++i) {
-          const int input = inputOf[vertices[i]];
-          if (input < 0 || input == seed->first || inputTracksters[input].timeError() <= 0.f)
-            continue;
-          kept[i] = std::abs(timeAtOrigin(inputTracksters[input]) - seedTime) < maxTimeDifference_;
+      if (seed != inputEnergy.end() && seed->first >= 0) {
+        const auto &seedTrackster = inputTracksters[seed->first];
+        if (seedOnlyMinAbsEta_ > 0. && std::abs(seedTrackster.barycenter().eta()) >= seedOnlyMinAbsEta_) {
+          for (std::size_t i = 0; i < vertices.size(); ++i)
+            kept[i] = inputOf[vertices[i]] == seed->first;
+        } else if (maxTimeDifference_ > 0. && seedTrackster.timeError() > 0.f) {
+          const double seedTime = timeAtOrigin(seedTrackster);
+          for (std::size_t i = 0; i < vertices.size(); ++i) {
+            const int input = inputOf[vertices[i]];
+            if (input < 0 || input == seed->first || inputTracksters[input].timeError() <= 0.f)
+              continue;
+            kept[i] = std::abs(timeAtOrigin(inputTracksters[input]) - seedTime) < maxTimeDifference_;
+          }
         }
       }
     }
@@ -231,24 +276,46 @@ void TICLEGammaSuperClustersProducer::produce(edm::Event &evt, const edm::EventS
   }
 
   if (globalCache() != nullptr && !superClusters.empty()) {
-    using ticl::egammaSuperCluster::kNFeatures;
-    const auto n = static_cast<int64_t>(superClusters.size());
-    cms::Ort::FloatArrays input(1);
-    input[0].reserve(superClusters.size() * kNFeatures);
-    for (std::size_t i = 0; i < superClusters.size(); ++i) {
-      const auto features =
-          ticl::egammaSuperCluster::regressionFeatures(superClusters[i], eGammaTracksters[tracksterIndex[i]]);
-      input[0].insert(input[0].end(), features.begin(), features.end());
+    namespace egsc = ticl::egammaSuperCluster;
+    // The cell-level features are computed only for a regression that reads them.
+    const bool cellLevel = regressionInputs_ > egsc::kNFeaturesV2;
+    const std::unordered_map<DetId, const unsigned int> *hitMap = nullptr;
+    edm::MultiSpan<HGCRecHit> hits;
+    if (cellLevel) {
+      hitMap = &evt.get(hitMap_token_);
+      hits = edm::MultiSpan<HGCRecHit>(evt.get(hits_token_));
     }
-    const auto output = globalCache()->run({"input"}, input, {{n, static_cast<int64_t>(kNFeatures)}}, {}, n);
-    if (output.empty() || output[0].size() != superClusters.size())
-      throw cms::Exception("LogicError") << "TICLEGammaSuperClustersProducer: the regression gives "
-                                         << (output.empty() ? 0 : output[0].size()) << " values for "
-                                         << superClusters.size() << " superclusters";
+    std::vector<std::size_t> regressed;
     for (std::size_t i = 0; i < superClusters.size(); ++i) {
-      const double energy = superClusters[i].rawEnergy() * output[0][i];
-      superClusters[i].setEnergy(energy);
-      superClusters[i].setCorrectedEnergy(energy);
+      const auto &sc = superClusters[i];
+      if (regressionMaxRatio_ <= 0. ||
+          sc.rawEnergy() * std::sin(sc.position().theta()) * regressionMaxRatio_ > superClusterEtThreshold_)
+        regressed.push_back(i);
+    }
+    const auto n = static_cast<int64_t>(regressed.size());
+    cms::Ort::FloatArrays input(1);
+    input[0].reserve(regressed.size() * regressionInputs_);
+    for (auto i : regressed) {
+      const auto cell = cellLevel ? egsc::cellFeatures(superClusters[i], *hitMap, hits, tools_) : egsc::CellFeatures();
+      const auto features =
+          egsc::regressionFeatures(superClusters[i], eGammaTracksters[tracksterIndex[i]], cell, hits.size());
+      input[0].insert(input[0].end(), features.begin(), features.begin() + regressionInputs_);
+    }
+    if (n > 0) {
+      const auto output = globalCache()->run({"input"}, input, {{n, static_cast<int64_t>(regressionInputs_)}}, {}, n);
+      if (output.empty() || output[0].size() != regressed.size())
+        throw cms::Exception("LogicError")
+            << "TICLEGammaSuperClustersProducer: the regression gives " << (output.empty() ? 0 : output[0].size())
+            << " values for " << regressed.size() << " superclusters";
+      for (std::size_t k = 0; k < regressed.size(); ++k) {
+        double ratio = output[0][k];
+        if (regressionMaxRatio_ > 0.)
+          ratio = std::min(ratio, regressionMaxRatio_);
+        auto &sc = superClusters[regressed[k]];
+        const double energy = sc.rawEnergy() * ratio;
+        sc.setEnergy(energy);
+        sc.setCorrectedEnergy(energy);
+      }
     }
   }
 
@@ -274,9 +341,17 @@ void TICLEGammaSuperClustersProducer::fillDescriptions(edm::ConfigurationDescrip
       ->setComment(
           "Tracksters that the e/gamma superclustering groups; each one in an e/gamma trackster is a cluster.");
   desc.add<edm::InputTag>("layerClusters", edm::InputTag("hgcalMergeLayerClusters"));
+  desc.add<edm::InputTag>("hitMap", edm::InputTag("recHitMapProducer", "hgcalRecHitMap"));
+  desc.add<edm::InputTag>("hits", edm::InputTag("recHitMapProducer", "RefProdVectorHGCRecHitCollection"));
   desc.add<double>("maxTimeDifference", -1.)
       ->setComment(
           "Max difference [ns] of the times at the origin of a cluster and of the seed cluster; <= 0: no cut.");
+  desc.add<double>("seedOnlyMinAbsEta", -1.)
+      ->setComment(
+          "Min |eta| of the seed cluster above which a supercluster keeps the seed cluster only; <= 0: never.");
+  desc.add<unsigned int>("regressionInputs", static_cast<unsigned int>(ticl::egammaSuperCluster::kNFeaturesV2))
+      ->setComment("Number of features (EGammaSuperClusterFeatures.h) that the regression reads.");
+  desc.add<double>("regressionMaxRatio", -1.)->setComment("Max output of the regression; <= 0: no limit.");
   desc.add<double>("superClusterEtThreshold", 4.)
       ->setComment("Min transverse energy [GeV] of a supercluster, after the regression.");
   desc.add<std::string>("regressionModel", "RecoTICL/ParticleFlow/data/egammaSuperClusters/regression_v2.onnx")
