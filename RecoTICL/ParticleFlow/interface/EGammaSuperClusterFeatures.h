@@ -2,7 +2,7 @@
 #define RecoTICL_ParticleFlow_EGammaSuperClusterFeatures_h
 
 // Input features of the energy regression of a TICL e/gamma supercluster: quantities of the supercluster and of its
-// e/gamma trackster only. The regression predicts the ratio of the true energy to the raw energy.
+// e/gamma trackster only. The regression predicts the median ratio of the generated photon energy to the raw energy.
 
 #include <algorithm>
 #include <array>

@@ -231,7 +231,7 @@ void TICLEGammaSuperClustersProducer::fillDescriptions(edm::ConfigurationDescrip
   desc.add<edm::InputTag>("layerClusters", edm::InputTag("hgcalMergeLayerClusters"));
   desc.add<double>("superClusterEtThreshold", 4.)
       ->setComment("Min transverse energy [GeV] of a supercluster, after the regression.");
-  desc.add<std::string>("regressionModel", "RecoTICL/ParticleFlow/data/egammaSuperClusters/regression_v1.onnx")
+  desc.add<std::string>("regressionModel", "RecoTICL/ParticleFlow/data/egammaSuperClusters/regression_v2.onnx")
       ->setComment("FileInPath of the ONNX energy regression; empty: the supercluster energy is the raw energy.");
   descriptions.add("ticlEGammaSuperClustersProducer", desc);
 }
