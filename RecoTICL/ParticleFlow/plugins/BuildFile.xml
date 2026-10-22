@@ -1,6 +1,7 @@
 <use name="DataFormats/CaloRecHit"/>
 <use name="DataFormats/Common"/>
 <use name="DataFormats/EgammaReco"/>
+<use name="DataFormats/HGCRecHit"/>
 <use name="DataFormats/HGCalReco"/>
 <use name="DataFormats/Math"/>
 <use name="DataFormats/ParticleFlowCandidate"/>
@@ -8,7 +9,9 @@
 <use name="FWCore/Framework"/>
 <use name="FWCore/ParameterSet"/>
 <use name="FWCore/Utilities"/>
+<use name="Geometry/Records"/>
 <use name="PhysicsTools/ONNXRuntime"/>
+<use name="RecoLocalCalo/HGCalRecAlgos"/>
 <use name="RecoParticleFlow/PFProducer"/>
 <use name="RecoTICL/Interpretation"/>
 <use name="RecoTICL/ParticleFlow"/>
