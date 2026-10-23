@@ -53,8 +53,8 @@ private:
 
     auto const referenceView = reference.const_view();
     auto const candidateView = candidate.const_view();
-    auto const nReference = static_cast<std::size_t>(referenceView.tracksters().metadata().size());
-    auto const nCandidate = static_cast<std::size_t>(candidateView.tracksters().metadata().size());
+    auto const nReference = static_cast<std::size_t>(referenceView.id().metadata().size());
+    auto const nCandidate = static_cast<std::size_t>(candidateView.id().metadata().size());
     if (nReference != nCandidate) {
       throw cms::Exception("TracksterEnergyComparison")
           << "The collections cannot be compared row-by-row: reference contains " << nReference
@@ -71,8 +71,8 @@ private:
     mismatchReport << std::setprecision(9);
 
     for (std::size_t tracksterIndex = 0; tracksterIndex < nReference; ++tracksterIndex) {
-      auto const expected = static_cast<double>(referenceView.tracksters()[tracksterIndex].regressed_energy());
-      auto const observed = static_cast<double>(candidateView.tracksters()[tracksterIndex].regressed_energy());
+      auto const expected = static_cast<double>(referenceView.energy()[tracksterIndex].regressedEnergy());
+      auto const observed = static_cast<double>(candidateView.energy()[tracksterIndex].regressedEnergy());
       auto const absoluteDifference = std::abs(observed - expected);
       auto const relativeDifference =
           absoluteDifference / std::max(std::abs(expected), std::numeric_limits<double>::epsilon());
