@@ -47,7 +47,7 @@ class TracksterInferenceConfiguration:
 
 
 def makeTracksterInference(*, model="CNN", doPID=True, doRegression=False, batchSize=64,
-                           tracksters="ticlTrackstersToSoAProducer", layerClusters=None,
+                           tracksters="ticlSoATracksters", layerClusters="hgcalSoAMergeLayerClusters",
                            pidModel=None, regressionModel=None, minClusterEnergy=1.0,
                            convertToFP16=False, warmupIterations=3):
     if model not in ("CNN", "DNN", "PFN"):
@@ -62,10 +62,8 @@ def makeTracksterInference(*, model="CNN", doPID=True, doRegression=False, batch
         raise ValueError("warmupIterations must fit uint32")
     if not math.isfinite(minClusterEnergy):
         raise ValueError("minClusterEnergy must be finite")
-    if layerClusters is None:
-        layerClusters = ["hgcalSoALayerClustersEE", "hgcalSoALayerClustersHSi", "hgcalSoALayerClustersHSci"]
-    if len(layerClusters) != 3:
-        raise ValueError("layerClusters must contain three collections in Trackster vertex-index order")
+    if not isinstance(layerClusters, (str, cms.InputTag)):
+        raise TypeError("layerClusters must be the merged CaloClusterSoA InputTag")
     if pidModel is None:
         pidModel = "RecoTICL/Inference/data/trackster_pid_" + model.lower() + ".pt"
     if regressionModel is None:
@@ -79,7 +77,7 @@ def makeTracksterInference(*, model="CNN", doPID=True, doRegression=False, batch
         feature_plugin + "@alpaka",
         detector=cms.string("HGCAL"),
         tracksters=cms.InputTag(tracksters) if isinstance(tracksters, str) else tracksters,
-        layerClusters=cms.VInputTag(*layerClusters),
+        layerClusters=cms.InputTag(layerClusters) if isinstance(layerClusters, str) else layerClusters,
         minClusterEnergy=cms.double(minClusterEnergy),
     )
     producer = cms.EDProducer(
