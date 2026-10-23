@@ -64,24 +64,14 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
           trackstersToken_{consumes(config.getParameter<edm::InputTag>("tracksters"))},
           runner_{config},
           featuresOutToken_{produces("features")} {
-      const auto tags = config.getParameter<std::vector<edm::InputTag>>("layerClusters");
-      if (tags.size() != 3)
-        throw cms::Exception("TracksterFeaturesProducer")
-            << "Expected exactly three LayerCluster collections (EE, HSi, HSci)";
-
-      for (const auto& tag : tags) {
-        layerClustersTokens_.emplace_back(consumes(tag));
-      }
+      layerClustersToken_ = consumes(config.getParameter<edm::InputTag>("layerClusters"));
     }
 
     static void fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
       edm::ParameterSetDescription description;
       description.add<std::string>("detector", "HGCAL");
       description.add<edm::InputTag>("tracksters", edm::InputTag("ticlTrackstersToSoAProducer"));
-      description.add<std::vector<edm::InputTag>>("layerClusters",
-                                                  {edm::InputTag("hgcalSoALayerClustersEE"),
-                                                   edm::InputTag("hgcalSoALayerClustersHSi"),
-                                                   edm::InputTag("hgcalSoALayerClustersHSci")});
+      description.add<edm::InputTag>("layerClusters", edm::InputTag("hgcalSoAMergeLayerClusters"));
       Extractor::fillDescription(description);
       descriptions.addWithDefaultLabel(description);
     }
@@ -110,25 +100,16 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
         return;
       }
 
-      const auto& ee = event.get(layerClustersTokens_[0]);
-      const auto& hsi = event.get(layerClustersTokens_[1]);
-      const auto& hsci = event.get(layerClustersTokens_[2]);
-      const auto nEE = ee.const_view().metadata().size()[0];
-      const auto nHSi = hsi.const_view().metadata().size()[0];
-      const auto nHSci = hsci.const_view().metadata().size()[0];
+      const auto& clusters = event.get(layerClustersToken_);
+      const auto nClusters = clusters.const_view().energy().metadata().size();
 
       // Combine the EE, HSi and HSci LayerCluster columns into multiviews,
       // preserving the collection ordering expected by the Trackster indices.
       LayerClusterIndexMultiView indexes;
       LayerClusterEnergyMultiView energies;
 
-      indexes.addView(ee.const_view().indexes(), nEE);
-      indexes.addView(hsi.const_view().indexes(), nHSi);
-      indexes.addView(hsci.const_view().indexes(), nHSci);
-
-      energies.addView(ee.const_view().energy(), nEE);
-      energies.addView(hsi.const_view().energy(), nHSi);
-      energies.addView(hsci.const_view().energy(), nHSci);
+      indexes.addView(clusters.const_view().indexes(), nClusters);
+      energies.addView(clusters.const_view().energy(), nClusters);
 
       // Enqueue Trackster selection, and the transfer of selected Trackster count to the host.
       runner_.prepare(queue, tracksters, energies, indexes);
@@ -150,29 +131,18 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
         return;
       }
 
-      const auto& ee = event.get(layerClustersTokens_[0]);
-      const auto& hsi = event.get(layerClustersTokens_[1]);
-      const auto& hsci = event.get(layerClustersTokens_[2]);
-      const auto nEE = ee.const_view().metadata().size()[0];
-      const auto nHSi = hsi.const_view().metadata().size()[0];
-      const auto nHSci = hsci.const_view().metadata().size()[0];
+      const auto& clusters = event.get(layerClustersToken_);
+      const auto nClusters = clusters.const_view().energy().metadata().size();
 
       // Provide the extractor with the LayerCluster indices, energies and positions needed to construct the model-specific input features.
       LayerClusterIndexMultiView indexes;
       LayerClusterEnergyMultiView energies;
       LayerClusterPositionMultiView positions;
 
-      indexes.addView(ee.const_view().indexes(), nEE);
-      indexes.addView(hsi.const_view().indexes(), nHSi);
-      indexes.addView(hsci.const_view().indexes(), nHSci);
+      indexes.addView(clusters.const_view().indexes(), nClusters);
+      energies.addView(clusters.const_view().energy(), nClusters);
 
-      energies.addView(ee.const_view().energy(), nEE);
-      energies.addView(hsi.const_view().energy(), nHSi);
-      energies.addView(hsci.const_view().energy(), nHSci);
-
-      positions.addView(ee.const_view().position(), nEE);
-      positions.addView(hsi.const_view().position(), nHSi);
-      positions.addView(hsci.const_view().position(), nHSci);
+      positions.addView(clusters.const_view().position(), nClusters);
 
       // Fill the feature SoA and put it as a device product for downstream inference modules.
       auto output =
@@ -189,7 +159,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     ticlgeom::Tools rhtools_;
 
     const device::EDGetToken<ticl::TracksterDeviceCollection> trackstersToken_;
-    std::vector<device::EDGetToken<reco::CaloClusterDeviceCollection>> layerClustersTokens_;
+    device::EDGetToken<reco::CaloClusterDeviceCollection> layerClustersToken_;
 
     TracksterFeatureExtractionRunner<Extractor> runner_;
     const device::EDPutToken<FeaturesDevice> featuresOutToken_;
