@@ -12,7 +12,7 @@
 #include "CondFormats/HGCalObjects/interface/TICLGeomLayersHost.h"
 #include "CondFormats/HGCalObjects/interface/TICLGeomLookupHost.h"
 #include "DataFormats/CaloRecHit/interface/alpaka/CaloClusterDeviceCollection.h"
-#include "DataFormats/HGCalReco/interface/alpaka/TracksterDevice.h"
+#include "DataFormats/HGCalReco/interface/alpaka/TracksterDeviceCollection.h"
 #include "FWCore/Framework/interface/Run.h"
 #include "FWCore/ParameterSet/interface/ConfigurationDescriptions.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
@@ -105,7 +105,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       auto& queue = event.queue();
 
       // No need to retrieve the layer-cluster products if no Tracksters were produced.
-      if (tracksters.tracksters().metadata().size() == 0u) {
+      if (tracksters.energy().metadata().size() == 0u) {
         runner_.prepare(queue, tracksters, LayerClusterEnergyMultiView{});
         return;
       }
@@ -188,7 +188,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
 
     ticlgeom::Tools rhtools_;
 
-    const device::EDGetToken<ticl::TracksterDevice> trackstersToken_;
+    const device::EDGetToken<ticl::TracksterDeviceCollection> trackstersToken_;
     std::vector<device::EDGetToken<reco::CaloClusterDeviceCollection>> layerClustersTokens_;
 
     TracksterFeatureExtractionRunner<Extractor> runner_;
