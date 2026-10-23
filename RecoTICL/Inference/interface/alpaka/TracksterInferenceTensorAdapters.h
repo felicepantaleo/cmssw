@@ -12,7 +12,7 @@
 #include <alpaka/alpaka.hpp>
 
 #include "DataFormats/HGCalReco/interface/TracksterSoA.h"
-#include "DataFormats/HGCalReco/interface/alpaka/TracksterDevice.h"
+#include "DataFormats/HGCalReco/interface/alpaka/TracksterDeviceCollection.h"
 #include "FWCore/Utilities/interface/Exception.h"
 #include "HeterogeneousCore/AlpakaInterface/interface/config.h"
 #include "HeterogeneousCore/AlpakaInterface/interface/workdivision.h"
@@ -135,8 +135,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
   struct OutputAdapterBase {
     using ModelOutputDevice = Device;
     using ModelOutputSoA = SoA;
-    using PublishedSourceDevice = ticl::TracksterDevice;
-    using PublishedOutputDevice = ticl::TracksterDevice;
+    using PublishedSourceDevice = ticl::TracksterDeviceCollection;
+    using PublishedOutputDevice = ticl::TracksterDeviceCollection;
 
     static PublishedOutputDevice makePublishedOutput(Queue& queue, const PublishedSourceDevice& original) {
       PublishedOutputDevice output(queue, detail::tracksterBlockSizes(original.const_view()));
