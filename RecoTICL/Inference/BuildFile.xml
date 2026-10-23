@@ -8,7 +8,21 @@
 <use name="FWCore/PluginManager"/>
 <use name="FWCore/Utilities"/>
 <use name="PhysicsTools/ONNXRuntime"/>
+<use name="PhysicsTools/PyTorchAlpaka"/>
+<use name="PhysicsTools/PyTorch"/>
 <use name="RecoLocalCalo/HGCalRecAlgos"/>
+<use name="rootcling"/>
+<use name="alpaka"/>
+<use name="eigen"/>
+<use name="xtd"/>
+<use name="DataFormats/Common"/>
+<use name="DataFormats/Portable"/>
+<use name="DataFormats/SoATemplate"/>
+<use name="HeterogeneousCore/AlpakaInterface"/>
+<use name="pytorch-cuda" for="alpaka/cuda"/>
+<use name="pytorch-rocm" for="alpaka/rocm"/>
+<!-- Runner and PIDOutputAdapter::applyResults are instantiated for every plugin backend, including serial. -->
+<flags ALPAKA_BACKENDS="1"/>
 <export>
   <lib name="1"/>
 </export>
