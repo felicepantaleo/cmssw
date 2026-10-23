@@ -26,26 +26,9 @@ namespace {
 
   template <typename TracksterRow>
   float probability(TracksterRow const& row, std::size_t index) {
-    switch (index) {
-      case 0:
-        return row.id_probabilities0();
-      case 1:
-        return row.id_probabilities1();
-      case 2:
-        return row.id_probabilities2();
-      case 3:
-        return row.id_probabilities3();
-      case 4:
-        return row.id_probabilities4();
-      case 5:
-        return row.id_probabilities5();
-      case 6:
-        return row.id_probabilities6();
-      case 7:
-        return row.id_probabilities7();
-      default:
-        throw cms::Exception("LogicError") << "Invalid Trackster PID probability index " << index;
-    }
+    if (index >= kNProbabilities)
+      throw cms::Exception("LogicError") << "Invalid Trackster PID probability index " << index;
+    return row.idProbabilities()(index);
   }
 
   struct ClassStatistics {
@@ -92,8 +75,8 @@ private:
 
     auto const referenceView = reference.const_view();
     auto const candidateView = candidate.const_view();
-    auto const nReference = static_cast<std::size_t>(referenceView.tracksters().metadata().size());
-    auto const nCandidate = static_cast<std::size_t>(candidateView.tracksters().metadata().size());
+    auto const nReference = static_cast<std::size_t>(referenceView.id().metadata().size());
+    auto const nCandidate = static_cast<std::size_t>(candidateView.id().metadata().size());
 
     if (nReference != nCandidate) {
       throw cms::Exception("TracksterPIDComparison")
@@ -109,8 +92,8 @@ private:
     mismatchReport << std::setprecision(9);
 
     for (std::size_t tracksterIndex = 0; tracksterIndex < nReference; ++tracksterIndex) {
-      auto const referenceTrackster = referenceView.tracksters()[tracksterIndex];
-      auto const candidateTrackster = candidateView.tracksters()[tracksterIndex];
+      auto const referenceTrackster = referenceView.id()[tracksterIndex];
+      auto const candidateTrackster = candidateView.id()[tracksterIndex];
 
       for (std::size_t classIndex = 0; classIndex < kNProbabilities; ++classIndex) {
         auto const expected = static_cast<double>(probability(referenceTrackster, classIndex));
