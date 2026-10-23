@@ -343,18 +343,18 @@ void TICLEGammaSuperClustersProducer::fillDescriptions(edm::ConfigurationDescrip
   desc.add<edm::InputTag>("layerClusters", edm::InputTag("hgcalMergeLayerClusters"));
   desc.add<edm::InputTag>("hitMap", edm::InputTag("recHitMapProducer", "hgcalRecHitMap"));
   desc.add<edm::InputTag>("hits", edm::InputTag("recHitMapProducer", "RefProdVectorHGCRecHitCollection"));
-  desc.add<double>("maxTimeDifference", -1.)
+  desc.add<double>("maxTimeDifference", 0.05)
       ->setComment(
           "Max difference [ns] of the times at the origin of a cluster and of the seed cluster; <= 0: no cut.");
-  desc.add<double>("seedOnlyMinAbsEta", -1.)
+  desc.add<double>("seedOnlyMinAbsEta", 2.4)
       ->setComment(
           "Min |eta| of the seed cluster above which a supercluster keeps the seed cluster only; <= 0: never.");
-  desc.add<unsigned int>("regressionInputs", static_cast<unsigned int>(ticl::egammaSuperCluster::kNFeaturesV2))
+  desc.add<unsigned int>("regressionInputs", static_cast<unsigned int>(ticl::egammaSuperCluster::kNFeatures))
       ->setComment("Number of features (EGammaSuperClusterFeatures.h) that the regression reads.");
-  desc.add<double>("regressionMaxRatio", -1.)->setComment("Max output of the regression; <= 0: no limit.");
+  desc.add<double>("regressionMaxRatio", 1.5)->setComment("Max output of the regression; <= 0: no limit.");
   desc.add<double>("superClusterEtThreshold", 4.)
       ->setComment("Min transverse energy [GeV] of a supercluster, after the regression.");
-  desc.add<std::string>("regressionModel", "RecoTICL/ParticleFlow/data/egammaSuperClusters/regression_v2.onnx")
+  desc.add<std::string>("regressionModel", "RecoTICL/ParticleFlow/data/egammaSuperClusters/regression_v3.onnx")
       ->setComment("FileInPath of the ONNX energy regression; empty: the supercluster energy is the raw energy.");
   descriptions.add("ticlEGammaSuperClustersProducer", desc);
 }
