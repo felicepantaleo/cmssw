@@ -20,7 +20,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                                                             ::ticl::TracksterSoA::ConstView tracksters,
                                                             LayerClusterEnergyMultiView clusterEnergies,
                                                             LayerClusterIndexMultiView clusterIndexes) {
-    const auto nTracksters = tracksters.tracksters().metadata().size();
+    const auto nTracksters = tracksters.energy().metadata().size();
 
     selectedCountHost_.emplace(cms::alpakatools::make_host_buffer<uint32_t>(queue));
     *alpaka::getPtrNative(*selectedCountHost_) = 0u;
@@ -62,7 +62,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       LayerClusterPositionMultiView clusterPositions,
       uint32_t layersPerEndcap,
       LayerClusterIndexMultiView clusterIndexes) {
-    const auto nTracksters = tracksters.tracksters().metadata().size();
+    const auto nTracksters = tracksters.energy().metadata().size();
     const auto total = selectedCount();
 
     FeaturesDevice features(queue, total);
