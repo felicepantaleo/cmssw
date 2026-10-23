@@ -19,16 +19,16 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                                     uint32_t total) const {
         for (auto row : cms::alpakatools::uniform_elements(acc, total)) {
           const auto source = scores[row];
-          auto destination = outputTracksters.tracksters()[selectedTracksters[row]];
+          auto destination = outputTracksters.id()[selectedTracksters[row]];
 
-          destination.id_probabilities0() = source.id_probabilities0();
-          destination.id_probabilities1() = source.id_probabilities1();
-          destination.id_probabilities2() = source.id_probabilities2();
-          destination.id_probabilities3() = source.id_probabilities3();
-          destination.id_probabilities4() = source.id_probabilities4();
-          destination.id_probabilities5() = source.id_probabilities5();
-          destination.id_probabilities6() = source.id_probabilities6();
-          destination.id_probabilities7() = source.id_probabilities7();
+          destination.idProbabilities()(0) = source.id_probabilities0();
+          destination.idProbabilities()(1) = source.id_probabilities1();
+          destination.idProbabilities()(2) = source.id_probabilities2();
+          destination.idProbabilities()(3) = source.id_probabilities3();
+          destination.idProbabilities()(4) = source.id_probabilities4();
+          destination.idProbabilities()(5) = source.id_probabilities5();
+          destination.idProbabilities()(6) = source.id_probabilities6();
+          destination.idProbabilities()(7) = source.id_probabilities7();
         }
       }
     };
@@ -40,10 +40,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                                     ::ticl::TracksterSoA::View output,
                                     uint32_t total) const {
         for (auto row : cms::alpakatools::uniform_elements(acc, total)) {
-          auto ts = output.tracksters()[selected[row]];
-          ts.regressed_energy() = 0.f;
-          ts.id_probabilities0() = ts.id_probabilities1() = ts.id_probabilities2() = ts.id_probabilities3() = 0.f;
-          ts.id_probabilities4() = ts.id_probabilities5() = ts.id_probabilities6() = ts.id_probabilities7() = 0.f;
+          output.energy()[selected[row]].regressedEnergy() = 0.f;
+          output.id()[selected[row]].idProbabilities().setZero();
         }
       }
     };
@@ -58,8 +56,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                                     uint32_t total,
                                     float minEnergy) const {
         for (auto row : cms::alpakatools::uniform_elements(acc, total)) {
-          auto ts = output.tracksters()[selected[row]];
-          ts.regressed_energy() = PFN && !(ts.raw_energy() > minEnergy) ? ts.raw_energy() : predictions[row].energy();
+          auto energy = output.energy()[selected[row]];
+          energy.regressedEnergy() = PFN && !(energy.rawEnergy() > minEnergy) ? energy.rawEnergy() : predictions[row].energy();
         }
       }
     };
