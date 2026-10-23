@@ -87,7 +87,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                         total);
   }
 
-  void resetTracksterPredictions(Queue& queue, uint32_t const* selected, ticl::TracksterDevice& output, uint32_t total) {
+  void resetTracksterPredictions(Queue& queue, uint32_t const* selected, ticl::TracksterDeviceCollection& output, uint32_t total) {
     if (total == 0u)
       return;
     auto workDiv = cms::alpakatools::make_workdiv<Acc1D>(cms::alpakatools::divide_up_by(total, 256u), 256u);
