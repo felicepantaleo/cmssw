@@ -32,19 +32,13 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
 
     template <typename View>
     std::array<int32_t, ::ticl::TracksterSoA::blocksNumber> tracksterBlockSizes(const View& view) {
-      return {static_cast<int32_t>(view.tracksters().metadata().size()),
-              static_cast<int32_t>(view.vertices().keys()),
-              static_cast<int32_t>(view.vertices().content().metadata().size()),
-              static_cast<int32_t>(view.multiplicity().keys()),
-              static_cast<int32_t>(view.multiplicity().content().metadata().size()),
-              static_cast<int32_t>(view.edges().keys()),
-              static_cast<int32_t>(view.edges().content().metadata().size()),
-              static_cast<int32_t>(view.tracks().keys()),
-              static_cast<int32_t>(view.tracks().content().metadata().size()),
-              static_cast<int32_t>(view.tracksterGsfTrack().keys()),
-              static_cast<int32_t>(view.tracksterGsfTrack().content().metadata().size()),
-              static_cast<int32_t>(view.globalSeedingTracks().keys()),
-              static_cast<int32_t>(view.globalSeedingTracks().content().metadata().size())};
+      return {static_cast<int32_t>(view.energy().metadata().size()),
+              static_cast<int32_t>(view.barycenter().metadata().size()),
+              static_cast<int32_t>(view.timing().metadata().size()),
+              static_cast<int32_t>(view.pca().metadata().size()),
+              static_cast<int32_t>(view.id().metadata().size()),
+              static_cast<int32_t>(view.vertices().offsets().metadata().size() - 1),
+              static_cast<int32_t>(view.vertices().content().metadata().size())};
     }
 
     template <typename SoA, typename... Columns>
@@ -202,7 +196,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
   // CPU DNN/PFN reset both outputs for selected Tracksters before enabled tasks.
   void resetTracksterPredictions(Queue& queue,
                                  uint32_t const* selectedTracksters,
-                                 ticl::TracksterDevice& published,
+                                 ticl::TracksterDeviceCollection& published,
                                  uint32_t total);
 
   // ---------------------------------------------------------------------------
