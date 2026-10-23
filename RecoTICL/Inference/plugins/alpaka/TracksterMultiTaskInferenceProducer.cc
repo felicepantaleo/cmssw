@@ -96,12 +96,12 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     }
 
   private:
-    device::EDGetToken<ticl::TracksterDevice> const trackstersToken_;
+    device::EDGetToken<ticl::TracksterDeviceCollection> const trackstersToken_;
     device::EDGetToken<InputDevice> const featuresToken_;
     float const minEnergy_;
     std::unique_ptr<TracksterInferenceRunner<PIDAdapter>> pid_;
     std::unique_ptr<TracksterInferenceRunner<RegressionAdapter>> regression_;
-    device::EDPutToken<ticl::TracksterDevice> const outputToken_;
+    device::EDPutToken<ticl::TracksterDeviceCollection> const outputToken_;
   };
 
   using TracksterCNNInferenceProducer = TracksterMultiTaskInferenceProducerT<CNNPIDAdapter, DNNEnergyAdapter>;
