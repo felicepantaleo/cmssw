@@ -115,7 +115,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                                     FeatureView features,
                                     uint32_t nTracksters) const {
         const auto verticesAssociations = inputTracksters.vertices();
-        const auto multiplicityAssociations = inputTracksters.multiplicity();
+        // The new TracksterSoA contains only vertex indices, without per-vertex multiplicities.
 
         constexpr auto maxClusters = ::ticl::kMaxClusters;
         constexpr auto nLayers = ::ticl::kMaxLayers;
@@ -126,7 +126,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
             continue;
 
           const auto vertices = verticesAssociations[tracksterIndex];
-          const auto multiplicities = multiplicityAssociations[tracksterIndex];
+          
 
           // Map the original Trackster index to its compact output row.
           const auto row = selectionOffsets[tracksterIndex] - 1u;
@@ -135,14 +135,15 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
 
           // PFN additionally uses global Trackster properties.
           if constexpr (Family == TracksterModelFamily::PFN) {
-            const auto ts = inputTracksters.tracksters()[tracksterIndex];
+            const auto energy = inputTracksters.energy()[tracksterIndex];
+            const auto barycenter = inputTracksters.barycenter()[tracksterIndex];
 
-            const auto x = ts.barycenterX();
-            const auto y = ts.barycenterY();
-            const auto z = xtd::abs(ts.barycenterZ());
+            const auto x = barycenter.x();
+            const auto y = barycenter.y();
+            const auto z = xtd::abs(barycenter.z());
 
-            feature.rawEnergy() = ts.raw_energy();
-            feature.rawEmEnergy() = ts.raw_em_energy();
+            feature.rawEnergy() = energy.rawEnergy();
+            feature.rawEmEnergy() = energy.rawEmEnergy();
             feature.barycenterX() = x;
             feature.barycenterY() = y;
             feature.barycenterAbsZ() = z;
@@ -196,16 +197,15 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
             for (auto slot = 0u; slot < counts[layer]; ++slot) {
               const auto k = selected[layer][slot];
               const auto vertexIndex = vertices[k];
-              const auto multiplicity = multiplicities[k];
+              
 
               const auto position = clusterPositions[vertexIndex];
               const auto x = position.x();
               const auto y = position.y();
               const auto z = position.z();
 
-              // Sort by original LayerCluster energy, but store the energy
-              // corrected for the Trackster vertex multiplicity.
-              feature.energy()(layer, slot) = clusterEnergies[vertexIndex].energy() / multiplicity;
+              // The new TracksterSoA stores no per-vertex multiplicity; use the LayerCluster energy.
+              feature.energy()(layer, slot) = clusterEnergies[vertexIndex].energy();
               feature.absEta()(layer, slot) = absoluteEta(x, y, z);
               feature.phi()(layer, slot) = xtd::atan2(y, x);
 
