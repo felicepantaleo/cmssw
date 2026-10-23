@@ -7,7 +7,7 @@
 #include <sstream>
 #include <string>
 
-#include "DataFormats/HGCalReco/interface/TracksterHost.h"
+#include "DataFormats/HGCalReco/interface/TracksterHostCollection.h"
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/Framework/interface/EventSetup.h"
 #include "FWCore/Framework/interface/Frameworkfwd.h"
@@ -174,8 +174,8 @@ private:
     }
   }
 
-  edm::EDGetTokenT<::ticl::TracksterHost> const referenceToken_;
-  edm::EDGetTokenT<::ticl::TracksterHost> const candidateToken_;
+  edm::EDGetTokenT<::ticl::TracksterHostCollection> const referenceToken_;
+  edm::EDGetTokenT<::ticl::TracksterHostCollection> const candidateToken_;
   double const absoluteTolerance_;
   double const relativeTolerance_;
   unsigned int const maxMismatchesToPrint_;
