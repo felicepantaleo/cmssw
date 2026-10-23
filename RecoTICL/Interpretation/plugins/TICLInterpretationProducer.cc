@@ -1559,14 +1559,14 @@ void TICLInterpretationProducer::fillDescriptions(edm::ConfigurationDescriptions
   desc.add<float>("arbitrationMaxSharedEnergyFraction", 0.2f)
       ->setComment("Two hypotheses conflict above this fraction of the smaller footprint energy in shared clusters.");
   desc.add<edm::FileInPath>("arbitrationModelFile",
-                            edm::FileInPath("RecoTICL/Interpretation/data/arbitration/hypothesis_mlp_v2.onnx"))
+                            edm::FileInPath("RecoTICL/Interpretation/data/arbitration/hypothesis_mlp_m6d.onnx"))
       ->setComment("ONNX model of the probability that a hypothesis is correct (logit).");
-  desc.add<unsigned int>("arbitrationModelFeatures", modelfeatures::hypothesis::kNv2)
+  desc.add<unsigned int>("arbitrationModelFeatures", modelfeatures::hypothesis::kN)
       ->setComment(
-          "Inputs of the hypothesis model per row: 30 (hypothesis_mlp_v2), or 32 with the tracks whose Recovery "
-          "hypothesis has an EM footprint and the tracks with a missing inner hit.");
-  desc.add<float>("arbitrationPlattA", 0.9958741664886475f)->setComment("Platt calibration: logit' = a x logit + b.");
-  desc.add<float>("arbitrationPlattB", -0.012220372445881367f);
+          "Inputs of the hypothesis model per row: 30 (hypothesis_mlp_v2), or 32 (hypothesis_mlp_m6d) with the tracks "
+          "whose Recovery hypothesis has an EM footprint and the tracks with a missing inner hit.");
+  desc.add<float>("arbitrationPlattA", 1.f)->setComment("Platt calibration: logit' = a x logit + b.");
+  desc.add<float>("arbitrationPlattB", 0.f);
   desc.add<float>("arbitrationTrackBonus", 20.0f)->setComment("Weight added per track a hypothesis covers.");
   desc.add<float>("arbitrationTrackOnlyWeight", -1.0f)->setComment("Weight of a track-only hypothesis.");
   desc.add<unsigned int>("arbitrationMaxExactComponent", 64)
@@ -1607,7 +1607,7 @@ void TICLInterpretationProducer::fillDescriptions(edm::ConfigurationDescriptions
           "A neutral that lost a layer cluster to a winner or to the track claim is dropped below this raw "
           "energy [GeV].");
   desc.add<edm::FileInPath>("neutralModelFile",
-                            edm::FileInPath("RecoTICL/Interpretation/data/arbitration/neutralSpecies_mlp_v2.onnx"))
+                            edm::FileInPath("RecoTICL/Interpretation/data/arbitration/neutralSpecies_mlp_m6d.onnx"))
       ->setComment("ONNX 3-class model (photon, pi0, neutral hadron; logits) that types the neutral candidates.");
   desc.add<float>("neutralModelThreshold", 0.7f)->setComment("P(photon) + P(pi0) at and above which a neutral is EM.");
   desc.add<bool>("tracksterSpeciesForTracks", true)

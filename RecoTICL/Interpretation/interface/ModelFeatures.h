@@ -14,8 +14,8 @@
 
 namespace ticl::modelfeatures {
 
-  // Hypothesis model: one row per hypothesis with a footprint or tracks. data/arbitration/hypothesis_mlp_v2.onnx reads
-  // the first kNv2 slots.
+  // Hypothesis model: one row per hypothesis with a footprint or tracks. data/arbitration/hypothesis_mlp_m6d.onnx reads
+  // all kN slots, data/arbitration/hypothesis_mlp_v2.onnx the first kNv2 slots.
   namespace hypothesis {
     enum Slot : unsigned int {
       kType = 0,  // 7 one-hot slots, in the order of Hypothesis::Type
@@ -62,8 +62,8 @@ namespace ticl::modelfeatures {
                               const HypothesisContext &context,
                               std::span<float, hypothesis::kN> x);
 
-  // Neutral species model (data/arbitration/neutralSpecies_mlp_v2.onnx): one row per neutral trackster with a positive
-  // raw energy.
+  // Neutral species model (data/arbitration/neutralSpecies_mlp_m6d.onnx or neutralSpecies_mlp_v2.onnx): one row per
+  // neutral trackster with a positive raw energy.
   namespace neutralSpecies {
     enum Slot : unsigned int { kPID = 0 /* 8 slots */, kEMFraction = 8, kLogRawEnergy, kAbsEta, kNLayerClusters, kN };
     // The outputs of the model, in this order.
@@ -73,8 +73,8 @@ namespace ticl::modelfeatures {
 
   void fillNeutralSpeciesFeatures(const Trackster &ts, std::span<float, neutralSpecies::kN> x);
 
-  // Neutral share model (data/neutralEnergy/neutralShare_mlp_v1.onnx): one row per neutral candidate trackster. A
-  // non-finite feature enters as 0.
+  // Neutral share model (data/neutralEnergy/neutralShare_mlp_m6d.onnx or neutralShare_mlp_v1.onnx): one row per
+  // neutral candidate trackster. A non-finite feature enters as 0.
   namespace neutralShare {
     enum Slot : unsigned int {
       kLogRegressedEnergy = 0,
