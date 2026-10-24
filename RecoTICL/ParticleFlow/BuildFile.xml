@@ -1,6 +1,9 @@
+<use name="DataFormats/CaloRecHit"/>
 <use name="DataFormats/Common"/>
 <use name="DataFormats/DetId"/>
 <use name="DataFormats/EgammaReco"/>
 <use name="DataFormats/HGCRecHit"/>
 <use name="DataFormats/HGCalReco"/>
+<use name="DataFormats/Math"/>
+<use name="DataFormats/TrackReco"/>
 <use name="RecoLocalCalo/HGCalRecAlgos"/>
