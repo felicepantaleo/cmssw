@@ -3,20 +3,25 @@
 
 // Input features of the energy regression of a TICL e/gamma supercluster. The regression predicts the median ratio of
 // the generated photon energy to the raw energy, and reads the first N features of regressionFeatures: N = 11 for
-// regression_v2, kNFeatures for regression_v3.
+// regression_v2, kNFeatures for regression_v3. Input features of the supercluster score (scoreFeatures).
 
 #include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstddef>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
+#include "DataFormats/CaloRecHit/interface/CaloCluster.h"
 #include "DataFormats/Common/interface/MultiSpan.h"
 #include "DataFormats/DetId/interface/DetId.h"
 #include "DataFormats/EgammaReco/interface/SuperCluster.h"
 #include "DataFormats/HGCRecHit/interface/HGCRecHit.h"
+#include "DataFormats/HGCalReco/interface/TICLLayerTile.h"
 #include "DataFormats/HGCalReco/interface/Trackster.h"
+#include "DataFormats/Math/interface/deltaR.h"
+#include "DataFormats/TrackReco/interface/Track.h"
 #include "RecoLocalCalo/HGCalRecAlgos/interface/TICLGeomTools.h"
 
 namespace ticl::egammaSuperCluster {
@@ -143,6 +148,111 @@ namespace ticl::egammaSuperCluster {
             cell.secondCellFraction,
             cell.transverseRMS,
             cell.wideFraction};
+  }
+
+  inline constexpr std::size_t kNScoreFeatures = kNFeatures + 16;
+  // Radii of the inner and outer isolation cones.
+  inline constexpr float kIsolationInnerDR = 0.15f;
+  inline constexpr float kIsolationOuterDR = 0.3f;
+
+  // Transverse energy [GeV] of the layer clusters within innerDR and outerDR of the supercluster position whose seed hit
+  // is not a hit of the supercluster.
+  inline std::array<double, 2> isolationEt(const reco::SuperCluster &sc,
+                                           const TICLLayerTiles &tiles,
+                                           const std::vector<reco::CaloCluster> &layerClusters,
+                                           float innerDR,
+                                           float outerDR) {
+    std::unordered_set<uint32_t> own;
+    own.reserve(sc.hitsAndFractions().size());
+    for (auto const &hf : sc.hitsAndFractions())
+      own.insert(hf.first.rawId());
+    const float eta = sc.position().eta(), phi = sc.position().phi();
+    std::array<double, 2> result{0., 0.};
+    for (int layer = 0; layer < TileConstants::nLayers; ++layer) {
+      const auto &tile = tiles[layer];
+      const auto box = tile.searchBoxEtaPhi(eta - outerDR, eta + outerDR, phi - outerDR, phi + outerDR);
+      for (int iEta = box[0]; iEta <= box[1]; ++iEta)
+        for (int iPhi = box[2]; iPhi <= box[3]; ++iPhi)
+          for (auto i : tile[tile.globalBin(iEta, iPhi % TileConstants::nPhiBins)]) {
+            const auto &lc = layerClusters[i];
+            const float d2 = reco::deltaR2(lc.eta(), lc.phi(), eta, phi);
+            if (d2 >= outerDR * outerDR || own.count(lc.seed().rawId()) > 0)
+              continue;
+            const double et = lc.energy() / std::cosh(lc.eta());
+            result[1] += et;
+            if (d2 < innerDR * innerDR)
+              result[0] += et;
+          }
+    }
+    return result;
+  }
+
+  // Tiles of the tracks with pT >= kTrackMinPt and |eta| >= kTrackMinAbsEta, one per endcap side (0: eta < 0).
+  inline constexpr float kTrackMinPt = 1.f;
+  inline constexpr float kTrackMinAbsEta = 1.15f;
+  using TrackTiles = std::array<TICLLayerTile, 2>;
+  inline void fillTrackTiles(const std::vector<reco::Track> &tracks, TrackTiles &tiles) {
+    for (unsigned int i = 0; i < tracks.size(); ++i) {
+      const auto &tk = tracks[i];
+      if (tk.pt() >= kTrackMinPt && std::abs(tk.eta()) >= kTrackMinAbsEta)
+        tiles[tk.eta() > 0. ? 1 : 0].fill(tk.eta(), tk.phi(), i);
+    }
+  }
+
+  // Tracks around the supercluster position (track direction at the vertex): the number with pT > 2 GeV within dR
+  // 0.05, and the sum of the pT of the tracks within 0.04 < dR < 0.3.
+  struct TrackFeatures {
+    int nNear = 0;
+    double isolation = 0.;
+  };
+  inline TrackFeatures trackFeatures(const reco::SuperCluster &sc,
+                                     const std::vector<reco::Track> &tracks,
+                                     const TrackTiles &tiles) {
+    constexpr float kNearDR = 0.05f, kNearMinPt = 2.f, kInnerDR = 0.04f, kOuterDR = 0.3f;
+    const float eta = sc.position().eta(), phi = sc.position().phi();
+    const auto &tile = tiles[eta > 0.f ? 1 : 0];
+    TrackFeatures result;
+    const auto box = tile.searchBoxEtaPhi(eta - kOuterDR, eta + kOuterDR, phi - kOuterDR, phi + kOuterDR);
+    for (int iEta = box[0]; iEta <= box[1]; ++iEta)
+      for (int iPhi = box[2]; iPhi <= box[3]; ++iPhi)
+        for (auto i : tile[tile.globalBin(iEta, iPhi % TileConstants::nPhiBins)]) {
+          const auto &tk = tracks[i];
+          const float d2 = reco::deltaR2(tk.eta(), tk.phi(), eta, phi);
+          if (d2 < kNearDR * kNearDR && tk.pt() > kNearMinPt)
+            ++result.nNear;
+          if (d2 < kOuterDR * kOuterDR && d2 > kInnerDR * kInnerDR)
+            result.isolation += tk.pt();
+        }
+    return result;
+  }
+
+  // 0-18: regressionFeatures; 19-26: the PID probabilities of the trackster; 27: log of the transverse energy after
+  // the regression; 28-29: isolationEt in the inner and outer cones over the raw transverse energy; 30: energy after the
+  // regression over the raw energy; 31: the trackster is the trackster of a track in electron mode; 32: the trackster
+  // is a neutral pion; 33: nNear of trackFeatures; 34: isolation of trackFeatures over the raw transverse energy.
+  inline std::array<float, kNScoreFeatures> scoreFeatures(const std::array<float, kNFeatures> &regression,
+                                                          const reco::SuperCluster &sc,
+                                                          const ticl::Trackster &ts,
+                                                          const std::array<double, 2> &isolation,
+                                                          bool electronTrack,
+                                                          bool neutralPion,
+                                                          const TrackFeatures &tracks) {
+    std::array<float, kNScoreFeatures> f{};
+    std::copy(regression.begin(), regression.end(), f.begin());
+    for (int j = 0; j < 8; ++j)
+      f[kNFeatures + j] = ts.id_probabilities(j);
+    const float raw = std::max(static_cast<float>(sc.rawEnergy()), 1e-3f);
+    const float sinTheta = std::sin(static_cast<float>(sc.position().theta()));
+    const float rawEt = std::max(raw * sinTheta, 1e-3f);
+    f[kNFeatures + 8] = std::log(std::max(static_cast<float>(sc.energy()) * sinTheta, 1e-3f));
+    f[kNFeatures + 9] = static_cast<float>(isolation[0]) / rawEt;
+    f[kNFeatures + 10] = static_cast<float>(isolation[1]) / rawEt;
+    f[kNFeatures + 11] = static_cast<float>(sc.energy()) / raw;
+    f[kNFeatures + 12] = electronTrack ? 1.f : 0.f;
+    f[kNFeatures + 13] = neutralPion ? 1.f : 0.f;
+    f[kNFeatures + 14] = static_cast<float>(tracks.nNear);
+    f[kNFeatures + 15] = static_cast<float>(tracks.isolation) / rawEt;
+    return f;
   }
 
 }  // namespace ticl::egammaSuperCluster
