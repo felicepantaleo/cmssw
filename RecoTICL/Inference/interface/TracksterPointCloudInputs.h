@@ -23,6 +23,9 @@ namespace ticl {
   // MTD time and its error [ns] of a track from the MTD SoA; (0, -1) without the SoA.
   std::pair<float, float> mtdTrackTime(const MtdHostCollection* timing, unsigned int track);
 
+  // Time at the track vertex and its error [ns] from the MTD SoA (time0); (0, -1) without the SoA.
+  std::pair<float, float> mtdTrackTime0(const MtdHostCollection* timing, unsigned int track);
+
   // Tracks that get an HGCAL impact for the point cloud: pT >= minPt [GeV] and |eta| >= minAbsEta.
   struct PointCloudTrackSelection {
     float minPt = 0.5f;
@@ -51,9 +54,14 @@ namespace ticl {
     return best;
   }
 
-  // The point-cloud track from the HGCAL impact and the MTD time of a track.
+  // The point-cloud track from the HGCAL impact, the track vertex and the MTD times of track k.
   template <typename Impact>
-  TracksterPointCloud::Track pointCloudTrack(const Impact& impact, const std::pair<float, float>& time) {
+  TracksterPointCloud::Track pointCloudTrack(const Impact& impact,
+                                             const reco::Track& track,
+                                             const MtdHostCollection* timing,
+                                             unsigned int k) {
+    const auto time = mtdTrackTime(timing, k);
+    const auto time0 = mtdTrackTime0(timing, k);
     return {static_cast<float>(impact.position.x()),
             static_cast<float>(impact.position.y()),
             static_cast<float>(impact.position.z()),
@@ -61,7 +69,12 @@ namespace ticl {
             static_cast<float>(impact.direction.y()),
             static_cast<float>(impact.direction.z()),
             time.first,
-            time.second};
+            time.second,
+            time0.first,
+            time0.second,
+            static_cast<float>(track.vx()),
+            static_cast<float>(track.vy()),
+            static_cast<float>(track.vz())};
   }
 
 }  // namespace ticl

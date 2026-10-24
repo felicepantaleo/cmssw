@@ -63,7 +63,9 @@ namespace ticl {
     // Global features. nPointsAll: layer clusters in the cylinder (all codes); nOwnAll, nNeighbourAll: the own layer
     // clusters and the other cylinder layer clusters before the caps. pv*: the primary vertex; dtPV [ns]: trackster
     // time minus the vertex time minus the flight time |b - v| / c to the barycenter b; dtPVSig: dtPV over the
-    // combined time error; both -99 when dtPVValid is 0.
+    // combined time error; both -99 when dtPVValid is 0. tkDt [ns]: MTD time of the track (arrival at the MTD) minus
+    // the trackster time; tkDtCorr [ns]: time of the track at its vertex (time0) plus the flight time from the track
+    // vertex to the barycenter minus the trackster time, -99 without both times.
     enum GlobalFeature : unsigned int {
       kRawE,
       kRawEmE,
@@ -128,15 +130,18 @@ namespace ticl {
       kDtPV,
       kDtPVSig,
       kDtPVValid,
+      kTkDtCorr,
       kNGlobalFeatures
     };
 
     // A track at the HGCAL front face: impact position [cm], momentum there [GeV], MTD time [ns] (timeError <= 0:
-    // no time).
+    // no time), time at the track vertex [ns] (time0Error <= 0: no time) and the track vertex [cm].
     struct Track {
       float x, y, z;
       float px, py, pz;
       float time, timeError;
+      float time0, time0Error;
+      float vx, vy, vz;
     };
 
     // The primary vertex: position [cm], time and its error [ns] (tError <= 0: no time).
