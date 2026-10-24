@@ -221,7 +221,8 @@ _SPECS = [
             Consumed("interpretations", T_TRACKSTERS),
             Consumed("layerClusters", T_CALOCLUSTERS),
         ),
-        external_inputs=("tracks", "gsf_tracks", "timingSoA", "muonSrc", "eGammaScore", "eGammaTracksters"),
+        external_inputs=("tracks", "gsf_tracks", "timingSoA", "muonSrc", "eGammaScore", "eGammaTracksters",
+                         "pointCloud"),
     ),
     ModuleSpec(
         key="MTDSoAProducer",
