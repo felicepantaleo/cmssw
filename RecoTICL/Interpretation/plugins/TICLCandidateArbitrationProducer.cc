@@ -147,10 +147,11 @@ private:
   // fraction of the deposit, -1 when the model did not run on the trackster. With pointCloudEnergy, a neutral
   // candidate or residual starts from the model energy instead of the regressed energy. With
   // pointCloudNeutralShare false, the neutral share model is not applied when the model runs. With
-  // pointCloudPileupScale, the energy is scaled by (1 - pile-up fraction). A neutral candidate or residual whose
-  // trackster has a pile-up fraction above pointCloudMaxPileup is not produced. With pointCloudSpecies, a neutral
-  // candidate is a photon when the model gives the EM species at least the probability of the neutral-hadron species,
-  // else a neutral hadron, with the type probabilities of these two species.
+  // pointCloudPileupScale, the energy is scaled by (1 - pile-up fraction); neutralMinEnergy applies to the neutral
+  // candidate energy before this scale, or after it with pointCloudMinEnergyAfterScale. A neutral candidate or
+  // residual whose trackster has a pile-up fraction above pointCloudMaxPileup is not produced. With
+  // pointCloudSpecies, a neutral candidate is a photon when the model gives the EM species at least the probability of
+  // the neutral-hadron species, else a neutral hadron, with the type probabilities of these two species.
   struct PointCloudEstimates {
     const std::vector<float> *energy = nullptr;
     const std::vector<float> *pileup = nullptr;
@@ -168,6 +169,7 @@ private:
   const bool pointCloudPileupScale_;
   const float pointCloudMaxPileup_;
   const bool pointCloudSpecies_;
+  const bool pointCloudMinEnergyAfterScale_;
   // Energy of a neutral trackster before the share: the model energy, scaled for pile-up, or the regressed energy.
   float neutralTracksterEnergy(const Trackster &ts, int idx, const PointCloudEstimates &pc) const;
 
@@ -319,6 +321,7 @@ TICLCandidateArbitrationProducer::TICLCandidateArbitrationProducer(const edm::Pa
       pointCloudPileupScale_(ps.getParameter<bool>("pointCloudPileupScale")),
       pointCloudMaxPileup_(ps.getParameter<float>("pointCloudMaxPileup")),
       pointCloudSpecies_(ps.getParameter<bool>("pointCloudSpecies")),
+      pointCloudMinEnergyAfterScale_(ps.getParameter<bool>("pointCloudMinEnergyAfterScale")),
       propName_(ps.getParameter<std::string>("propagator")),
       bfield_token_(esConsumes<MagneticField, IdealMagneticFieldRecord, edm::Transition::BeginRun>()),
       propagator_token_(
@@ -799,7 +802,11 @@ void TICLCandidateArbitrationProducer::appendNeutralCandidates(const edm::Handle
     const bool keepTracksterEnergy = neutralShareMinPt_ > 0.f && cand.pt() >= neutralShareMinPt_;
     if (applyShare && !keepTracksterEnergy)
       cand.setP4(cand.p4() * neutralShare[k]);
-    if (cand.energy() < neutralMinEnergy_)
+    // The minimum energy of the candidate before the pile-up scale.
+    const float puScale = pc.valid(idx) && pointCloudPileupScale_ && !pointCloudMinEnergyAfterScale_
+                              ? 1.f - std::clamp((*pc.pileup)[idx], 0.f, 1.f)
+                              : 1.f;
+    if (!(cand.energy() > 0.) || cand.energy() < neutralMinEnergy_ * puScale)
       continue;
     const int absPdg = std::abs(cand.pdgId());
     if (!photonScore.empty() && (absPdg == 22 || absPdg == 111) && cand.pt() >= photonScoreMinPt_ &&
@@ -910,6 +917,9 @@ void TICLCandidateArbitrationProducer::fillDescriptions(edm::ConfigurationDescri
       ->setComment("Scale the neutral energy by (1 - pile-up fraction) of the model.");
   desc.add<bool>("pointCloudSpecies", false)
       ->setComment("The neutral candidate type (photon or neutral hadron) from the model species probabilities.");
+  desc.add<bool>("pointCloudMinEnergyAfterScale", false)
+      ->setComment(
+          "neutralMinEnergy applies to the neutral candidate energy after the pile-up scale; false: before it.");
   desc.add<float>("pointCloudMaxPileup", 1.f)
       ->setComment(
           "Neutral candidates and residuals whose trackster has a model pile-up fraction above this value "
