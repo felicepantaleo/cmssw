@@ -216,10 +216,12 @@ def links_defaults():
 
 
 def cornetto_links_defaults():
-    """``ticlTracksterLinks`` overrides for v6: :func:`links_defaults` with the Cornetto linking plugin at its
-    defaults."""
+    """``ticlTracksterLinks`` overrides for v6: :func:`links_defaults` with the Cornetto linking plugin. An EM group
+    is emitted at any raw pt (``minEmittedPtEM`` 0); the other parameters keep the plugin defaults."""
     d = links_defaults()
-    d["linkingPSet"] = cms.PSet(type=cms.string("Cornetto"), algo_verbosity=cms.int32(0))
+    d["linkingPSet"] = cms.PSet(
+        type=cms.string("Cornetto"), algo_verbosity=cms.int32(0), minEmittedPtEM=cms.float(0.0)
+    )
     return d
 
 
