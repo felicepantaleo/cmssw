@@ -48,7 +48,8 @@ EXPECTED_FROM_DEFAULT = {
     "ticlTracksterInterpretations": ("tracksters_collections", "egamma_tracksters_collections",
                                      "pluginInferenceAlgoTracksterInferenceByPFN.", "pidInferenceAlgo",
                                      "pluginInferenceAlgoTracksterInferenceByShowerShape."),
-    "ticlCandidate": (),
+    # The photon candidate type from the e/gamma supercluster score.
+    "ticlCandidate": ("photonMinScore", "photonScoreMinPt", "eGammaScore", "eGammaTracksters"),
 }
 CFI = {
     "TICLInterpretationProducer": ("RecoTICL.Interpretation.ticlInterpretationProducer_cfi",
