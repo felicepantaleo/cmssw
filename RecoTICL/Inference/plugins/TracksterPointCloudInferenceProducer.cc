@@ -60,10 +60,7 @@ class TracksterPointCloudInferenceProducer
     : public edm::stream::EDProducer<edm::GlobalCache<cms::Ort::ONNXRuntime>, edm::stream::WatchRuns> {
 public:
   TracksterPointCloudInferenceProducer(const edm::ParameterSet& ps, const cms::Ort::ONNXRuntime* cache);
-  static std::unique_ptr<cms::Ort::ONNXRuntime> initializeGlobalCache(const edm::ParameterSet& ps) {
-    const auto model = ps.getParameter<std::string>("modelFile");
-    return std::make_unique<cms::Ort::ONNXRuntime>(model.starts_with("/") ? model : edm::FileInPath(model).fullPath());
-  }
+  static std::unique_ptr<cms::Ort::ONNXRuntime> initializeGlobalCache(const edm::ParameterSet& ps);
   static void globalEndJob(const cms::Ort::ONNXRuntime*) {}
   static void fillDescriptions(edm::ConfigurationDescriptions& descriptions);
   void beginRun(edm::Run const&, edm::EventSetup const& es) override;
@@ -127,6 +124,35 @@ TracksterPointCloudInferenceProducer::TracksterPointCloudInferenceProducer(const
   produces<std::vector<float>>("species");
 }
 
+std::unique_ptr<cms::Ort::ONNXRuntime> TracksterPointCloudInferenceProducer::initializeGlobalCache(
+    const edm::ParameterSet& ps) {
+  const auto model = ps.getParameter<std::string>("modelFile");
+  auto session =
+      std::make_unique<cms::Ort::ONNXRuntime>(model.starts_with("/") ? model : edm::FileInPath(model).fullPath());
+  // The model must take the features of TracksterPointCloud: one inference on one row of one point.
+  using PC = ticl::TracksterPointCloud;
+  cms::Ort::FloatArrays inputs{std::vector<float>(PC::kNGlobalFeatures, 0.f),
+                               std::vector<float>(PC::kNPointFeatures, 0.f),
+                               std::vector<float>(1, 1.f)};
+  cms::Ort::FloatArrays out;
+  try {
+    out = session->run({"glob", "points", "valid"},
+                       inputs,
+                       {{1, PC::kNGlobalFeatures}, {1, 1, PC::kNPointFeatures}, {1, 1}},
+                       {"energy", "sigma", "pu", "species"},
+                       1);
+  } catch (std::exception const& e) {
+    throw cms::Exception("Configuration")
+        << "TracksterPointCloudInferenceProducer: the model " << model << " does not take glob [B, "
+        << PC::kNGlobalFeatures << "], points [B, N, " << PC::kNPointFeatures << "] and valid [B, N]: " << e.what();
+  }
+  if (out.size() != 4 || out[0].size() != 1 || out[1].size() != 1 || out[2].size() != 1 || out[3].size() != kNSpecies)
+    throw cms::Exception("Configuration")
+        << "TracksterPointCloudInferenceProducer: the model " << model
+        << " does not give energy [B], sigma [B], pu [B] and species [B, " << kNSpecies << "]";
+  return session;
+}
+
 void TracksterPointCloudInferenceProducer::beginRun(edm::Run const&, edm::EventSetup const& es) {
   rhtools_.setGeometry(es.getData(ticlGeomToken_), es.getData(ticlGeomLookupToken_), es.getData(ticlGeomLayersToken_));
   frontDisks_ = ticl::utils::buildHGCalFirstDisks(es.getData(hgconsToken_));
@@ -175,7 +201,7 @@ void TracksterPointCloudInferenceProducer::produce(edm::Event& evt, const edm::E
     PC::Track track;
     const bool hasTrack = trackOf[i] >= 0;
     if (hasTrack)
-      track = ticl::pointCloudTrack(impacts[trackOf[i]], ticl::mtdTrackTime(timing, trackOf[i]));
+      track = ticl::pointCloudTrack(impacts[trackOf[i]], tracks[trackOf[i]], timing, trackOf[i]);
     results[i] = pointCloud_.build(pcEvent, i, hasTrack ? &track : nullptr);
     rows.push_back(i);
   }
