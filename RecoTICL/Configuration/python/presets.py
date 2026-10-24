@@ -331,6 +331,12 @@ def v6(name="v6", target="offline"):
            .candidate()
            # The candidate producer sets the muon kinematics; pfTICL copies its muon decisions.
            .pf(muonsFromCandidates=cms.bool(True), **pf_defaults()))
+    if cfg.target.name == "offline":
+        # A photon or pi0 candidate at or above 10 GeV whose e/gamma supercluster has a type score below 0.35, or
+        # that has no supercluster, is a neutral hadron.
+        cfg.candidate_spec.update(photonMinScore=cms.float(0.35), photonScoreMinPt=cms.float(10.0),
+                                  eGammaScore=cms.InputTag("ticlEGammaSuperClusters", "tracksterScore"),
+                                  eGammaTracksters=cms.InputTag("ticlEGammaTracksters"))
     if cfg.target.timing_label is None:
         cfg.include_mtd = False  # a target without MTD timing has no mtdSoA stage
     return cfg
