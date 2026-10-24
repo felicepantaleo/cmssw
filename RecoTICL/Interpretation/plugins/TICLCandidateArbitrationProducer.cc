@@ -127,12 +127,18 @@ private:
 
   // Share of a neutral trackster energy that comes from the particle it represents, predicted from 31 features of the
   // trackster, its shape and its surroundings. A neutral candidate at or above neutralShareMinPt_ keeps the trackster
-  // energy. A neutral candidate below neutralMinEnergy_ after the correction is not produced.
+  // energy. A neutral candidate below neutralMinEnergy_ after the correction is not produced. With photonMinScore_ > 0,
+  // a photon or neutral pion candidate at or above photonScoreMinPt_ whose e/gamma supercluster has a score
+  // (eGammaScore) below photonMinScore_, or that has no supercluster, is a neutral hadron; its energy does not change.
   const edm::EDGetTokenT<std::vector<reco::CaloCluster>> layerClustersToken_;
   const cms::Ort::ONNXRuntime &neutralShareModel_;
   const cms::Ort::ONNXRuntime *hadronicCalibrationModel_;
   const float neutralMinEnergy_;
   const float neutralShareMinPt_;
+  const float photonMinScore_;
+  const float photonScoreMinPt_;
+  edm::EDGetTokenT<std::vector<float>> eGammaScore_token_;
+  edm::EDGetTokenT<std::vector<int>> eGammaIndex_token_;
   std::vector<float> neutralEnergyShares(const std::vector<Trackster> &tracksters,
                                          const std::vector<reco::CaloCluster> &layerClusters,
                                          const std::vector<int> &neutralIdx) const;
@@ -203,6 +209,7 @@ private:
                                const std::vector<int> &neutralPdg,
                                const std::vector<float> &neutralSpeciesProbabilities,
                                const PointCloudEstimates &pc,
+                               const std::vector<float> &photonScore,
                                std::vector<TICLCandidate> &candidates) const;
   // Muons: a charged candidate takes the kinematics of the best muon track when takesMuonKinematics holds. A loose muon
   // is accepted for a muon candidate only. Returns the muon of each candidate and the type of its muon track (-1: none).
@@ -304,6 +311,8 @@ TICLCandidateArbitrationProducer::TICLCandidateArbitrationProducer(const edm::Pa
       hadronicCalibrationModel_(models->hadronicCalibration.get()),
       neutralMinEnergy_(ps.getParameter<float>("neutralMinEnergy")),
       neutralShareMinPt_(ps.getParameter<float>("neutralShareMinPt")),
+      photonMinScore_(ps.getParameter<float>("photonMinScore")),
+      photonScoreMinPt_(ps.getParameter<float>("photonScoreMinPt")),
       usePointCloud_(!ps.getParameter<edm::InputTag>("pointCloud").label().empty()),
       pointCloudEnergy_(ps.getParameter<bool>("pointCloudEnergy")),
       pointCloudNeutralShare_(ps.getParameter<bool>("pointCloudNeutralShare")),
@@ -331,6 +340,15 @@ TICLCandidateArbitrationProducer::TICLCandidateArbitrationProducer(const edm::Pa
   }
   if (useGsfTracks_) {
     gsf_tracks_token_ = consumes<std::vector<reco::GsfTrack>>(ps.getParameter<edm::InputTag>("gsf_tracks"));
+  }
+  if (photonMinScore_ > 0.f) {
+    if (ps.getParameter<edm::InputTag>("eGammaScore").label().empty() ||
+        ps.getParameter<edm::InputTag>("eGammaTracksters").label().empty())
+      throw cms::Exception("Configuration")
+          << "TICLCandidateArbitrationProducer: photonMinScore > 0 needs eGammaScore and eGammaTracksters";
+    eGammaScore_token_ = consumes<std::vector<float>>(ps.getParameter<edm::InputTag>("eGammaScore"));
+    const auto &eg = ps.getParameter<edm::InputTag>("eGammaTracksters");
+    eGammaIndex_token_ = consumes<std::vector<int>>(edm::InputTag(eg.label(), "interpretationIndex", eg.process()));
   }
   produces<std::vector<TICLCandidate>>();
   // Per candidate: its muon (null when none) and the type of the muon track it takes (-1 when none).
@@ -670,12 +688,27 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
     }
   }
   appendNeutralResiduals(tracksters_h, trackSumP, tracksterSpecies, tracksterSpeciesProbabilities, pc, candidates);
+  // Supercluster score of each final trackster (-1: none), for the type of the photon candidates.
+  std::vector<float> photonScore;
+  if (photonMinScore_ > 0.f) {
+    const auto &eGammaScore = evt.get(eGammaScore_token_);
+    const auto &eGammaIndex = evt.get(eGammaIndex_token_);
+    if (eGammaScore.size() != eGammaIndex.size())
+      throw cms::Exception("Configuration")
+          << "TICLCandidateArbitrationProducer: " << eGammaScore.size() << " supercluster scores for "
+          << eGammaIndex.size() << " e/gamma tracksters; photonMinScore needs the supercluster score";
+    photonScore.assign(tracksters_h->size(), -1.f);
+    for (size_t k = 0; k < eGammaIndex.size(); ++k)
+      if (eGammaIndex[k] >= 0 && eGammaIndex[k] < static_cast<int>(photonScore.size()))
+        photonScore[eGammaIndex[k]] = eGammaScore[k];
+  }
   appendNeutralCandidates(tracksters_h,
                           evt.get(layerClustersToken_),
                           neutralIdx,
                           neutralPdg,
                           evt.get(neutralSpeciesProbabilities_token_),
                           pc,
+                          photonScore,
                           candidates);
   ticl::assignTimeToCandidates(candidates,
                                inputTimingView,
@@ -732,6 +765,7 @@ void TICLCandidateArbitrationProducer::appendNeutralCandidates(const edm::Handle
                                                                const std::vector<int> &neutralPdg,
                                                                const std::vector<float> &neutralSpeciesProbabilities,
                                                                const PointCloudEstimates &pc,
+                                                               const std::vector<float> &photonScore,
                                                                std::vector<TICLCandidate> &candidates) const {
   if (neutralSpeciesProbabilities.size() != kNeutralSpecies * neutralIdx.size())
     throw cms::Exception("LogicError") << "TICLCandidateArbitrationProducer: " << neutralSpeciesProbabilities.size()
@@ -767,6 +801,10 @@ void TICLCandidateArbitrationProducer::appendNeutralCandidates(const edm::Handle
       cand.setP4(cand.p4() * neutralShare[k]);
     if (cand.energy() < neutralMinEnergy_)
       continue;
+    const int absPdg = std::abs(cand.pdgId());
+    if (!photonScore.empty() && (absPdg == 22 || absPdg == 111) && cand.pt() >= photonScoreMinPt_ &&
+        photonScore[neutralIdx[k]] < photonMinScore_)
+      cand.setPdgId(130);
     candidates.push_back(cand);
   }
 }
@@ -846,6 +884,18 @@ void TICLCandidateArbitrationProducer::fillDescriptions(edm::ConfigurationDescri
       ->setComment("Neutral candidates below this corrected energy are not produced.");
   desc.add<float>("neutralShareMinPt", 10.f)
       ->setComment("A neutral candidate at or above this pT (GeV) keeps the trackster energy. 0 disables the test.");
+  desc.add<float>("photonMinScore", 0.f)
+      ->setComment(
+          "Min score of the e/gamma supercluster of a photon or neutral pion candidate at or above photonScoreMinPt; "
+          "below it (or without a supercluster) the candidate is a neutral hadron. 0: no test.");
+  desc.add<float>("photonScoreMinPt", 10.f)
+      ->setComment("Min pT [GeV] of the photon candidates that photonMinScore tests.");
+  desc.add<edm::InputTag>("eGammaScore", edm::InputTag(""))
+      ->setComment(
+          "Score of the supercluster of each e/gamma trackster (ticlEGammaSuperClusters:tracksterScore), with "
+          "photonMinScore > 0.");
+  desc.add<edm::InputTag>("eGammaTracksters", edm::InputTag(""))
+      ->setComment("E/gamma tracksters of the score (ticlEGammaTracksters), with photonMinScore > 0.");
   desc.add<edm::InputTag>("layerClusters", edm::InputTag("hgcalMergeLayerClusters"))
       ->setComment("Layer clusters of the tracksters, read for the neutral energy share.");
   desc.add<edm::InputTag>("pointCloud", edm::InputTag(""))
