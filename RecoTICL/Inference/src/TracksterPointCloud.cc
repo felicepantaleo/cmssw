@@ -32,7 +32,8 @@ namespace ticl {
          "sideRawE",  "cylEThis",   "cylEOther",  "cylEMasked",  "cylENone",  "ringEOther",    "ringEMasked",
          "ringENone", "nPointsAll", "nVertices",  "tkValid",     "tkP",       "tkPt",          "tkEta",
          "tkPhi",     "tkDist",     "tkDt",       "tkTimeValid", "nOwnAll",   "nNeighbourAll", "pvValid",
-         "pvZ",       "pvT",        "pvTErr",     "pvTimeValid", "dtPV",      "dtPVSig",       "dtPVValid"}};
+         "pvZ",       "pvT",        "pvTErr",     "pvTimeValid", "dtPV",      "dtPVSig",       "dtPVValid",
+         "tkDtCorr"}};
     constexpr unsigned int kMaxLayer = 64;
     // eta of the direction from the origin to transverse radius r and |z|.
     float etaOf(float r, float absZ) { return std::asinh(absZ / std::max(r, 1e-3f)); }
@@ -353,6 +354,7 @@ namespace ticl {
     }
 
     // Track at the HGCAL front face.
+    g[kTkDtCorr] = -99.f;
     if (track != nullptr) {
       const float pMag = std::sqrt(track->px * track->px + track->py * track->py + track->pz * track->pz);
       const float pt = std::hypot(track->px, track->py);
@@ -370,6 +372,10 @@ namespace ticl {
       const bool tv = timeValid && track->timeError > 0.f;
       g[kTkDt] = tv ? track->time - t.time() : 0.f;
       g[kTkTimeValid] = tv ? 1.f : 0.f;
+      const bool tv0 = timeValid && track->time0Error > 0.f;
+      g[kTkDtCorr] =
+          tv0 ? track->time0 + std::hypot(b.x() - track->vx, b.y() - track->vy, b.z() - track->vz) / kC - t.time()
+              : -99.f;
     }
     // Primary vertex and the trackster time against it.
     g[kPvValid] = pv.valid ? 1.f : 0.f;

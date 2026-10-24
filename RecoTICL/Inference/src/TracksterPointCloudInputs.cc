@@ -33,4 +33,11 @@ namespace ticl {
     return {view.time()[track], view.timeErr()[track]};
   }
 
+  std::pair<float, float> mtdTrackTime0(const MtdHostCollection* timing, unsigned int track) {
+    if (timing == nullptr)
+      return {0.f, -1.f};
+    auto const& view = timing->const_view();
+    return {view.time0()[track], view.time0Err()[track]};
+  }
+
 }  // namespace ticl
