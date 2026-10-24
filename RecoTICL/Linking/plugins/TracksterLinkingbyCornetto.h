@@ -24,8 +24,17 @@
 // 3. A trackster stays with its root only if the pair (root, trackster) is compatible; else it is a group
 //    of its own.
 //
-// A group is not emitted when its raw energy is below minEmittedEnergy or its raw pt is below minEmittedPt.
-// The pt uses the direction of the energy-weighted barycenter of the members.
+// Optional second pass on the groups (mergeFragments, mergeDropped): the same parent tree on the groups, with the
+// pair test of the merge cone. A group has the raw energy, the energy-weighted barycenter, the energy-weighted EM
+// probability of its members with a PID, and the error-weighted time of its members moved to its barycenter. Only a
+// group that passes the emission rule is a parent. A group that passes it can have a parent when mergeFragments is
+// true, a group that does not pass it when mergeDropped is true. With mergeHadronicOnly and a positive
+// typeVetoProbability, a pair with an EM group (EM probability above typeVetoProbability) is refused.
+//
+// Emission rule: a group is emitted when its raw energy is at least minEmittedEnergy and its raw pt is at least
+// minEmittedPt, or its raw energy is at least minEmittedEnergyAnyPt (when positive). A group with an EM probability
+// above typeVetoProbability uses minEmittedEnergyEM and minEmittedPtEM instead. The pt uses the direction of the
+// energy-weighted barycenter of the members.
 
 #include <array>
 #include <vector>
@@ -88,6 +97,32 @@ namespace ticl {
           ->setComment("Min raw energy [GeV] of an emitted group. Applies after linking.");
       iDesc.add<float>("minEmittedPt", 0.5f)
           ->setComment("Min raw pt [GeV] of an emitted group. Applies after linking.");
+      iDesc.add<float>("minEmittedEnergyEM", 1.f)
+          ->setComment("Min raw energy [GeV] of an emitted EM group (EM probability above typeVetoProbability).");
+      iDesc.add<float>("minEmittedPtEM", 0.5f)->setComment("Min raw pt [GeV] of an emitted EM group.");
+      iDesc.add<float>("minEmittedEnergyAnyPt", 0.f)
+          ->setComment(
+              "A group at or above this raw energy [GeV] is emitted at any pt. Values <= 0 disable it. The minimum "
+              "energy still applies.");
+      iDesc.add<bool>("mergeFragments", false)
+          ->setComment("Second pass: an emitted group can join an emitted group of higher energy.");
+      iDesc.add<bool>("mergeDropped", false)
+          ->setComment("Second pass: a group that is not emitted can join an emitted group.");
+      iDesc.add<bool>("mergeHadronicOnly", true)->setComment("Second pass: refuse a pair with an EM group.");
+      iDesc.add<float>("mergeMinParentEnergy", 0.f)->setComment("Second pass: min raw energy [GeV] of a parent.");
+      iDesc.add<float>("mergeMaxLongitudinalDistance", 60.f)
+          ->setComment("Second pass: max separation [cm] downstream of the parent. Must be positive.");
+      iDesc.add<float>("mergeMaxBackwardDistance", 20.f)
+          ->setComment("Second pass: max separation [cm] upstream of the parent. Must not be negative.");
+      iDesc.add<float>("mergeTransverseRadius0", 4.f)
+          ->setComment("Second pass: max transverse distance at zero separation [cm]. Must not be negative.");
+      iDesc.add<float>("mergeTransverseSlope", 0.05f)
+          ->setComment(
+              "Second pass: growth of the max transverse distance per cm of separation. Must not be negative.");
+      iDesc.add<float>("mergeEMTransverseRadius0", 1.5f)
+          ->setComment("Second pass: max transverse distance at zero separation [cm] for an EM parent.");
+      iDesc.add<float>("mergeEMTransverseSlope", 0.05f)
+          ->setComment("Second pass: growth of the max transverse distance per cm of separation for an EM parent.");
       TracksterLinkingAlgoBase::fillPSetDescription(iDesc);
     }
 
@@ -108,9 +143,28 @@ namespace ticl {
     };
 
     Features computeFeatures(const Inputs& input) const;
-    bool compatible(const Features& f, unsigned int a, unsigned int b) const;
+    // Features of the groups, from the features f of their members.
+    Features groupFeatures(const Features& f, const std::vector<std::vector<unsigned int>>& groups) const;
+    bool compatible(const Features& f, unsigned int a, unsigned int b) const {
+      return compatibleIn(cone_, emCone_, f, a, b);
+    }
+    bool compatibleIn(const cornetto::Cone& cone,
+                      const cornetto::Cone& emCone,
+                      const Features& f,
+                      unsigned int a,
+                      unsigned int b) const;
+    bool mergeCompatible(const Features& g, unsigned int a, unsigned int b) const;
     bool timeCompatible(float tAnchor, float errAnchor, float tOther, float errOther, float path) const;
+    bool emits(float energy, float pt, float em) const;
+    // The parent of each node: the highest-ranked node a above it, with allowed(a, node) true, that passes
+    // test(a, node).
+    template <typename Allowed, typename Test>
+    std::vector<unsigned int> findParentsIn(
+        const Features& f, const Tiles& tiles, const cornetto::Cone& cone, Allowed&& allowed, Test&& test) const;
     std::vector<unsigned int> findParents(const Features& f, const Tiles& tiles) const;
+    // The groups after the second pass.
+    std::vector<std::vector<unsigned int>> mergeGroups(const Features& f,
+                                                       std::vector<std::vector<unsigned int>> groups) const;
 
     const float etaWindow_;
     const cornetto::Cone cone_;
@@ -121,6 +175,15 @@ namespace ticl {
     const float typeVetoProbability_;
     const float minEmittedEnergy_;
     const float minEmittedPt_;
+    const float minEmittedEnergyEM_;
+    const float minEmittedPtEM_;
+    const float minEmittedEnergyAnyPt_;
+    const bool mergeFragments_;
+    const bool mergeDropped_;
+    const bool mergeHadronicOnly_;
+    const float mergeMinParentEnergy_;
+    const cornetto::Cone mergeCone_;
+    const cornetto::Cone mergeEMCone_;  // merge cone of an EM parent, inside mergeCone_
   };
 
 }  // namespace ticl
