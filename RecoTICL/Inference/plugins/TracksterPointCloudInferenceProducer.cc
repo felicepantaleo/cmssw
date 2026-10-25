@@ -253,7 +253,7 @@ void TracksterPointCloudInferenceProducer::produce(edm::Event& evt, const edm::E
 
 void TracksterPointCloudInferenceProducer::endStream() {
   if (nEvents_ > 0)
-    edm::LogPrint("TracksterPointCloudInference")
+    edm::LogInfo("TracksterPointCloudInference")
         << "TracksterPointCloudInferenceProducer: " << nEvents_ << " events, " << nTracksters_ / nEvents_
         << " tracksters per event, features " << sumBuildMs_ / nEvents_ << " ms and inference "
         << sumInferMs_ / nEvents_ << " ms per event";
