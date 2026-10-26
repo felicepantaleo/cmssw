@@ -9,8 +9,8 @@ from Configuration.ProcessModifiers.ticl_v6_cff import ticl_v6
 
 from RecoTICL.Configuration import presets
 
-LABELS = ("ticlTracksterLinks", "ticlTracksterLinksSuperclusteringDNN", "ticlTracksterInterpretations", "ticlCandidate",
-          "pfTICL")
+LABELS = ("ticlCLUEstering", "ticlSoATracksters", "ticlTrackstersCLUEstering", "ticlTracksterLinks",
+          "ticlTracksterLinksSuperclusteringDNN", "ticlTracksterInterpretations", "ticlCandidate", "pfTICL")
 
 
 def main():
@@ -23,6 +23,17 @@ def main():
             failures.append("%s differs from presets.v6()" % label)
     if "ticlTracksterInterpretations" not in process.iterTICLTask.moduleNames():
         failures.append("ticlTracksterInterpretations is not in iterTICLTask")
+    # The first iteration is CLUEstering, which replaces CLUE3DHigh.
+    for label in ("ticlCLUEstering", "ticlSoATracksters", "ticlTrackstersCLUEstering"):
+        if label not in process.iterTICLTask.moduleNames():
+            failures.append("%s is not in iterTICLTask" % label)
+    for label in ("filteredLayerClustersCLUE3DHigh", "ticlTrackstersCLUE3DHigh"):
+        if label in process.iterTICLTask.moduleNames():
+            failures.append("%s is in iterTICLTask" % label)
+    # CLUE3DHigh does not run, so no module of iterTICLTask reads it.
+    for label in sorted(process.iterTICLTask.moduleNames()):
+        if "CLUE3DHigh" in getattr(process, label).dumpPython():
+            failures.append("%s reads CLUE3DHigh" % label)
 
     # The consumers of the final tracksters read them from the interpretation stage.
     process.load("RecoTICL.Configuration.ticlEventContent_cff")
@@ -58,6 +69,9 @@ def main():
     process.load("RecoParticleFlow.PFTracking.mergedElectronSeeds_cfi")
     process.load("RecoEgamma.EgammaPhotonProducers.photonCore_cfi")
     expected = {
+        "filteredLayerClustersRecovery.LayerClustersInputMask": "ticlTrackstersCLUEstering",
+        "ticlTrackstersRecovery.original_mask": "ticlTrackstersCLUEstering",
+        "ticlEGammaSuperClusterProducer.ticlTrackstersEM": "ticlTrackstersCLUEstering",
         "hgcalValidator.mergedTracksters": "ticlTracksterInterpretations",
         "hltHgcalValidator.mergedTracksters": "hltTiclCandidate",
         "ticlCandidateExtraTable.tracksters": "ticlTracksterInterpretations",
@@ -91,6 +105,9 @@ def main():
             obj = getattr(obj, part)
         if obj.getModuleLabel() != label:
             failures.append("%s is %s, expected %s" % (path, obj.getModuleLabel(), label))
+    if process.hgcalValidator.LayerClustersInputMask[0].getModuleLabel() != "ticlTrackstersCLUEstering":
+        failures.append("hgcalValidator.LayerClustersInputMask starts with %s"
+                        % process.hgcalValidator.LayerClustersInputMask[0].getModuleLabel())
     if hasattr(process.ticlCandidateExtraTable, "linkedTracksters"):
         failures.append("ticlCandidateExtraTable still reads linkedTracksters")
     for failure in failures:
