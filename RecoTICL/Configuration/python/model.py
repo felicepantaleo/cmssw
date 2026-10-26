@@ -167,6 +167,11 @@ class TICLConfig:
     def pattern_fastjet(self, **params):
         it = self._cur(); it.pattern_type = "FastJet"; it.pattern_params = params; return self
 
+    def pattern_cluestering(self, **params):
+        """CLUEstering on the layer clusters merged on the device: no seeding region and no cluster filter, the
+        parameters go to the CLUEstering module."""
+        it = self._cur(); it.pattern_type = "CLUEstering"; it.pattern_params = params; return self
+
     # -- extra trackster overrides (inference PSets, detector, ...) -------- #
 
     def trackster_params(self, **overrides):

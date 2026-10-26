@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # Original Author: Felice Pantaleo, CERN, felice.pantaleo@cern.ch
-"""TICLv6 is v5 plus the changes declared here: the added module, the replaced module, the parameters that v6
-changes in the shared modules, and the module defaults of the v6-only modules. An undeclared change fails the test.
+"""TICLv6 is v5 plus the changes declared here: the added and removed modules, the replaced module, the parameters
+that v6 changes in the shared modules, and the module defaults of the v6-only modules. An undeclared change fails the
+test.
 """
 
 import sys
@@ -12,20 +13,29 @@ from RecoTICL.Configuration import presets
 
 # module -> subtrees that differ as a whole: a new plugin type replaces the whole parameter set.
 EXPECTED_WHOLESALE = {
-    "ticlTrackstersCLUE3DHigh": ("pluginInferenceAlgoTracksterInferenceByShowerShape",),
     "ticlTracksterLinks": ("linkingPSet",),
     "pfTICL": ("pfMuonAlgoParameters",),
 }
 
 # module -> {parameter path: (v5 value, v6 value)}. The path is dotted for nested PSets.
 EXPECTED_DELTA = {
-    "ticlTrackstersCLUE3DHigh": {
-        "inferenceAlgo": ("TracksterInferenceByCNN", "TracksterInferenceByShowerShape"),
+    # The first iteration is CLUEstering instead of CLUE3DHigh: the modules that read its tracksters or their mask.
+    "filteredLayerClustersRecovery": {
+        "LayerClustersInputMask": ("ticlTrackstersCLUE3DHigh", "ticlTrackstersCLUEstering"),
+    },
+    "ticlTrackstersRecovery": {
+        "original_mask": ("ticlTrackstersCLUE3DHigh", "ticlTrackstersCLUEstering"),
+    },
+    "ticlEGammaSuperClusterProducer": {
+        "ticlTrackstersEM": ("ticlTrackstersCLUE3DHigh", "ticlTrackstersCLUEstering"),
     },
     "ticlTracksterLinks": {
+        "tracksters_collections": (["ticlTrackstersCLUE3DHigh", "ticlTrackstersRecovery"],
+                                   ["ticlTrackstersCLUEstering", "ticlTrackstersRecovery"]),
         "linkingPSet.type": ("Skeletons", "Cornetto"),
     },
     "ticlTracksterLinksSuperclusteringDNN": {
+        "tracksters_collections": (["ticlTrackstersCLUE3DHigh"], ["ticlTrackstersCLUEstering"]),
         # absent in v5, so v5 carries the plugin defaults (0.8, 0, photon and electron)
         "linkingPSet.PIDThreshold": (None, 0.1),
         "linkingPSet.emissionPIDThreshold": (None, 0.3),
@@ -38,8 +48,14 @@ EXPECTED_DELTA = {
     },
 }
 
-# The interpretation stage exists only in v6.
-EXPECTED_ADDED = {"ticlTracksterInterpretations": "TICLInterpretationProducer"}
+# The interpretation stage and the CLUEstering iteration exist only in v6, the CLUE3DHigh iteration only in v5.
+EXPECTED_ADDED = {
+    "ticlTracksterInterpretations": "TICLInterpretationProducer",
+    "ticlCLUEstering": "HGCalCLUEsteringTrackstersProducer@alpaka",
+    "ticlSoATracksters": "HGCalSoATrackstersProducer@alpaka",
+    "ticlTrackstersCLUEstering": "HGCalTrackstersFromSoAProducer",
+}
+EXPECTED_REMOVED = {"filteredLayerClustersCLUE3DHigh", "ticlTrackstersCLUE3DHigh"}
 # label -> (v5 producer, v6 producer)
 EXPECTED_REPLACED = {"ticlCandidate": ("TICLCandidateProducer", "TICLCandidateArbitrationProducer")}
 
@@ -50,12 +66,21 @@ EXPECTED_FROM_DEFAULT = {
                                      "pluginInferenceAlgoTracksterInferenceByShowerShape."),
     # The photon candidate type from the e/gamma supercluster score.
     "ticlCandidate": ("photonMinScore", "photonScoreMinPt", "eGammaScore", "eGammaTracksters"),
+    "ticlCLUEstering": (),
+    "ticlSoATracksters": (),
+    "ticlTrackstersCLUEstering": (),
 }
 CFI = {
     "TICLInterpretationProducer": ("RecoTICL.Interpretation.ticlInterpretationProducer_cfi",
                                    "ticlInterpretationProducer"),
     "TICLCandidateArbitrationProducer": ("RecoTICL.Interpretation.ticlCandidateArbitrationProducer_cfi",
                                          "ticlCandidateArbitrationProducer"),
+    "HGCalCLUEsteringTrackstersProducer@alpaka": ("RecoTICL.PatternRecognition.hgCalCLUEsteringTrackstersProducer_cfi",
+                                                  "hgCalCLUEsteringTrackstersProducer"),
+    "HGCalSoATrackstersProducer@alpaka": ("RecoTICL.PatternRecognition.hgCalSoATrackstersProducer_cfi",
+                                          "hgCalSoATrackstersProducer"),
+    "HGCalTrackstersFromSoAProducer": ("RecoTICL.PatternRecognition.hgCalTrackstersFromSoAProducer_cfi",
+                                       "hgCalTrackstersFromSoAProducer"),
 }
 
 
@@ -71,6 +96,8 @@ def _get(module, path):
         if not hasattr(obj, part):
             return None
         obj = getattr(obj, part)
+    if isinstance(obj, cms.VInputTag):  # as strings, which the expectations use
+        return [tag.value() if isinstance(tag, cms.InputTag) else tag for tag in obj.value()]
     return obj.value()
 
 
@@ -99,9 +126,10 @@ def main():
 
     v5_labels = set(v5.iterTICLTask.moduleNames())
     v6_labels = set(v6.iterTICLTask.moduleNames())
-    if v5_labels - v6_labels or v6_labels - v5_labels != set(EXPECTED_ADDED):
-        print("FAIL: only in v5 %s, only in v6 %s, expected only in v6 %s"
-              % (sorted(v5_labels - v6_labels), sorted(v6_labels - v5_labels), sorted(EXPECTED_ADDED)))
+    if v5_labels - v6_labels != EXPECTED_REMOVED or v6_labels - v5_labels != set(EXPECTED_ADDED):
+        print("FAIL: only in v5 %s, only in v6 %s, expected only in v5 %s and only in v6 %s"
+              % (sorted(v5_labels - v6_labels), sorted(v6_labels - v5_labels), sorted(EXPECTED_REMOVED),
+                 sorted(EXPECTED_ADDED)))
         ok = False
     for label, kind in EXPECTED_ADDED.items():
         if label in v6_labels and getattr(v6, label).type_() != kind:
@@ -155,8 +183,8 @@ def main():
 
     if ok:
         n = sum(len(p) for p in EXPECTED_DELTA.values())
-        print("OK: v6 is v5 plus %s, with %s replaced and exactly %d parameter changes across %d modules"
-              % (sorted(EXPECTED_ADDED), sorted(EXPECTED_REPLACED), n, len(EXPECTED_DELTA)))
+        print("OK: v6 is v5 plus %s, without %s, with %s replaced and exactly %d parameter changes across %d modules"
+              % (sorted(EXPECTED_ADDED), sorted(EXPECTED_REMOVED), sorted(EXPECTED_REPLACED), n, len(EXPECTED_DELTA)))
     return 0 if ok else 1
 
 
