@@ -10,8 +10,8 @@ the type-aware validator checks the **local-reco -> TICL boundary** (TICL's
 the merge), and lets the whole chain be scheduled and exported together.
 
 CPU/GPU: the HGCAL SoA rechit & clustering producers are portable; drive them
-with :mod:`RecoTICL.Configuration.backend` (see M4).  The default offline layer
-clustering is the CPU CLUE plugin.
+with :mod:`RecoTICL.Configuration.backend` (see M4).  The offline layer
+clustering is CLUEstering on these producers.
 """
 
 import FWCore.ParameterSet.Config as cms
