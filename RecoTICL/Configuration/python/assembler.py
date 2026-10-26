@@ -41,9 +41,10 @@ def step_task_name(name):
 
 def iteration_labels(it, target):
     """The labels of the modules of iteration ``it`` whose backend the iteration selects: the cluster filter and the
-    tracksters, or for CLUEstering its two device modules."""
+    tracksters, or for CLUEstering its device modules, with the merge on the device when its step schedules it."""
     if it.pattern_type == "CLUEstering":
-        return [target.cluestering_label, target.soa_tracksters_label]
+        merge = [target.merged_lc_soa] if target.merged_lc_soa_cfi is not None else []
+        return merge + [target.cluestering_label, target.soa_tracksters_label]
     return [target.filter_label(it.name), target.trackster_label(it.name)]
 
 
@@ -323,6 +324,11 @@ def assemble(cfg):
             labels = [target.cluestering_label, target.soa_tracksters_label, target.trackster_label(it.name)]
             for label, module in zip(labels, _build_cluestering(it, target)):
                 m[label] = module
+            if target.merged_lc_soa_cfi is not None:
+                # the step schedules the merge on the device, which only CLUEstering reads
+                cfi = __import__(target.merged_lc_soa_cfi, fromlist=[target.merged_lc_soa])
+                m[target.merged_lc_soa] = getattr(cfi, target.merged_lc_soa)
+                labels.insert(0, target.merged_lc_soa)
             gname = target.gname("step", it.name)
             mkgroup(gname, *labels)
             step_groups.append(gname)

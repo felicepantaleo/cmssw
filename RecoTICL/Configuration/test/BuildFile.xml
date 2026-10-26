@@ -29,3 +29,5 @@
       command="python3 ${LOCALTOP}/src/RecoTICL/Configuration/test/test_ticl_v6_scheduled_inputs.py"/>
 <test name="testPyTICLV6HLTInputs"
       command="python3 ${LOCALTOP}/src/RecoTICL/Configuration/test/test_v6_hlt_inputs.py"/>
+<test name="testPyTICLMergeOrder"
+      command="python3 ${LOCALTOP}/src/RecoTICL/Configuration/test/test_merge_order.py"/>
