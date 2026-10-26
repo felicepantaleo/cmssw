@@ -23,11 +23,12 @@ def main():
             failures.append("%s differs from presets.v6()" % label)
     if "ticlTracksterInterpretations" not in process.iterTICLTask.moduleNames():
         failures.append("ticlTracksterInterpretations is not in iterTICLTask")
-    # The first iteration is CLUEstering, which replaces CLUE3DHigh.
+    # The only iteration is CLUEstering, which replaces CLUE3DHigh and Recovery.
     for label in ("ticlCLUEstering", "ticlSoATracksters", "ticlTrackstersCLUEstering"):
         if label not in process.iterTICLTask.moduleNames():
             failures.append("%s is not in iterTICLTask" % label)
-    for label in ("filteredLayerClustersCLUE3DHigh", "ticlTrackstersCLUE3DHigh"):
+    for label in ("filteredLayerClustersCLUE3DHigh", "ticlTrackstersCLUE3DHigh", "filteredLayerClustersRecovery",
+                  "ticlTrackstersRecovery"):
         if label in process.iterTICLTask.moduleNames():
             failures.append("%s is in iterTICLTask" % label)
     # CLUE3DHigh does not run, so no module of iterTICLTask reads it.
@@ -69,8 +70,6 @@ def main():
     process.load("RecoParticleFlow.PFTracking.mergedElectronSeeds_cfi")
     process.load("RecoEgamma.EgammaPhotonProducers.photonCore_cfi")
     expected = {
-        "filteredLayerClustersRecovery.LayerClustersInputMask": "ticlTrackstersCLUEstering",
-        "ticlTrackstersRecovery.original_mask": "ticlTrackstersCLUEstering",
         "ticlEGammaSuperClusterProducer.ticlTrackstersEM": "ticlTrackstersCLUEstering",
         "hgcalValidator.mergedTracksters": "ticlTracksterInterpretations",
         "hltHgcalValidator.mergedTracksters": "hltTiclCandidate",
