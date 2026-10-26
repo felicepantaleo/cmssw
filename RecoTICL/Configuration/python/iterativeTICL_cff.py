@@ -227,17 +227,13 @@ ticl_barrel.toModify(mergeTICLTask, func=lambda x : x.add(ticlLayerTileBarrelTas
 from RecoTICL.Configuration.presets import v6 as _v6
 _ticlV6Modules = _v6().assemble().modules
 ticlTracksterInterpretations = _ticlV6Modules["ticlTracksterInterpretations"]
-# TICLv6: the first iteration is CLUEstering on the layer clusters merged on the device, and the Recovery runs on the
-# layer clusters that its tracksters do not use.
+# TICLv6: the only iteration is CLUEstering on the layer clusters merged on the device; there is no Recovery for now.
 ticlCLUEstering = _ticlV6Modules["ticlCLUEstering"]
 ticlSoATracksters = _ticlV6Modules["ticlSoATracksters"]
 ticlTrackstersCLUEstering = _ticlV6Modules["ticlTrackstersCLUEstering"]
 ticlCLUEsteringStepTask = cms.Task(ticlCLUEstering, ticlSoATracksters, ticlTrackstersCLUEstering)
-ticl_v6.toReplaceWith(ticlIterationsTask, cms.Task(ticlCLUEsteringStepTask, ticlRecoveryStepTask))
-# Only the inputs change, so that the other modifiers of these modules still apply.
-ticl_v6.toModify(filteredLayerClustersRecovery,
-                 LayerClustersInputMask=_ticlV6Modules["filteredLayerClustersRecovery"].LayerClustersInputMask)
-ticl_v6.toModify(ticlTrackstersRecovery, original_mask=_ticlV6Modules["ticlTrackstersRecovery"].original_mask)
+ticl_v6.toReplaceWith(ticlIterationsTask, cms.Task(ticlCLUEsteringStepTask))
+# Only the input changes, so that the other modifiers of this module still apply.
 ticl_v6.toModify(ticlEGammaSuperClusterProducer,
                  ticlTrackstersEM=_ticlV6Modules["ticlEGammaSuperClusterProducer"].ticlTrackstersEM)
 (ticl_v6 & ticl_superclustering_mustache_ticl).toModify(

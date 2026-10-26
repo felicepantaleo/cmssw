@@ -191,14 +191,15 @@ def _external_inputs(target, tracks="tracks", muons="muons"):
     return ov
 
 
-def _build_interpretations(overrides, links_label, sc_label, target):
+def _build_interpretations(overrides, links_label, sc_label, claim_labels, target):
     """The interpretation stage (``TICLInterpretationProducer``): the final tracksters and the per-track assignment
-    maps, from the linked tracksters and the superclusters."""
+    maps, from the linked tracksters and the superclusters. The tracks claim the unlinked tracksters of
+    ``claim_labels``."""
     base = _cfi_default("TICLInterpretationProducer")
     ov = dict(
         tracksters_collections=cms.VInputTag(links_label),
         egamma_tracksters_collections=cms.VInputTag(cms.InputTag(sc_label)),
-        claimUnlinkedTracksters=cms.VInputTag(target.trackster_label("Recovery")),
+        claimUnlinkedTracksters=cms.VInputTag(*claim_labels),
         **_external_inputs(target),
     )
     if target.lc_tag() is not None:  # HLT-style: remap shared inputs
@@ -390,8 +391,10 @@ def assemble(cfg):
         # producer builds the candidates.
         sc_label = (target.supercluster_dnn_label
                     if cfg.superclustering_spec is not None else target.links_label)
+        # the tracks claim the Recovery tracksters, when there is a Recovery iteration
+        claim_labels = [target.trackster_label("Recovery")] if "Recovery" in cfg._by_name else []
         m[target.interpretations_label] = _build_interpretations(
-            cfg.interpretations_spec, target.links_label, sc_label, target)
+            cfg.interpretations_spec, target.links_label, sc_label, claim_labels, target)
         m[target.candidate_label] = _build_candidate(cfg.candidate_spec, target)
         mkgroup(target.gname("candidate"), target.interpretations_label, target.candidate_label)
     elif cfg.include_candidate:
