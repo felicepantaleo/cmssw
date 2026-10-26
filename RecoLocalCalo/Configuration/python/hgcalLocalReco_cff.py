@@ -25,6 +25,7 @@ from RecoTICL.LayerClustering.hgcalLayerClusters_cff import (
     hgcalSoARecHitsHSi, hgcalCLUEsteringHSi, hgcalSoALayerClustersHSi,
     hgcalSoARecHitsHSci, hgcalCLUEsteringHSci, hgcalSoALayerClustersHSci,
     hgcalSoARecHitsHFNose, hgcalCLUEsteringHFNose, hgcalSoALayerClustersHFNose,
+    hgcalSoAMergeLayerClusters,
 )
 
 hgcalLocalRecoTask = cms.Task( HGCalUncalibRecHit,
