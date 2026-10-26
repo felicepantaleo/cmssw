@@ -39,6 +39,14 @@ def step_task_name(name):
     return "ticl" + name + "StepTask"
 
 
+def iteration_labels(it, target):
+    """The labels of the modules of iteration ``it`` whose backend the iteration selects: the cluster filter and the
+    tracksters, or for CLUEstering its two device modules."""
+    if it.pattern_type == "CLUEstering":
+        return [target.cluestering_label, target.soa_tracksters_label]
+    return [target.filter_label(it.name), target.trackster_label(it.name)]
+
+
 # --------------------------------------------------------------------------- #
 # result container
 # --------------------------------------------------------------------------- #
@@ -123,6 +131,23 @@ def _build_trackster(it, flabel, seed_label, prev_trackster, target):
             target.barrel_tile_label, "ticlLayerTilesBarrel")
     ov.update(it.trackster_extra)
     return base.clone(**ov)
+
+
+def _build_cluestering(it, target):
+    """The modules of a CLUEstering iteration: CLUEstering on the layer clusters merged on the device, the tracksters
+    built on the device, and their conversion to ticl::Trackster with the mask of their layer clusters."""
+    if target.merged_lc is not None and target.merged_lc_soa is None:
+        raise PyTICLError("iteration %r: target %r has no layer clusters merged on the device for CLUEstering"
+                          % (it.name, target.name))
+    lc_soa = {} if target.merged_lc_soa is None else dict(hgcalLayerClustersSoA=cms.InputTag(target.merged_lc_soa))
+    clustering = _cfi_default("HGCalCLUEsteringTrackstersProducer@alpaka").clone(**lc_soa, **it.pattern_params)
+    soa = _cfi_default("HGCalSoATrackstersProducer@alpaka").clone(
+        hgcalLayerClustersTrackstersSoA=cms.InputTag(target.cluestering_label), **lc_soa)
+    ov = dict(src=cms.InputTag(target.soa_tracksters_label))
+    if target.initial_mask_tag() is not None:
+        ov["originalMask"] = target.initial_mask_tag()
+    tracksters = _cfi_default("HGCalTrackstersFromSoAProducer").clone(**ov)
+    return clustering, soa, tracksters
 
 
 def _build_links(collection_labels, overrides, target):
@@ -289,6 +314,19 @@ def assemble(cfg):
     # iterations
     step_groups = []
     for it in cfg.iterations:
+        if it.pattern_type == "CLUEstering":
+            # CLUEstering reads every layer cluster, without an input mask: it must be the first iteration. Its
+            # device modules have fixed labels, so there is one CLUEstering iteration.
+            if it is not cfg.iterations[0] or it.masks_from:
+                raise PyTICLError("iteration %r: CLUEstering must be the first iteration, without masks_from"
+                                  % it.name)
+            labels = [target.cluestering_label, target.soa_tracksters_label, target.trackster_label(it.name)]
+            for label, module in zip(labels, _build_cluestering(it, target)):
+                m[label] = module
+            gname = target.gname("step", it.name)
+            mkgroup(gname, *labels)
+            step_groups.append(gname)
+            continue
         if it.seeding_type is None:
             raise PyTICLError("iteration %r has no seeding region" % it.name)
         if it.filter_type is None:

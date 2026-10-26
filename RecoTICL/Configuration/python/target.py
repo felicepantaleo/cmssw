@@ -33,6 +33,12 @@ class Target:
     group_names: Dict[str, str] = field(default_factory=dict)
     # merged layer-cluster module; None -> keep the cfi defaults (offline)
     merged_lc: Optional[str] = None
+    # the same layer clusters merged on the device, read by a CLUEstering iteration; None -> keep the cfi default
+    # (offline). A target that remaps merged_lc must also name this one.
+    merged_lc_soa: Optional[str] = None
+    # labels of the device modules of a CLUEstering iteration: CLUEstering, then the tracksters built on the device
+    cluestering_label: str = "ticlCLUEstering"
+    soa_tracksters_label: str = "ticlSoATracksters"
     # InputTag for layer_clusters_barrel_tiles; None -> keep the cfi default
     barrel_tile_tag: Optional[object] = None
     # label of the barrel TICLLayerTile producer (created for barrel iterations)
@@ -136,6 +142,8 @@ HLT = Target(
         "top": "HLTIterTICLSequence",
     },
     merged_lc="hltMergeLayerClusters",
+    cluestering_label="hltTiclCLUEstering",
+    soa_tracksters_label="hltTiclSoATracksters",
     barrel_tile_tag=cms.InputTag("hltTiclLayerTileBarrelProducer", "ticlLayerTilesBarrel"),
     barrel_tile_label="hltTiclLayerTileBarrelProducer",
     tracks_label="hltGeneralTracks",
