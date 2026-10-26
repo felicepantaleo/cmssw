@@ -322,11 +322,10 @@ def v6(name="v6", target="offline"):
     interp = dict(pluginInferenceAlgoTracksterInferenceByPFN=pfn,
                   pidInferenceAlgo=cms.string("TracksterInferenceByShowerShape"),
                   pluginInferenceAlgoTracksterInferenceByShowerShape=shower_shape_pid("mixPID_fin_v1.onnx"))
-    # The first iteration is CLUEstering on the layer clusters merged on the device.
+    # The only iteration is CLUEstering on the layer clusters merged on the device; there is no Recovery for now.
     cfg = (TICLConfig(name, target=target)
            .iteration("CLUEstering").preset()
-           .iteration("Recovery").preset().masks_from("CLUEstering")
-           .links(["CLUEstering", "Recovery"], **cornetto_links_defaults())
+           .links(["CLUEstering"], **cornetto_links_defaults())
            # photon, electron AND neutral_pion: a pi0 is an electromagnetic object.
            .superclustering_dnn(source="CLUEstering",
                                 **supercluster_dnn_defaults(pid_threshold=0.1, emission_pid_threshold=0.3,
