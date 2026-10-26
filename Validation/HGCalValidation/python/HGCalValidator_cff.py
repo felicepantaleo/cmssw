@@ -21,8 +21,13 @@ hgcalValidator = _hgcalValidator.clone(
 )
 
 from Configuration.ProcessModifiers.ticl_v6_cff import ticl_v6
-# TICLv6: the final tracksters come from the interpretation stage.
+# TICLv6: the final tracksters come from the interpretation stage, and the first iteration is CLUEstering.
 ticl_v6.toModify(hgcalValidator,
+    LayerClustersInputMask = cms.VInputTag(
+        cms.InputTag("ticlTrackstersCLUEstering"),
+        cms.InputTag("ticlSimTracksters", "fromCPs"),
+        cms.InputTag("ticlSimTracksters")
+    ),
     mergedTracksters = "ticlTracksterInterpretations",
     mergeSimToRecoAssociator = "allTrackstersToSimTrackstersAssociationsByLCs:ticlSimTrackstersfromCPsToticlTracksterInterpretations",
     mergeRecoToSimAssociator = "allTrackstersToSimTrackstersAssociationsByLCs:ticlTracksterInterpretationsToticlSimTrackstersfromCPs",

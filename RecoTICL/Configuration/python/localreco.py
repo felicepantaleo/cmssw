@@ -19,6 +19,7 @@ import FWCore.ParameterSet.Config as cms
 from RecoTICL.Configuration.validator import validate_assembled
 
 MERGED_LAYER_CLUSTERS = "hgcalMergeLayerClusters"
+MERGED_LAYER_CLUSTERS_SOA = "hgcalSoAMergeLayerClusters"
 
 
 def hgcal_local_reco_task():
@@ -33,10 +34,19 @@ def merged_layer_clusters():
     return hgcalMergeLayerClusters
 
 
+def merged_layer_clusters_soa():
+    """The configured ``hgcalSoAMergeLayerClusters`` producer: the same layer clusters merged on the device, which a
+    CLUEstering iteration consumes."""
+    from RecoTICL.LayerClustering.hgcalLayerClusters_cff import hgcalSoAMergeLayerClusters
+    return hgcalSoAMergeLayerClusters
+
+
 def attach_local_reco(assembled, validate=True):
-    """Register the merged layer-cluster producer on ``assembled`` so the validator
-    type-checks the local-reco -> TICL boundary.  Returns the (mutated) result."""
+    """Register the merged layer-cluster producers (on the host and on the device) on
+    ``assembled`` so the validator type-checks the local-reco -> TICL boundary.
+    Returns the (mutated) result."""
     assembled.modules[MERGED_LAYER_CLUSTERS] = merged_layer_clusters()
+    assembled.modules[MERGED_LAYER_CLUSTERS_SOA] = merged_layer_clusters_soa()
     if validate:
         validate_assembled(assembled)
     return assembled
