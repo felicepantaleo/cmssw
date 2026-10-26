@@ -147,10 +147,17 @@ def _preset_clue3dbarrel(it):
     )
 
 
+def _preset_cluestering(it):
+    # CLUEstering on the layer clusters merged on the device, with the defaults of the CLUEstering module
+    it.pattern_type = "CLUEstering"
+    it.pattern_params = dict()
+
+
 _ITERATION_PRESETS = {
     "CLUE3DHigh": _preset_clue3dhigh,
     "Recovery": _preset_recovery,
     "CLUE3DBarrel": _preset_clue3dbarrel,
+    "CLUEstering": _preset_cluestering,
 }
 
 
@@ -315,22 +322,28 @@ def v6(name="v6", target="offline"):
     interp = dict(pluginInferenceAlgoTracksterInferenceByPFN=pfn,
                   pidInferenceAlgo=cms.string("TracksterInferenceByShowerShape"),
                   pluginInferenceAlgoTracksterInferenceByShowerShape=shower_shape_pid("mixPID_fin_v1.onnx"))
-    cfg = (TICLConfig(name, target=target)
-           .iteration("CLUE3DHigh").preset()
-           # Identification from the shower shape and the layer-cluster profile, with the EM score on the scale of
-           # the CNN of v5 in every energy bin.
-           .trackster_params(inferenceAlgo=cms.string("TracksterInferenceByShowerShape"),
-                             pluginInferenceAlgoTracksterInferenceByShowerShape=shower_shape_pid("mixPID_hi_v1.onnx"))
-           .iteration("Recovery").preset()
-           .links(["CLUE3DHigh", "Recovery"], **cornetto_links_defaults())
-           # photon, electron AND neutral_pion: a pi0 is an electromagnetic object.
-           .superclustering_dnn(source="CLUE3DHigh",
-                                **supercluster_dnn_defaults(pid_threshold=0.1, emission_pid_threshold=0.3,
-                                                            pid_categories=(0, 1, 3)))
-           .interpretations(**interp)
-           .candidate()
-           # The candidate producer sets the muon kinematics; pfTICL copies its muon decisions.
-           .pf(muonsFromCandidates=cms.bool(True), **pf_defaults()))
+    cfg = TICLConfig(name, target=target)
+    # The first iteration is CLUEstering on the layer clusters merged on the device. The HLT has no merge on the
+    # device yet and keeps CLUE3DHigh, with the identification from the shower shape and the layer-cluster profile
+    # (the EM score on the scale of the CNN of v5 in every energy bin).
+    if cfg.target.merged_lc is None or cfg.target.merged_lc_soa is not None:
+        first = "CLUEstering"
+        cfg.iteration(first).preset()
+    else:
+        first = "CLUE3DHigh"
+        (cfg.iteration(first).preset()
+         .trackster_params(inferenceAlgo=cms.string("TracksterInferenceByShowerShape"),
+                           pluginInferenceAlgoTracksterInferenceByShowerShape=shower_shape_pid("mixPID_hi_v1.onnx")))
+    (cfg.iteration("Recovery").preset().masks_from(first)
+        .links([first, "Recovery"], **cornetto_links_defaults())
+        # photon, electron AND neutral_pion: a pi0 is an electromagnetic object.
+        .superclustering_dnn(source=first,
+                             **supercluster_dnn_defaults(pid_threshold=0.1, emission_pid_threshold=0.3,
+                                                         pid_categories=(0, 1, 3)))
+        .interpretations(**interp)
+        .candidate()
+        # The candidate producer sets the muon kinematics; pfTICL copies its muon decisions.
+        .pf(muonsFromCandidates=cms.bool(True), **pf_defaults()))
     if cfg.target.name == "offline":
         # A photon or pi0 candidate at or above 10 GeV whose e/gamma supercluster has a type score below 0.35, or
         # that has no supercluster, is a neutral hadron.
