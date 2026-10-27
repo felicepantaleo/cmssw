@@ -1,0 +1,34 @@
+<bin name="testMaxWeightIndependentSet" file="MaxWeightIndependentSet_t.cpp">
+  <use name="RecoTICL/Interpretation"/>
+  <use name="catch2"/>
+</bin>
+<bin name="testNeutralShareModel" file="NeutralShareModel_t.cpp">
+  <use name="FWCore/ParameterSet"/>
+  <use name="PhysicsTools/ONNXRuntime"/>
+  <use name="catch2"/>
+</bin>
+<bin name="testModelFeatures" file="ModelFeatures_t.cpp">
+  <use name="RecoTICL/Interpretation"/>
+  <use name="DataFormats/CaloRecHit"/>
+  <use name="DataFormats/HGCalReco"/>
+  <use name="DataFormats/Math"/>
+  <use name="DataFormats/SiPixelDetId"/>
+  <use name="DataFormats/TrackingRecHit"/>
+  <use name="DataFormats/TrackReco"/>
+  <use name="FWCore/ParameterSet"/>
+  <use name="PhysicsTools/ONNXRuntime"/>
+  <use name="eigen"/>
+  <use name="catch2"/>
+</bin>
+<bin name="testAssignmentMaps" file="AssignmentMaps_t.cpp">
+  <use name="RecoTICL/Interpretation"/>
+  <use name="catch2"/>
+</bin>
+<bin name="testTypeProbabilities" file="TypeProbabilities_t.cpp">
+  <use name="RecoTICL/Interpretation"/>
+  <use name="catch2"/>
+</bin>
+<bin name="testJetVariants" file="JetVariants_t.cpp">
+  <use name="RecoTICL/Interpretation"/>
+  <use name="catch2"/>
+</bin>
