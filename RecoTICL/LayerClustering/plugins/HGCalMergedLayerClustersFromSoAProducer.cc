@@ -25,8 +25,7 @@
 
 // Converts the SoA layer clusters of the HGCAL components into one merged collection of reco::CaloCluster, with their
 // time and the layer cluster mask: the layer clusters of the components one after the other, in the order of the
-// configuration. It replaces a HGCalLayerClustersFromSoAProducer per component followed by MergeClusterProducer,
-// which built every cluster once per component and then copied it twice.
+// configuration.
 // Layer clusters of other subdetectors (the barrel) can be appended after the HGCAL ones.
 class HGCalMergedLayerClustersFromSoAProducer : public edm::global::EDProducer<> {
 public:
