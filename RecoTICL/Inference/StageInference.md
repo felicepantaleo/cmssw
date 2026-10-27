@@ -56,7 +56,7 @@ process.ticlCandidate = withCandidateInference(
     pidModel="RecoTICL/Inference/data/candidate_pid_pfn.pt",
     regressionModel="RecoTICL/Inference/data/candidate_energy_pfn.pt",
     minClusterEnergy=2.5,
-    backend="cuda_async", batchSize=64,
+    batchSize=64,
     convertToFP16=False,
 )
 # DNN is selected with model="DNN" and the corresponding two model paths.
@@ -82,8 +82,8 @@ to restore it. The model factory helpers are also imported by `iterativeTICL_cff
 All paths below are **required future data**, resolved with `edm::FileInPath` only
 for enabled tasks. They are not supplied by these patches. Other CMSSW data-package
 paths may be configured. Missing enabled models fail explicitly; there is no silent
-ONNX fallback. Serial/CUDA/ROCm plugin selection is explicit via `serial_sync`,
-`cuda_async`, `rocm_async`. An unavailable backend/device is an error.
+ONNX fallback. The historical candidate-stage integration is no longer active;
+backend selection for the active Trackster inference producers is handled by CMSSW Alpaka.
 
 | Task | Default path in `RecoTICL/Inference/data/` | Forward inputs | Forward output |
 |---|---|---|---|

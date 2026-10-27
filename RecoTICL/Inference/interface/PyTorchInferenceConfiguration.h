@@ -3,18 +3,10 @@
 
 #include <string>
 #include "FWCore/ParameterSet/interface/ParameterSetDescription.h"
-#include "FWCore/Utilities/interface/Exception.h"
 
 namespace ticl {
-  inline std::string inferencePluginName(std::string const& backend, std::string const& name) {
-    if (backend != "serial_sync" && backend != "cuda_async" && backend != "rocm_async")
-      throw cms::Exception("Configuration") << "Unsupported TICL inference backend '" << backend << "'";
-    return "alpaka_" + backend + "::" + name;
-  }
-
   inline edm::ParameterSetDescription pytorchInferenceDescription() {
     edm::ParameterSetDescription desc;
-    desc.add<std::string>("backend", "serial_sync");
     desc.add<unsigned int>("batchSize", 64);
     desc.add<bool>("convertToFP16", false);
     desc.add<unsigned int>("warmupIterations", 0);

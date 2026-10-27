@@ -1,29 +1,25 @@
 """Opt-in inference inside the existing candidate producer.
 
-No additional EDM products/tasks are installed. Backend selection is explicit:
-serial_sync, cuda_async or rocm_async; an unavailable backend is an error.
+No additional EDM products/tasks are installed.
 """
 import math
 import FWCore.ParameterSet.Config as cms
 
 
-def _execution(*, backend, batchSize, convertToFP16, warmupIterations):
-    if backend not in ("serial_sync", "cuda_async", "rocm_async"):
-        raise ValueError("backend must be serial_sync, cuda_async or rocm_async")
+def _execution(*, batchSize, convertToFP16, warmupIterations):
     if type(batchSize) is not int or not 0 < batchSize <= 2147483647:
         raise ValueError("batchSize must be a positive int fitting the SoA size type")
     if type(convertToFP16) is not bool:
         raise TypeError("convertToFP16 must be bool")
     if type(warmupIterations) is not int or not 0 <= warmupIterations <= 2147483647:
         raise ValueError("warmupIterations must be a non-negative int")
-    return cms.PSet(backend=cms.string(backend),
-                    batchSize=cms.uint32(batchSize), convertToFP16=cms.bool(convertToFP16),
+    return cms.PSet(batchSize=cms.uint32(batchSize), convertToFP16=cms.bool(convertToFP16),
                     warmupIterations=cms.int32(warmupIterations))
 
 
 def makeCandidateInference(*, model="PFN", doPID=True, doRegression=True,
                            pidModel=None, regressionModel=None, minClusterEnergy=2.5,
-                           backend="serial_sync", batchSize=64,
+                           batchSize=64,
                            convertToFP16=False, warmupIterations=0):
     """Return pluginInferenceAlgoPyTorchAlpaka; model paths are candidate-stage specific."""
     if model not in ("CNN", "DNN", "PFN"):
@@ -39,7 +35,7 @@ def makeCandidateInference(*, model="PFN", doPID=True, doRegression=True,
                        if regressionModel is None else regressionModel)
     if (doPID and not pidModel) or (doRegression and not regressionModel):
         raise ValueError("Every enabled task requires a nonempty model path")
-    config = _execution(backend=backend, batchSize=batchSize,
+    config = _execution(batchSize=batchSize,
                         convertToFP16=convertToFP16, warmupIterations=warmupIterations)
     config.modelFamily = cms.string(model)
     config.algo_verbosity = cms.int32(0)
