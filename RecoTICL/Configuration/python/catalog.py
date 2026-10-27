@@ -322,6 +322,7 @@ _SPECS = [
         consumes=(
             Consumed("src", T_TRACKSTERS_SOA),
             Consumed("originalMask", T_MASK),
+            Consumed("layer_clusters", T_CALOCLUSTERS),
         ),
     ),
 ]
