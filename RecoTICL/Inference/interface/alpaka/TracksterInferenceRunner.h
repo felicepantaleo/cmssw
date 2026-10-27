@@ -28,8 +28,6 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     void runInto(Queue& queue, InputDevice const& features, PublishedOutputDevice& output, float minEnergy = 1.f);
 
   private:
-    void forward(Queue& queue, InferenceTensors& inputs, InferenceTensors& outputs);
-
     torch::AlpakaModel model_;
     ::torch::Dtype const dtype_;
     uint32_t const batchSize_;

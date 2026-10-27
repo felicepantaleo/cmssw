@@ -24,9 +24,9 @@ def makeTracksterInference(*, model="CNN", doPID=True, doRegression=False, batch
     if not isinstance(layerClusters, (str, cms.InputTag)):
         raise TypeError("layerClusters must be the merged CaloClusterSoA InputTag")
     if pidModel is None:
-        pidModel = "RecoTICL/Inference/data/trackster_pid_" + model.lower() + ".pt"
+        pidModel = f"RecoTICL/Inference/data/trackster_pid_{model.lower()}.pt" if doPID else ""
     if regressionModel is None:
-        regressionModel = "RecoTICL/Inference/data/trackster_energy_" + model.lower() + ".pt"
+        regressionModel = f"RecoTICL/Inference/data/trackster_energy_{model.lower()}.pt" if doRegression else ""
     if doPID and not pidModel:
         raise ValueError("An enabled PID task requires a nonempty pidModel path")
     if doRegression and not regressionModel:
