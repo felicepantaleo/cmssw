@@ -1,49 +1,8 @@
-"""Interchangeable portable inference. Build once, then install with a unique prefix.
-
-    inference = makeTracksterInference(model="PFN", doPID=True, doRegression=True)
-    inference.install(process, "ticlTracksterInference")
-    process.reconstruction_step.associate(inference.task)
-    # inference.output is cms.InputTag("ticlTracksterInference")
-
-Call the factory again for another pipeline; it creates independent modules.
-Only install() assigns labels and wires the feature InputTag.
-"""
+"""Factory for paired Alpaka feature-extraction and inference producers."""
 import math
 
 import FWCore.ParameterSet.Config as cms
 
-
-class TracksterInferenceConfiguration:
-    def __init__(self, features, producer):
-        self.features = features
-        self.producer = producer
-        self.task = None
-        self._prefix = None
-
-    def install(self, process, prefix="ticlTracksterInference"):
-        if self._prefix is not None:
-            raise ValueError("This inference configuration is already installed; call the factory for another pipeline")
-        if not isinstance(prefix, str) or not prefix.isidentifier():
-            raise ValueError("prefix must be a Python identifier")
-        names = (prefix, prefix + "Features", prefix + "Task")
-        if any(hasattr(process, name) for name in names):
-            raise ValueError("Inference module/task label already exists: " + prefix)
-        features = self.features.clone()
-        producer = self.producer.clone(features=cms.InputTag(prefix + "Features", "features"))
-        setattr(process, prefix + "Features", features)
-        setattr(process, prefix, producer)
-        self.features = getattr(process, prefix + "Features")
-        self.producer = getattr(process, prefix)
-        self.task = cms.Task(self.features, self.producer)
-        setattr(process, prefix + "Task", self.task)
-        self._prefix = prefix
-        return self
-
-    @property
-    def output(self):
-        if self._prefix is None:
-            raise ValueError("Call install(process, prefix) before requesting the output InputTag")
-        return cms.InputTag(self._prefix)
 
 
 def makeTracksterInference(*, model="CNN", doPID=True, doRegression=False, batchSize=64,
@@ -88,4 +47,4 @@ def makeTracksterInference(*, model="CNN", doPID=True, doRegression=False, batch
         batchSize=cms.uint32(batchSize), convertToFP16=cms.bool(convertToFP16),
         warmupIterations=cms.uint32(warmupIterations), minClusterEnergy=cms.double(minClusterEnergy),
     )
-    return TracksterInferenceConfiguration(features, producer)
+    return features, producer
