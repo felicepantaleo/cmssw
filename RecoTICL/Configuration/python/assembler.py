@@ -136,7 +136,7 @@ def _build_trackster(it, flabel, seed_label, prev_trackster, target):
 
 def _build_cluestering(it, target):
     """The modules of a CLUEstering iteration: CLUEstering on the layer clusters merged on the device, the tracksters
-    built on the device, and their conversion to ticl::Trackster with the mask of their layer clusters."""
+    built on the device, and their conversion to ticl::Trackster with the mask of their layer clusters and the PID."""
     if target.merged_lc is not None and target.merged_lc_soa is None:
         raise PyTICLError("iteration %r: target %r has no layer clusters merged on the device for CLUEstering"
                           % (it.name, target.name))
@@ -147,6 +147,9 @@ def _build_cluestering(it, target):
     ov = dict(src=cms.InputTag(target.soa_tracksters_label))
     if target.initial_mask_tag() is not None:
         ov["originalMask"] = target.initial_mask_tag()
+    if target.lc_tag() is not None: 
+        ov["layer_clusters"] = target.lc_tag()
+    ov.update(it.trackster_extra)
     tracksters = _cfi_default("HGCalTrackstersFromSoAProducer").clone(**ov)
     return clustering, soa, tracksters
 
@@ -183,15 +186,14 @@ def _external_inputs(target, tracks="tracks", muons="muons"):
     return ov
 
 
-def _build_interpretations(overrides, links_label, sc_label, claim_labels, target):
+def _build_interpretations(overrides, links_label, sc_label, target):
     """The interpretation stage (``TICLInterpretationProducer``): the final tracksters and the per-track assignment
-    maps, from the linked tracksters and the superclusters. The tracks claim the unlinked tracksters of
-    ``claim_labels``."""
+    maps, from the linked tracksters and the superclusters."""
     base = _cfi_default("TICLInterpretationProducer")
     ov = dict(
         tracksters_collections=cms.VInputTag(links_label),
         egamma_tracksters_collections=cms.VInputTag(cms.InputTag(sc_label)),
-        claimUnlinkedTracksters=cms.VInputTag(*claim_labels),
+        claimUnlinkedTracksters=cms.VInputTag(target.trackster_label("Recovery")),
         **_external_inputs(target),
     )
     if target.lc_tag() is not None:  # HLT-style: remap shared inputs
@@ -383,10 +385,8 @@ def assemble(cfg):
         # producer builds the candidates.
         sc_label = (target.supercluster_dnn_label
                     if cfg.superclustering_spec is not None else target.links_label)
-        # the tracks claim the Recovery tracksters, when there is a Recovery iteration
-        claim_labels = [target.trackster_label("Recovery")] if "Recovery" in cfg._by_name else []
         m[target.interpretations_label] = _build_interpretations(
-            cfg.interpretations_spec, target.links_label, sc_label, claim_labels, target)
+            cfg.interpretations_spec, target.links_label, sc_label, target)
         m[target.candidate_label] = _build_candidate(cfg.candidate_spec, target)
         mkgroup(target.gname("candidate"), target.interpretations_label, target.candidate_label)
     elif cfg.include_candidate:
