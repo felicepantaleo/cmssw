@@ -12,41 +12,47 @@ The CPU ONNX implementations are unchanged and remain the physics references.
 ```python
 from RecoTICL.Configuration.tracksterInference_cff import makeTracksterInference
 
-ticlTracksterInference = makeTracksterInference(
+process.ticlTracksterInferenceFeatures, inference = makeTracksterInference(
     model="PFN", doPID=True, doRegression=True, batchSize=64,
     tracksters="ticlTrackstersToSoAProducer",
 )
-ticlTracksterInference.install(process, "ticlTracksterInference")
-process.reconstruction_step.associate(ticlTracksterInference.task)
-# The downstream InputTag is independent of the model family:
-process.myConsumer.tracksters = ticlTracksterInference.output
+process.ticlTracksterInference = inference.clone(
+    features=cms.InputTag("ticlTracksterInferenceFeatures", "features")
+)
+process.ticlTracksterInferenceTask = cms.Task(
+    process.ticlTracksterInferenceFeatures, process.ticlTracksterInference
+)
+process.reconstruction_step.associate(process.ticlTracksterInferenceTask)
+process.myConsumer.tracksters = cms.InputTag("ticlTracksterInference")
 ```
 
-The factory returns a Python configuration object, **not** an EDM module. Do not
-assign it directly to `process`. `install()` assigns the output producer the
-prefix itself, the extraction producer `<prefix>Features`, and the task
-`<prefix>Task`. It clones the templates, wires the feature instance `features`,
-and refuses collisions and repeated installation. The `output` property is
-available after installation. Call the factory again with a different prefix
-for an independent pipeline; do not clone only the final producer and leave
-its feature dependency pointing at another family.
+The factory returns a pair of EDM producer configurations: a feature extractor
+and an inference producer. Assign both to the process, give them unique labels,
+and set the inference producer's `features` InputTag to the extractor's
+`features` instance. Schedule them together in a `cms.Task`. Calling the
+factory again creates independent module configurations.
 
 Other supported selections:
 
 ```python
-cnn = makeTracksterInference(model="CNN", doPID=True, doRegression=False)
-dnn = makeTracksterInference(model="DNN", doPID=True, doRegression=True)
-pfn_energy = makeTracksterInference(model="PFN", doPID=False, doRegression=True,
-                                   regressionModel="RecoTICL/Inference/data/my_energy.pt")
+cnn_features, cnn_inference = makeTracksterInference(
+    model="CNN", doPID=True, doRegression=False
+)
+dnn_features, dnn_inference = makeTracksterInference(
+    model="DNN", doPID=True, doRegression=True
+)
+pfn_features, pfn_inference = makeTracksterInference(
+    model="PFN", doPID=False, doRegression=True,
+    regressionModel="RecoTICL/Inference/data/my_energy.pt"
+)
 ```
 
 `pidModel` and `regressionModel` override the defaults independently. Both tasks
 may be disabled, in which case the output is an unchanged device copy and the
 feature product is not retrieved. CNN regression is rejected in Python and C++.
 The three standalone inference plugins share one producer template and the existing
-runners and tensor adapters. `CLUE3DHighStep_cff` uses this factory with CNN PID
-only, preserving its module labels, input tags, model path and execution settings.
-The CNN feature plugin retains its name `TracksterFeaturesProducer@alpaka`.
+runners and tensor adapters. `CLUEsteringStep_cff` uses this factory to schedule CNN PID feature extraction
+and inference before conversion to legacy Tracksters.
 The superseded `TracksterInferenceProducer@alpaka` plugin and hand-written
 `Configuration.tracksterInferenceFeaturesProducer_cfi` are removed; custom
 configurations should use the factory (`pidModel` replaces `model`). The output
