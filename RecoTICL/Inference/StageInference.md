@@ -56,7 +56,7 @@ process.ticlCandidate = withCandidateInference(
     pidModel="RecoTICL/Inference/data/candidate_pid_pfn.pt",
     regressionModel="RecoTICL/Inference/data/candidate_energy_pfn.pt",
     minClusterEnergy=2.5,
-    backend="cuda_async", deviceIndex=0, batchSize=64,
+    backend="cuda_async", batchSize=64,
     convertToFP16=False,
 )
 # DNN is selected with model="DNN" and the corresponding two model paths.
