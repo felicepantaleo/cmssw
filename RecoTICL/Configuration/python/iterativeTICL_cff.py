@@ -230,8 +230,23 @@ ticlTracksterInterpretations = _ticlV6Modules["ticlTracksterInterpretations"]
 # layer clusters that its tracksters do not use.
 ticlCLUEstering = _ticlV6Modules["ticlCLUEstering"]
 ticlSoATracksters = _ticlV6Modules["ticlSoATracksters"]
+
+# Run CNN PID on device Tracksters before conversion to the legacy collection.
+from RecoTICL.Configuration.tracksterInference_cff import makeTracksterInference
+ticlCLUEsteringCNNFeatures, ticlCLUEsteringCNNInference = makeTracksterInference(
+    model="CNN", tracksters="ticlSoATracksters"
+)
+ticlCLUEsteringCNNInference.features = cms.InputTag("ticlCLUEsteringCNNFeatures", "features")
+
 ticlTrackstersCLUEstering = _ticlV6Modules["ticlTrackstersCLUEstering"]
-ticlCLUEsteringStepTask = cms.Task(ticlCLUEstering, ticlSoATracksters, ticlTrackstersCLUEstering)
+# Preserve the inferred device PID scores instead of replacing them with host inference.
+ticlTrackstersCLUEstering.src = cms.InputTag("ticlCLUEsteringCNNInference")
+ticlTrackstersCLUEstering.inferenceAlgo = cms.string("")
+ticlCLUEsteringStepTask = cms.Task(
+    ticlCLUEstering, ticlSoATracksters,
+    ticlCLUEsteringCNNFeatures, ticlCLUEsteringCNNInference,
+    ticlTrackstersCLUEstering
+)
 ticl_v6.toReplaceWith(ticlIterationsTask, cms.Task(ticlCLUEsteringStepTask, ticlRecoveryStepTask))
 # Only the inputs and the Recovery threshold change, so that the other modifiers of these modules still apply.
 ticl_v6.toModify(filteredLayerClustersRecovery,
