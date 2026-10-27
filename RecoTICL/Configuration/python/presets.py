@@ -148,9 +148,16 @@ def _preset_clue3dbarrel(it):
 
 
 def _preset_cluestering(it):
-    # CLUEstering on the layer clusters merged on the device, with the defaults of the CLUEstering module
+    # CLUEstering on the layer clusters merged on the device, with the defaults of the CLUEstering module. The PID runs
+    # on the host on the converted tracksters, with the CNN and the PID cut of CLUE3DHigh.
     it.pattern_type = "CLUEstering"
     it.pattern_params = dict()
+    it.trackster_extra = dict(
+        doPidCut=cms.bool(True),
+        cutHadProb=cms.double(999),
+        inferenceAlgo=cms.string("TracksterInferenceByCNN"),
+        pluginInferenceAlgoTracksterInferenceByCNN=_CLUE3DHIGH_CNN.clone(),
+    )
 
 
 _ITERATION_PRESETS = {
@@ -322,10 +329,15 @@ def v6(name="v6", target="offline"):
     interp = dict(pluginInferenceAlgoTracksterInferenceByPFN=pfn,
                   pidInferenceAlgo=cms.string("TracksterInferenceByShowerShape"),
                   pluginInferenceAlgoTracksterInferenceByShowerShape=shower_shape_pid("mixPID_fin_v1.onnx"))
-    # The only iteration is CLUEstering on the layer clusters merged on the device; there is no Recovery for now.
+    # The first iteration is CLUEstering on the layer clusters merged on the device.
     cfg = (TICLConfig(name, target=target)
            .iteration("CLUEstering").preset()
-           .links(["CLUEstering"], **cornetto_links_defaults())
+           # Identification from the shower shape and the layer-cluster profile, with the EM score on the scale of
+           # the CNN of v5 in every energy bin.
+           .trackster_params(inferenceAlgo=cms.string("TracksterInferenceByShowerShape"),
+                             pluginInferenceAlgoTracksterInferenceByShowerShape=shower_shape_pid("mixPID_hi_v1.onnx"))
+           .iteration("Recovery").preset().masks_from("CLUEstering")
+           .links(["CLUEstering", "Recovery"], **cornetto_links_defaults())
            # photon, electron AND neutral_pion: a pi0 is an electromagnetic object.
            .superclustering_dnn(source="CLUEstering",
                                 **supercluster_dnn_defaults(pid_threshold=0.1, emission_pid_threshold=0.3,
