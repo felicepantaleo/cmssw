@@ -1,6 +1,3 @@
-For historical candidate-stage model contracts and the current integration status,
-see [StageInference.md](StageInference.md). Superclustering uses CPU ONNX.
-
 # Portable Trackster inference
 
 This implementation extends `heterogeneous-trackster` at
