@@ -19,13 +19,19 @@ EXPECTED_WHOLESALE = {
 
 # module -> {parameter path: (v5 value, v6 value)}. The path is dotted for nested PSets.
 EXPECTED_DELTA = {
-    # The only iteration is CLUEstering instead of CLUE3DHigh and Recovery: the modules that read its tracksters.
+    # The first iteration is CLUEstering instead of CLUE3DHigh: the modules that read its tracksters or their mask.
+    "filteredLayerClustersRecovery": {
+        "LayerClustersInputMask": ("ticlTrackstersCLUE3DHigh", "ticlTrackstersCLUEstering"),
+    },
+    "ticlTrackstersRecovery": {
+        "original_mask": ("ticlTrackstersCLUE3DHigh", "ticlTrackstersCLUEstering"),
+    },
     "ticlEGammaSuperClusterProducer": {
         "ticlTrackstersEM": ("ticlTrackstersCLUE3DHigh", "ticlTrackstersCLUEstering"),
     },
     "ticlTracksterLinks": {
         "tracksters_collections": (["ticlTrackstersCLUE3DHigh", "ticlTrackstersRecovery"],
-                                   ["ticlTrackstersCLUEstering"]),
+                                   ["ticlTrackstersCLUEstering", "ticlTrackstersRecovery"]),
         "linkingPSet.type": ("Skeletons", "Cornetto"),
     },
     "ticlTracksterLinksSuperclusteringDNN": {
@@ -42,31 +48,30 @@ EXPECTED_DELTA = {
     },
 }
 
-# The interpretation stage and the CLUEstering iteration exist only in v6, the CLUE3DHigh and Recovery iterations (and
-# their seeding) only in v5.
+# The interpretation stage and the CLUEstering iteration exist only in v6, the CLUE3DHigh iteration only in v5.
 EXPECTED_ADDED = {
     "ticlTracksterInterpretations": "TICLInterpretationProducer",
     "ticlCLUEstering": "HGCalCLUEsteringTrackstersProducer@alpaka",
     "ticlSoATracksters": "HGCalSoATrackstersProducer@alpaka",
     "ticlTrackstersCLUEstering": "HGCalTrackstersFromSoAProducer",
 }
-EXPECTED_REMOVED = {"filteredLayerClustersCLUE3DHigh", "ticlTrackstersCLUE3DHigh", "filteredLayerClustersRecovery",
-                    "ticlTrackstersRecovery", "ticlSeedingGlobal"}
+EXPECTED_REMOVED = {"filteredLayerClustersCLUE3DHigh", "ticlTrackstersCLUE3DHigh"}
 # label -> (v5 producer, v6 producer)
 EXPECTED_REPLACED = {"ticlCandidate": ("TICLCandidateProducer", "TICLCandidateArbitrationProducer")}
 
 # The v6-only modules run with their module defaults, except these parameters (subtrees end with a dot).
 EXPECTED_FROM_DEFAULT = {
-    # Without Recovery, the tracks claim no unlinked tracksters.
     "ticlTracksterInterpretations": ("tracksters_collections", "egamma_tracksters_collections",
-                                     "claimUnlinkedTracksters",
                                      "pluginInferenceAlgoTracksterInferenceByPFN.", "pidInferenceAlgo",
                                      "pluginInferenceAlgoTracksterInferenceByShowerShape."),
     # The photon candidate type from the e/gamma supercluster score.
     "ticlCandidate": ("photonMinScore", "photonScoreMinPt", "eGammaScore", "eGammaTracksters"),
     "ticlCLUEstering": (),
     "ticlSoATracksters": (),
-    "ticlTrackstersCLUEstering": (),
+    # The shower-shape PID and the PID cut of CLUE3DHigh in v6, on the host.
+    "ticlTrackstersCLUEstering": ("doPidCut", "cutHadProb", "inferenceAlgo",
+                                  "pluginInferenceAlgoTracksterInferenceByCNN.",
+                                  "pluginInferenceAlgoTracksterInferenceByShowerShape."),
 }
 CFI = {
     "TICLInterpretationProducer": ("RecoTICL.Interpretation.ticlInterpretationProducer_cfi",
