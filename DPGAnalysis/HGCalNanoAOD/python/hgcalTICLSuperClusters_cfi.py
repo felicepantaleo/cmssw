@@ -31,3 +31,7 @@ ticlSuperClustersTable = cms.EDProducer(
                          doc="SuperCluster position phi"),
     ),
 )
+
+# TICLv6: the HGCAL superclusters are the TICL e/gamma superclusters.
+from Configuration.ProcessModifiers.ticl_v6_cff import ticl_v6
+ticl_v6.toModify(ticlSuperClustersTable, src = "ticlEGammaSuperClusters")

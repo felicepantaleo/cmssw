@@ -23,6 +23,7 @@ class Target:
     layer_tile_label: str
     links_label: str
     supercluster_dnn_label: str
+    interpretations_label: str
     candidate_label: str
     mtd_label: str
     pf_label: str
@@ -35,6 +36,11 @@ class Target:
     barrel_tile_tag: Optional[object] = None
     # label of the barrel TICLLayerTile producer (created for barrel iterations)
     barrel_tile_label: str = "ticlLayerTileBarrel"
+    # inputs from outside TICL: tracks, muons, GSF tracks (None: not used) and MTD timing (None: not used)
+    tracks_label: str = "generalTracks"
+    muons_label: str = "muons1stStep"
+    gsf_tracks_label: Optional[str] = "electronGsfTracks"
+    timing_label: Optional[str] = "mtdSoA"
 
     # -- group naming ------------------------------------------------------ #
 
@@ -78,6 +84,7 @@ OFFLINE = Target(
     layer_tile_label="ticlLayerTileProducer",
     links_label="ticlTracksterLinks",
     supercluster_dnn_label="ticlTracksterLinksSuperclusteringDNN",
+    interpretations_label="ticlTracksterInterpretations",
     candidate_label="ticlCandidate",
     mtd_label="mtdSoA",
     pf_label="pfTICL",
@@ -108,6 +115,7 @@ HLT = Target(
     layer_tile_label="hltTiclLayerTileProducer",
     links_label="hltTiclTracksterLinks",
     supercluster_dnn_label="hltTiclTracksterLinksSuperclusteringDNN",
+    interpretations_label="hltTiclTracksterInterpretations",
     candidate_label="hltTiclCandidate",
     mtd_label="hltMtdSoA",
     pf_label="hltPfTICL",
@@ -127,6 +135,10 @@ HLT = Target(
     merged_lc="hltMergeLayerClusters",
     barrel_tile_tag=cms.InputTag("hltTiclLayerTileBarrelProducer", "ticlLayerTilesBarrel"),
     barrel_tile_label="hltTiclLayerTileBarrelProducer",
+    tracks_label="hltGeneralTracks",
+    muons_label="hltPhase2L3Muons",
+    gsf_tracks_label=None,
+    timing_label=None,
 )
 
 

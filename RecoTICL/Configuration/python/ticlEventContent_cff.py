@@ -12,6 +12,7 @@ modules: the sim-truth tracksters and the sim/reco associations (produced by the
 validation/sim chain) and the legacy HFNose tracksters (not part of the v5
 graph).  ``TICL_RECO/AOD/FEVT/FEVTHLT`` keep the same names and nesting as the
 historical ``RecoHGCal_EventContent_cff`` so existing imports are unaffected.
+``TICL_MINIAOD`` is empty without the ticl_v6 modifier.
 """
 
 import FWCore.ParameterSet.Config as cms
@@ -82,3 +83,27 @@ TICL_FEVTHLT = cms.PSet(
     outputCommands = cms.untracked.vstring(_hltTICL)
 )
 TICL_FEVTHLT.outputCommands.extend(TICL_FEVT.outputCommands)
+
+# MiniAOD content
+TICL_MINIAOD = cms.PSet(
+    outputCommands = cms.untracked.vstring()
+)
+
+# TICLv6: the interpretation stage holds the final tracksters and the assignment maps.
+from Configuration.ProcessModifiers.ticl_v6_cff import ticl_v6
+_v6Reco = [k for k in keep_statements(presets.v6(), RECO) if k not in _recoTICL]
+# The muon decisions of the candidates serve pfTICL in the same job; the muons they point to are not in RECO.
+_v6Reco += ['drop *_ticlCandidate_muons_*', 'drop *_ticlCandidate_muonTrackType_*']
+# The species and type probabilities serve the candidates in the same job; the candidates hold the type probabilities.
+_v6Reco += ['drop *_ticlTracksterInterpretations_%s_*' % _instance
+            for _instance in ('tracksterSpecies', 'tracksterSpeciesProbabilities', 'trackTypeProbabilities',
+                              'neutralSpeciesProbabilities')]
+# The HGCAL e/gamma superclusters of the electrons and photons and their clusters.
+_v6AOD = ['keep recoSuperClusters_ticlEGammaSuperClusters__*', 'keep recoCaloClusters_ticlEGammaSuperClusters_clusters_*']
+ticl_v6.toModify(TICL_AOD, lambda b: b.outputCommands.extend(_v6AOD))
+_v6Reco += _v6AOD
+for _block in (TICL_RECO, TICL_FEVT, TICL_FEVTHLT):
+    ticl_v6.toModify(_block, lambda b: b.outputCommands.extend(_v6Reco))
+# MiniAOD keeps the candidates and the hypotheses with their conflicts, so that an analysis can solve the event again.
+ticl_v6.toModify(TICL_MINIAOD, outputCommands = ['keep TICLCandidates_ticlCandidate__*',
+                                                 'keep ticlInterpretationHypotheses_ticlTracksterInterpretations_hypotheses_*'])

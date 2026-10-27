@@ -24,6 +24,8 @@ from Configuration.ProcessModifiers.ticlv5_TrackLinkingGNN_cff import ticlv5_Tra
 
 from Configuration.ProcessModifiers.ticl_superclustering_mustache_ticl_cff import ticl_superclustering_mustache_ticl
 from Configuration.ProcessModifiers.ticl_barrel_cff import ticl_barrel
+from Configuration.ProcessModifiers.ticl_v6_cff import ticl_v6
+from RecoParticleFlow.PFClusterProducer.particleFlowClusterHGC_cfi import particleFlowClusterHGCal as _particleFlowClusterHGCal
 
 ticlLayerTileTask = cms.Task(ticlLayerTileProducer)
 
@@ -153,6 +155,12 @@ ticl_superclustering_mustache_ticl.toModify(
     )
 )
 
+# TICLv6: the final tracksters come from the interpretation stage; ticlCandidate holds the candidates only.
+ticl_v6.toModify(
+    ticlIterLabelsPSet,
+    labels=["ticlTracksterInterpretations" if label == "ticlCandidate" else label for label in ticlIterLabelsPSet.labels]
+)
+
 associatorsInstances = []
 for labelts in ticlIterLabelsPSet.labels:
     for labelsts in ["ticlSimTracksters", "ticlSimTrackstersfromCPs"]:
@@ -210,3 +218,49 @@ iterBarrelTICLTask = cms.Task(ticlLayerTileBarrel
 
 ticl_barrel.toModify(mergeTICLTask, func=lambda x : x.add(ticlLayerTileBarrelTask, iterBarrelTICLTask))
 
+
+# TICLv6: the modules of the pyTICL preset v6, with the interpretation stage before the candidates.
+from RecoTICL.Configuration.presets import v6 as _v6
+_ticlV6Modules = _v6().assemble().modules
+ticlTracksterInterpretations = _ticlV6Modules["ticlTracksterInterpretations"]
+ticl_v6.toReplaceWith(ticlTracksterLinks, _ticlV6Modules["ticlTracksterLinks"])
+ticl_v6.toReplaceWith(ticlTracksterLinksSuperclusteringDNN, _ticlV6Modules["ticlTracksterLinksSuperclusteringDNN"])
+ticl_v6.toReplaceWith(ticlCandidate, _ticlV6Modules["ticlCandidate"])
+ticl_v6.toModify(ticlCandidateTask, lambda t: t.add(ticlTracksterInterpretations))
+# TICLv6 candidates carry the muon kinematics; pfTICL copies their muon decisions.
+ticl_v6.toReplaceWith(pfTICL, _ticlV6Modules["pfTICL"])
+# TICLv6: the HGCAL e/gamma superclusters are the final tracksters that the interpretation types as electrons or EM
+# neutrals, one supercluster each; no HGCAL PF clusters and no HGCAL PF superclusters are made.
+from RecoTICL.ParticleFlow.ticlEGammaTrackstersProducer_cfi import ticlEGammaTrackstersProducer as _ticlEGammaTrackstersProducer
+from RecoTICL.ParticleFlow.ticlEGammaSuperClustersProducer_cfi import ticlEGammaSuperClustersProducer as _ticlEGammaSuperClustersProducer
+from RecoEcal.EgammaClusterProducers.particleFlowSuperClusteringSequence_cff import particleFlowSuperClusterHGCal as _particleFlowSuperClusterHGCal
+from RecoEcal.EgammaClusterProducers.particleFlowSuperClusteringSequence_cff import particleFlowSuperClusteringTask as _particleFlowSuperClusteringTask
+from RecoLocalCalo.Configuration.hgcalLocalReco_cff import hgcalLocalRecoTask as _hgcalLocalRecoTask
+from RecoEgamma.EgammaPhotonProducers.photonCore_cfi import photonCoreHGC as _photonCoreHGC
+ticlEGammaTracksters = _ticlEGammaTrackstersProducer.clone()
+# A supercluster needs a score of at least 0.5 below Et 10 GeV and 0.9 above it. The type score of each e/gamma
+# trackster is the input of the photon candidate type in ticlCandidate.
+ticlEGammaSuperClusters = _ticlEGammaSuperClustersProducer.clone(
+    scoreModel="RecoTICL/ParticleFlow/data/egammaSuperClusters/score_v1.onnx",
+    minScore=0.5,
+    minScoreHighEt=0.9,
+    typeScoreModel="RecoTICL/ParticleFlow/data/egammaSuperClusters/type_v1.onnx")
+ticl_v6.toReplaceWith(_hgcalLocalRecoTask, _hgcalLocalRecoTask.copyAndExclude([_particleFlowClusterHGCal]))
+ticl_v6.toReplaceWith(_particleFlowSuperClusteringTask,
+                      _particleFlowSuperClusteringTask.copyAndExclude([_particleFlowSuperClusterHGCal]))
+ticl_v6.toModify(_photonCoreHGC, scIslandEndcapProducer="ticlEGammaSuperClusters")
+# Electron seeds of the HGCAL superclusters: from the KF track of a TICL electron, and from the supercluster only when
+# no trackster is typed electron and a track has its Electron hypothesis on one.
+from RecoTICL.ParticleFlow.ticlElectronSuperClustersProducer_cfi import ticlElectronSuperClustersProducer as _ticlElectronSuperClustersProducer
+from RecoTICL.ParticleFlow.ticlElectronSeedsProducer_cfi import ticlElectronSeedsProducer as _ticlElectronSeedsProducer
+from RecoEgamma.EgammaElectronProducers.ecalDrivenElectronSeeds_cff import ecalDrivenElectronSeeds as _ecalDrivenElectronSeeds
+from RecoParticleFlow.PFTracking.mergedElectronSeeds_cfi import electronMergedSeeds as _electronMergedSeeds
+ticlElectronSuperClusters = _ticlElectronSuperClustersProducer.clone()
+ticlElectronSeeds = _ticlElectronSeedsProducer.clone()
+ticl_v6.toModify(ticlPFTask, lambda t: t.add(ticlEGammaTracksters, ticlEGammaSuperClusters, ticlElectronSuperClusters,
+                                              ticlElectronSeeds))
+ticl_v6.toModify(_ecalDrivenElectronSeeds, endcapSuperClusters="ticlElectronSuperClusters")
+ticl_v6.toModify(_electronMergedSeeds, EcalBasedSeeds="ticlElectronSeeds")
+# With the Mustache superclustering, the interpretation stage reads the Mustache superclusters.
+(ticl_v6 & ticl_superclustering_mustache_ticl).toModify(
+    ticlTracksterInterpretations, egamma_tracksters_collections=["ticlTracksterLinksSuperclusteringMustache"])
