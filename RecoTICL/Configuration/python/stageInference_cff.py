@@ -7,25 +7,23 @@ import math
 import FWCore.ParameterSet.Config as cms
 
 
-def _execution(*, backend, deviceIndex, batchSize, convertToFP16, warmupIterations):
+def _execution(*, backend, batchSize, convertToFP16, warmupIterations):
     if backend not in ("serial_sync", "cuda_async", "rocm_async"):
         raise ValueError("backend must be serial_sync, cuda_async or rocm_async")
-    if type(deviceIndex) is not int or not 0 <= deviceIndex <= 2147483647:
-        raise ValueError("deviceIndex must be a non-negative int")
     if type(batchSize) is not int or not 0 < batchSize <= 2147483647:
         raise ValueError("batchSize must be a positive int fitting the SoA size type")
     if type(convertToFP16) is not bool:
         raise TypeError("convertToFP16 must be bool")
     if type(warmupIterations) is not int or not 0 <= warmupIterations <= 2147483647:
         raise ValueError("warmupIterations must be a non-negative int")
-    return cms.PSet(backend=cms.string(backend), deviceIndex=cms.uint32(deviceIndex),
+    return cms.PSet(backend=cms.string(backend),
                     batchSize=cms.uint32(batchSize), convertToFP16=cms.bool(convertToFP16),
                     warmupIterations=cms.int32(warmupIterations))
 
 
 def makeCandidateInference(*, model="PFN", doPID=True, doRegression=True,
                            pidModel=None, regressionModel=None, minClusterEnergy=2.5,
-                           backend="serial_sync", deviceIndex=0, batchSize=64,
+                           backend="serial_sync", batchSize=64,
                            convertToFP16=False, warmupIterations=0):
     """Return pluginInferenceAlgoPyTorchAlpaka; model paths are candidate-stage specific."""
     if model not in ("CNN", "DNN", "PFN"):
@@ -41,7 +39,7 @@ def makeCandidateInference(*, model="PFN", doPID=True, doRegression=True,
                        if regressionModel is None else regressionModel)
     if (doPID and not pidModel) or (doRegression and not regressionModel):
         raise ValueError("Every enabled task requires a nonempty model path")
-    config = _execution(backend=backend, deviceIndex=deviceIndex, batchSize=batchSize,
+    config = _execution(backend=backend, batchSize=batchSize,
                         convertToFP16=convertToFP16, warmupIterations=warmupIterations)
     config.modelFamily = cms.string(model)
     config.algo_verbosity = cms.int32(0)

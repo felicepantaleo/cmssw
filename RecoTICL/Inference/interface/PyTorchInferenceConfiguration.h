@@ -15,7 +15,6 @@ namespace ticl {
   inline edm::ParameterSetDescription pytorchInferenceDescription() {
     edm::ParameterSetDescription desc;
     desc.add<std::string>("backend", "serial_sync");
-    desc.add<unsigned int>("deviceIndex", 0);
     desc.add<unsigned int>("batchSize", 64);
     desc.add<bool>("convertToFP16", false);
     desc.add<unsigned int>("warmupIterations", 0);
