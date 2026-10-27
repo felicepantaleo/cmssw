@@ -1,7 +1,5 @@
 import FWCore.ParameterSet.Config as cms
 
-from RecoLocalCalo.HGCalRecProducers.hgcalMergeLayerClusters_cfi import hgcalMergeLayerClusters as hgcalMergeLayerClusters_
-
 from RecoLocalCalo.HGCalRecProducers.HGCalRecHit_cfi import HGCalRecHit
 
 from RecoLocalCalo.HGCalRecProducers.HGCalUncalibRecHit_cfi import HGCalUncalibRecHit
@@ -27,6 +25,7 @@ from RecoTICL.LayerClustering.hgCalCLUEsteringLayerClustersProducer_cfi import h
 from RecoTICL.LayerClustering.hgCalSoALayerClustersProducer_cfi import hgCalSoALayerClustersProducer
 from RecoTICL.LayerClustering.hgCalLayerClustersFromSoAProducer_cfi import hgCalLayerClustersFromSoAProducer
 from RecoTICL.LayerClustering.hgCalSoAMergeLayerClustersProducer_cfi import hgCalSoAMergeLayerClustersProducer
+from RecoTICL.LayerClustering.hgCalMergedLayerClustersFromSoAProducer_cfi import hgCalMergedLayerClustersFromSoAProducer
 
 # EE/FH/BH share the same silicon energy-threshold constants. The scintillator
 # (BH) rechits have no silicon thickness: the producer gives them the last
@@ -142,12 +141,17 @@ hgcalLayerClustersHFNoseAlpakaTask = cms.Task(
     hgcalSoARecHitsHFNose, hgcalCLUEsteringHFNose, hgcalSoALayerClustersHFNose,
 )
 
-hgcalMergeLayerClusters = hgcalMergeLayerClusters_.clone(
-    layerClusters = ['hgcalLayerClusters' + component for component in _mergedComponents],
-    time_layerclusters = ['hgcalLayerClusters' + component + ':timeLayerCluster' for component in _mergedComponents]
+# The legacy layer clusters of the HGCAL components, converted from their SoA layer clusters into one merged collection
+# in one step (same order as hgcalSoAMergeLayerClusters, so that both merged collections index the same layer clusters)
+hgcalMergeLayerClusters = hgCalMergedLayerClustersFromSoAProducer.clone(
+    layerClustersSoA = ['hgcalSoALayerClusters' + component for component in _mergedComponents],
+    hgcalRecHitsSoA = ['hgcalSoARecHits' + component for component in _mergedComponents],
+    hgcalRecHitsLayerClustersSoA = ['hgcalCLUEstering' + component for component in _mergedComponents],
+    detectors = ['EE', 'FH', 'BH']
 )
 
-layerClusters = cms.VInputTag('hgcalLayerClustersEE', 'hgcalLayerClustersHSi', 'hgcalLayerClustersHSci', 'barrelLayerClustersEB', 'barrelLayerClustersHB')
-time_layerClusters = cms.VInputTag('hgcalLayerClustersEE:timeLayerCluster', 'hgcalLayerClustersHSi:timeLayerCluster', 'hgcalLayerClustersHSci:timeLayerCluster', 'barrelLayerClustersEB:timeLayerCluster', 'barrelLayerClustersHB:timeLayerCluster')
+# with the barrel, its layer clusters come after the HGCAL ones
 from Configuration.ProcessModifiers.ticl_barrel_cff import ticl_barrel
-ticl_barrel.toModify(hgcalMergeLayerClusters, layerClusters = layerClusters, time_layerclusters = time_layerClusters)
+ticl_barrel.toModify(hgcalMergeLayerClusters,
+    extraLayerClusters = ['barrelLayerClustersEB', 'barrelLayerClustersHB'],
+    extraTimeLayerClusters = ['barrelLayerClustersEB:timeLayerCluster', 'barrelLayerClustersHB:timeLayerCluster'])
