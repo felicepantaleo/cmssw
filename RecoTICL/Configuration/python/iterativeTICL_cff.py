@@ -239,8 +239,6 @@ ticl_v6.toModify(filteredLayerClustersRecovery,
 ticl_v6.toModify(ticlTrackstersRecovery,
                  original_mask=_ticlV6Modules["ticlTrackstersRecovery"].original_mask,
                  pluginPatternRecognitionByRecovery=_ticlV6Modules["ticlTrackstersRecovery"].pluginPatternRecognitionByRecovery)
-ticl_v6.toModify(ticlEGammaSuperClusterProducer,
-                 ticlTrackstersEM=_ticlV6Modules["ticlEGammaSuperClusterProducer"].ticlTrackstersEM)
 (ticl_v6 & ticl_superclustering_mustache_ticl).toModify(
     ticlTracksterLinksSuperclusteringMustache,
     tracksters_collections=_ticlV6Modules["ticlTracksterLinksSuperclusteringDNN"].tracksters_collections)
