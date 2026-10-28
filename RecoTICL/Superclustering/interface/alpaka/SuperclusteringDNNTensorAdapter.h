@@ -3,13 +3,13 @@
 
 #include "FWCore/Utilities/interface/Exception.h"
 #include "HeterogeneousCore/AlpakaInterface/interface/config.h"
-#include "PhysicsTools/PyTorchAlpaka/interface/TensorCollection.h"
+#include "PhysicsTools/PyTorchAlpaka/interface/BatchedTensorCollection.h"
 #include "RecoTICL/Superclustering/interface/SuperclusteringDNNSoA.h"
 #include "RecoTICL/Superclustering/interface/alpaka/SuperclusteringDNNDeviceCollections.h"
 
 namespace ALPAKA_ACCELERATOR_NAMESPACE {
 
-  using SuperclusteringTensors = cms::torch::alpakatools::TensorCollection<Queue>;
+  using SuperclusteringTensors = cms::torch::alpakatools::BatchedTensorCollection<Queue>;
 
   // Maps the pair-feature and pair-score SoA columns onto the model tensors.
   // Same role as TracksterInferenceTensorAdapter in the CNN PID port; the inference runner deals only with this.
@@ -24,12 +24,12 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     template <typename Records>
     static void registerInputs(SuperclusteringTensors& tensors,
                                Records const& records,
-                               int batchId,
+                               uint32_t batchSize,
                                unsigned int featureCount) {
       switch (featureCount) {
         case 18:  // v3
-          tensors.add<InputSoA>("input",
-                                batchId,
+          tensors.addBatched<InputSoA>("input",
+                                batchSize,
                                 records.deltaEtaBaryc(),
                                 records.deltaPhiBaryc(),
                                 records.multiEn(),
@@ -50,8 +50,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                                 records.modDeltaTime());
           break;
         case 17:  // v2: the first 17 columns
-          tensors.add<InputSoA>("input",
-                                batchId,
+          tensors.addBatched<InputSoA>("input",
+                                batchSize,
                                 records.deltaEtaBaryc(),
                                 records.deltaPhiBaryc(),
                                 records.multiEn(),
@@ -71,8 +71,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                                 records.explVarRatio());
           break;
         case 9:  // v1: the first 9 columns
-          tensors.add<InputSoA>("input",
-                                batchId,
+          tensors.addBatched<InputSoA>("input",
+                                batchSize,
                                 records.deltaEtaBaryc(),
                                 records.deltaPhiBaryc(),
                                 records.multiEn(),
@@ -90,8 +90,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     }
 
     template <typename Records>
-    static void registerOutputs(SuperclusteringTensors& tensors, Records const& records, int batchId) {
-      tensors.add<ModelOutputSoA>("output", batchId, records.score());
+    static void registerOutputs(SuperclusteringTensors& tensors, Records const& records, uint32_t batchSize) {
+      tensors.addBatched<ModelOutputSoA>("output", batchSize, records.score());
     }
   };
 

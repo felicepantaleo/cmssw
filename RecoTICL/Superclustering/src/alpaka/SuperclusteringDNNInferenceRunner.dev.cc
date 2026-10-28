@@ -37,10 +37,9 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     }
     // A full batch of zeros: the first passes on a device load the model and initialise PyTorch's kernels, which
     // would otherwise land in the first events.
-    const auto rows = static_cast<int32_t>(batchSize_);
-    InputDevice features(queue, rows);
+    InputDevice features(queue, batchSize_);
     features.zeroInitialise(queue);
-    ModelOutputDevice scores(queue, rows);
+    ModelOutputDevice scores(queue, batchSize_);
     for (uint32_t i = 0; i < warmupIterations_; ++i) {
       runInto(queue, features, scores);
     }
@@ -58,8 +57,6 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       return;
     }
 
-    const int batchSize = static_cast<int>(batchSize_);
-    const int nBatches = (total + batchSize - 1) / batchSize;
     const auto featureRecords = features.const_view().records();
     auto scoreRecords = scores.view().records();
     if (cms::torch::alpakatools::getDevice(queue) != model_.device()) {
@@ -67,12 +64,10 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       model_.to(queue, dtype_);
     }
 
-    for (int i = 0; i < nBatches; ++i) {
-      SuperclusteringTensors inputs(batchSize, total), outputs(batchSize, total);
-      Adapter::registerInputs(inputs, featureRecords, i, featureCount_);
-      Adapter::registerOutputs(outputs, scoreRecords, i);
-      model_.forward(queue, inputs, outputs, dtype_);
-    }
+    SuperclusteringTensors inputs, outputs;
+    Adapter::registerInputs(inputs, featureRecords, batchSize_, featureCount_);
+    Adapter::registerOutputs(outputs, scoreRecords, batchSize_);
+    model_.forward(queue, inputs, outputs, dtype_);
   }
 
 }  // namespace ALPAKA_ACCELERATOR_NAMESPACE
