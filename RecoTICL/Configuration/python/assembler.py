@@ -176,6 +176,41 @@ def _build_supercluster_dnn(source_label, overrides, target):
     return base.clone(**ov)
 
 
+# The cuts that both the device preselection of the pairs and their association on the host apply.
+_SHARED_SUPERCLUSTERING_CUTS = ("seedPtThreshold", "filterByTracksterPID", "tracksterPIDCategoriesToFilter")
+
+
+def _build_supercluster_dnn_heterogeneous(source_label, sc, target):
+    """The superclustering DNN on the device: the pairs of the device tracksters and their features, the DNN scores,
+    and the linking module that associates them on the host, from superclusteringDNNHeterogeneous_cff."""
+    from RecoTICL.Superclustering.superclusteringDNNHeterogeneous_cff import ticlTracksterLinksSuperclusteringDNN
+    features = _cfi_default("SuperclusteringDNNPairFeaturesProducer@alpaka").clone(
+        tracksters=cms.InputTag(target.soa_tracksters_label), **sc.features)
+    inference = _cfi_default("SuperclusteringDNNInferenceProducer@alpaka").clone(
+        features=cms.InputTag(target.supercluster_pair_features_label, "features"), **sc.inference)
+    ov = dict(tracksters_collections=[cms.InputTag(source_label)])
+    if target.lc_tag() is not None:
+        ov["layer_clusters"] = target.lc_tag()
+        ov["layer_clustersTime"] = target.lc_time_tag()
+        ov["original_masks"] = cms.VInputTag(target.initial_mask_str())
+    ov.update(sc.overrides or {})
+    linking = ticlTracksterLinksSuperclusteringDNN.clone(**ov)
+    linking.linkingPSet.pairs = cms.InputTag(target.supercluster_pair_features_label)
+    linking.linkingPSet.scores = cms.InputTag(target.supercluster_inference_label)
+    # A cut the linking PSet omits takes its plugin default, which is the default of the pair-features module.
+    default = _cfi_default("SuperclusteringDNNPairFeaturesProducer@alpaka")
+    for name in _SHARED_SUPERCLUSTERING_CUTS:
+        host = getattr(linking.linkingPSet, name, getattr(default, name)).value()
+        device = getattr(features, name).value()
+        if host != device:
+            raise PyTICLError("heterogeneous superclustering: %s is %r in the pair features and %r in the linking"
+                              % (name, device, host))
+    if features.dnnInputsVersion.value() != inference.dnnInputsVersion.value():
+        raise PyTICLError("heterogeneous superclustering: the pair features are DNN inputs %s, the inference %s"
+                          % (features.dnnInputsVersion.value(), inference.dnnInputsVersion.value()))
+    return features, inference, linking
+
+
 def _external_inputs(target, tracks="tracks", muons="muons"):
     """The inputs from outside TICL of a candidate-stage module: tracks, muons and MTD timing."""
     ov = {tracks: cms.InputTag(target.tracks_label), muons: cms.InputTag(target.muons_label)}
@@ -360,9 +395,21 @@ def assemble(cfg):
     if cfg.superclustering_spec:
         sc = cfg.superclustering_spec
         src = target.trackster_label(sc.source)
-        m[target.supercluster_dnn_label] = _build_supercluster_dnn(src, sc.overrides, target)
-        mkgroup(target.gname("superclustering"),
-                target.supercluster_dnn_label)
+        sc_labels = [target.supercluster_dnn_label]
+        if sc.kind == "DNNHeterogeneous":
+            # the pairs index the device tracksters of a CLUEstering iteration
+            source = cfg._by_name.get(sc.source)
+            if source is None or source.pattern_type != "CLUEstering":
+                raise PyTICLError("heterogeneous superclustering: the source %r is not a CLUEstering iteration"
+                                  % sc.source)
+            features, inference, linking = _build_supercluster_dnn_heterogeneous(src, sc, target)
+            m[target.supercluster_pair_features_label] = features
+            m[target.supercluster_inference_label] = inference
+            m[target.supercluster_dnn_label] = linking
+            sc_labels = [target.supercluster_pair_features_label, target.supercluster_inference_label] + sc_labels
+        else:
+            m[target.supercluster_dnn_label] = _build_supercluster_dnn(src, sc.overrides, target)
+        mkgroup(target.gname("superclustering"), *sc_labels)
 
 
     if target.links_label in m:

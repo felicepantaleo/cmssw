@@ -258,6 +258,25 @@ def supercluster_dnn_defaults(pid_threshold=None, emission_pid_threshold=None, p
     return dict(linkingPSet=pset)
 
 
+def supercluster_dnn_heterogeneous_defaults(pid_threshold=None, emission_pid_threshold=None, pid_categories=None):
+    """:func:`supercluster_dnn_defaults` for ``superclustering_dnn_heterogeneous``: the seed PID cut is applied on the
+    device, with the pairs; the categories go to both the device and the host modules."""
+    features = {}
+    pset = cms.PSet(
+        type=cms.string("SuperClusteringDNNHeterogeneous"),
+        algo_verbosity=cms.int32(0),
+        nnWorkingPoint=cms.float(0.57247),
+    )
+    if pid_threshold is not None:
+        features["PIDThreshold"] = cms.float(pid_threshold)
+    if emission_pid_threshold is not None:
+        pset.emissionPIDThreshold = cms.float(emission_pid_threshold)
+    if pid_categories is not None:
+        features["tracksterPIDCategoriesToFilter"] = cms.vint32(*pid_categories)
+        pset.tracksterPIDCategoriesToFilter = cms.vint32(*pid_categories)
+    return dict(features=features, linkingPSet=pset)
+
+
 def candidate_defaults():
     """Standard ``ticlCandidate`` overrides (PFN inference + regression/PID)."""
     return dict(
@@ -340,9 +359,11 @@ def v6(name="v6", target="offline"):
            .iteration("Recovery").preset().masks_from("CLUEstering").pattern_recovery(algo_verbosity=0, minEnergy=0.05)
            .links(["CLUEstering", "Recovery"], **cornetto_links_defaults())
            # photon, electron AND neutral_pion: a pi0 is an electromagnetic object.
-           .superclustering_dnn(source="CLUEstering",
-                                **supercluster_dnn_defaults(pid_threshold=0.1, emission_pid_threshold=0.3,
-                                                            pid_categories=(0, 1, 3)))
+           # on the device, with PyTorch (superclusteringDNNHeterogeneous_cff)
+           .superclustering_dnn_heterogeneous(source="CLUEstering",
+                                              **supercluster_dnn_heterogeneous_defaults(
+                                                  pid_threshold=0.1, emission_pid_threshold=0.3,
+                                                  pid_categories=(0, 1, 3)))
            .interpretations(**interp)
            .candidate()
            # The candidate producer sets the muon kinematics; pfTICL copies its muon decisions.
