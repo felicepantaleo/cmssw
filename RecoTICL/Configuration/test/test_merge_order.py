@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The layer clusters merged on the device are in the order of the merged layer clusters of the host, offline and at
-HLT: a CLUEstering trackster indexes its layer clusters in the device merge, and the host collections must give the
-same layer clusters at the same indices."""
+HLT: a CLUEstering trackster indexes its layer clusters in the device merge, so the host merge reads the same SoA
+collections in the same order."""
 
 import sys
 
@@ -30,13 +30,10 @@ def _label(tag):
 
 
 def check(name, get, host_merge, device_merge):
-    host = [_label(tag) for tag in get(host_merge).layerClusters]
+    host = [_label(tag) for tag in get(host_merge).layerClustersSoA]
     device = [_label(tag) for tag in get(device_merge).hgcalLayerClustersSoA]
-    # each host collection is the conversion of the device collection at the same position
-    converted = [_label(get(label).src) for label in host]
-    if converted != device:
-        print("FAIL [%s]: %s merges %s, converted from %s; %s merges %s"
-              % (name, host_merge, host, converted, device_merge, device))
+    if host != device:
+        print("FAIL [%s]: %s merges %s; %s merges %s" % (name, host_merge, host, device_merge, device))
         return 1
     print("OK [%s]: %s and %s merge %s in the same order" % (name, host_merge, device_merge, device))
     return 0
