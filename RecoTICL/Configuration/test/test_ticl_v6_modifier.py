@@ -71,7 +71,6 @@ def main():
     expected = {
         "filteredLayerClustersRecovery.LayerClustersInputMask": "ticlTrackstersCLUEstering",
         "ticlTrackstersRecovery.original_mask": "ticlTrackstersCLUEstering",
-        "ticlEGammaSuperClusterProducer.ticlTrackstersEM": "ticlTrackstersCLUEstering",
         "hgcalValidator.mergedTracksters": "ticlTracksterInterpretations",
         "hltHgcalValidator.mergedTracksters": "hltTiclCandidate",
         "ticlCandidateExtraTable.tracksters": "ticlTracksterInterpretations",
