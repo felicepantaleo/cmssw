@@ -246,7 +246,13 @@ ticl_v6.toModify(ticlTrackstersRecovery,
     ticlTracksterLinksSuperclusteringMustache,
     tracksters_collections=_ticlV6Modules["ticlTracksterLinksSuperclusteringDNN"].tracksters_collections)
 ticl_v6.toReplaceWith(ticlTracksterLinks, _ticlV6Modules["ticlTracksterLinks"])
+# TICLv6: the superclustering DNN runs on the device (superclusteringDNNHeterogeneous_cff): the pairs of the device
+# tracksters and their features, the DNN scores, then the linking module associates them on the host.
+ticlSuperclusteringDNNPairFeatures = _ticlV6Modules["ticlSuperclusteringDNNPairFeatures"]
+ticlSuperclusteringDNNInference = _ticlV6Modules["ticlSuperclusteringDNNInference"]
 ticl_v6.toReplaceWith(ticlTracksterLinksSuperclusteringDNN, _ticlV6Modules["ticlTracksterLinksSuperclusteringDNN"])
+(ticl_v6 & ~ticl_superclustering_mustache_ticl).toModify(
+    ticlSuperclusteringTask, lambda t: t.add(ticlSuperclusteringDNNPairFeatures, ticlSuperclusteringDNNInference))
 ticl_v6.toReplaceWith(ticlCandidate, _ticlV6Modules["ticlCandidate"])
 ticl_v6.toModify(ticlCandidateTask, lambda t: t.add(ticlTracksterInterpretations))
 # TICLv6 candidates carry the muon kinematics; pfTICL copies their muon decisions.

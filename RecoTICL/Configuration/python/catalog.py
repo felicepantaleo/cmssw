@@ -99,6 +99,9 @@ T_MASK_SOA = "ticl::LayerClusterMaskHostCollection"
 T_TRACKSTER_REFS = "ticl::TracksterCollectionRefs"
 T_PID_SOA = "ticl::TracksterPidHostCollection"
 T_LINKS_SOA = "ticl::TracksterLinksHostCollection"
+T_SC_PAIRS_SOA = "ticl::SuperclusteringDNNPairsHost"
+T_SC_FEATURES_SOA = "ticl::SuperclusteringDNNPairFeaturesHost"
+T_SC_SCORES_SOA = "ticl::SuperclusteringDNNPairScoresHost"
 
 
 # --------------------------------------------------------------------------- #
@@ -315,6 +318,32 @@ _SPECS = [
         ),
         backends=("cpu", "gpu"),
     ),
+    # The heterogeneous superclustering DNN: the (seed, candidate) pairs of the device tracksters and their features,
+    # and the DNN score of each pair. Their defaults are the modules of superclusteringDNNHeterogeneous_cff, which
+    # also defines the TracksterLinksProducer that associates the pairs.
+    ModuleSpec(
+        key="SuperclusteringDNNPairFeaturesProducer@alpaka",
+        cfi_module="RecoTICL.Superclustering.superclusteringDNNHeterogeneous_cff",
+        cfi_symbol="ticlSuperclusteringDNNPairFeatures",
+        produces=(
+            Product(T_SC_PAIRS_SOA),
+            Product(T_SC_FEATURES_SOA, "fixed:features"),
+        ),
+        consumes=(
+            Consumed("tracksters", T_TRACKSTERS_SOA),
+        ),
+        backends=("cpu", "gpu"),
+    ),
+    ModuleSpec(
+        key="SuperclusteringDNNInferenceProducer@alpaka",
+        cfi_module="RecoTICL.Superclustering.superclusteringDNNHeterogeneous_cff",
+        cfi_symbol="ticlSuperclusteringDNNInference",
+        produces=(Product(T_SC_SCORES_SOA),),
+        consumes=(
+            Consumed("features", T_SC_FEATURES_SOA),
+        ),
+        backends=("cpu", "gpu"),
+    ),
     ModuleSpec(
         key="HGCalTrackstersFromSoAProducer",
         cfi_module="RecoTICL.PatternRecognition.hgCalTrackstersFromSoAProducer_cfi",
@@ -456,6 +485,8 @@ GPU_CAPABLE = frozenset([
     "HGCalSoAMergeLayerClustersProducer",
     "HGCalCLUEsteringTrackstersProducer",
     "HGCalSoATrackstersProducer",
+    "SuperclusteringDNNPairFeaturesProducer",
+    "SuperclusteringDNNInferenceProducer",
 ])
 
 
@@ -476,7 +507,8 @@ FILTER_TYPES = frozenset(
 )
 PATTERN_TYPES = frozenset(["CLUE3D", "CA", "FastJet", "Recovery", "CLUEstering"])
 LINKING_TYPES = frozenset(
-    ["Skeletons", "Cornetto", "SuperClusteringDNN", "SuperClusteringMustache", "FastJet", "Recovery"]
+    ["Skeletons", "Cornetto", "SuperClusteringDNN", "SuperClusteringDNNHeterogeneous", "SuperClusteringMustache",
+     "FastJet", "Recovery"]
 )
 INFERENCE_TYPES = frozenset(
     ["TracksterInferenceByCNN", "TracksterInferenceByDNN", "TracksterInferenceByPFN"]
