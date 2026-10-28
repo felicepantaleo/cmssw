@@ -25,7 +25,7 @@ from RecoTICL.Configuration.catalog import (
     SEEDING_TYPES, FILTER_TYPES, PATTERN_TYPES,
 )
 from RecoTICL.Configuration.model import PyTICLError
-from RecoTICL.Configuration.assembler import trackster_label, filter_label
+from RecoTICL.Configuration.assembler import iteration_labels
 
 
 def _input_tags(value):
@@ -114,7 +114,7 @@ def validate_assembled(assembled):
     for it in cfg.iterations:
         if it.backend != GPU:
             continue
-        for lbl in (filter_label(it.name), trackster_label(it.name)):
+        for lbl in iteration_labels(it, cfg.target):
             mod = modules.get(lbl)
             if mod is None:
                 continue

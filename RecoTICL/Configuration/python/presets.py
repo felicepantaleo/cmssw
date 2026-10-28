@@ -147,10 +147,24 @@ def _preset_clue3dbarrel(it):
     )
 
 
+def _preset_cluestering(it):
+    # CLUEstering on the layer clusters merged on the device, with the defaults of the CLUEstering module. The PID runs
+    # on the host on the converted tracksters, with the CNN and the PID cut of CLUE3DHigh.
+    it.pattern_type = "CLUEstering"
+    it.pattern_params = dict()
+    it.trackster_extra = dict(
+        doPidCut=cms.bool(True),
+        cutHadProb=cms.double(999),
+        inferenceAlgo=cms.string("TracksterInferenceByCNN"),
+        pluginInferenceAlgoTracksterInferenceByCNN=_CLUE3DHIGH_CNN.clone(),
+    )
+
+
 _ITERATION_PRESETS = {
     "CLUE3DHigh": _preset_clue3dhigh,
     "Recovery": _preset_recovery,
     "CLUE3DBarrel": _preset_clue3dbarrel,
+    "CLUEstering": _preset_cluestering,
 }
 
 
@@ -315,16 +329,18 @@ def v6(name="v6", target="offline"):
     interp = dict(pluginInferenceAlgoTracksterInferenceByPFN=pfn,
                   pidInferenceAlgo=cms.string("TracksterInferenceByShowerShape"),
                   pluginInferenceAlgoTracksterInferenceByShowerShape=shower_shape_pid("mixPID_fin_v1.onnx"))
+    # The first iteration is CLUEstering on the layer clusters merged on the device.
     cfg = (TICLConfig(name, target=target)
-           .iteration("CLUE3DHigh").preset()
+           .iteration("CLUEstering").preset()
            # Identification from the shower shape and the layer-cluster profile, with the EM score on the scale of
            # the CNN of v5 in every energy bin.
            .trackster_params(inferenceAlgo=cms.string("TracksterInferenceByShowerShape"),
                              pluginInferenceAlgoTracksterInferenceByShowerShape=shower_shape_pid("mixPID_hi_v1.onnx"))
-           .iteration("Recovery").preset()
-           .links(["CLUE3DHigh", "Recovery"], **cornetto_links_defaults())
+           # Recovery makes tracksters only from the layer clusters of at least 50 MeV.
+           .iteration("Recovery").preset().masks_from("CLUEstering").pattern_recovery(algo_verbosity=0, minEnergy=0.05)
+           .links(["CLUEstering", "Recovery"], **cornetto_links_defaults())
            # photon, electron AND neutral_pion: a pi0 is an electromagnetic object.
-           .superclustering_dnn(source="CLUE3DHigh",
+           .superclustering_dnn(source="CLUEstering",
                                 **supercluster_dnn_defaults(pid_threshold=0.1, emission_pid_threshold=0.3,
                                                             pid_categories=(0, 1, 3)))
            .interpretations(**interp)
