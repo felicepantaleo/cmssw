@@ -2,6 +2,7 @@
 #include <cmath>
 #include <memory>
 #include <numbers>
+#include <vector>
 
 #include "DataFormats/Math/interface/deltaPhi.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
@@ -139,6 +140,19 @@ bool TracksterLinkingbyCornetto::compatibleIn(
   return true;
 }
 
+void TracksterLinkingbyCornetto::fillTiles(const Features& f, Tiles& tiles) {
+  std::vector<unsigned int> order;
+  order.reserve(f.energy.size());
+  for (unsigned int i = 0; i < f.energy.size(); ++i)
+    if (f.valid[i])
+      order.push_back(i);
+  std::sort(order.begin(), order.end(), [&f](unsigned int a, unsigned int b) {
+    return cornetto::ranksAbove(f.energy, a, b);
+  });
+  for (unsigned int i : order)
+    tiles[f.bary[i].z() > 0.f ? 1 : 0].fill(f.eta[i], f.phi[i], i);
+}
+
 // Each trackster searches the tile of its endcap within the window of cornetto::searchWindow, which
 // contains every anchor that can pass the cone.
 template <typename Allowed, typename Test>
@@ -159,8 +173,10 @@ std::vector<unsigned int> TracksterLinkingbyCornetto::findParentsIn(
       for (int etaBin = box[0]; etaBin <= box[1]; ++etaBin) {
         for (int phiBin = box[2]; phiBin <= box[3]; ++phiBin) {
           for (unsigned int j : tile[tile.globalBin(etaBin, phiBin % TileConstants::nPhiBins)]) {
-            const bool candidate = j != i && ranksAbove(j, i) && (best == i || ranksAbove(j, best)) && allowed(j, i);
-            if (candidate && test(j, i))
+            // The bin lists its nodes in decreasing rank, so no later node in the bin can be a better parent.
+            if (!ranksAbove(j, i) || (best != i && !ranksAbove(j, best)))
+              break;
+            if (allowed(j, i) && test(j, i))
               best = j;
           }
         }
@@ -251,9 +267,7 @@ std::vector<std::vector<unsigned int>> TracksterLinkingbyCornetto::mergeGroups(
   for (unsigned int k = 0; k < n; ++k)
     emitted[k] = g.valid[k] && emits(g.energy[k], g.energy[k] / std::cosh(g.eta[k]), g.em[k]);
   const auto tiles = std::make_unique<Tiles>();
-  for (unsigned int k = 0; k < n; ++k)
-    if (g.valid[k])
-      (*tiles)[g.bary[k].z() > 0.f ? 1 : 0].fill(g.eta[k], g.phi[k], k);
+  fillTiles(g, *tiles);
   const auto allowed = [&](unsigned int a, unsigned int b) {
     return emitted[a] && (emitted[b] ? mergeFragments_ : mergeDropped_);
   };
@@ -282,9 +296,7 @@ void TracksterLinkingbyCornetto::linkTracksters(
 
   // About 200 kB, so on the heap rather than on the stack.
   const auto tiles = std::make_unique<Tiles>();
-  for (unsigned int i = 0; i < f.energy.size(); ++i)
-    if (f.valid[i])
-      (*tiles)[f.bary[i].z() > 0.f ? 1 : 0].fill(f.eta[i], f.phi[i], i);
+  fillTiles(f, *tiles);
 
   // A trackster that is not compatible with its root leaves it.
   auto groups =

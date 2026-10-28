@@ -156,8 +156,10 @@ namespace ticl {
     bool mergeCompatible(const Features& g, unsigned int a, unsigned int b) const;
     bool timeCompatible(float tAnchor, float errAnchor, float tOther, float errOther, float path) const;
     bool emits(float energy, float pt, float em) const;
+    // Fills each valid node into the tile of its endcap in decreasing rank, so each bin lists its nodes in that order.
+    static void fillTiles(const Features& f, Tiles& tiles);
     // The parent of each node: the highest-ranked node a above it, with allowed(a, node) true, that passes
-    // test(a, node).
+    // test(a, node). The tiles come from fillTiles.
     template <typename Allowed, typename Test>
     std::vector<unsigned int> findParentsIn(
         const Features& f, const Tiles& tiles, const cornetto::Cone& cone, Allowed&& allowed, Test&& test) const;
