@@ -25,6 +25,8 @@ EXPECTED_DELTA = {
     },
     "ticlTrackstersRecovery": {
         "original_mask": ("ticlTrackstersCLUE3DHigh", "ticlTrackstersCLUEstering"),
+        # Recovery makes tracksters only from the layer clusters of at least 50 MeV.
+        "pluginPatternRecognitionByRecovery.minEnergy": (0.0, 0.05),
     },
     "ticlEGammaSuperClusterProducer": {
         "ticlTrackstersEM": ("ticlTrackstersCLUE3DHigh", "ticlTrackstersCLUEstering"),
