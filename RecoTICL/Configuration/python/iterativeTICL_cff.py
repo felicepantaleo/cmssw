@@ -233,10 +233,12 @@ ticlSoATracksters = _ticlV6Modules["ticlSoATracksters"]
 ticlTrackstersCLUEstering = _ticlV6Modules["ticlTrackstersCLUEstering"]
 ticlCLUEsteringStepTask = cms.Task(ticlCLUEstering, ticlSoATracksters, ticlTrackstersCLUEstering)
 ticl_v6.toReplaceWith(ticlIterationsTask, cms.Task(ticlCLUEsteringStepTask, ticlRecoveryStepTask))
-# Only the inputs change, so that the other modifiers of these modules still apply.
+# Only the inputs and the Recovery threshold change, so that the other modifiers of these modules still apply.
 ticl_v6.toModify(filteredLayerClustersRecovery,
                  LayerClustersInputMask=_ticlV6Modules["filteredLayerClustersRecovery"].LayerClustersInputMask)
-ticl_v6.toModify(ticlTrackstersRecovery, original_mask=_ticlV6Modules["ticlTrackstersRecovery"].original_mask)
+ticl_v6.toModify(ticlTrackstersRecovery,
+                 original_mask=_ticlV6Modules["ticlTrackstersRecovery"].original_mask,
+                 pluginPatternRecognitionByRecovery=_ticlV6Modules["ticlTrackstersRecovery"].pluginPatternRecognitionByRecovery)
 ticl_v6.toModify(ticlEGammaSuperClusterProducer,
                  ticlTrackstersEM=_ticlV6Modules["ticlEGammaSuperClusterProducer"].ticlTrackstersEM)
 (ticl_v6 & ticl_superclustering_mustache_ticl).toModify(
