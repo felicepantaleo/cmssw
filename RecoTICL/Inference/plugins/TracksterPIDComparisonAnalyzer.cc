@@ -7,7 +7,9 @@
 #include <sstream>
 #include <string>
 
-#include "DataFormats/HGCalReco/interface/TracksterHostCollection.h"
+#include <vector>
+
+#include "DataFormats/HGCalReco/interface/Trackster.h"
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/Framework/interface/EventSetup.h"
 #include "FWCore/Framework/interface/Frameworkfwd.h"
@@ -24,11 +26,8 @@ namespace {
 
   constexpr std::size_t kNProbabilities = 8;
 
-  template <typename TracksterRow>
-  float probability(TracksterRow const& row, std::size_t index) {
-    if (index >= kNProbabilities)
-      throw cms::Exception("LogicError") << "Invalid Trackster PID probability index " << index;
-    return row.idProbabilities()(index);
+  float probability(ticl::Trackster const& trackster, std::size_t index) {
+    return trackster.id_probabilities(static_cast<int>(index));
   }
 
   struct ClassStatistics {
@@ -73,10 +72,8 @@ private:
     auto const& reference = event.get(referenceToken_);
     auto const& candidate = event.get(candidateToken_);
 
-    auto const referenceView = reference.const_view();
-    auto const candidateView = candidate.const_view();
-    auto const nReference = static_cast<std::size_t>(referenceView.id().metadata().size());
-    auto const nCandidate = static_cast<std::size_t>(candidateView.id().metadata().size());
+    auto const nReference = reference.size();
+    auto const nCandidate = candidate.size();
 
     if (nReference != nCandidate) {
       throw cms::Exception("TracksterPIDComparison")
@@ -92,8 +89,8 @@ private:
     mismatchReport << std::setprecision(9);
 
     for (std::size_t tracksterIndex = 0; tracksterIndex < nReference; ++tracksterIndex) {
-      auto const referenceTrackster = referenceView.id()[tracksterIndex];
-      auto const candidateTrackster = candidateView.id()[tracksterIndex];
+      auto const& referenceTrackster = reference[tracksterIndex];
+      auto const& candidateTrackster = candidate[tracksterIndex];
 
       for (std::size_t classIndex = 0; classIndex < kNProbabilities; ++classIndex) {
         auto const expected = static_cast<double>(probability(referenceTrackster, classIndex));
@@ -157,8 +154,8 @@ private:
     }
   }
 
-  edm::EDGetTokenT<::ticl::TracksterHostCollection> const referenceToken_;
-  edm::EDGetTokenT<::ticl::TracksterHostCollection> const candidateToken_;
+  edm::EDGetTokenT<std::vector<ticl::Trackster>> const referenceToken_;
+  edm::EDGetTokenT<std::vector<ticl::Trackster>> const candidateToken_;
   double const absoluteTolerance_;
   double const relativeTolerance_;
   unsigned int const maxMismatchesToPrint_;
