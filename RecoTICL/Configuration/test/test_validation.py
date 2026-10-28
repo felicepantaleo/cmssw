@@ -8,11 +8,13 @@ references an undefined ``ticlIterLabels`` inside a barrel ``toModify``), so the
 dumper is checked structurally against the documented derivation instead.
 """
 
+import importlib.util
 import sys
 
 import FWCore.ParameterSet.Config as cms
 
 from RecoTICL.Configuration import presets, validation
+from RecoTICL.Configuration.target import HLT
 
 
 def main():
@@ -65,6 +67,13 @@ def main():
               % (n_tc, len(labels) + 2, n_assoc, len(labels) * 2)); ok = False
     else:
         print("OK   : ticlDumper structure (%d collections, %d associators)" % (n_tc, n_assoc))
+
+    # HLT target: the supercluster label names a module of the HLT menu
+    sc_label = HLT.supercluster_dnn_label
+    if importlib.util.find_spec("HLTrigger.Configuration.HLT_75e33.modules.%s_cfi" % sc_label) is None:
+        print("FAIL: HLT supercluster label %s is not a module of HLT_75e33" % sc_label); ok = False
+    else:
+        print("OK   : HLT supercluster label %s is a module of HLT_75e33" % sc_label)
 
     return 0 if ok else 1
 
