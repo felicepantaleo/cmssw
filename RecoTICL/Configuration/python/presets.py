@@ -336,7 +336,8 @@ def v6(name="v6", target="offline"):
            # the CNN of v5 in every energy bin.
            .trackster_params(inferenceAlgo=cms.string("TracksterInferenceByShowerShape"),
                              pluginInferenceAlgoTracksterInferenceByShowerShape=shower_shape_pid("mixPID_hi_v1.onnx"))
-           .iteration("Recovery").preset().masks_from("CLUEstering")
+           # Recovery makes tracksters only from the layer clusters of at least 50 MeV.
+           .iteration("Recovery").preset().masks_from("CLUEstering").pattern_recovery(algo_verbosity=0, minEnergy=0.05)
            .links(["CLUEstering", "Recovery"], **cornetto_links_defaults())
            # photon, electron AND neutral_pion: a pi0 is an electromagnetic object.
            .superclustering_dnn(source="CLUEstering",
