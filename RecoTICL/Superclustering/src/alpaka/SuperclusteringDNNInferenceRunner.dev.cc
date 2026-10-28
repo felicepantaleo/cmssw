@@ -1,5 +1,8 @@
 #include <cstdint>
+#include <limits>
 #include <string>
+
+#include <torch/csrc/jit/runtime/graph_executor.h>
 
 #include "FWCore/Utilities/interface/Exception.h"
 #include "RecoTICL/Superclustering/interface/alpaka/SuperclusteringDNNInferenceRunner.h"
@@ -16,8 +19,15 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
         featureCount_{featureCount},
         batchSize_{batchSize},
         warmupIterations_{warmupIterations} {
-    // TODO: validate batchSize_ and featureCount_
-    // Set precision on CPU as well; AlpakaModel moves to the queue device at forward().
+    // TensorCollection takes int sizes
+    if (batchSize_ == 0 || batchSize_ > static_cast<uint32_t>(std::numeric_limits<int32_t>::max())) {
+      throw cms::Exception("Configuration") << "SuperclusteringDNNInferenceRunner: batchSize must be in [1, 2^31)";
+    }
+    if (featureCount_ != 9 && featureCount_ != 17 && featureCount_ != 18) {
+      throw cms::Exception("Configuration")
+          << "SuperclusteringDNNInferenceRunner: " << featureCount_ << " features, expected 9, 17 or 18 (v1, v2, v3)";
+    }
+    // Set the precision on the CPU; runInto() moves the model to the device of the queue.
     model_.to(dtype_);
   }
 
@@ -25,23 +35,44 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     if (warmupIterations_ == 0) {
       return;
     }
-    // TODO: run warmupIterations_ forward passes on dummy InputDevice / ModelOutputDevice of batchSize_ rows
+    // A full batch of zeros: the first passes on a device load the model and initialise PyTorch's kernels, which
+    // would otherwise land in the first events.
+    const auto rows = static_cast<int32_t>(batchSize_);
+    InputDevice features(queue, rows);
+    features.zeroInitialise(queue);
+    ModelOutputDevice scores(queue, rows);
+    for (uint32_t i = 0; i < warmupIterations_; ++i) {
+      runInto(queue, features, scores);
+    }
   }
 
-  SuperclusteringDNNInferenceRunner::ModelOutputDevice SuperclusteringDNNInferenceRunner::run(
-      Queue& queue, InputDevice const& features) {
-    const auto total = features.const_view().metadata().size();
-    ModelOutputDevice scores(queue, total);
+  void SuperclusteringDNNInferenceRunner::runInto(Queue& queue,
+                                                  InputDevice const& features,
+                                                  ModelOutputDevice& scores) {
+    const int total = features.const_view().metadata().size();
+    if (scores.const_view().metadata().size() != total) {
+      throw cms::Exception("LogicError") << "SuperclusteringDNNInferenceRunner: " << total << " pairs but "
+                                         << scores.const_view().metadata().size() << " scores";
+    }
     if (total == 0) {
-      return scores;
+      return;
     }
 
-    // TODO: for each mini-batch i of batchSize_ pairs
-    //   SuperclusteringTensors inputs(batchSize_, total), outputs(batchSize_, total);
-    //   Adapter::registerInputs(inputs, features.const_view().records(), i, featureCount_);
-    //   Adapter::registerOutputs(outputs, scores.view().records(), i);
-    //   model_.forward(queue, inputs, outputs, dtype_);
-    return scores;
+    const int batchSize = static_cast<int>(batchSize_);
+    const int nBatches = (total + batchSize - 1) / batchSize;
+    const auto featureRecords = features.const_view().records();
+    auto scoreRecords = scores.view().records();
+    if (cms::torch::alpakatools::getDevice(queue) != model_.device()) {
+      torch::QueueGuard guard(queue);
+      model_.to(queue, dtype_);
+    }
+
+    for (int i = 0; i < nBatches; ++i) {
+      SuperclusteringTensors inputs(batchSize, total), outputs(batchSize, total);
+      Adapter::registerInputs(inputs, featureRecords, i, featureCount_);
+      Adapter::registerOutputs(outputs, scoreRecords, i);
+      model_.forward(queue, inputs, outputs, dtype_);
+    }
   }
 
 }  // namespace ALPAKA_ACCELERATOR_NAMESPACE

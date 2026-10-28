@@ -8,6 +8,8 @@
 <use name="PhysicsTools/PyTorch"/>
 <use name="PhysicsTools/PyTorchAlpaka"/>
 <use name="alpaka"/>
+<use name="eigen"/>
+<use name="xtd"/>
 <use name="pytorch-cuda" for="alpaka/cuda"/>
 <use name="pytorch-rocm" for="alpaka/rocm"/>
 <use name="rootcling"/>

@@ -46,7 +46,11 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     void beginStream(edm::StreamID, Queue queue) override { runner_.warmup(queue); }
 
     void produce(device::Event& event, device::EventSetup const&) override {
-      event.emplace(scoresToken_, runner_.run(event.queue(), event.get(featuresToken_)));
+      auto& queue = event.queue();
+      auto const& features = event.get(featuresToken_);
+      ticl::SuperclusteringDNNPairScoresDevice scores(queue, features.const_view().metadata().size());
+      runner_.runInto(queue, features, scores);
+      event.emplace(scoresToken_, std::move(scores));
     }
 
   private:
