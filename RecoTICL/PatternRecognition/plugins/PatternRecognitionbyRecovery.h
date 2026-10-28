@@ -29,6 +29,7 @@ namespace ticl {
 
   private:
     float z_limit_em_ = 0.f;
+    const double minEnergy_;
   };
 
 }  // namespace ticl
