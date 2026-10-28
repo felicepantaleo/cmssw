@@ -18,7 +18,7 @@ using namespace ticl;
 template <typename TILES>
 PatternRecognitionbyRecovery<TILES>::PatternRecognitionbyRecovery(const edm::ParameterSet &conf,
                                                                   edm::ConsumesCollector iC)
-    : PatternRecognitionAlgoBaseT<TILES>(conf, iC) {}
+    : PatternRecognitionAlgoBaseT<TILES>(conf, iC), minEnergy_(conf.getParameter<double>("minEnergy")) {}
 
 template <typename TILES>
 void PatternRecognitionbyRecovery<TILES>::setGeometry(ticlgeom::Tools const &rhtools) {
@@ -44,8 +44,8 @@ void PatternRecognitionbyRecovery<TILES>::makeTracksters(
 
   // Iterate over all layer clusters
   for (unsigned int i = 0; i < input.layerClusters.size(); ++i) {
-    if (input.mask[i] == 0.f) {
-      continue;  // Skip masked clusters
+    if (input.mask[i] == 0.f || input.layerClusters[i].energy() < minEnergy_) {
+      continue;  // Skip masked clusters and clusters below the energy threshold
     }
     // Create a new trackster for each layer cluster
     result.emplace_back();
@@ -89,6 +89,7 @@ void PatternRecognitionbyRecovery<TILES>::filter(std::vector<Trackster> &output,
 template <typename TILES>
 void PatternRecognitionbyRecovery<TILES>::fillPSetDescription(edm::ParameterSetDescription &iDesc) {
   iDesc.add<int>("algo_verbosity", 0);
+  iDesc.add<double>("minEnergy", 0.)->setComment("Minimum layer cluster energy [GeV] to make a trackster");
 }
 
 // Explicitly instantiate the templates
