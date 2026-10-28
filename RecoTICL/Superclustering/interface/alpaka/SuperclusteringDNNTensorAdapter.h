@@ -49,7 +49,40 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                                 records.explVarRatio(),
                                 records.modDeltaTime());
           break;
-        // TODO: v1 (first 9 columns) and v2 (first 17 columns)
+        case 17:  // v2: the first 17 columns
+          tensors.add<InputSoA>("input",
+                                batchId,
+                                records.deltaEtaBaryc(),
+                                records.deltaPhiBaryc(),
+                                records.multiEn(),
+                                records.multiEta(),
+                                records.multiPt(),
+                                records.seedEta(),
+                                records.seedPhi(),
+                                records.seedEn(),
+                                records.seedPt(),
+                                records.theta(),
+                                records.thetaXZSeedFrame(),
+                                records.thetaYZSeedFrame(),
+                                records.thetaXYCmsFrame(),
+                                records.thetaYZCmsFrame(),
+                                records.thetaXZCmsFrame(),
+                                records.explVar(),
+                                records.explVarRatio());
+          break;
+        case 9:  // v1: the first 9 columns
+          tensors.add<InputSoA>("input",
+                                batchId,
+                                records.deltaEtaBaryc(),
+                                records.deltaPhiBaryc(),
+                                records.multiEn(),
+                                records.multiEta(),
+                                records.multiPt(),
+                                records.seedEta(),
+                                records.seedPhi(),
+                                records.seedEn(),
+                                records.seedPt());
+          break;
         default:
           throw cms::Exception("SuperclusteringDNNTensorAdapter")
               << "No tensor registration for " << featureCount << " features";

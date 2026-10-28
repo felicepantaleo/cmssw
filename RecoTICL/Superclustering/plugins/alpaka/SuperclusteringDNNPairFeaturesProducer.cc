@@ -1,3 +1,4 @@
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -7,6 +8,7 @@
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/ParameterSet/interface/ParameterSetDescription.h"
 #include "FWCore/ParameterSet/interface/allowedValues.h"
+#include "FWCore/Utilities/interface/Exception.h"
 #include "FWCore/Utilities/interface/InputTag.h"
 #include "HeterogeneousCore/AlpakaCore/interface/alpaka/Event.h"
 #include "HeterogeneousCore/AlpakaCore/interface/alpaka/EventSetup.h"
@@ -18,14 +20,16 @@
 namespace ALPAKA_ACCELERATOR_NAMESPACE {
 
   /*
-   Builds the (seed, candidate) pairs of the superclustering DNN and their input features.
+   Builds the (seed, candidate) pairs of the superclustering DNN and their input features, from the device
+   tracksters.
 
    The output size depends on the number of pairs found on the device: acquire() counts them and copies the count
-   to the host, produce() allocates and fills the collections.
+   to the host, produce() allocates and fills the collections. A SynchronizingEDProducer is what lets acquire()
+   enqueue device work and have the framework wait for it, without blocking a thread, before produce().
 
-   Products:
-     ""         SuperclusteringDNNPairsDevice         seed and candidate trackster indices of each pair
-     "features" SuperclusteringDNNPairFeaturesDevice  DNN inputs of each pair, same row order
+   Products, with the same rows:
+     ""         SuperclusteringDNNPairsDevice         the seed and candidate trackster indices of each pair
+     "features" SuperclusteringDNNPairFeaturesDevice  the DNN inputs of each pair
   */
   class SuperclusteringDNNPairFeaturesProducer : public stream::SynchronizingEDProducer<> {
   public:
@@ -38,23 +42,23 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
 
     static void fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
       edm::ParameterSetDescription desc;
-      desc.add<edm::InputTag>("tracksters", edm::InputTag("ticlSoATracksters"));
-      // Same preselection parameters and defaults as TracksterLinkingbySuperClusteringDNN.
+      desc.add<edm::InputTag>("tracksters", edm::InputTag("ticlSoATracksters"))
+          ->setComment("Device tracksters, in the order of the legacy tracksters that the linking reads");
+      // The preselection of TracksterLinkingbySuperClusteringDNN, with its types and defaults.
       desc.ifValue(edm::ParameterDescription<std::string>("dnnInputsVersion", "v3", true),
                    edm::allowedValues<std::string>("v1", "v2", "v3"));
-      desc.add<double>("deltaEtaWindow", 0.1);
-      desc.add<double>("deltaPhiWindow", 0.5);
-      desc.add<double>("seedPtThreshold", 4.);
-      desc.add<double>("candidateEnergyThreshold", 2.);
-      desc.add<double>("explVarRatioCut_energyBoundary", 50.);
-      desc.add<double>("explVarRatioMinimum_lowEnergy", 0.92);
-      desc.add<double>("explVarRatioMinimum_highEnergy", 0.95);
+      desc.add<float>("deltaEtaWindow", 0.1);
+      desc.add<float>("deltaPhiWindow", 0.5);
+      desc.add<float>("seedPtThreshold", 4.);
+      desc.add<float>("candidateEnergyThreshold", 2.);
+      desc.add<float>("explVarRatioCut_energyBoundary", 50.);
+      desc.add<float>("explVarRatioMinimum_lowEnergy", 0.92);
+      desc.add<float>("explVarRatioMinimum_highEnergy", 0.95);
       desc.add<bool>("filterByTracksterPID", true);
-      desc.add<std::vector<int>>(
-          "tracksterPIDCategoriesToFilter",
-          {static_cast<int>(::ticl::Trackster::ParticleType::photon),
-           static_cast<int>(::ticl::Trackster::ParticleType::electron)});
-      desc.add<double>("PIDThreshold", 0.8);
+      desc.add<std::vector<int>>("tracksterPIDCategoriesToFilter",
+                                 {static_cast<int>(::ticl::Trackster::ParticleType::photon),
+                                  static_cast<int>(::ticl::Trackster::ParticleType::electron)});
+      desc.add<float>("PIDThreshold", 0.8f);
       descriptions.addWithDefaultLabel(desc);
     }
 
@@ -67,18 +71,41 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       const auto nPairs = static_cast<int32_t>(builder_.pairCount());
       ticl::SuperclusteringDNNPairsDevice pairs(queue, nPairs);
       ticl::SuperclusteringDNNPairFeaturesDevice features(queue, nPairs);
-      builder_.fill(queue, event.get(trackstersToken_).const_view(), pairs, features);
+      builder_.fill(queue, pairs, features);
       event.emplace(pairsToken_, std::move(pairs));
       event.emplace(featuresToken_, std::move(features));
     }
 
   private:
     static SuperclusteringDNNPairSelection makeSelection(edm::ParameterSet const& config) {
-      // TODO: fill from the ParameterSet; the feature count comes from the DNN inputs version
       SuperclusteringDNNPairSelection selection{};
       selection.featureCount =
           ::ticl::makeSuperclusteringDNNInputFromString(config.getParameter<std::string>("dnnInputsVersion"))
               ->featureCount();
+      selection.deltaEtaWindow = config.getParameter<float>("deltaEtaWindow");
+      selection.deltaPhiWindow = config.getParameter<float>("deltaPhiWindow");
+      selection.seedPtThreshold = config.getParameter<float>("seedPtThreshold");
+      selection.candidateEnergyThreshold = config.getParameter<float>("candidateEnergyThreshold");
+      selection.explVarRatioCut_energyBoundary = config.getParameter<float>("explVarRatioCut_energyBoundary");
+      selection.explVarRatioMinimum_lowEnergy = config.getParameter<float>("explVarRatioMinimum_lowEnergy");
+      selection.explVarRatioMinimum_highEnergy = config.getParameter<float>("explVarRatioMinimum_highEnergy");
+      selection.filterByTracksterPID = config.getParameter<bool>("filterByTracksterPID");
+      selection.PIDThreshold = config.getParameter<float>("PIDThreshold");
+
+      const auto categories = config.getParameter<std::vector<int>>("tracksterPIDCategoriesToFilter");
+      if (categories.size() > SuperclusteringDNNPairSelection::kMaxPIDCategories) {
+        throw cms::Exception("Configuration")
+            << "SuperclusteringDNNPairFeaturesProducer: at most " << SuperclusteringDNNPairSelection::kMaxPIDCategories
+            << " tracksterPIDCategoriesToFilter";
+      }
+      selection.nPIDCategories = categories.size();
+      for (unsigned int i = 0; i < categories.size(); ++i) {
+        if (categories[i] < 0 || categories[i] >= static_cast<int>(::ticl::Trackster::ParticleType::unknown) + 1) {
+          throw cms::Exception("Configuration")
+              << "SuperclusteringDNNPairFeaturesProducer: no PID category " << categories[i];
+        }
+        selection.pidCategories[i] = categories[i];
+      }
       return selection;
     }
 

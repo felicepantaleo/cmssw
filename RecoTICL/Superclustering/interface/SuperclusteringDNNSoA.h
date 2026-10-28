@@ -32,7 +32,9 @@ namespace ticl {
 
   // The input tracksters of each pair, as indices in the trackster SoA. Same size and row order as the features.
   // Kept out of the features so that only the indices and the scores are copied to the host.
-  GENERATE_SOA_LAYOUT(SuperclusteringDNNPairsLayout, SOA_COLUMN(uint32_t, seedIndex), SOA_COLUMN(uint32_t, candidateIndex))
+  GENERATE_SOA_LAYOUT(SuperclusteringDNNPairsLayout,
+                      SOA_COLUMN(uint32_t, seedIndex),
+                      SOA_COLUMN(uint32_t, candidateIndex))
 
   // DNN output: [pairs, 1].
   GENERATE_SOA_LAYOUT(SuperclusteringDNNPairScoresLayout, SOA_COLUMN(float, score))

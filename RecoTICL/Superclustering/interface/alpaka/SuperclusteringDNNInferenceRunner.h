@@ -26,8 +26,9 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
 
     void warmup(Queue& queue);
 
-    // Enqueues the forward pass in mini-batches of batchSize pairs; one score per row of the features.
-    ModelOutputDevice run(Queue& queue, InputDevice const& features);
+    // Enqueues the forward pass in mini-batches of batchSize pairs. The caller allocates scores with one row per row
+    // of the features.
+    void runInto(Queue& queue, InputDevice const& features, ModelOutputDevice& scores);
 
   private:
     torch::AlpakaModel model_;
