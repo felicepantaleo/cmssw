@@ -73,9 +73,12 @@ class LinksSpec:
 
 @dataclass
 class SuperclusterSpec:
-    kind: str                         # 'DNN' or 'Mustache'
+    kind: str                         # 'DNN', 'DNNHeterogeneous' or 'Mustache'
     source: str                       # iteration name (or module label) to supercluster
     overrides: Dict = field(default_factory=dict)
+    # DNNHeterogeneous: the overrides of the pair-features and of the inference module
+    features: Dict = field(default_factory=dict)
+    inference: Dict = field(default_factory=dict)
 
 
 # --------------------------------------------------------------------------- #
@@ -167,6 +170,11 @@ class TICLConfig:
     def pattern_fastjet(self, **params):
         it = self._cur(); it.pattern_type = "FastJet"; it.pattern_params = params; return self
 
+    def pattern_cluestering(self, **params):
+        """CLUEstering on the layer clusters merged on the device: no seeding region and no cluster filter, the
+        parameters go to the CLUEstering module."""
+        it = self._cur(); it.pattern_type = "CLUEstering"; it.pattern_params = params; return self
+
     # -- extra trackster overrides (inference PSets, detector, ...) -------- #
 
     def trackster_params(self, **overrides):
@@ -203,6 +211,16 @@ class TICLConfig:
 
     def superclustering_dnn(self, source, **overrides):
         self.superclustering_spec = SuperclusterSpec("DNN", source, overrides)
+        self._current = None
+        return self
+
+    def superclustering_dnn_heterogeneous(self, source, features=None, inference=None, **overrides):
+        """The superclustering DNN on the device (superclusteringDNNHeterogeneous_cff): the pairs and their features
+        (``features`` overrides), the DNN scores (``inference`` overrides) and their association on the host (the
+        linking module, ``overrides``). ``source`` must be a CLUEstering iteration: the pairs index its device
+        tracksters."""
+        self.superclustering_spec = SuperclusterSpec("DNNHeterogeneous", source, overrides, dict(features or {}),
+                                                     dict(inference or {}))
         self._current = None
         return self
 

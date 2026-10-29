@@ -114,4 +114,24 @@
   <class name="HGCalSoAClusters"/>
   <class name="edm::Wrapper<HGCalSoAClustersHostCollection>" splitLevel="0"/>
 
+  <class name="HGCalSoALayerClustersExtraHostCollection" rntupleStreamerMode="true"/>
+  <class name="HGCalSoALayerClustersExtraHostCollection::Layout"/>
+  <class name="HGCalSoALayerClustersExtra"/>
+  <class name="edm::Wrapper<HGCalSoALayerClustersExtraHostCollection>" splitLevel="0"/>
+
+  <class name="ticl::TracksterHostCollection" rntupleStreamerMode="true"/>
+  <class name="ticl::TracksterHostCollection::Layout"/>
+  <class name="ticl::TracksterSoA"/>
+  <class name="ticl::TracksterSoA::View"/>
+  <class name="ticl::TracksterSoAEnergy<128, false>"/>
+  <class name="ticl::TracksterSoABarycenter<128, false>"/>
+  <class name="ticl::TracksterSoATiming<128, false>"/>
+  <class name="ticl::TracksterSoAPCA<128, false>"/>
+  <class name="ticl::TracksterSoAId<128, false>"/>
+  <class name="ticl::AssociationMapLayout<unsigned int, unsigned int>::Layout<128, false>"/>
+  <class name="ticl::AssociationMapLayout<unsigned int, unsigned int>::OffsetsLayout<128, false>"/>
+  <class name="ticl::AssociationMapLayout<unsigned int, unsigned int>::OffsetBufferLayout<128, false>"/>
+  <class name="ticl::AssociationMapLayout<unsigned int, unsigned int>::ContentBuffersLayout<128, false>"/>
+  <class name="edm::Wrapper<ticl::TracksterHostCollection>" splitLevel="0"/>
+
 </lcgdict>

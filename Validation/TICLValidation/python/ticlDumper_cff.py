@@ -47,6 +47,8 @@ ticlDumper = ticlDumper_.clone(
 ticl_superclustering_mustache_pf.toModify(ticlDumper, saveSuperclustering=False, recoSuperClusters_sourceTracksterCollection=cms.InputTag("ticlTrackstersCLUE3DHigh"))
 # With TICLv6 the HGCAL PF clusters of the superclusters come from the final tracksters, ticlTracksterInterpretations.
 (ticl_v6 & ~ticl_superclustering_mustache_pf).toModify(ticlDumper, recoSuperClusters_sourceTracksterCollection=cms.InputTag("ticlTracksterInterpretations"))
+# With TICLv6 and the PF Mustache, the superclusters come from the tracksters of CLUEstering, the first iteration.
+(ticl_v6 & ticl_superclustering_mustache_pf).toModify(ticlDumper, recoSuperClusters_sourceTracksterCollection=cms.InputTag("ticlTrackstersCLUEstering"))
 
 simTrackstersBarrelCollections = ["ticlSimTrackstersBarrel", "ticlSimTrackstersBarrelfromCPs"]
 ticlBarrelIterLabels = ["ticlTrackstersCLUE3DBarrel"]

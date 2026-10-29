@@ -91,6 +91,13 @@ T_PFCANDS = "reco::PFCandidateCollection"
 T_SUPERCLUSTERS = "reco::SuperClusterCollection"
 T_MTDSOA = "MtdHostCollection"
 T_MUONREFS = "edm::ValueMap<reco::MuonRef>"
+# Portable (alpaka) products, named by their host collection
+T_CALOCLUSTERS_SOA = "reco::CaloClusterHostCollection"
+T_LC_CLUSTERING_SOA = "HGCalSoALayerClustersExtraHostCollection"
+T_TRACKSTERS_SOA = "ticl::TracksterHostCollection"
+T_SC_PAIRS_SOA = "ticl::SuperclusteringDNNPairsHost"
+T_SC_FEATURES_SOA = "ticl::SuperclusteringDNNPairFeaturesHost"
+T_SC_SCORES_SOA = "ticl::SuperclusteringDNNPairScoresHost"
 
 
 # --------------------------------------------------------------------------- #
@@ -273,6 +280,79 @@ _SPECS = [
         ),
         external_inputs=("muonSrc",),
     ),
+    # The CLUEstering iteration: the layer clusters merged on the device (HGCAL local reco) are clustered into
+    # tracksters with CLUEstering, the tracksters are built on the device and converted to ticl::Trackster. The
+    # portable modules are keyed by their @alpaka type, as module.type_() gives it.
+    ModuleSpec(
+        key="HGCalSoAMergeLayerClustersProducer@alpaka",
+        cfi_module="RecoTICL.LayerClustering.hgCalSoAMergeLayerClustersProducer_cfi",
+        cfi_symbol="hgCalSoAMergeLayerClustersProducer",
+        produces=(Product(T_CALOCLUSTERS_SOA),),
+        consumes=(
+            Consumed("hgcalLayerClustersSoA", T_CALOCLUSTERS_SOA, vector=True),
+        ),
+        backends=("cpu", "gpu"),
+    ),
+    ModuleSpec(
+        key="HGCalCLUEsteringTrackstersProducer@alpaka",
+        cfi_module="RecoTICL.PatternRecognition.hgCalCLUEsteringTrackstersProducer_cfi",
+        cfi_symbol="hgCalCLUEsteringTrackstersProducer",
+        produces=(Product(T_LC_CLUSTERING_SOA),),
+        consumes=(
+            Consumed("hgcalLayerClustersSoA", T_CALOCLUSTERS_SOA),
+        ),
+        backends=("cpu", "gpu"),
+    ),
+    ModuleSpec(
+        key="HGCalSoATrackstersProducer@alpaka",
+        cfi_module="RecoTICL.PatternRecognition.hgCalSoATrackstersProducer_cfi",
+        cfi_symbol="hgCalSoATrackstersProducer",
+        produces=(Product(T_TRACKSTERS_SOA),),
+        consumes=(
+            Consumed("hgcalLayerClustersSoA", T_CALOCLUSTERS_SOA),
+            Consumed("hgcalLayerClustersTrackstersSoA", T_LC_CLUSTERING_SOA),
+        ),
+        backends=("cpu", "gpu"),
+    ),
+    # The heterogeneous superclustering DNN: the (seed, candidate) pairs of the device tracksters and their features,
+    # and the DNN score of each pair. Their defaults are the modules of superclusteringDNNHeterogeneous_cff, which
+    # also defines the TracksterLinksProducer that associates the pairs.
+    ModuleSpec(
+        key="SuperclusteringDNNPairFeaturesProducer@alpaka",
+        cfi_module="RecoTICL.Superclustering.superclusteringDNNHeterogeneous_cff",
+        cfi_symbol="ticlSuperclusteringDNNPairFeatures",
+        produces=(
+            Product(T_SC_PAIRS_SOA),
+            Product(T_SC_FEATURES_SOA, "fixed:features"),
+        ),
+        consumes=(
+            Consumed("tracksters", T_TRACKSTERS_SOA),
+        ),
+        backends=("cpu", "gpu"),
+    ),
+    ModuleSpec(
+        key="SuperclusteringDNNInferenceProducer@alpaka",
+        cfi_module="RecoTICL.Superclustering.superclusteringDNNHeterogeneous_cff",
+        cfi_symbol="ticlSuperclusteringDNNInference",
+        produces=(Product(T_SC_SCORES_SOA),),
+        consumes=(
+            Consumed("features", T_SC_FEATURES_SOA),
+        ),
+        backends=("cpu", "gpu"),
+    ),
+    ModuleSpec(
+        key="HGCalTrackstersFromSoAProducer",
+        cfi_module="RecoTICL.PatternRecognition.hgCalTrackstersFromSoAProducer_cfi",
+        cfi_symbol="hgCalTrackstersFromSoAProducer",
+        produces=(
+            Product(T_TRACKSTERS),
+            Product(T_MASK),
+        ),
+        consumes=(
+            Consumed("src", T_TRACKSTERS_SOA),
+            Consumed("originalMask", T_MASK),
+        ),
+    ),
 ]
 
 CATALOG = {spec.key: spec for spec in _SPECS}
@@ -284,8 +364,13 @@ CATALOG = {spec.key: spec for spec in _SPECS}
 # not needed for the TICL plumbing graph.
 GPU_CAPABLE = frozenset([
     "HGCalSoARecHitsProducer",
-    "HGCalSoARecHitsLayerClustersProducer",
+    "HGCalCLUEsteringLayerClustersProducer",
     "HGCalSoALayerClustersProducer",
+    "HGCalSoAMergeLayerClustersProducer",
+    "HGCalCLUEsteringTrackstersProducer",
+    "HGCalSoATrackstersProducer",
+    "SuperclusteringDNNPairFeaturesProducer",
+    "SuperclusteringDNNInferenceProducer",
 ])
 
 
@@ -304,9 +389,10 @@ FILTER_TYPES = frozenset(
         "ClusterFilterByAlgoAndSizeAndLayerRange",
     ]
 )
-PATTERN_TYPES = frozenset(["CLUE3D", "CA", "FastJet", "Recovery"])
+PATTERN_TYPES = frozenset(["CLUE3D", "CA", "FastJet", "Recovery", "CLUEstering"])
 LINKING_TYPES = frozenset(
-    ["Skeletons", "Cornetto", "SuperClusteringDNN", "SuperClusteringMustache", "FastJet", "Recovery"]
+    ["Skeletons", "Cornetto", "SuperClusteringDNN", "SuperClusteringDNNHeterogeneous", "SuperClusteringMustache",
+     "FastJet", "Recovery"]
 )
 INFERENCE_TYPES = frozenset(
     ["TracksterInferenceByCNN", "TracksterInferenceByDNN", "TracksterInferenceByPFN"]

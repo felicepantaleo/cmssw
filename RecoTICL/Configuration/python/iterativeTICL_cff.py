@@ -156,10 +156,13 @@ ticl_superclustering_mustache_ticl.toModify(
     )
 )
 
-# TICLv6: the final tracksters come from the interpretation stage; ticlCandidate holds the candidates only.
+# TICLv6: the final tracksters come from the interpretation stage; ticlCandidate holds the candidates only. The first
+# iteration is CLUEstering.
+_ticlV6IterLabels = {"ticlCandidate": "ticlTracksterInterpretations",
+                     "ticlTrackstersCLUE3DHigh": "ticlTrackstersCLUEstering"}
 ticl_v6.toModify(
     ticlIterLabelsPSet,
-    labels=["ticlTracksterInterpretations" if label == "ticlCandidate" else label for label in ticlIterLabelsPSet.labels]
+    labels=[_ticlV6IterLabels.get(label, label) for label in ticlIterLabelsPSet.labels]
 )
 
 associatorsInstances = []
@@ -224,8 +227,45 @@ ticl_barrel.toModify(mergeTICLTask, func=lambda x : x.add(ticlLayerTileBarrelTas
 from RecoTICL.Configuration.presets import v6 as _v6
 _ticlV6Modules = _v6().assemble().modules
 ticlTracksterInterpretations = _ticlV6Modules["ticlTracksterInterpretations"]
+# TICLv6: the first iteration is CLUEstering on the layer clusters merged on the device, and the Recovery runs on the
+# layer clusters that its tracksters do not use.
+ticlCLUEstering = _ticlV6Modules["ticlCLUEstering"]
+ticlSoATracksters = _ticlV6Modules["ticlSoATracksters"]
+
+# Run CNN PID on device Tracksters before conversion to the legacy collection.
+from RecoTICL.Configuration.tracksterInference_cff import makeTracksterInference
+ticlCLUEsteringCNNFeatures, ticlCLUEsteringCNNInference = makeTracksterInference(
+    model="CNN", tracksters="ticlSoATracksters"
+)
+ticlCLUEsteringCNNInference.features = cms.InputTag("ticlCLUEsteringCNNFeatures", "features")
+
+ticlTrackstersCLUEstering = _ticlV6Modules["ticlTrackstersCLUEstering"]
+# Preserve the inferred device PID scores instead of replacing them with host inference.
+ticlTrackstersCLUEstering.src = cms.InputTag("ticlCLUEsteringCNNInference")
+ticlTrackstersCLUEstering.inferenceAlgo = cms.string("")
+ticlCLUEsteringStepTask = cms.Task(
+    ticlCLUEstering, ticlSoATracksters,
+    ticlCLUEsteringCNNFeatures, ticlCLUEsteringCNNInference,
+    ticlTrackstersCLUEstering
+)
+ticl_v6.toReplaceWith(ticlIterationsTask, cms.Task(ticlCLUEsteringStepTask, ticlRecoveryStepTask))
+# Only the inputs change, so that the other modifiers of these modules still apply.
+ticl_v6.toModify(filteredLayerClustersRecovery,
+                 LayerClustersInputMask=_ticlV6Modules["filteredLayerClustersRecovery"].LayerClustersInputMask)
+ticl_v6.toModify(ticlTrackstersRecovery, original_mask=_ticlV6Modules["ticlTrackstersRecovery"].original_mask)
+ticl_v6.toModify(ticlEGammaSuperClusterProducer,
+                 ticlTrackstersEM=_ticlV6Modules["ticlEGammaSuperClusterProducer"].ticlTrackstersEM)
+(ticl_v6 & ticl_superclustering_mustache_ticl).toModify(
+    ticlTracksterLinksSuperclusteringMustache,
+    tracksters_collections=_ticlV6Modules["ticlTracksterLinksSuperclusteringDNN"].tracksters_collections)
 ticl_v6.toReplaceWith(ticlTracksterLinks, _ticlV6Modules["ticlTracksterLinks"])
+# TICLv6: the superclustering DNN runs on the device (superclusteringDNNHeterogeneous_cff): the pairs of the device
+# tracksters and their features, the DNN scores, then the linking module associates them on the host.
+ticlSuperclusteringDNNPairFeatures = _ticlV6Modules["ticlSuperclusteringDNNPairFeatures"]
+ticlSuperclusteringDNNInference = _ticlV6Modules["ticlSuperclusteringDNNInference"]
 ticl_v6.toReplaceWith(ticlTracksterLinksSuperclusteringDNN, _ticlV6Modules["ticlTracksterLinksSuperclusteringDNN"])
+(ticl_v6 & ~ticl_superclustering_mustache_ticl).toModify(
+    ticlSuperclusteringTask, lambda t: t.add(ticlSuperclusteringDNNPairFeatures, ticlSuperclusteringDNNInference))
 ticl_v6.toReplaceWith(ticlCandidate, _ticlV6Modules["ticlCandidate"])
 ticl_v6.toModify(ticlCandidateTask, lambda t: t.add(ticlTracksterInterpretations))
 # TICLv6 candidates carry the muon kinematics; pfTICL copies their muon decisions.
@@ -242,6 +282,8 @@ ticlEGammaTracksters = _ticlEGammaTrackstersProducer.clone()
 # A supercluster needs a score of at least 0.5 below Et 10 GeV and 0.9 above it. The type score of each e/gamma
 # trackster is the input of the photon candidate type in ticlCandidate.
 ticlEGammaSuperClusters = _ticlEGammaSuperClustersProducer.clone(
+    # the tracksters that the superclustering groups
+    inputTracksters=_ticlV6Modules["ticlTracksterLinksSuperclusteringDNN"].tracksters_collections[0],
     scoreModel="RecoTICL/ParticleFlow/data/egammaSuperClusters/score_v1.onnx",
     minScore=0.5,
     minScoreHighEt=0.9,

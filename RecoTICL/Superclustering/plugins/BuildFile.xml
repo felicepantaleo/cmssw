@@ -14,3 +14,18 @@
 <library file="*.cc" name="RecoTICLSuperclusteringPlugins">
   <flags EDM_PLUGIN="1"/>
 </library>
+
+<library file="alpaka/*.cc" name="RecoTICLSuperclusteringPluginsPortable">
+  <use name="DataFormats/HGCalReco"/>
+  <use name="FWCore/ParameterSet"/>
+  <use name="FWCore/Utilities"/>
+  <use name="HeterogeneousCore/AlpakaCore"/>
+  <use name="HeterogeneousCore/AlpakaInterface"/>
+  <use name="PhysicsTools/PyTorchAlpaka"/>
+  <use name="RecoTICL/Superclustering"/>
+  <use name="alpaka"/>
+  <use name="pytorch-cuda" for="alpaka/cuda"/>
+  <use name="pytorch-rocm" for="alpaka/rocm"/>
+  <flags ALPAKA_BACKENDS="1"/>
+  <flags EDM_PLUGIN="1"/>
+</library>

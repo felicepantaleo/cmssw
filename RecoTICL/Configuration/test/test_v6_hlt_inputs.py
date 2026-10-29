@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """No producer of the v6 configuration on the HLT target reads an offline input: tracks, muons, GSF tracks, MTD
-timing, layer clusters and tracksters all come from the HLT target."""
+timing, layer clusters (on the host and on the device) and tracksters all come from the HLT target."""
 
 import sys
 
@@ -8,7 +8,8 @@ import FWCore.ParameterSet.Config as cms
 
 from RecoTICL.Configuration import presets
 
-OFFLINE_INPUTS = {"generalTracks", "muons1stStep", "electronGsfTracks", "mtdSoA", "hgcalMergeLayerClusters"}
+OFFLINE_INPUTS = {"generalTracks", "muons1stStep", "electronGsfTracks", "mtdSoA", "hgcalMergeLayerClusters",
+                  "hgcalSoAMergeLayerClusters"}
 
 
 def input_labels(pset, prefix=""):

@@ -53,6 +53,17 @@ ticlValidSuperclusteringCandidatePID = _ticlTracksterPIDValidation.clone(
     pidCut = cms.double(0.2),
 )
 
+# TICLv6: the superclustering reads the tracksters of CLUEstering, the first iteration.
+from Configuration.ProcessModifiers.ticl_v6_cff import ticl_v6
+_v6SourceTracksterIteration = "ticlTrackstersCLUEstering"
+for _mask in (ticlValidSuperclusteringSeedMask, tracksterSuperclusteringValidCandidateMaskProducer):
+    ticl_v6.toModify(_mask,
+        tracksters = _v6SourceTracksterIteration,
+        associatorRecoToSim = f"allTrackstersToSimTrackstersAssociationsByLCs:{_v6SourceTracksterIteration}To{simTrackstersCollection}",
+        associatorSimToReco = f"allTrackstersToSimTrackstersAssociationsByLCs:{simTrackstersCollection}To{_v6SourceTracksterIteration}")
+for _pid in (ticlValidSuperclusteringSeedPID, ticlValidSuperclusteringCandidatePID):
+    ticl_v6.toModify(_pid, tracksters = _v6SourceTracksterIteration)
+
 ticlSuperclusterPIDValidation = cms.Sequence(
     ticlValidSuperclusteringSeedMask + tracksterSuperclusteringValidCandidateMaskProducer +
     ticlValidSuperclusteringSeedPID + ticlValidSuperclusteringCandidatePID

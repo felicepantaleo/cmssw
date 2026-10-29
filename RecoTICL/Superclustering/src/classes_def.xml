@@ -1,0 +1,22 @@
+<lcgdict>
+  <!-- Pair features: device only in practice, the host type is there for the CPU backend and for debugging -->
+  <class name="ticl::SuperclusteringDNNPairFeaturesHost" rntupleStreamerMode="true"/>
+  <class name="ticl::SuperclusteringDNNPairFeaturesHost::Layout"/>
+  <class name="ticl::SuperclusteringDNNPairFeaturesSoA"/>
+  <class name="ticl::SuperclusteringDNNPairFeaturesSoA::View"/>
+  <class name="edm::Wrapper<ticl::SuperclusteringDNNPairFeaturesHost>" splitLevel="0"/>
+
+  <!-- Seed and candidate indices of each pair -->
+  <class name="ticl::SuperclusteringDNNPairsHost" rntupleStreamerMode="true"/>
+  <class name="ticl::SuperclusteringDNNPairsHost::Layout"/>
+  <class name="ticl::SuperclusteringDNNPairsSoA"/>
+  <class name="ticl::SuperclusteringDNNPairsSoA::View"/>
+  <class name="edm::Wrapper<ticl::SuperclusteringDNNPairsHost>" splitLevel="0"/>
+
+  <!-- DNN score of each pair -->
+  <class name="ticl::SuperclusteringDNNPairScoresHost" rntupleStreamerMode="true"/>
+  <class name="ticl::SuperclusteringDNNPairScoresHost::Layout"/>
+  <class name="ticl::SuperclusteringDNNPairScoresSoA"/>
+  <class name="ticl::SuperclusteringDNNPairScoresSoA::View"/>
+  <class name="edm::Wrapper<ticl::SuperclusteringDNNPairScoresHost>" splitLevel="0"/>
+</lcgdict>

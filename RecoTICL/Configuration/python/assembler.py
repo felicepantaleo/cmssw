@@ -39,6 +39,15 @@ def step_task_name(name):
     return "ticl" + name + "StepTask"
 
 
+def iteration_labels(it, target):
+    """The labels of the modules of iteration ``it`` whose backend the iteration selects: the cluster filter and the
+    tracksters, or for CLUEstering its device modules, with the merge on the device when its step schedules it."""
+    if it.pattern_type == "CLUEstering":
+        merge = [target.merged_lc_soa] if target.merged_lc_soa_cfi is not None else []
+        return merge + [target.cluestering_label, target.soa_tracksters_label]
+    return [target.filter_label(it.name), target.trackster_label(it.name)]
+
+
 # --------------------------------------------------------------------------- #
 # result container
 # --------------------------------------------------------------------------- #
@@ -125,6 +134,23 @@ def _build_trackster(it, flabel, seed_label, prev_trackster, target):
     return base.clone(**ov)
 
 
+def _build_cluestering(it, target):
+    """The modules of a CLUEstering iteration: CLUEstering on the layer clusters merged on the device, the tracksters
+    built on the device, and their conversion to ticl::Trackster with the mask of their layer clusters."""
+    if target.merged_lc is not None and target.merged_lc_soa is None:
+        raise PyTICLError("iteration %r: target %r has no layer clusters merged on the device for CLUEstering"
+                          % (it.name, target.name))
+    lc_soa = {} if target.merged_lc_soa is None else dict(hgcalLayerClustersSoA=cms.InputTag(target.merged_lc_soa))
+    clustering = _cfi_default("HGCalCLUEsteringTrackstersProducer@alpaka").clone(**lc_soa, **it.pattern_params)
+    soa = _cfi_default("HGCalSoATrackstersProducer@alpaka").clone(
+        hgcalLayerClustersTrackstersSoA=cms.InputTag(target.cluestering_label), **lc_soa)
+    ov = dict(src=cms.InputTag(target.soa_tracksters_label))
+    if target.initial_mask_tag() is not None:
+        ov["originalMask"] = target.initial_mask_tag()
+    tracksters = _cfi_default("HGCalTrackstersFromSoAProducer").clone(**ov)
+    return clustering, soa, tracksters
+
+
 def _build_links(collection_labels, overrides, target):
     base = _cfi_default("TracksterLinksProducer")
     ov = dict(tracksters_collections=cms.VInputTag(*collection_labels))
@@ -145,6 +171,41 @@ def _build_supercluster_dnn(source_label, overrides, target):
         ov["original_masks"] = cms.VInputTag(target.initial_mask_str())
     ov.update(overrides or {})
     return base.clone(**ov)
+
+
+# The cuts that both the device preselection of the pairs and their association on the host apply.
+_SHARED_SUPERCLUSTERING_CUTS = ("seedPtThreshold", "filterByTracksterPID", "tracksterPIDCategoriesToFilter")
+
+
+def _build_supercluster_dnn_heterogeneous(source_label, sc, target):
+    """The superclustering DNN on the device: the pairs of the device tracksters and their features, the DNN scores,
+    and the linking module that associates them on the host, from superclusteringDNNHeterogeneous_cff."""
+    from RecoTICL.Superclustering.superclusteringDNNHeterogeneous_cff import ticlTracksterLinksSuperclusteringDNN
+    features = _cfi_default("SuperclusteringDNNPairFeaturesProducer@alpaka").clone(
+        tracksters=cms.InputTag(target.soa_tracksters_label), **sc.features)
+    inference = _cfi_default("SuperclusteringDNNInferenceProducer@alpaka").clone(
+        features=cms.InputTag(target.supercluster_pair_features_label, "features"), **sc.inference)
+    ov = dict(tracksters_collections=[cms.InputTag(source_label)])
+    if target.lc_tag() is not None:
+        ov["layer_clusters"] = target.lc_tag()
+        ov["layer_clustersTime"] = target.lc_time_tag()
+        ov["original_masks"] = cms.VInputTag(target.initial_mask_str())
+    ov.update(sc.overrides or {})
+    linking = ticlTracksterLinksSuperclusteringDNN.clone(**ov)
+    linking.linkingPSet.pairs = cms.InputTag(target.supercluster_pair_features_label)
+    linking.linkingPSet.scores = cms.InputTag(target.supercluster_inference_label)
+    # A cut the linking PSet omits takes its plugin default, which is the default of the pair-features module.
+    default = _cfi_default("SuperclusteringDNNPairFeaturesProducer@alpaka")
+    for name in _SHARED_SUPERCLUSTERING_CUTS:
+        host = getattr(linking.linkingPSet, name, getattr(default, name)).value()
+        device = getattr(features, name).value()
+        if host != device:
+            raise PyTICLError("heterogeneous superclustering: %s is %r in the pair features and %r in the linking"
+                              % (name, device, host))
+    if features.dnnInputsVersion.value() != inference.dnnInputsVersion.value():
+        raise PyTICLError("heterogeneous superclustering: the pair features are DNN inputs %s, the inference %s"
+                          % (features.dnnInputsVersion.value(), inference.dnnInputsVersion.value()))
+    return features, inference, linking
 
 
 def _build_egamma(source_label, target):
@@ -289,6 +350,24 @@ def assemble(cfg):
     # iterations
     step_groups = []
     for it in cfg.iterations:
+        if it.pattern_type == "CLUEstering":
+            # CLUEstering reads every layer cluster, without an input mask: it must be the first iteration. Its
+            # device modules have fixed labels, so there is one CLUEstering iteration.
+            if it is not cfg.iterations[0] or it.masks_from:
+                raise PyTICLError("iteration %r: CLUEstering must be the first iteration, without masks_from"
+                                  % it.name)
+            labels = [target.cluestering_label, target.soa_tracksters_label, target.trackster_label(it.name)]
+            for label, module in zip(labels, _build_cluestering(it, target)):
+                m[label] = module
+            if target.merged_lc_soa_cfi is not None:
+                # the step schedules the merge on the device, which only CLUEstering reads
+                cfi = __import__(target.merged_lc_soa_cfi, fromlist=[target.merged_lc_soa])
+                m[target.merged_lc_soa] = getattr(cfi, target.merged_lc_soa)
+                labels.insert(0, target.merged_lc_soa)
+            gname = target.gname("step", it.name)
+            mkgroup(gname, *labels)
+            step_groups.append(gname)
+            continue
         if it.seeding_type is None:
             raise PyTICLError("iteration %r has no seeding region" % it.name)
         if it.filter_type is None:
@@ -321,10 +400,22 @@ def assemble(cfg):
     if cfg.superclustering_spec:
         sc = cfg.superclustering_spec
         src = target.trackster_label(sc.source)
-        m[target.supercluster_dnn_label] = _build_supercluster_dnn(src, sc.overrides, target)
+        sc_labels = [target.supercluster_dnn_label, target.egamma_label]
+        if sc.kind == "DNNHeterogeneous":
+            # the pairs index the device tracksters of a CLUEstering iteration
+            source = cfg._by_name.get(sc.source)
+            if source is None or source.pattern_type != "CLUEstering":
+                raise PyTICLError("heterogeneous superclustering: the source %r is not a CLUEstering iteration"
+                                  % sc.source)
+            features, inference, linking = _build_supercluster_dnn_heterogeneous(src, sc, target)
+            m[target.supercluster_pair_features_label] = features
+            m[target.supercluster_inference_label] = inference
+            m[target.supercluster_dnn_label] = linking
+            sc_labels = [target.supercluster_pair_features_label, target.supercluster_inference_label] + sc_labels
+        else:
+            m[target.supercluster_dnn_label] = _build_supercluster_dnn(src, sc.overrides, target)
         m[target.egamma_label] = _build_egamma(src, target)
-        mkgroup(target.gname("superclustering"),
-                target.supercluster_dnn_label, target.egamma_label)
+        mkgroup(target.gname("superclustering"), *sc_labels)
 
     if target.links_label in m:
         links_children = [target.links_label]
