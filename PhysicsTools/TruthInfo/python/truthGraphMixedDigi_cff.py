@@ -18,6 +18,7 @@
 # from mix:MergedMtdTruthLC and the MTD topology, here or in a later job.
 
 import FWCore.ParameterSet.Config as cms
+from SimCalorimetry.HcalSimProducers.hcalSimParameters_cfi import hcalSimParameters as _hcalSimParameters
 
 
 def _tags(*names):
@@ -98,6 +99,10 @@ truthLogicalGraphHitIndexProducer = _truthLogicalGraphHitIndexProducer.clone(
     # them to the reco HcalDetIds the association matches on. ECAL barrel and HGCAL
     # carry reco DetIds already.
     doHcalRelabelling=cms.bool(True),
+    # An HF sim hit is a photoelectron count. The index converts it to GeV with the
+    # samplingFactor of the HF digitizer.
+    hfSamplingFactors=cms.vdouble(_hcalSimParameters.hf1.samplingFactor.value(),
+                                  _hcalSimParameters.hf2.samplingFactor.value()),
     subdetectors=cms.vstring("Calo", "Muon", "Tracker"),  # MTD on request, see the header
     # The tracker truth is keyed by (module, cell): a tracker DetId names a module, so
     # without the cell two particles crossing one module share every hit they leave

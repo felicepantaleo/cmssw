@@ -1,5 +1,6 @@
 // Original author: Felice Pantaleo (CERN) <felice.pantaleo@cern.ch>
 
+#include <array>
 #include <cstdint>
 #include <limits>
 #include <memory>
@@ -17,10 +18,13 @@
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/ParameterSet/interface/ParameterSetDescription.h"
 #include "FWCore/Utilities/interface/EDGetToken.h"
+#include "FWCore/Utilities/interface/Exception.h"
 #include "FWCore/Utilities/interface/InputTag.h"
 
 #include "DataFormats/Common/interface/DetSetVector.h"
 #include "DataFormats/DetId/interface/DetId.h"
+#include "DataFormats/HcalDetId/interface/HcalSubdetector.h"
+#include "DataFormats/HcalDetId/interface/HcalTestNumbering.h"
 #include "Geometry/CaloGeometry/interface/CaloGeometry.h"
 #include "Geometry/HcalCommonData/interface/HcalHitRelabeller.h"
 #include "Geometry/HcalTowerAlgo/interface/HcalGeometry.h"
@@ -113,6 +117,9 @@ private:
   // The HCAL constants for HcalHitRelabeller, or nullptr when the relabelling is off.
   HcalDDDRecConstants const* hcalConstants(edm::EventSetup const& setup) const;
 
+  // The energy of an HCAL sim hit in GeV. An HF sim hit carries a photoelectron count.
+  float hcalSimHitEnergy(PCaloHit const& simHit) const;
+
   edm::EDGetTokenT<truth::Graph> graphToken_;
   edm::EDGetTokenT<TruthGraph> rawGraphToken_;
   edm::EDGetTokenT<hgcal::DetIdRecHitMap> recHitMapToken_;
@@ -139,6 +146,9 @@ private:
   // Convert the HCAL simulation DetIds to reco DetIds with HcalHitRelabeller.
   bool doHcalRelabelling_ = true;
   bool sharedSubgraphStore_ = false;
+
+  // GeV per HF photoelectron, for the long fibres (depth 1 and 3) and the short fibres (depth 2 and 4).
+  std::array<float, 2> hfGeVPerPhotoelectron_{};
 };
 
 TruthLogicalGraphHitIndexProducer::TruthLogicalGraphHitIndexProducer(edm::ParameterSet const& cfg)
@@ -169,6 +179,13 @@ TruthLogicalGraphHitIndexProducer::TruthLogicalGraphHitIndexProducer(edm::Parame
 
   mtdSimLayerClusterToken_ =
       consumes<MtdSimLayerClusterCollection>(cfg.getParameter<edm::InputTag>("mtdSimLayerClusters"));
+
+  auto const hfSamplingFactors = cfg.getParameter<std::vector<double>>("hfSamplingFactors");
+  if (hfSamplingFactors.size() != hfGeVPerPhotoelectron_.size() || hfSamplingFactors[0] <= 0. ||
+      hfSamplingFactors[1] <= 0.)
+    throw cms::Exception("Configuration") << "hfSamplingFactors must hold two positive values (long, short fibres)";
+  for (std::size_t i = 0; i < hfGeVPerPhotoelectron_.size(); ++i)
+    hfGeVPerPhotoelectron_[i] = static_cast<float>(1. / hfSamplingFactors[i]);
 
   for (auto const& name : cfg.getParameter<std::vector<std::string>>("subdetectors")) {
     truth::HitChannel channel;
@@ -227,6 +244,12 @@ void TruthLogicalGraphHitIndexProducer::fillDescriptions(edm::ConfigurationDescr
       ->setComment(
           "Apply HcalHitRelabeller to the HCAL simulation DetIds, which are in packed test numbering, so the index "
           "stores the reco HcalDetIds the association matches on. Affects the HCAL collections only.");
+
+  desc.add<std::vector<double>>("hfSamplingFactors", {0.37, 0.37})
+      ->setComment(
+          "samplingFactor of the HF digitizer for the long fibres (hcalSimParameters.hf1) and the short fibres "
+          "(hf2). An HF sim hit carries a photoelectron count, and the index stores count / samplingFactor, the "
+          "energy in GeV that the digitizer gives the hit.");
 
   desc.add<bool>("sharedSubgraphStore", true)
       ->setComment(
@@ -335,6 +358,16 @@ HcalDDDRecConstants const* TruthLogicalGraphHitIndexProducer::hcalConstants(edm:
   return hcalGeometry != nullptr ? hcalGeometry->topology().dddConstants() : nullptr;
 }
 
+float TruthLogicalGraphHitIndexProducer::hcalSimHitEnergy(PCaloHit const& simHit) const {
+  int det, z, depth, eta, phi, layer;
+  HcalTestNumbering::unpackHcalIndex(simHit.id(), det, z, depth, eta, phi, layer);
+  if (det != HcalForward)
+    return simHit.energy();
+  // The same fibre split as HcalSimParameterMap: depth 1 and 3 use hf1, the others hf2.
+  const bool longFibre = depth == 1 || depth == 3;
+  return simHit.energy() * hfGeVPerPhotoelectron_[longFibre ? 0 : 1];
+}
+
 void TruthLogicalGraphHitIndexProducer::fillSimHits(edm::Event& event,
                                                     edm::EventSetup const& setup,
                                                     truth::LogicalGraphHitIndexBuilder& builder,
@@ -354,7 +387,8 @@ void TruthLogicalGraphHitIndexProducer::fillSimHits(edm::Event& event,
       continue;
     }
 
-    HcalDDDRecConstants const* const relabel = inputTagLooksLikeHcal(tag) ? hcal : nullptr;
+    const bool isHcal = inputTagLooksLikeHcal(tag);
+    HcalDDDRecConstants const* const relabel = isHcal ? hcal : nullptr;
 
     for (auto const& simHit : *hSimHits) {
       const int geantTrackId = simHit.geantTrackId();
@@ -379,7 +413,7 @@ void TruthLogicalGraphHitIndexProducer::fillSimHits(edm::Event& event,
                      simHit.eventId().rawId(),
                      static_cast<uint32_t>(geantTrackId),
                      detId,
-                     simHit.energy(),
+                     isHcal ? hcalSimHitEnergy(simHit) : simHit.energy(),
                      recHitIndex);
     }
   }
