@@ -228,6 +228,7 @@ class LevelFlags_t : public CppUnit::TestFixture {
   CPPUNIT_TEST(testReconstructableFromSignalDropsNeutrinos);
   CPPUNIT_TEST(testPi0IsLabelledNotItsPhotons);
   CPPUNIT_TEST(testGunSeedThatIsItselfReconstructableIsItsOwnLeg);
+  CPPUNIT_TEST(testStringSharedWithTheRemnantSplitsByNearestParton);
   CPPUNIT_TEST(testSimContinuationIsNotADecay);
   CPPUNIT_TEST(testReconvergentHistoryStaysAnAntichain);
   CPPUNIT_TEST(testStableLegsFromInitialStateAndUnderlyingEvent);
@@ -485,6 +486,55 @@ public:
     CPPUNIT_ASSERT(g.particles()[0].isAtLevel(truth::LevelFlag::ReconstructableFromSignal));
     CPPUNIT_ASSERT(!g.particles()[1].isAtLevel(truth::LevelFlag::ReconstructableFromSignal));
     CPPUNIT_ASSERT(!g.particles()[2].isAtLevel(truth::LevelFlag::ReconstructableFromSignal));
+  }
+
+  // REQUIRED: a hadron of a string that the signal shares with the beam remnant is a
+  // signal leg only if its nearest string parton in angle descends from the signal.
+  //   p0 t (signal) -> v0 -> p1 b, along x
+  //   p2 ud diquark, beam remnant along z, no GEN parent
+  //   p1, p2 -> v1 (string) -> p3 B+ along x, p4 pi+ along z, p5 pi- near x
+  void testStringSharedWithTheRemnantSplitsByNearestParton() {
+    auto build = [](bool remnantFromSignal) {
+      GraphBuilder b(6, 2);
+      auto set = [&](uint32_t i, int32_t pdg, int16_t st, math::XYZTLorentzVectorD p4) {
+        auto& d = b.graph.particles()[i];
+        d.genNode = 100 + i;
+        d.pdgId = pdg;
+        d.status = st;
+        d.momentum = p4;
+      };
+      set(0, 6, 62, math::XYZTLorentzVectorD(60., 0., 0., 190.));
+      set(1, 5, 71, math::XYZTLorentzVectorD(50., 0., 0., 50.));
+      set(2, 2101, 71, math::XYZTLorentzVectorD(0., 0., 900., 900.));
+      set(3, 521, 1, math::XYZTLorentzVectorD(40., 1., 0., 40.1));
+      set(4, 211, 1, math::XYZTLorentzVectorD(0., 1., 800., 800.));
+      set(5, -211, 1, math::XYZTLorentzVectorD(8., -1., 1., 8.2));
+      b.addDecay(0, 0);
+      b.addProduction(0, 1);
+      if (remnantFromSignal) {
+        b.addProduction(0, 2);
+      }
+      b.addDecay(1, 1);
+      b.addDecay(2, 1);
+      b.addProduction(1, 3);
+      b.addProduction(1, 4);
+      b.addProduction(1, 5);
+      truth::Graph g = b.finish();
+      g.particles()[0].setLevel(truth::LevelFlag::Signal);
+      truth::fillLevelFlags(g);
+      return g;
+    };
+
+    const truth::Graph shared = build(false);
+    const auto legs = truth::reconstructableFromSignal(shared);
+    CPPUNIT_ASSERT((legs == std::vector<uint32_t>{3, 5}));
+    CPPUNIT_ASSERT(!shared.particles()[4].isAtLevel(truth::LevelFlag::ReconstructableFromSignal));
+    // The event-wide level seeds on every GEN root, so no string is shared there.
+    CPPUNIT_ASSERT((truth::reconstructableFinalState(shared) == std::vector<uint32_t>{3, 4, 5}));
+
+    // A string whose partons all descend from the signal gives all its hadrons.
+    const truth::Graph own = build(true);
+    CPPUNIT_ASSERT((truth::reconstructableFromSignal(own) == std::vector<uint32_t>{3, 4, 5}));
   }
 
   // The level table is what every lookup is derived from, so a row added to it must

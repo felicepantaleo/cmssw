@@ -488,6 +488,59 @@ namespace truth {
   }
 
   namespace detail {
+    // Every particle a walk from the seeds reaches through GEN decay vertices, the seeds
+    // included.
+    template <typename SeedPredicate>
+    [[nodiscard]] inline std::vector<bool> genDescendantMask(Graph const& graph, SeedPredicate isSeed) {
+      const uint32_t nParticles = graph.nParticles();
+      std::vector<bool> reached(nParticles, false);
+      std::vector<uint32_t> stack;
+      for (uint32_t p = 0; p < nParticles; ++p) {
+        if (isSeed(p)) {
+          reached[p] = true;
+          stack.push_back(p);
+        }
+      }
+      while (!stack.empty()) {
+        const uint32_t p = stack.back();
+        stack.pop_back();
+        for (const uint32_t vertexId : graph.decayVertices(p)) {
+          if (vertexId >= graph.nVertices() || !graph.vertices()[vertexId].hasGen()) {
+            continue;
+          }
+          for (const uint32_t child : graph.outgoingParticles(vertexId)) {
+            if (child < nParticles && !reached[child]) {
+              reached[child] = true;
+              stack.push_back(child);
+            }
+          }
+        }
+      }
+      return reached;
+    }
+
+    // The GEN parent at vertexId with the smallest opening angle to child, or nParticles
+    // when the vertex has no GEN parent.
+    [[nodiscard]] inline uint32_t nearestGenParent(Graph const& graph, uint32_t vertexId, uint32_t child) {
+      const uint32_t nParticles = graph.nParticles();
+      auto const childMomentum = graph.particles()[child].momentum.Vect();
+      uint32_t nearest = nParticles;
+      double bestCosine = -2.;
+      for (const uint32_t parent : graph.incomingParticles(vertexId)) {
+        if (parent >= nParticles || !graph.particles()[parent].hasGen()) {
+          continue;
+        }
+        auto const parentMomentum = graph.particles()[parent].momentum.Vect();
+        const double norm = std::sqrt(childMomentum.Mag2() * parentMomentum.Mag2());
+        const double cosine = norm > 0. ? childMomentum.Dot(parentMomentum) / norm : -1.;
+        if (cosine > bestCosine) {
+          bestCosine = cosine;
+          nearest = parent;
+        }
+      }
+      return nearest;
+    }
+
     // The reconstructable-final-state walk from a caller-chosen seed set. The seed
     // predicate is the ONLY difference between the signal-seeded level and the
     // event-wide one, so the walk and its termination rules live here once.
@@ -498,6 +551,7 @@ namespace truth {
       std::vector<bool> seen(nParticles, false);
       std::vector<uint32_t> stack;
       auto const& terminating = graph.reconstructablePdgIds();
+      const std::vector<bool> fromSeeds = genDescendantMask(graph, isSeed);
 
       for (uint32_t p = 0; p < nParticles; ++p) {
         if (isSeed(p)) {
@@ -544,11 +598,25 @@ namespace truth {
           if (vertexId >= graph.nVertices() || !graph.vertices()[vertexId].hasGen()) {
             continue;
           }
+          // A vertex is shared when a GEN parent does not descend from a seed, for example
+          // a colour string that joins a signal parton to the beam remnant. Each child of
+          // a shared vertex follows its nearest GEN parent in angle.
+          const auto parents = graph.incomingParticles(vertexId);
+          const bool shared = std::any_of(parents.begin(), parents.end(), [&](uint32_t parent) {
+            return parent < nParticles && graph.particles()[parent].hasGen() && !fromSeeds[parent];
+          });
           for (const uint32_t child : graph.outgoingParticles(vertexId)) {
-            if (child < nParticles && !seen[child]) {
-              seen[child] = true;
-              stack.push_back(child);
+            if (child >= nParticles || seen[child]) {
+              continue;
             }
+            if (shared) {
+              const uint32_t parent = nearestGenParent(graph, vertexId, child);
+              if (parent >= nParticles || !fromSeeds[parent]) {
+                continue;
+              }
+            }
+            seen[child] = true;
+            stack.push_back(child);
           }
         }
       }
@@ -569,6 +637,10 @@ namespace truth {
   // Neutrinos are dropped rather than walked through, so the result is the VISIBLE final
   // state of the resonance. A signal root that is itself stable, a gun electron say, is
   // its own leg.
+  //
+  // A hadron of a colour string that the signal shares with the beam remnant, the
+  // initial-state shower or the underlying event is a leg only if its nearest string
+  // parton in angle descends from the signal.
   //
   // An antichain by construction: the walk stops at each leg, so no leg can be an
   // ancestor of another. Empty when nothing carries the Signal flag.
