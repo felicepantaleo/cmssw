@@ -381,8 +381,8 @@ namespace truth {
         // these cannot contain one another.
         return data.hasGen() && data.status == 1;
       case Level::UnderlyingEvent:
-        // Reachability from the artificial UnderlyingEvent vertex, answered by
-        // stableLegsFromUnderlyingEvent.
+        // A walk from the UnderlyingEvent vertex and from the shared colour strings,
+        // answered by stableLegsFromUnderlyingEvent.
         return false;
       case Level::ReconstructableFromSignal:
         // Not a per-particle predicate either: it is a walk down from the signal roots,
@@ -416,31 +416,17 @@ namespace truth {
     return false;
   }
 
-  // Stable legs hanging off every artificial vertex of one role. The InitialState vertex
-  // replaces the production context of the selected roots, so its legs are the stable
-  // descendants of those roots. The UnderlyingEvent vertex takes every stable particle
-  // outside them, initial-state radiation included. The walk is identical, so it is
-  // written once. A leg is a particle that produced nothing further,
-  // which makes the result an antichain by construction.
-  [[nodiscard]] inline std::vector<uint32_t> stableLegsFromRole(Graph const& graph, VertexRole role) {
-    std::vector<uint32_t> legs;
-    std::vector<bool> seen(graph.nParticles(), false);
-    std::vector<uint32_t> stack;
-
-    const uint32_t nVertices = graph.nVertices();
-    for (uint32_t v = 0; v < nVertices; ++v) {
-      auto const& vertexData = graph.vertices()[v];
-      if (vertexData.vertexRole() != role) {
-        continue;
-      }
-      // Depth-first from each outgoing particle over the raw CSR spans; a particle
-      // the GENERATOR gave nothing further is a leg. Only GEN decay vertices count
-      // and are descended: a SIM continuation is transport, so a stable ISR photon
-      // that converts in the tracker stays the leg instead of dissolving into its
-      // conversion products.
-      for (const uint32_t outgoing : graph.outgoingParticles(v)) {
-        stack.push_back(outgoing);
-      }
+  namespace detail {
+    // Appends to legs the particles at or below the particles on stack that the GENERATOR
+    // gave nothing further. Only GEN decay vertices are descended: a SIM continuation is
+    // transport, so a stable photon that converts in the tracker stays the leg instead of
+    // dissolving into its conversion products. A particle already marked in seen is
+    // skipped and not descended.
+    inline void appendGenLeaves(Graph const& graph,
+                                std::vector<uint32_t>& stack,
+                                std::vector<bool>& seen,
+                                std::vector<uint32_t>& legs) {
+      const uint32_t nVertices = graph.nVertices();
       while (!stack.empty()) {
         const uint32_t id = stack.back();
         stack.pop_back();
@@ -468,16 +454,35 @@ namespace truth {
         }
       }
     }
+  }  // namespace detail
+
+  // Stable legs hanging off every artificial vertex of one role. The InitialState vertex
+  // replaces the production context of the selected roots, so its legs are the stable
+  // descendants of those roots. The UnderlyingEvent vertex takes every stable particle
+  // outside them, initial-state radiation included. The walk is identical, so it is
+  // written once. A leg is a particle that produced nothing further,
+  // which makes the result an antichain by construction.
+  [[nodiscard]] inline std::vector<uint32_t> stableLegsFromRole(Graph const& graph, VertexRole role) {
+    std::vector<uint32_t> legs;
+    std::vector<bool> seen(graph.nParticles(), false);
+    std::vector<uint32_t> stack;
+
+    const uint32_t nVertices = graph.nVertices();
+    for (uint32_t v = 0; v < nVertices; ++v) {
+      if (graph.vertices()[v].vertexRole() != role) {
+        continue;
+      }
+      for (const uint32_t outgoing : graph.outgoingParticles(v)) {
+        stack.push_back(outgoing);
+      }
+      detail::appendGenLeaves(graph, stack, seen, legs);
+    }
     std::sort(legs.begin(), legs.end());
     return legs;
   }
 
   [[nodiscard]] inline std::vector<uint32_t> stableLegsFromInitialState(Graph const& graph) {
     return stableLegsFromRole(graph, VertexRole::InitialState);
-  }
-
-  [[nodiscard]] inline std::vector<uint32_t> stableLegsFromUnderlyingEvent(Graph const& graph) {
-    return stableLegsFromRole(graph, VertexRole::UnderlyingEvent);
   }
 
   // Species a detector cannot reconstruct at all, so they are not part of the visible
@@ -544,11 +549,23 @@ namespace truth {
     // The reconstructable-final-state walk from a caller-chosen seed set. The seed
     // predicate is the ONLY difference between the signal-seeded level and the
     // event-wide one, so the walk and its termination rules live here once.
-    template <typename SeedPredicate>
-    [[nodiscard]] inline std::vector<uint32_t> reconstructableLegsFrom(Graph const& graph, SeedPredicate isSeed) {
-      const uint32_t nParticles = graph.nParticles();
+    struct ReconstructableWalk {
       std::vector<uint32_t> legs;
-      std::vector<bool> seen(nParticles, false);
+      // Every particle the walk reached, the seeds included.
+      std::vector<bool> seen;
+      // The children of a shared vertex that follow a non-seed parent and that the walk
+      // does not reach on another path.
+      std::vector<uint32_t> dropped;
+    };
+
+    template <typename SeedPredicate>
+    [[nodiscard]] inline ReconstructableWalk reconstructableWalkFrom(Graph const& graph, SeedPredicate isSeed) {
+      const uint32_t nParticles = graph.nParticles();
+      ReconstructableWalk walk;
+      auto& legs = walk.legs;
+      auto& seen = walk.seen;
+      seen.assign(nParticles, false);
+      std::vector<uint32_t> dropped;
       std::vector<uint32_t> stack;
       auto const& terminating = graph.reconstructablePdgIds();
       const std::vector<bool> fromSeeds = genDescendantMask(graph, isSeed);
@@ -612,6 +629,7 @@ namespace truth {
             if (shared) {
               const uint32_t parent = nearestGenParent(graph, vertexId, child);
               if (parent >= nParticles || !fromSeeds[parent]) {
+                dropped.push_back(child);
                 continue;
               }
             }
@@ -622,7 +640,16 @@ namespace truth {
       }
 
       std::sort(legs.begin(), legs.end());
-      return legs;
+      std::sort(dropped.begin(), dropped.end());
+      dropped.erase(std::unique(dropped.begin(), dropped.end()), dropped.end());
+      std::erase_if(dropped, [&seen](uint32_t id) { return seen[id]; });
+      walk.dropped = std::move(dropped);
+      return walk;
+    }
+
+    template <typename SeedPredicate>
+    [[nodiscard]] inline std::vector<uint32_t> reconstructableLegsFrom(Graph const& graph, SeedPredicate isSeed) {
+      return reconstructableWalkFrom(graph, isSeed).legs;
     }
   }  // namespace detail
 
@@ -647,6 +674,25 @@ namespace truth {
   [[nodiscard]] inline std::vector<uint32_t> reconstructableFromSignal(Graph const& graph) {
     return detail::reconstructableLegsFrom(
         graph, [&graph](uint32_t p) { return graph.particles()[p].isAtLevel(LevelFlag::Signal); });
+  }
+
+  // The stable legs of the underlying event: the legs off the UnderlyingEvent vertex, and
+  // the stable legs below each hadron of a shared colour string that follows a non-signal
+  // parton. No member is reached by the reconstructableFromSignal walk.
+  [[nodiscard]] inline std::vector<uint32_t> stableLegsFromUnderlyingEvent(Graph const& graph) {
+    std::vector<uint32_t> legs = stableLegsFromRole(graph, VertexRole::UnderlyingEvent);
+    auto walk = detail::reconstructableWalkFrom(
+        graph, [&graph](uint32_t p) { return graph.particles()[p].isAtLevel(LevelFlag::Signal); });
+    if (walk.dropped.empty()) {
+      return legs;
+    }
+    std::vector<bool> seen = std::move(walk.seen);
+    for (const uint32_t id : legs) {
+      seen[id] = true;
+    }
+    detail::appendGenLeaves(graph, walk.dropped, seen, legs);
+    std::sort(legs.begin(), legs.end());
+    return legs;
   }
 
   // A particle with a GEN record and no GEN parent: a beam particle, a gun particle, or a

@@ -490,6 +490,7 @@ public:
 
   // REQUIRED: a hadron of a string that the signal shares with the beam remnant is a
   // signal leg only if its nearest string parton in angle descends from the signal.
+  // Otherwise it is an underlying-event leg.
   //   p0 t (signal) -> v0 -> p1 b, along x
   //   p2 ud diquark, beam remnant along z, no GEN parent
   //   p1, p2 -> v1 (string) -> p3 B+ along x, p4 pi+ along z, p5 pi- near x
@@ -529,12 +530,18 @@ public:
     const auto legs = truth::reconstructableFromSignal(shared);
     CPPUNIT_ASSERT((legs == std::vector<uint32_t>{3, 5}));
     CPPUNIT_ASSERT(!shared.particles()[4].isAtLevel(truth::LevelFlag::ReconstructableFromSignal));
+    // The hadron that follows the remnant is underlying event; the signal hadrons are not.
+    CPPUNIT_ASSERT((truth::levelAntichain(shared, truth::Level::UnderlyingEvent) == std::vector<uint32_t>{4}));
+    CPPUNIT_ASSERT(shared.particles()[4].isAtLevel(truth::LevelFlag::UnderlyingEvent));
+    CPPUNIT_ASSERT(!shared.particles()[3].isAtLevel(truth::LevelFlag::UnderlyingEvent));
+    CPPUNIT_ASSERT(!shared.particles()[5].isAtLevel(truth::LevelFlag::UnderlyingEvent));
     // The event-wide level seeds on every GEN root, so no string is shared there.
     CPPUNIT_ASSERT((truth::reconstructableFinalState(shared) == std::vector<uint32_t>{3, 4, 5}));
 
     // A string whose partons all descend from the signal gives all its hadrons.
     const truth::Graph own = build(true);
     CPPUNIT_ASSERT((truth::reconstructableFromSignal(own) == std::vector<uint32_t>{3, 4, 5}));
+    CPPUNIT_ASSERT(truth::levelAntichain(own, truth::Level::UnderlyingEvent).empty());
   }
 
   // The level table is what every lookup is derived from, so a row added to it must
