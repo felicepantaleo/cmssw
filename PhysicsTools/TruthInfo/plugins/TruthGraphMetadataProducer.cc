@@ -1,11 +1,13 @@
 // Original author: Felice Pantaleo (CERN) <felice.pantaleo@cern.ch>
 //
-// Writes truth::GraphMetadata once per run. The configuration of the graph producers and
-// of the generator comes from the parameter sets of this job and of the jobs before it,
-// so the metadata describes the modules that ran and cannot drift from them.
+// Writes truth::GraphMetadata once per run. The configuration of each graph producer comes
+// from the parameter set of the job that made its product in this job, and the configuration
+// of the generator from the latest job that has it, so the metadata describes the modules
+// that ran and cannot drift from them.
 
 #include <algorithm>
 #include <cctype>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -13,6 +15,7 @@
 #include <vector>
 
 #include "DataFormats/Provenance/interface/ProcessHistory.h"
+#include "DataFormats/Provenance/interface/ProductDescription.h"
 #include "FWCore/Framework/interface/MakerMacros.h"
 #include "FWCore/Framework/interface/Run.h"
 #include "FWCore/Framework/interface/global/EDProducer.h"
@@ -50,13 +53,28 @@ namespace {
     return ModuleConfig{process.getParameterSet(label), releaseName(release)};
   }
 
-  // The module with this label in this job, else in the latest earlier job that has it.
+  // The processes that made a product of a module, see productsOf.
+  using ProducingProcesses = std::vector<std::string>;
+
+  bool contains(ProducingProcesses const& processes, std::string const& name) {
+    return std::find(processes.begin(), processes.end(), name) != processes.end();
+  }
+
+  // The module with this label in the latest job, this one included, that has it. With
+  // producers, a job that did not make a product of the module in this job is skipped.
   std::optional<ModuleConfig> findModule(edm::ParameterSet const& thisProcess,
                                          edm::ProcessHistory const& history,
-                                         std::string const& label) {
-    if (auto found = moduleIn(thisProcess, label, edm::getReleaseVersion()))
-      return found;
+                                         std::string const& label,
+                                         ProducingProcesses const* producers = nullptr) {
+    auto const accepted = [producers](std::string const& process) {
+      return producers == nullptr || contains(*producers, process);
+    };
+    if (accepted(thisProcess.getParameter<std::string>("@process_name")))
+      if (auto found = moduleIn(thisProcess, label, edm::getReleaseVersion()))
+        return found;
     for (auto it = history.rbegin(); it != history.rend(); ++it) {
+      if (!accepted(it->processName()))
+        continue;
       if (auto const* process = edm::pset::Registry::instance()->getMapped(it->parameterSetID()))
         if (auto found = moduleIn(*process, label, it->releaseVersion()))
           return found;
@@ -115,6 +133,21 @@ public:
         generatorVersion_(cfg.getParameter<std::string>("generatorVersion")),
         generatorFragment_(cfg.getParameter<std::string>("generatorFragment")) {
     produces<truth::GraphMetadata, edm::Transition::BeginRun>();
+    // The product type of each graph producer.
+    std::vector<std::pair<std::string, std::string>> const products{{rawGraphProducer_, "TruthGraph"},
+                                                                    {graphProducer_, "truth::Graph"},
+                                                                    {hitIndexProducer_, "truth::LogicalGraphHitIndex"}};
+    callWhenNewProductsRegistered([this, products](edm::ProductDescription const& product) {
+      if (!product.present())
+        return;
+      for (auto const& [label, type] : products) {
+        if (label.empty() || product.moduleLabel() != label || product.className() != type)
+          continue;
+        auto& processes = producingProcesses_[label];
+        if (!contains(processes, product.processName()))
+          processes.push_back(product.processName());
+      }
+    });
   }
 
   static void fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
@@ -134,6 +167,12 @@ public:
 
   void produce(edm::StreamID, edm::Event&, edm::EventSetup const&) const override {}
 
+  ProducingProcesses const& productsOf(std::string const& label) const {
+    static const ProducingProcesses none;
+    auto const it = producingProcesses_.find(label);
+    return it == producingProcesses_.end() ? none : it->second;
+  }
+
   void globalBeginRunProduce(edm::Run& run, edm::EventSetup const&) const override {
     auto out = std::make_unique<truth::GraphMetadata>();
     edm::ParameterSet const& thisProcess = edm::getProcessParameterSetContainingModule(moduleDescription());
@@ -147,7 +186,7 @@ public:
       out->generatorConfig = generator->pset.dump();
     }
 
-    if (auto raw = findModule(thisProcess, history, rawGraphProducer_)) {
+    if (auto raw = findModule(thisProcess, history, rawGraphProducer_, &productsOf(rawGraphProducer_))) {
       edm::ParameterSet const& pset = raw->pset;
       if (moduleType(pset) == "MixingModule") {
         auto const digitizers = parameterOr(pset, "digitizers", edm::ParameterSet());
@@ -170,10 +209,10 @@ public:
     }
     if (out->buildMode == truth::GraphMetadata::BuildMode::Unknown)
       edm::LogWarning("TruthGraphMetadataProducer")
-          << "No truth graph builder under the label '" << rawGraphProducer_ << "' in this job or in the jobs "
-          << "before it, or a MixingModule without the truthGraph accumulator: the build mode is Unknown.";
+          << "No TruthGraph product of the module '" << rawGraphProducer_ << "' in this job, "
+          << "or a MixingModule without the truthGraph accumulator: the build mode is Unknown.";
 
-    if (auto graph = findModule(thisProcess, history, graphProducer_)) {
+    if (auto graph = findModule(thisProcess, history, graphProducer_, &productsOf(graphProducer_))) {
       edm::ParameterSet const& pset = graph->pset;
       out->cmsswVersion = graph->release;
       auto const selection = parameterOr(pset, "postProcessing", edm::ParameterSet());
@@ -195,7 +234,7 @@ public:
     out->levelNames.emplace_back(truth::kSignalLevelName);
     out->levelFlags.push_back(static_cast<uint32_t>(truth::LevelFlag::Signal));
 
-    if (auto index = findModule(thisProcess, history, hitIndexProducer_)) {
+    if (auto index = findModule(thisProcess, history, hitIndexProducer_, &productsOf(hitIndexProducer_))) {
       edm::ParameterSet const& pset = index->pset;
       out->hitIndexChannels = parameterOr(pset, "subdetectors", std::vector<std::string>());
       out->hitIndexInputs = collections(pset, {"SimHitCollections", "DigiSimLinks"});
@@ -227,6 +266,9 @@ private:
   const std::string generatorName_;
   const std::string generatorVersion_;
   const std::string generatorFragment_;
+  // For each module label, the processes that made one of its products. Filled while the
+  // products are registered, read-only afterwards.
+  std::map<std::string, ProducingProcesses> producingProcesses_;
 };
 
 DEFINE_FWK_MODULE(TruthGraphMetadataProducer);

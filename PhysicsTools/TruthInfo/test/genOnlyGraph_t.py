@@ -51,6 +51,8 @@ found = {
 }
 if found != expected:
     sys.exit("metadata %s, expected %s" % (found, expected))
+if "TruthLogicalGraphProducer" not in str(meta.graphProducerConfig):
+    sys.exit("metadata graphProducerConfig does not describe the TruthLogicalGraphProducer that made the graph")
 levels = {str(meta.levelNames[i]): meta.levelFlags[i] for i in range(meta.levelNames.size())}
 if levels != LEVEL_BITS:
     sys.exit("metadata level bits %s, expected %s" % (levels, LEVEL_BITS))
