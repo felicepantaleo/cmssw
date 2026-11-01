@@ -139,6 +139,15 @@ private:
   const float photonScoreMinPt_;
   edm::EDGetTokenT<std::vector<float>> eGammaScore_token_;
   edm::EDGetTokenT<std::vector<int>> eGammaIndex_token_;
+  // With eGammaEnergy set, a neutral candidate on an e/gamma trackster with a supercluster takes the supercluster
+  // energy and no neutral share when its pT from the trackster energy is at least eGammaEnergyMinPt, and an electron
+  // with a GSF track combines the GSF mode momentum with the supercluster energy, whose error is
+  // sigma/E = sqrt(S^2/E + C^2) with S = eGammaEnergyStochastic and C = eGammaEnergyConstant.
+  const bool useEGammaEnergy_;
+  edm::EDGetTokenT<std::vector<float>> eGammaEnergy_token_;
+  const float eGammaEnergyMinPt_;
+  const float eGammaEnergyStochastic_;
+  const float eGammaEnergyConstant_;
   std::vector<float> neutralEnergyShares(const std::vector<Trackster> &tracksters,
                                          const std::vector<reco::CaloCluster> &layerClusters,
                                          const std::vector<int> &neutralIdx) const;
@@ -150,8 +159,15 @@ private:
     bool compatible;
   };
   CombinedEnergy combinedEnergy(float p, float sigmaP, float mass, const Trackster &ts) const;
+  // The same with the calorimeter energy e and its error sigmaE.
+  CombinedEnergy combinedEnergy(float p, float sigmaP, float mass, float e, float sigmaE) const;
   // Energy error of a trackster that measures the energy e.
   float tracksterEnergyError(const Trackster &ts, float e) const;
+  // Error of the supercluster energy e.
+  float eGammaEnergyError(float e) const {
+    return e * std::sqrt(eGammaEnergyStochastic_ * eGammaEnergyStochastic_ / std::max(e, 0.1f) +
+                         eGammaEnergyConstant_ * eGammaEnergyConstant_);
+  }
 
   // A charged hadron that shares the energy of a trackster with the other charged hadrons on it.
   struct ChargedOnTrackster {
@@ -173,13 +189,15 @@ private:
                               const std::vector<int> &tracksterSpecies,
                               const std::vector<float> &tracksterSpeciesProbabilities,
                               std::vector<TICLCandidate> &candidates) const;
-  // Neutral candidates: each takes the share of its trackster energy that comes from the particle it represents.
+  // Neutral candidates: each takes the share of its trackster energy that comes from the particle it represents, or
+  // the supercluster energy of its trackster (superClusterEnergy, -1: none) from eGammaEnergyMinPt.
   void appendNeutralCandidates(const edm::Handle<std::vector<Trackster>> &tracksters_h,
                                const std::vector<reco::CaloCluster> &layerClusters,
                                const std::vector<int> &neutralIdx,
                                const std::vector<int> &neutralPdg,
                                const std::vector<float> &neutralSpeciesProbabilities,
                                const std::vector<float> &photonScore,
+                               const std::vector<float> &superClusterEnergy,
                                std::vector<TICLCandidate> &candidates) const;
   // Muons: a charged candidate takes the kinematics of the best muon track when takesMuonKinematics holds. A loose muon
   // is accepted for a muon candidate only. Returns the muon of each candidate and the type of its muon track (-1: none).
@@ -283,6 +301,10 @@ TICLCandidateArbitrationProducer::TICLCandidateArbitrationProducer(const edm::Pa
       neutralShareMinPt_(ps.getParameter<float>("neutralShareMinPt")),
       photonMinScore_(ps.getParameter<float>("photonMinScore")),
       photonScoreMinPt_(ps.getParameter<float>("photonScoreMinPt")),
+      useEGammaEnergy_(!ps.getParameter<edm::InputTag>("eGammaEnergy").label().empty()),
+      eGammaEnergyMinPt_(ps.getParameter<float>("eGammaEnergyMinPt")),
+      eGammaEnergyStochastic_(ps.getParameter<float>("eGammaEnergyStochastic")),
+      eGammaEnergyConstant_(ps.getParameter<float>("eGammaEnergyConstant")),
       propName_(ps.getParameter<std::string>("propagator")),
       bfield_token_(esConsumes<MagneticField, IdealMagneticFieldRecord, edm::Transition::BeginRun>()),
       propagator_token_(
@@ -299,11 +321,16 @@ TICLCandidateArbitrationProducer::TICLCandidateArbitrationProducer(const edm::Pa
     gsf_tracks_token_ = consumes<std::vector<reco::GsfTrack>>(ps.getParameter<edm::InputTag>("gsf_tracks"));
   }
   if (photonMinScore_ > 0.f) {
-    if (ps.getParameter<edm::InputTag>("eGammaScore").label().empty() ||
-        ps.getParameter<edm::InputTag>("eGammaTracksters").label().empty())
-      throw cms::Exception("Configuration")
-          << "TICLCandidateArbitrationProducer: photonMinScore > 0 needs eGammaScore and eGammaTracksters";
+    if (ps.getParameter<edm::InputTag>("eGammaScore").label().empty())
+      throw cms::Exception("Configuration") << "TICLCandidateArbitrationProducer: photonMinScore > 0 needs eGammaScore";
     eGammaScore_token_ = consumes<std::vector<float>>(ps.getParameter<edm::InputTag>("eGammaScore"));
+  }
+  if (useEGammaEnergy_)
+    eGammaEnergy_token_ = consumes<std::vector<float>>(ps.getParameter<edm::InputTag>("eGammaEnergy"));
+  if (photonMinScore_ > 0.f || useEGammaEnergy_) {
+    if (ps.getParameter<edm::InputTag>("eGammaTracksters").label().empty())
+      throw cms::Exception("Configuration")
+          << "TICLCandidateArbitrationProducer: photonMinScore > 0 and eGammaEnergy need eGammaTracksters";
     const auto &eg = ps.getParameter<edm::InputTag>("eGammaTracksters");
     eGammaIndex_token_ = consumes<std::vector<int>>(edm::InputTag(eg.label(), "interpretationIndex", eg.process()));
   }
@@ -323,10 +350,14 @@ void TICLCandidateArbitrationProducer::beginRun(edm::Run const &, edm::EventSetu
 
 TICLCandidateArbitrationProducer::CombinedEnergy TICLCandidateArbitrationProducer::combinedEnergy(
     float p, float sigmaP, float mass, const Trackster &ts) const {
+  return combinedEnergy(
+      p, sigmaP, mass, ts.regressed_energy(), tracksterEnergyError(ts, std::sqrt(p * p + mass * mass)));
+}
+
+TICLCandidateArbitrationProducer::CombinedEnergy TICLCandidateArbitrationProducer::combinedEnergy(
+    float p, float sigmaP, float mass, float eTrackster, float sigmaTrackster) const {
   const float eTrack = std::sqrt(p * p + mass * mass);
   const float sigmaTrack = sigmaP;
-  const float eTrackster = ts.regressed_energy();
-  const float sigmaTrackster = tracksterEnergyError(ts, eTrack);
   if (!(std::abs(eTrackster - eTrack) < energyCompatibilityNSigma_ * std::hypot(sigmaTrack, sigmaTrackster)))
     return {eTrack, false};
   const float wTrack = 1.f / std::max(sigmaTrack * sigmaTrack, 1e-12f);
@@ -506,6 +537,20 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
     const float sigmaP = hadronicTrackMomentumErrorScale_ * tk.qoverpError() * p * p;
     return ChargedOnTrackster{candidates.size() - 1, std::sqrt(p * p + ticl::mpion2), sigmaP * sigmaP, jetMember};
   };
+  // Supercluster energy of each final trackster (-1: none), with eGammaEnergy set.
+  std::vector<float> superClusterEnergy;
+  if (useEGammaEnergy_) {
+    const auto &eGammaEnergy = evt.get(eGammaEnergy_token_);
+    const auto &eGammaIndex = evt.get(eGammaIndex_token_);
+    if (eGammaEnergy.size() != eGammaIndex.size())
+      throw cms::Exception("Configuration")
+          << "TICLCandidateArbitrationProducer: " << eGammaEnergy.size() << " supercluster energies for "
+          << eGammaIndex.size() << " e/gamma tracksters";
+    superClusterEnergy.assign(tracksters_h->size(), -1.f);
+    for (size_t k = 0; k < eGammaIndex.size(); ++k)
+      if (eGammaIndex[k] >= 0 && eGammaIndex[k] < static_cast<int>(superClusterEnergy.size()))
+        superClusterEnergy[eGammaIndex[k]] = eGammaEnergy[k];
+  }
   // A GSF track goes to one electron only.
   std::vector<bool> gsfUsed(gsfTracks.size(), false);
   const auto &probabilitiesOfTracks = evt.get(trackTypeProbabilities_token_);
@@ -560,12 +605,16 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
         cand.addGsfTrackPtr(edm::Ptr<reco::GsfTrack>(gsfTracks_h, bestGsf));
         cand.setPdgId(-11 * gsf.charge());
         cand.setCharge(gsf.charge());
-        // The GSF mode momentum combined with the trackster energy, or the trackster energy when they disagree.
+        // The GSF mode momentum combined with the calorimeter energy, or the calorimeter energy when they disagree. The
+        // calorimeter energy is the supercluster energy when the trackster has one, else the trackster energy.
         const float p = gsf.pMode();
-        const auto combined =
-            combinedEnergy(p, gsfMomentumErrorScale_ * gsf.qoverpModeError() * p * p, 0.f, *tracksterPtr);
-        cand.setP4(
-            p4Along(gsf.momentum(), combined.compatible ? combined.energy : tracksterPtr->regressed_energy(), 0.f));
+        const float sigmaP = gsfMomentumErrorScale_ * gsf.qoverpModeError() * p * p;
+        const float eSuperCluster = superClusterEnergy.empty() ? -1.f : superClusterEnergy[tsIdx];
+        const float eCalo = eSuperCluster > 0.f ? eSuperCluster : tracksterPtr->regressed_energy();
+        const auto combined = eSuperCluster > 0.f
+                                  ? combinedEnergy(p, sigmaP, 0.f, eSuperCluster, eGammaEnergyError(eSuperCluster))
+                                  : combinedEnergy(p, sigmaP, 0.f, *tracksterPtr);
+        cand.setP4(p4Along(gsf.momentum(), combined.compatible ? combined.energy : eCalo, 0.f));
       } else {
         // No GSF track: the constructor sets the kinematics from the track and the trackster.
         cand.setPdgId(-11 * tk.charge());
@@ -638,6 +687,7 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
                           neutralPdg,
                           evt.get(neutralSpeciesProbabilities_token_),
                           photonScore,
+                          superClusterEnergy,
                           candidates);
   ticl::assignTimeToCandidates(candidates,
                                inputTimingView,
@@ -690,27 +740,33 @@ void TICLCandidateArbitrationProducer::appendNeutralCandidates(const edm::Handle
                                                                const std::vector<int> &neutralPdg,
                                                                const std::vector<float> &neutralSpeciesProbabilities,
                                                                const std::vector<float> &photonScore,
+                                                               const std::vector<float> &superClusterEnergy,
                                                                std::vector<TICLCandidate> &candidates) const {
   if (neutralSpeciesProbabilities.size() != kNeutralSpecies * neutralIdx.size())
     throw cms::Exception("LogicError") << "TICLCandidateArbitrationProducer: " << neutralSpeciesProbabilities.size()
                                        << " neutral species probabilities for " << neutralIdx.size() << " neutrals";
   const auto neutralShare = neutralEnergyShares(*tracksters_h, layerClusters, neutralIdx);
   for (size_t k = 0; k < neutralIdx.size(); ++k) {
-    edm::Ptr<Trackster> tracksterPtr(tracksters_h, neutralIdx[k]);
+    const int idx = neutralIdx[k];
+    edm::Ptr<Trackster> tracksterPtr(tracksters_h, idx);
     edm::Ptr<reco::Track> trackPtr;
     TICLCandidate cand(trackPtr, tracksterPtr);
     if (neutralPdg[k] != 0)
       cand.setPdgId(neutralPdg[k]);
     cand.setTypeProbabilities(neutralTypeProbabilities(
         std::span<const float>(neutralSpeciesProbabilities).subspan(kNeutralSpecies * k).first<kNeutralSpecies>()));
+    const bool superCluster =
+        !superClusterEnergy.empty() && superClusterEnergy[idx] > 0.f && cand.pt() >= eGammaEnergyMinPt_;
+    if (superCluster && cand.energy() > 0.)
+      cand.setP4(cand.p4() * (superClusterEnergy[idx] / cand.energy()));
     const bool keepTracksterEnergy = neutralShareMinPt_ > 0.f && cand.pt() >= neutralShareMinPt_;
-    if (!keepTracksterEnergy)
+    if (!superCluster && !keepTracksterEnergy)
       cand.setP4(cand.p4() * neutralShare[k]);
     if (cand.energy() < neutralMinEnergy_)
       continue;
     const int absPdg = std::abs(cand.pdgId());
     if (!photonScore.empty() && (absPdg == 22 || absPdg == 111) && cand.pt() >= photonScoreMinPt_ &&
-        photonScore[neutralIdx[k]] < photonMinScore_)
+        photonScore[idx] < photonMinScore_)
       cand.setPdgId(130);
     candidates.push_back(cand);
   }
@@ -802,7 +858,21 @@ void TICLCandidateArbitrationProducer::fillDescriptions(edm::ConfigurationDescri
           "Score of the supercluster of each e/gamma trackster (ticlEGammaSuperClusters:tracksterScore), with "
           "photonMinScore > 0.");
   desc.add<edm::InputTag>("eGammaTracksters", edm::InputTag(""))
-      ->setComment("E/gamma tracksters of the score (ticlEGammaTracksters), with photonMinScore > 0.");
+      ->setComment(
+          "E/gamma tracksters of the score and of the energy (ticlEGammaTracksters), with photonMinScore > 0 or "
+          "eGammaEnergy set.");
+  desc.add<edm::InputTag>("eGammaEnergy", edm::InputTag(""))
+      ->setComment(
+          "Supercluster energy of each e/gamma trackster (ticlEGammaSuperClusters:tracksterEnergy) for the neutral "
+          "candidates and the electrons on these tracksters; empty: the trackster energy.");
+  desc.add<float>("eGammaEnergyMinPt", 15.f)
+      ->setComment(
+          "Min pT [GeV] from the trackster energy of a neutral candidate that takes the supercluster energy, with "
+          "eGammaEnergy set.");
+  desc.add<float>("eGammaEnergyStochastic", 0.84f)
+      ->setComment("Stochastic term of the supercluster energy resolution of the electrons, with eGammaEnergy set.");
+  desc.add<float>("eGammaEnergyConstant", 0.042f)
+      ->setComment("Constant term of the supercluster energy resolution of the electrons, with eGammaEnergy set.");
   desc.add<edm::InputTag>("layerClusters", edm::InputTag("hgcalMergeLayerClusters"))
       ->setComment("Layer clusters of the tracksters, read for the neutral energy share.");
   desc.add<edm::InputTag>("muonSrc", edm::InputTag("muons1stStep"));

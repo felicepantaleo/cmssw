@@ -19,7 +19,8 @@
 // below scoreEtSplit) or below minScoreHighEt (at or above scoreEtSplit) is dropped. The instance tracksterScore gives,
 // for each e/gamma trackster, the output of typeScoreModel on the same features when it is set, else the score, of its
 // supercluster before this cut (-1: no supercluster passes the threshold); it is empty without scoreModel and
-// typeScoreModel.
+// typeScoreModel. The instance tracksterEnergy gives, for each e/gamma trackster, the energy of its supercluster
+// before the threshold and the score cut (-1: no supercluster).
 
 #include <algorithm>
 #include <cmath>
@@ -114,6 +115,7 @@ private:
   const edm::EDPutTokenT<reco::SuperClusterCollection> superClusters_put_token_;
   const edm::EDPutTokenT<std::vector<int>> index_put_token_;
   const edm::EDPutTokenT<std::vector<float>> score_put_token_;
+  const edm::EDPutTokenT<std::vector<float>> energy_put_token_;
 };
 
 TICLEGammaSuperClustersProducer::TICLEGammaSuperClustersProducer(const edm::ParameterSet &ps,
@@ -137,7 +139,8 @@ TICLEGammaSuperClustersProducer::TICLEGammaSuperClustersProducer(const edm::Para
       clusters_put_token_(produces("clusters")),
       superClusters_put_token_(produces()),
       index_put_token_(produces<std::vector<int>>("tracksterIndex")),
-      score_put_token_(produces<std::vector<float>>("tracksterScore")) {
+      score_put_token_(produces<std::vector<float>>("tracksterScore")),
+      energy_put_token_(produces<std::vector<float>>("tracksterEnergy")) {
   if (!ps.getParameter<std::string>("scoreModel").empty() || !ps.getParameter<std::string>("typeScoreModel").empty()) {
     layerTiles_token_ = consumes(ps.getParameter<edm::InputTag>("layerTiles"));
     tracks_token_ = consumes(ps.getParameter<edm::InputTag>("tracks"));
@@ -367,6 +370,10 @@ void TICLEGammaSuperClustersProducer::produce(edm::Event &evt, const edm::EventS
     }
   }
 
+  std::vector<float> tracksterEnergy(eGammaTracksters.size(), -1.f);
+  for (std::size_t i = 0; i < superClusters.size(); ++i)
+    tracksterEnergy[tracksterIndex[i]] = superClusters[i].energy();
+
   // Transverse energy threshold, after the regression.
   std::vector<std::size_t> passing;
   for (std::size_t i = 0; i < superClusters.size(); ++i) {
@@ -456,6 +463,7 @@ void TICLEGammaSuperClustersProducer::produce(edm::Event &evt, const edm::EventS
   evt.emplace(superClusters_put_token_, std::move(selected));
   evt.emplace(index_put_token_, std::move(selectedIndex));
   evt.emplace(score_put_token_, std::move(tracksterScore));
+  evt.emplace(energy_put_token_, std::move(tracksterEnergy));
 }
 
 void TICLEGammaSuperClustersProducer::fillDescriptions(edm::ConfigurationDescriptions &descriptions) {
