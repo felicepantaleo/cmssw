@@ -295,6 +295,12 @@ TruthBranchRecoValidator<RECO>::TruthBranchRecoValidator(edm::ParameterSet const
   if (workingPoints.empty()) {
     throw cms::Exception("Configuration") << "TruthBranchRecoValidator: workingPoints is empty";
   }
+  // The dominance measure and the truth-side loose score read the first point's map as
+  // the complete one, and only the plain per-root match keeps every candidate.
+  if (workingPoints.front() != "Fixed") {
+    throw cms::Exception("Configuration") << "TruthBranchRecoValidator: workingPoints starts with '"
+                                          << workingPoints.front() << "', it must start with 'Fixed'";
+  }
   nWorkingPoints_ = workingPoints.size();
 
   // The truth-driven folder suffixes and the denominator instance each consumes. A
@@ -934,7 +940,8 @@ void TruthBranchRecoValidator<RECO>::fillDescriptions(edm::ConfigurationDescript
     desc.add<double>("minLeadingTruthShare", 0.5)
         ->setComment(
             "Fake criterion: one branch of dominanceLevel must own at least this share of the shared quantity all "
-            "candidates at that level contribute. An object below it, or with no candidate there, is a fake");
+            "candidates at that level contribute. An object below it is a fake; for an object with no candidate "
+            "there the question is undefined, and it is not a fake");
     desc.add<std::string>("dominanceLevel", "caloBoundary")
         ->setComment(
             "The level whose targets the leading-truth-contributor measure is computed over. It must be an "
@@ -966,7 +973,8 @@ void TruthBranchRecoValidator<RECO>::fillDescriptions(edm::ConfigurationDescript
             "applied src/HGVHistoProducerAlgo.cc:2897). This is an ENERGY FRACTION, not a score");
     desc.add<double>("maxSimToRecoScoreForDuplicate", 0.2)
         ->setComment(
-            "More than one reco object below this simToReco score makes the truth object a duplicate. "
+            "More than one reco object below this simToReco score makes an individually found truth object a "
+            "duplicate. "
             "HGCalValidator's maxSimToRecoScoreForPurity/Duplicate (HGVHistoProducerAlgoBlock_cfi.py:72-73, "
             "applied HGVHistoProducerAlgo.cc:2898-2899)");
     desc.add<double>("maxRecoToSimScore", 0.6)
