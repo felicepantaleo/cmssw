@@ -394,8 +394,8 @@ namespace truth {
         return false;
       case Level::BHadrons:
         // The deepest-element antichain then keeps the weakly decaying hadron and drops
-        // the B* above it.
-        return hadronHasQuark(data.pdgId, 5);
+        // the B* above it. A quarkonium decays where it was produced, so it is no member.
+        return hadronHasQuark(data.pdgId, 5) && !isQuarkonium(data.pdgId, 5);
       case Level::ReconstructableFinalState:
         // A walk from the GEN roots, answered by reconstructableFinalState, so it never
         // reaches here.
@@ -406,8 +406,9 @@ namespace truth {
         return isTauVisibleLeptonic(graph, id);
       case Level::CHadrons:
         // A c hadron from a B decay is a legitimate member: the nesting that matters is
-        // within one flavour, and beauty and charm are deliberately different levels.
-        return hadronHasQuark(data.pdgId, 4);
+        // within one flavour, and beauty and charm are deliberately different levels. A
+        // quarkonium decays where it was produced, so it is no member.
+        return hadronHasQuark(data.pdgId, 4) && !isQuarkonium(data.pdgId, 4);
       case Level::CaloBoundary:
         // Recorded crossing the tracker-calorimeter boundary outward. Back-scattered
         // tracks crossed it inward and are the same particle coming back.
