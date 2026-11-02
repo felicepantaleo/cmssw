@@ -1,8 +1,5 @@
 // Original author: Felice Pantaleo (CERN) <felice.pantaleo@cern.ch>
 
-// Author: Felice Pantaleo - CERN
-// Date: 03/2026
-//
 // Build a logical truth::Graph from the raw heterogeneous TruthGraph.
 // The topology comes from the raw TruthGraph.
 // Standalone payload (momentum/position/checkpoints) is materialized from optional

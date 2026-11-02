@@ -651,12 +651,20 @@ def discover(tfile):
 def collect(files):
     """{category: {collection: {metric: {var: {wp: (edges, values, errors)}}}}}"""
     data = {}
+    sourceOfFolder = {}
     for fname in files:
         tfile = ROOT.TFile.Open(fname)
         if not tfile or tfile.IsZombie():
             print(f"cannot open {fname}", file=sys.stderr)
             continue
         for flavour, category, folder, folderDir in discover(tfile):
+            # A later copy of a folder would replace the earlier one, so the plots would show
+            # one input and be read as all of them.
+            folderKey = (flavour, category, folder)
+            if folderKey in sourceOfFolder:
+                sys.exit(f"{fname}: folder {'/'.join(folderKey)} is already read from {sourceOfFolder[folderKey]}. "
+                         "Give the script one harvested DQM file per sample.")
+            sourceOfFolder[folderKey] = fname
             # Folder is "<collection>_<workingPoint>"; split on the LAST underscore so a
             # collection label containing underscores survives.
             if "_" not in folder:
