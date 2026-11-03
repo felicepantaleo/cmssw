@@ -87,8 +87,12 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
         if constexpr (PIDAdapter::resetSelectedPredictions)
           resetTracksterPredictions(
               queue, std::get<0>(features.const_view().records().selectedTracksterIndex()).data(), output, total);
-        if (regression_)
-          regression_->runInto(queue, features, output, minEnergy_);
+        // A PID-only model has no regression runner (the constructor rejects doRegression), and its features need not
+        // be the input of RegressionAdapter.
+        if constexpr (PIDAdapter::supportsRegression) {
+          if (regression_)
+            regression_->runInto(queue, features, output, minEnergy_);
+        }
         if (pid_)
           pid_->runInto(queue, features, output);
       }
