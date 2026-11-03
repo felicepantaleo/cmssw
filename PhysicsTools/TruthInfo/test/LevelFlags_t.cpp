@@ -240,6 +240,7 @@ class LevelFlags_t : public CppUnit::TestFixture {
   CPPUNIT_TEST(testTauVisibleLeptonicIsTheLeptonicTau);
   CPPUNIT_TEST(testReconstructableFinalStateNeedsNoSignal);
   CPPUNIT_TEST(testBeautyAndCharmAreSeparateLevels);
+  CPPUNIT_TEST(testQuarkoniumIsNotAHeavyFlavourMember);
   CPPUNIT_TEST(testEmptyGraphStampsNothing);
   CPPUNIT_TEST(testAcyclicGraphReportsNoCycle);
   CPPUNIT_TEST(testCycleIsReported);
@@ -802,6 +803,43 @@ public:
     const auto bees = truth::levelAntichain(g, truth::Level::BHadrons);
     CPPUNIT_ASSERT_EQUAL(std::size_t{1}, bees.size());
     CPPUNIT_ASSERT_EQUAL(uint32_t{2}, bees[0]);
+  }
+
+  // REQUIRED: a quarkonium is not a member of the heavy-flavour levels, because it does not
+  // decay weakly. A B decaying to J/psi K stays a member; the J/psi does not. An open-charm
+  // hadron beside it stays a member.
+  //   p0 B+ -> v0 -> p1 J/psi, p2 K+, p3 D0 ; p1 -> v1 -> p4 mu+, p5 mu-
+  void testQuarkoniumIsNotAHeavyFlavourMember() {
+    GraphBuilder b(6, 2);
+    auto set = [&](uint32_t id, int32_t pdgId, int16_t status) {
+      auto& particle = b.graph.particles()[id];
+      particle.genNode = 400 + static_cast<int32_t>(id);
+      particle.pdgId = pdgId;
+      particle.status = status;
+      particle.momentum = math::XYZTLorentzVectorD(10., 2., 5., 12.);
+    };
+    set(0, 521, 2);
+    set(1, 443, 2);
+    set(2, 321, 1);
+    set(3, 421, 1);
+    set(4, -13, 1);
+    set(5, 13, 1);
+    b.addDecay(0, 0);
+    b.addProduction(0, 1);
+    b.addProduction(0, 2);
+    b.addProduction(0, 3);
+    b.addDecay(1, 1);
+    b.addProduction(1, 4);
+    b.addProduction(1, 5);
+    truth::Graph g = b.finish();
+
+    const auto bees = truth::levelAntichain(g, truth::Level::BHadrons);
+    CPPUNIT_ASSERT_EQUAL(std::size_t{1}, bees.size());
+    CPPUNIT_ASSERT_EQUAL(uint32_t{0}, bees[0]);
+
+    const auto cees = truth::levelAntichain(g, truth::Level::CHadrons);
+    CPPUNIT_ASSERT_EQUAL(std::size_t{1}, cees.size());
+    CPPUNIT_ASSERT_EQUAL(uint32_t{3}, cees[0]);
   }
 
   // REQUIRED: beauty and charm stay separate levels. The D descends from the B, so one
