@@ -284,6 +284,7 @@ private:
     std::unique_ptr<std::vector<Trackster>> tracksters;
     std::vector<int> winnerIndex;    // the final trackster of each hypothesis (-1: none)
     std::vector<int> leftoverIndex;  // the final trackster of each kept leftover
+    std::vector<int> claimIndex;     // the claim trackster of each track (-1: none)
   };
   FinalTracksters finalTracksters(const Opinions &opinions,
                                   const std::vector<bool> &accepted,
@@ -539,6 +540,7 @@ TICLInterpretationProducer::TICLInterpretationProducer(const edm::ParameterSet &
 
   produces<std::vector<Trackster>>();
   produces<std::vector<int>>("trackToTrackster");
+  produces<std::vector<int>>("trackToClaimTrackster");
   produces<std::vector<int>>("trackMode");
   produces<std::vector<int>>("neutralIdx");
   produces<std::vector<int>>("neutralPdg");
@@ -1281,6 +1283,7 @@ void TICLInterpretationProducer::produce(edm::Event &evt, const edm::EventSetup 
 
   evt.put(std::move(finalTs.tracksters));
   evt.put(std::move(maps.trackToTrackster), "trackToTrackster");
+  evt.put(std::make_unique<std::vector<int>>(std::move(finalTs.claimIndex)), "trackToClaimTrackster");
   evt.put(std::move(maps.trackMode), "trackMode");
   evt.put(std::move(maps.neutralIdx), "neutralIdx");
   evt.put(std::move(maps.neutralPdg), "neutralPdg");
@@ -1391,12 +1394,12 @@ TICLInterpretationProducer::FinalTracksters TICLInterpretationProducer::finalTra
     finalTs.leftoverIndex.push_back(static_cast<int>(result.size()));
     result.push_back(std::move(*pruned));
   }
-  // One claim trackster per claiming track. No candidate uses it: the charged candidate takes its energy from the track.
-  std::vector<int> claimTracksterOfTrack(nTracks, -1);
+  // One claim trackster per claiming track. The charged candidate takes its energy from the track.
+  finalTs.claimIndex.assign(nTracks, -1);
   for (unsigned int v = 0; v < claimingTrack.size(); ++v) {
     if (claimingTrack[v] < 0)
       continue;
-    int &iClaim = claimTracksterOfTrack[claimingTrack[v]];
+    int &iClaim = finalTs.claimIndex[claimingTrack[v]];
     if (iClaim < 0) {
       iClaim = static_cast<int>(result.size());
       result.emplace_back();

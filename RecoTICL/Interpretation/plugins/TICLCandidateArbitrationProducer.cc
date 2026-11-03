@@ -77,6 +77,9 @@ private:
   const edm::EDGetTokenT<std::vector<int>> trackMode_token_;
   const edm::EDGetTokenT<std::vector<int>> neutralIdx_token_;
   const edm::EDGetTokenT<std::vector<int>> neutralPdg_token_;
+  // The candidate of a track holds the claim trackster of the track.
+  const bool attachClaimTracksters_;
+  edm::EDGetTokenT<std::vector<int>> trackToClaimTrackster_token_;
   const edm::EDGetTokenT<std::vector<reco::Track>> tracks_token_;
   // Without the GSF tracks an electron keeps the track kinematics.
   const bool useGsfTracks_;
@@ -283,6 +286,7 @@ TICLCandidateArbitrationProducer::TICLCandidateArbitrationProducer(const edm::Pa
       trackMode_token_(consumes<std::vector<int>>(interpretationTag(ps, "trackMode"))),
       neutralIdx_token_(consumes<std::vector<int>>(interpretationTag(ps, "neutralIdx"))),
       neutralPdg_token_(consumes<std::vector<int>>(interpretationTag(ps, "neutralPdg"))),
+      attachClaimTracksters_(ps.getParameter<bool>("attachClaimTracksters")),
       tracks_token_(consumes<std::vector<reco::Track>>(ps.getParameter<edm::InputTag>("tracks"))),
       useGsfTracks_(ps.getParameter<bool>("useGsfTracks")),
       useMTDTiming_(ps.getParameter<bool>("useMTDTiming")),
@@ -331,6 +335,8 @@ TICLCandidateArbitrationProducer::TICLCandidateArbitrationProducer(const edm::Pa
       hdc_token_(esConsumes<HGCalDDDConstants, IdealGeometryRecord, edm::Transition::BeginRun>(
           edm::ESInputTag("", "HGCalEESensitive"))),
       hgcons_(nullptr) {
+  if (attachClaimTracksters_)
+    trackToClaimTrackster_token_ = consumes<std::vector<int>>(interpretationTag(ps, "trackToClaimTrackster"));
   if (useMTDTiming_) {
     inputTimingToken_ = consumes<MtdHostCollection>(ps.getParameter<edm::InputTag>("timingSoA"));
   }
@@ -723,6 +729,15 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
                                *trackingGeometry_,
                                *hgcons_);
   auto muons = applyMuonKinematics(tracks_h, evt.getHandle(muons_token_), candidates);
+  if (attachClaimTracksters_) {
+    const auto &claimOfTrack = evt.get(trackToClaimTrackster_token_);
+    for (auto &cand : candidates) {
+      const auto track = cand.trackPtr();
+      if (track.isNull() || track.key() >= claimOfTrack.size() || claimOfTrack[track.key()] < 0)
+        continue;
+      cand.addTrackster(edm::Ptr<Trackster>(tracksters_h, claimOfTrack[track.key()]));
+    }
+  }
 
   const auto candidates_h = evt.put(std::make_unique<std::vector<TICLCandidate>>(std::move(candidates)));
   auto muonMap = std::make_unique<edm::ValueMap<reco::MuonRef>>();
@@ -854,6 +869,8 @@ void TICLCandidateArbitrationProducer::fillDescriptions(edm::ConfigurationDescri
   desc.add<edm::InputTag>("interpretations", edm::InputTag("ticlTracksterInterpretations"))
       ->setComment("Final tracksters and assignment maps of TICLInterpretationProducer.");
   desc.add<edm::InputTag>("tracks", edm::InputTag("generalTracks"));
+  desc.add<bool>("attachClaimTracksters", true)
+      ->setComment("The candidate of a track holds the claim trackster of the track, after the energy and the time.");
   desc.add<bool>("useGsfTracks", true)->setComment("Give the electrons the direction and the charge of the GSF track.");
   desc.add<edm::InputTag>("gsf_tracks", edm::InputTag("electronGsfTracks"));
   desc.add<edm::InputTag>("timingSoA", edm::InputTag("mtdSoA"));
