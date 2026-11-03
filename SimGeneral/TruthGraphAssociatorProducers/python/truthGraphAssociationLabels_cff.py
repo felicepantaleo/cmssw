@@ -31,6 +31,7 @@ tracksterProducerTypes = (
     "TICLInterpretationProducer",
     "HGCalTrackstersFromSoAProducer",
     "TICLCandidateTrackstersProducer",
+    "TICLCandidateArbitrationProducer",
 )
 
 # Reco collections per domain. Each entry is a module label; a collection that also

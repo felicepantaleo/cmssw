@@ -1,11 +1,8 @@
 // Author: Felice Pantaleo (CERN) - felice.pantaleo@cern.ch
 // Date: 11/2026
 //
-// One trackster per TICL candidate with calorimeter energy, made of layer clusters: those of all the tracksters of
-// the candidate, and of the jet trackster of a jet-member track. A layer cluster of a trackster that several
-// candidates hold is shared in proportion to the candidate energy (assignment "energyShare"), or goes whole to the
-// candidate whose track passes nearest, within radius0 + radiusSlope x depth, else to the largest neutral candidate
-// that holds it, else to the nearest track (assignment "nearest"). The second product is the candidate index of each
+// One trackster per TICL candidate with calorimeter energy, made of layer clusters by
+// ticl::candidateLayerClusterFractions (CandidateTracksters.h). The second product is the candidate index of each
 // trackster.
 
 #include <algorithm>
@@ -39,6 +36,7 @@
 #include "RecoTICL/Common/interface/TICLUtils.h"
 #include "RecoTICL/Common/interface/TrackstersPCA.h"
 #include "RecoTICL/Interpretation/interface/AssignmentMaps.h"
+#include "RecoTICL/Interpretation/interface/CandidateTracksters.h"
 #include "RecoTICL/Interpretation/interface/TrackImpact.h"
 #include "TrackingTools/GeomPropagators/interface/Propagator.h"
 #include "TrackingTools/Records/interface/TrackingComponentsRecord.h"
@@ -67,9 +65,7 @@ private:
   const edm::ESGetToken<HGCalDDDConstants, IdealGeometryRecord> hdc_token_;
   const edm::ESGetToken<MagneticField, IdealMagneticFieldRecord> bfield_token_;
   const edm::ESGetToken<Propagator, TrackingComponentsRecord> propagator_token_;
-  const bool nearest_;
-  const float radius0_;
-  const float radiusSlope_;
+  const CandidateTrackstersParameters parameters_;
   ticlgeom::Tools rhtools_;
   edm::ESHandle<MagneticField> bfield_;
   edm::ESHandle<Propagator> propagator_;
@@ -94,9 +90,14 @@ TICLCandidateTrackstersProducer::TICLCandidateTrackstersProducer(const edm::Para
       bfield_token_(esConsumes<MagneticField, IdealMagneticFieldRecord, edm::Transition::BeginRun>()),
       propagator_token_(esConsumes<Propagator, TrackingComponentsRecord, edm::Transition::BeginRun>(
           edm::ESInputTag("", ps.getParameter<std::string>("propagator")))),
-      nearest_(ps.getParameter<std::string>("assignment") == "nearest"),
-      radius0_(ps.getParameter<double>("radius0")),
-      radiusSlope_(ps.getParameter<double>("radiusSlope")) {
+      parameters_{.nearest = ps.getParameter<std::string>("assignment") == "nearest",
+                  .radius0 = static_cast<float>(ps.getParameter<double>("radius0")),
+                  .radiusSlope = static_cast<float>(ps.getParameter<double>("radiusSlope")),
+                  .budgetScale = static_cast<float>(ps.getParameter<double>("budgetScale")),
+                  .deposit = {static_cast<float>(ps.getParameter<double>("expectedDepositResponse")),
+                              static_cast<float>(ps.getParameter<double>("expectedDepositLogSlope")),
+                              0.f,
+                              1.f}} {
   const auto &assignment = ps.getParameter<std::string>("assignment");
   if (assignment != "nearest" && assignment != "energyShare")
     throw cms::Exception("Configuration") << "assignment must be nearest or energyShare, not " << assignment;
@@ -119,26 +120,6 @@ void TICLCandidateTrackstersProducer::produce(edm::Event &evt, const edm::EventS
   auto const &trackMode = evt.get(trackMode_token_);
   auto const &layerClusters = evt.get(layerClusters_token_);
 
-  // The candidates that hold each trackster, and their summed energy.
-  std::vector<std::vector<unsigned int>> holders(tracksters.size());
-  std::vector<double> energySum(tracksters.size(), 0.);
-  for (unsigned int c = 0; c < candidates.size(); ++c) {
-    std::vector<unsigned int> mine;
-    for (auto const &ptr : candidates[c].tracksters())
-      if (ptr.isNonnull() && ptr.id() == tracksters_h.id())
-        mine.push_back(ptr.key());
-    auto const track = candidates[c].trackPtr();
-    if (track.isNonnull() && track.key() < trackMode.size() &&
-        trackMode[track.key()] == static_cast<int>(TrackMode::kJetMember) && trackToTrackster[track.key()] >= 0)
-      mine.push_back(trackToTrackster[track.key()]);
-    std::sort(mine.begin(), mine.end());
-    mine.erase(std::unique(mine.begin(), mine.end()), mine.end());
-    for (auto t : mine) {
-      holders[t].push_back(c);
-      energySum[t] += candidates[c].energy();
-    }
-  }
-
   // The HGCAL impact of the track of each candidate, computed when a shared layer cluster needs it.
   std::vector<std::optional<TrackImpact>> impacts(candidates.size());
   auto impactOf = [&](unsigned int c) -> const TrackImpact & {
@@ -146,70 +127,10 @@ void TICLCandidateTrackstersProducer::produce(edm::Event &evt, const edm::EventS
       impacts[c] = propagateToHGCalFront(*candidates[c].trackPtr(), bfield_.product(), *propagator_, frontDisks_);
     return *impacts[c];
   };
-
-  // The fraction of each layer cluster that each candidate takes.
-  std::vector<std::map<unsigned int, float>> fractions(candidates.size());
-  for (unsigned int t = 0; t < tracksters.size(); ++t) {
-    auto const &owners = holders[t];
-    if (owners.empty() || energySum[t] <= 0.)
-      continue;
-    auto const &ts = tracksters[t];
-    for (unsigned int k = 0; k < ts.vertices().size(); ++k) {
-      const unsigned int lc = ts.vertices()[k];
-      const float f = 1.f / ts.vertex_multiplicity()[k];
-      if (owners.size() == 1) {
-        fractions[owners[0]][lc] += f;
-        continue;
-      }
-      if (!nearest_) {
-        for (auto c : owners)
-          fractions[c][lc] += f * candidates[c].energy() / energySum[t];
-        continue;
-      }
-      auto const &cluster = layerClusters[lc];
-      int closest = -1, neutral = -1;
-      float best = std::numeric_limits<float>::infinity();
-      float bestRadius = 0.f;
-      for (auto c : owners) {
-        if (candidates[c].trackPtr().isNull()) {
-          if (neutral < 0 || candidates[c].energy() > candidates[neutral].energy())
-            neutral = c;
-          continue;
-        }
-        auto const &impact = impactOf(c);
-        const float d = impactTransverseDistance(impact, cluster.position());
-        if (d < best) {
-          best = d;
-          closest = c;
-          bestRadius =
-              radius0_ +
-              radiusSlope_ * std::max(0.f, std::abs(static_cast<float>(cluster.z())) - std::abs(impact.position.z()));
-        }
-      }
-      const int winner = closest >= 0 && best < bestRadius ? closest : neutral >= 0 ? neutral : closest;
-      if (winner < 0) {
-        for (auto c : owners)
-          fractions[c][lc] += f * candidates[c].energy() / energySum[t];
-        continue;
-      }
-      fractions[winner][lc] += f;
-    }
-  }
-
-  auto result = std::make_unique<std::vector<Trackster>>();
+  const auto fractions = candidateLayerClusterFractions(
+      candidates, tracksters_h.id(), tracksters, trackToTrackster, trackMode, layerClusters, impactOf, parameters_);
   auto candidateIndex = std::make_unique<std::vector<int>>();
-  for (unsigned int c = 0; c < candidates.size(); ++c) {
-    Trackster merged;
-    for (auto const &[lc, f] : fractions[c])
-      if (f > 0.f) {
-        merged.vertices().push_back(lc);
-        merged.vertex_multiplicity().push_back(1.f / f);
-      }
-    if (merged.vertices().empty())
-      continue;
-    result->push_back(std::move(merged));
-    candidateIndex->push_back(c);
-  }
+  auto result = std::make_unique<std::vector<Trackster>>(tracksterOfFractions(fractions, *candidateIndex));
   assignPCAtoTracksters(*result,
                         layerClusters,
                         evt.get(layerClustersTime_token_),
@@ -231,6 +152,11 @@ void TICLCandidateTrackstersProducer::fillDescriptions(edm::ConfigurationDescrip
       ->setComment("A layer cluster that several candidates hold: nearest (to one candidate) or energyShare.");
   desc.add<double>("radius0", 3.)->setComment("Track radius [cm] at the HGCAL front for the nearest assignment.");
   desc.add<double>("radiusSlope", 0.05)->setComment("Growth of the track radius per cm of depth.");
+  desc.add<double>("budgetScale", 0.)
+      ->setComment(
+          "A charged hadron takes shared layer clusters up to this times its expected raw deposit; 0: no limit.");
+  desc.add<double>("expectedDepositResponse", 0.67)->setComment("Expected raw deposit (response + logSlope ln p) p.");
+  desc.add<double>("expectedDepositLogSlope", 0.04);
   desc.add<std::string>("propagator", "PropagatorWithMaterial");
   descriptions.add("ticlCandidateTrackstersProducer", desc);
 }
