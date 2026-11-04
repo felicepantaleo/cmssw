@@ -338,7 +338,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                         isPoint.data(),
                         extents.data());
     // inclusive scan of the point flags
-    iterativePrefixScan<Acc1D>(isPoint.data(), pointEnd.data(), nLayerClusters, queue);
+    iterativePrefixScan<Acc1D>(queue, isPoint.data(), pointEnd.data(), nLayerClusters);
     alpaka::memcpy(queue, hostNPoints, make_device_view(queue, pointEnd.data() + nLayerClusters - 1, 1));
     alpaka::exec<Acc1D>(queue,
                         workDivLayerClusters,
@@ -409,7 +409,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                         isTrackster.data(),
                         layerClustersClustering);
     // inclusive scan of the trackster flags
-    iterativePrefixScan<Acc1D>(isTrackster.data(), tracksterEnd.data(), nPoints, queue);
+    iterativePrefixScan<Acc1D>(queue, isTrackster.data(), tracksterEnd.data(), nPoints);
     alpaka::exec<Acc1D>(queue,
                         workDivLayerClusters,
                         KernelWriteLayerClustersClustering{},
