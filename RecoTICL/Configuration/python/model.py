@@ -92,6 +92,7 @@ class TICLConfig:
         self.links_spec: Optional[LinksSpec] = None
         self.superclustering_spec: Optional[SuperclusterSpec] = None
         self.candidate_spec: Optional[Dict] = None
+        self.interpretations_spec: Optional[Dict] = None
         self.pf_spec: Optional[Dict] = None
         self.include_layer_tile = True
         self.include_mtd = True
@@ -166,6 +167,11 @@ class TICLConfig:
     def pattern_fastjet(self, **params):
         it = self._cur(); it.pattern_type = "FastJet"; it.pattern_params = params; return self
 
+    def pattern_cluestering(self, **params):
+        """CLUEstering on the layer clusters merged on the device: no seeding region and no cluster filter, the
+        parameters go to the CLUEstering module."""
+        it = self._cur(); it.pattern_type = "CLUEstering"; it.pattern_params = params; return self
+
     # -- extra trackster overrides (inference PSets, detector, ...) -------- #
 
     def trackster_params(self, **overrides):
@@ -203,6 +209,13 @@ class TICLConfig:
     def superclustering_dnn(self, source, **overrides):
         self.superclustering_spec = SuperclusterSpec("DNN", source, overrides)
         self._current = None
+        return self
+
+    def interpretations(self, **overrides):
+        """The interpretation stage (``ticlTracksterInterpretations``, a ``TICLInterpretationProducer``) with these
+        overrides. With it, the candidate stage is ``TICLCandidateArbitrationProducer``; without it, the single-stage
+        ``TICLCandidateProducer``."""
+        self.interpretations_spec = overrides
         return self
 
     def candidate(self, **overrides):

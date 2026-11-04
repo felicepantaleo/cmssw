@@ -4,6 +4,7 @@
 #include <memory>
 #include <vector>
 #include "DataFormats/CaloRecHit/interface/CaloCluster.h"
+#include "DataFormats/HGCalReco/interface/InterpretationHypotheses.h"
 #include "DataFormats/HGCalReco/interface/MtdHostCollection.h"
 #include "DataFormats/HGCalReco/interface/Trackster.h"
 #include "DataFormats/HGCalReco/interface/TICLCandidate.h"
@@ -20,8 +21,10 @@
 #include "Geometry/HGCalCommonData/interface/HGCalDDDConstants.h"
 #include "DataFormats/HGCalReco/interface/Common.h"
 #include "FWCore/Framework/interface/ConsumesCollector.h"
+#include "FWCore/Utilities/interface/Exception.h"
 #include "DataFormats/Common/interface/MultiSpan.h"
 #include "PhysicsTools/ONNXRuntime/interface/ONNXRuntime.h"
+#include "RecoTICL/Interpretation/interface/TrackImpact.h"
 
 namespace edm {
   class Event;
@@ -33,12 +36,29 @@ namespace ticl {
   // routes such tracks to the next (general) pass instead of building a muon candidate.
   constexpr int kMuonRejected = -2;
 
+  // The opinion of one interpretation that a track, several tracks or a trackster is a particle of one type.
+  // An interpretation does not consume objects: the hypotheses overlap, and the interpretation producer chooses the
+  // accepted set.
+  struct Hypothesis {
+    using Type = InterpretationHypotheses::Type;
+    Type type = Type::ChargedHadron;
+    float score = 0.f;           // in [0, 1]
+    int trackIdx = -1;           // track of a single-track hypothesis (-1: none)
+    int tracksterIdx = -1;       // footprint: index into the hypothesis tracksters (-1: none)
+    std::vector<int> trackIdxs;  // tracks of a jet hypothesis
+  };
+
+  // A charged hadron from the track alone, with no footprint.
+  inline bool isTrackOnly(const Hypothesis& h) {
+    return h.tracksterIdx < 0 && h.type == Hypothesis::Type::RecoveryChargedHadron;
+  }
+
   template <typename T>
   class TICLInterpretationAlgoBase {
   public:
     TICLInterpretationAlgoBase(const edm::ParameterSet& conf, edm::ConsumesCollector)
         : algo_verbosity_(conf.getParameter<int>("algo_verbosity")) {}
-    virtual ~TICLInterpretationAlgoBase() {}
+    virtual ~TICLInterpretationAlgoBase() = default;
     struct Inputs {
       const edm::Event& ev;
       const edm::EventSetup& es;
@@ -47,6 +67,8 @@ namespace ticl {
       const edm::MultiSpan<Trackster>& tracksters;
       const edm::Handle<std::vector<T>> tracksHandle;
       const std::vector<bool>& maskedTracks;
+      // HGCAL front impact of each selected track, by track index; null when the producer does not compute them.
+      const std::vector<TrackImpact>* impacts;
 
       Inputs(const edm::Event& eV,
              const edm::EventSetup& eS,
@@ -54,42 +76,38 @@ namespace ticl {
              const edm::ValueMap<std::pair<float, float>>& lcT,
              const edm::MultiSpan<Trackster>& tS,
              const edm::Handle<std::vector<T>> trks,
-             const std::vector<bool>& mT)
+             const std::vector<bool>& mT,
+             const std::vector<TrackImpact>* imp = nullptr)
           : ev(eV),
             es(eS),
             layerClusters(lC),
             layerClustersTime(lcT),
             tracksters(tS),
             tracksHandle(trks),
-            maskedTracks(mT) {}
-    };
-
-    struct TrackTimingInformation {
-      const edm::Handle<edm::ValueMap<float>> tkTime_h;
-      const edm::Handle<edm::ValueMap<float>> tkTimeErr_h;
-      const edm::Handle<edm::ValueMap<float>> tkQuality_h;
-      const edm::Handle<edm::ValueMap<float>> tkBeta_h;
-      const edm::Handle<edm::ValueMap<float>> tkPath_h;
-      const edm::Handle<edm::ValueMap<GlobalPoint>> tkMtdPos_h;
-
-      TrackTimingInformation(const edm::Handle<edm::ValueMap<float>> tkT,
-                             const edm::Handle<edm::ValueMap<float>> tkTE,
-                             const edm::Handle<edm::ValueMap<float>> tkQ,
-                             const edm::Handle<edm::ValueMap<float>> tkB,
-                             const edm::Handle<edm::ValueMap<float>> tkP,
-                             const edm::Handle<edm::ValueMap<GlobalPoint>> mtdPos)
-          : tkTime_h(tkT), tkTimeErr_h(tkTE), tkQuality_h(tkQ), tkBeta_h(tkB), tkPath_h(tkP), tkMtdPos_h(mtdPos) {}
+            maskedTracks(mT),
+            impacts(imp) {}
     };
 
     // maskedTracksters is indexed over input.tracksters and lets several interpretation
     // passes run in sequence. A pass grows it to input.tracksters.size(), skips the
-    // tracksters it finds marked, and marks every trackster it consumes.
+    // tracksters it finds marked, and marks every trackster it consumes. An algorithm without this pass throws.
     virtual void makeCandidates(const Inputs& input,
                                 edm::Handle<MtdHostCollection> inputTiming_h,
                                 std::vector<Trackster>& resultTracksters,
                                 std::vector<int>& resultCandidate,
                                 std::vector<bool>& maskedTracksters,
-                                std::vector<std::vector<unsigned int>>& linkedResultTracksters) = 0;
+                                std::vector<std::vector<unsigned int>>& linkedResultTracksters) {
+      throw cms::Exception("Configuration") << "this interpretation algorithm makes no candidates";
+    }
+
+    // Appends the hypotheses of the algorithm and their footprint tracksters. The interpretations share
+    // hypothesisTracksters: an algorithm only appends to it. An algorithm without this pass throws.
+    virtual void makeOpinions(const Inputs& input,
+                              edm::Handle<MtdHostCollection> inputTiming_h,
+                              std::vector<Trackster>& hypothesisTracksters,
+                              std::vector<Hypothesis>& hypotheses) {
+      throw cms::Exception("Configuration") << "this interpretation algorithm makes no hypotheses";
+    }
 
     virtual void initialize(const HGCalDDDConstants* hgcons,
                             const ticlgeom::Tools rhtools,

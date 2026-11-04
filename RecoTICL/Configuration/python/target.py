@@ -23,6 +23,7 @@ class Target:
     layer_tile_label: str
     links_label: str
     supercluster_dnn_label: str
+    interpretations_label: str
     candidate_label: str
     mtd_label: str
     pf_label: str
@@ -31,10 +32,24 @@ class Target:
     group_names: Dict[str, str] = field(default_factory=dict)
     # merged layer-cluster module; None -> keep the cfi defaults (offline)
     merged_lc: Optional[str] = None
+    # the same layer clusters merged on the device, read by a CLUEstering iteration; None -> keep the cfi default
+    # (offline). A target that remaps merged_lc must also name this one.
+    merged_lc_soa: Optional[str] = None
+    # the cfi that defines that merge, when the CLUEstering step schedules it (HLT); None -> the merge is in the
+    # local reconstruction (offline)
+    merged_lc_soa_cfi: Optional[str] = None
+    # labels of the device modules of a CLUEstering iteration: CLUEstering, then the tracksters built on the device
+    cluestering_label: str = "ticlCLUEstering"
+    soa_tracksters_label: str = "ticlSoATracksters"
     # InputTag for layer_clusters_barrel_tiles; None -> keep the cfi default
     barrel_tile_tag: Optional[object] = None
     # label of the barrel TICLLayerTile producer (created for barrel iterations)
     barrel_tile_label: str = "ticlLayerTileBarrel"
+    # inputs from outside TICL: tracks, muons, GSF tracks (None: not used) and MTD timing (None: not used)
+    tracks_label: str = "generalTracks"
+    muons_label: str = "muons1stStep"
+    gsf_tracks_label: Optional[str] = "electronGsfTracks"
+    timing_label: Optional[str] = "mtdSoA"
 
     # -- group naming ------------------------------------------------------ #
 
@@ -78,6 +93,7 @@ OFFLINE = Target(
     layer_tile_label="ticlLayerTileProducer",
     links_label="ticlTracksterLinks",
     supercluster_dnn_label="ticlTracksterLinksSuperclusteringDNN",
+    interpretations_label="ticlTracksterInterpretations",
     candidate_label="ticlCandidate",
     mtd_label="mtdSoA",
     pf_label="pfTICL",
@@ -108,6 +124,7 @@ HLT = Target(
     layer_tile_label="hltTiclLayerTileProducer",
     links_label="hltTiclTracksterLinks",
     supercluster_dnn_label="hltTiclTracksterLinksSuperclusteringDNN",
+    interpretations_label="hltTiclTracksterInterpretations",
     candidate_label="hltTiclCandidate",
     mtd_label="hltMtdSoA",
     pf_label="hltPfTICL",
@@ -125,8 +142,16 @@ HLT = Target(
         "top": "HLTIterTICLSequence",
     },
     merged_lc="hltMergeLayerClusters",
+    merged_lc_soa="hltHgcalSoAMergeLayerClusters",
+    merged_lc_soa_cfi="HLTrigger.Configuration.HLT_75e33.modules.hltHgcalSoAMergeLayerClusters_cfi",
+    cluestering_label="hltTiclCLUEstering",
+    soa_tracksters_label="hltTiclSoATracksters",
     barrel_tile_tag=cms.InputTag("hltTiclLayerTileBarrelProducer", "ticlLayerTilesBarrel"),
     barrel_tile_label="hltTiclLayerTileBarrelProducer",
+    tracks_label="hltGeneralTracks",
+    muons_label="hltPhase2L3Muons",
+    gsf_tracks_label=None,
+    timing_label=None,
 )
 
 

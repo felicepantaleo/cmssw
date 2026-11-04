@@ -61,11 +61,33 @@
   <class name="edm::Wrapper<TICLSeedingRegion>" />
   <class name="edm::Wrapper<std::vector<TICLSeedingRegion> >" />
 
-  <class name="io_v1::TICLCandidate" ClassVersion="4">
+  <class name="io_v1::TICLCandidate" ClassVersion="7">
+    <version ClassVersion="7" checksum="208778715"/>
+    <version ClassVersion="6" checksum="2834424825"/>
+    <version ClassVersion="5" checksum="4279369853"/>
     <version ClassVersion="4" checksum="2330696932"/>
     <version ClassVersion="3" checksum="2436690028"/>
   </class>
+  <ioread sourceClass="io_v1::TICLCandidate" version="[3-5]" source="std::array<float,8> idProbabilities_"
+          targetClass="io_v1::TICLCandidate" target="idProbabilities_">
+    <![CDATA[
+      for (unsigned int i = 0; i < idProbabilities_.size(); ++i)
+        idProbabilities_[i] = io_v1::TICLCandidate::encodeProbability(onfile.idProbabilities_[i]);
+    ]]>
+  </ioread>
+  <ioread sourceClass="io_v1::TICLCandidate" version="[5]" source="std::array<float,8> typeProbabilities_"
+          targetClass="io_v1::TICLCandidate" target="typeProbabilities_">
+    <![CDATA[
+      for (unsigned int i = 0; i < typeProbabilities_.size(); ++i)
+        typeProbabilities_[i] = io_v1::TICLCandidate::encodeProbability(onfile.typeProbabilities_[i]);
+    ]]>
+  </ioread>
   <class name="std::vector<io_v1::TICLCandidate>" />
+  <class name="ticl::io_v1::InterpretationHypotheses" ClassVersion="4">
+    <version ClassVersion="4" checksum="2596993785"/>
+    <version ClassVersion="3" checksum="1398090763"/>
+  </class>
+  <class name="edm::Wrapper<ticl::io_v1::InterpretationHypotheses>" />
   <class name="edm::Wrapper<io_v1::TICLCandidate>" />
   <class name="edm::Wrapper<std::vector<io_v1::TICLCandidate> >" />
 
@@ -93,5 +115,25 @@
   <class name="HGCalSoAClustersHostCollection::Layout"/>
   <class name="HGCalSoAClusters"/>
   <class name="edm::Wrapper<HGCalSoAClustersHostCollection>" splitLevel="0"/>
+
+  <class name="HGCalSoALayerClustersExtraHostCollection" rntupleStreamerMode="true"/>
+  <class name="HGCalSoALayerClustersExtraHostCollection::Layout"/>
+  <class name="HGCalSoALayerClustersExtra"/>
+  <class name="edm::Wrapper<HGCalSoALayerClustersExtraHostCollection>" splitLevel="0"/>
+
+  <class name="ticl::TracksterHostCollection" rntupleStreamerMode="true"/>
+  <class name="ticl::TracksterHostCollection::Layout"/>
+  <class name="ticl::TracksterSoA"/>
+  <class name="ticl::TracksterSoA::View"/>
+  <class name="ticl::TracksterSoAEnergy<128, false>"/>
+  <class name="ticl::TracksterSoABarycenter<128, false>"/>
+  <class name="ticl::TracksterSoATiming<128, false>"/>
+  <class name="ticl::TracksterSoAPCA<128, false>"/>
+  <class name="ticl::TracksterSoAId<128, false>"/>
+  <class name="ticl::AssociationMapLayout<unsigned int, unsigned int>::Layout<128, false>"/>
+  <class name="ticl::AssociationMapLayout<unsigned int, unsigned int>::OffsetsLayout<128, false>"/>
+  <class name="ticl::AssociationMapLayout<unsigned int, unsigned int>::OffsetBufferLayout<128, false>"/>
+  <class name="ticl::AssociationMapLayout<unsigned int, unsigned int>::ContentBuffersLayout<128, false>"/>
+  <class name="edm::Wrapper<ticl::TracksterHostCollection>" splitLevel="0"/>
 
 </lcgdict>

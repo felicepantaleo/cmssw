@@ -16,6 +16,7 @@ producers are CPU-only.
 import FWCore.ParameterSet.Config as cms
 
 from RecoTICL.Configuration.catalog import CPU, GPU
+from RecoTICL.Configuration.assembler import iteration_labels
 
 # pyTICL backend name -> alpaka backend string
 ALPAKA_BACKEND = {CPU: "serial_sync", GPU: "cuda_async"}
@@ -62,7 +63,7 @@ def apply_backends(assembled, process):
     cfg = assembled.config
     requested = {}
     for it in cfg.iterations:
-        for lbl in (cfg.target.filter_label(it.name), cfg.target.trackster_label(it.name)):
+        for lbl in iteration_labels(it, cfg.target):
             requested[lbl] = it.backend
     any_alpaka = False
     for label, module in assembled.modules.items():

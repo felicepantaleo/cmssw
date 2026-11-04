@@ -109,7 +109,8 @@ VERTEX_SUFFIXES = ["interaction", "immediate"]
 TRUTH_SUFFIXES = LEVEL_ORDER + VERTEX_SUFFIXES
 REFERENCE_LEVEL = "caloBoundary"
 # The metrics that live in the level-keyed folders; everything else is per working point.
-TRUTH_METRICS = {"composition", "efficiency", "duplicate", "splitrate"}
+TRUTH_METRICS = {"composition", "efficiency", "duplicate", "splitrate", "efficiency_track", "efficiency_pid",
+                 "efficiency_energy", "mergerate", "pidconfusion"}
 
 # Which metrics we plot, and how each should be read.
 METRICS = {
@@ -215,6 +216,67 @@ METRICS = {
         "one. The graph answers this directly because every particle and vertex carries its interaction id.",
         "num_pileup / num_reco",
     ),
+    "efficiency_track": (
+        "Efficiency, right track (TruthToReco)",
+        "TICL candidates. Of the members of one level, the fraction whose representative candidate has the right track: a track of "
+        "the member for a charged member, no track for a neutral one. The representative of a charged member is a "
+        "candidate that carries a track of the member when one exists, else the candidate that shares most of the "
+        "member energy.",
+        "num_assoc_track / num_simul",
+    ),
+    "efficiency_pid": (
+        "Efficiency, track and class (TruthToReco)",
+        "TICL candidates. The previous step, and the class of the representative candidate (photon, electron, muon, charged hadron, "
+        "neutral hadron) is the class of the member. A pi0 member is a photon.",
+        "num_assoc_pid / num_simul",
+    ),
+    "efficiency_energy": (
+        "Efficiency, track, class, energy (TruthToReco)",
+        "TICL candidates. The previous step, and the energy of the representative candidate over the member energy is inside "
+        "[energyResponseMin, energyResponseMax] = [0.7, 1.3].",
+        "num_assoc_energy / num_simul",
+    ),
+    "mergerate": (
+        "Merge rate (TruthToReco)",
+        "TICL candidates. Of the members of one level, the fraction that no candidate projects on, but that is below the identity of "
+        "a candidate in the graph: the candidate matched an ancestor that holds this member and others. Two photons "
+        "of a pi0 in one candidate are merged at caloBoundary and reconstructed at reconstructableFromSignal.",
+        "num_merged / num_simul",
+    ),
+    "trackfakerate": (
+        "Track fake rate (RecoToTruth)",
+        "TICL candidates. Of the candidates with a track, the fraction whose track shares less than minTrackPurity = 0.75 of its hits "
+        "with its best particle.",
+        "1 - num_trackmatched / num_charged",
+    ),
+    "trackmismatch": (
+        "Track-calo mismatch (RecoToTruth)",
+        "TICL candidates. Of the candidates with a matched track and a calorimeter match, the fraction where the two are different "
+        "objects: not the same particle, not the same member of the dominance level, and the track not inside the "
+        "merged object the calorimeter part matched.",
+        "1 - num_trackconsistent / num_trackcalo",
+    ),
+    "pidpurity": (
+        "Class purity (RecoToTruth)",
+        "TICL candidates. Of the candidates whose identity projects on a member of the dominance level, the fraction whose class is "
+        "the class of that member. At PU200 the dominance level holds signal members only, so this is the class "
+        "purity of the candidates that represent a signal particle.",
+        "num_pidcorrect / num_levelassoc",
+    ),
+    "mergedrate": (
+        "Merged candidate rate (RecoToTruth)",
+        "TICL candidates. Of the associated candidates, the fraction whose identity is a strict ancestor of members of the dominance "
+        "level: one candidate for several particles.",
+        "num_mergedcandidate / num_assoc(recoToSim)",
+    ),
+    "pidconfusion": (
+        "Class matrix",
+        "TICL candidates. Truth-driven folders: the class of each reconstructed member against the class of its representative "
+        "candidate. Reco-driven folders: the class of each candidate against the class of the dominance-level "
+        "member its identity projects on, or why there is none (merged, pileup, a signal particle outside the "
+        "level, unmatched). Each row is normalised to one.",
+        "pid_confusion, row-normalised",
+    ),
     "resolution": (
         "Residual mean and width",
         "Gaussian fit, slice by slice, of (reco - truth)/truth for the momentum and of (reco - truth) for the "
@@ -228,6 +290,7 @@ METRICS = {
 }
 VARIABLE_MEANING = {
     "pt": "branch root transverse momentum",
+    "energy": "energy of the level member (truth-driven pages) or of the candidate (reco-driven pages)",
     "eta": "pseudorapidity of the branch ROOT, that is where it was produced, NOT where its energy landed; only "
            "for the caloBoundary level are the two the same",
     "caloeta": "pseudorapidity at which the branch ENTERS the calorimeter, taken from the boundary crossing of its "
@@ -259,6 +322,7 @@ FLAVOUR_BINS = ["other", "d", "u", "s", "c", "b", "t", "g"]
 # negative pt or radius cannot exist, so half the canvas went to empty mirror decades.
 SYMLOG_AXES = {
     "pt": (0.1, 1000.0),
+    "energy": (1.0, 2000.0),
     "vertpos": (0.001, 60.0),
     "nhits": (1.0, 10000.0),
 }
@@ -266,6 +330,7 @@ SYMLOG_AXES = {
 AXIS_TITLE = {
     "flavour": "initiating parton",
     "pt": r"p$_{T}$ [GeV]",
+    "energy": "E [GeV]",
     # The truth object here is the branch ROOT, whose eta is where it was PRODUCED, not
     # where its energy landed. Say so on the axis: for anything but caloBoundary the root
     # decayed long before the calorimeter, so this is not an acceptance axis. The
@@ -293,10 +358,13 @@ AXIS_RANGE = {"eta": (-4.5, 4.5), "caloeta": (-4.5, 4.5)}
 # dimensionless, the angular ones are differences and phi carries radians.
 RESIDUAL_TITLE = {
     "pt": "(reco - truth) / truth",
+    "e": "(E - E$_{truth}$) / E$_{truth}$",
+    "raw": "(E$_{raw}$ - E$_{truth}$) / E$_{truth}$",
+    "esum": r"($\Sigma$E - E$_{truth}$) / E$_{truth}$",
     "eta": "reco - truth",
     "phi": "reco - truth [rad]",
 }
-RESIDUAL_UNIT = {"pt": "", "eta": "", "phi": " [rad]"}
+RESIDUAL_UNIT = {"pt": "", "e": "", "raw": "", "esum": "", "eta": "", "phi": " [rad]"}
 # One marker shape and one line style per series, so the curves stay separable in
 # greyscale and under colour-vision deficiency, not by colour alone. A cumulative
 # partner keeps its series' colour and shape and is drawn open and dashed.
@@ -369,9 +437,26 @@ MATCH_CRITERIA = {
         "other side counting as a good association.",
     ),
 }
+MATCH_CRITERIA["Candidates"] = (
+    "Reconstructed: the calorimeter or the track identity of a candidate projects on the member",
+    "A member is reconstructed when the calorimeter identity or the track identity of at least one candidate is "
+    "the member or one of its descendants. The calorimeter identity is the branch the adaptive working point chose "
+    "for the layer clusters of the candidate tracksters; the track identity is the particle that owns at least 75% "
+    "of the hits of the candidate track. There is no shared-energy cut: the adaptive climb chooses the graph level, "
+    "and the ladder pages read the representative candidate for the track, the class and the energy.",
+)
 # Per-domain caveats. A number that is correct but not discriminating reads as a result
 # unless the page says otherwise, so the page says otherwise.
 CATEGORY_NOTE = {
+    "Candidates": (
+        "A TICL candidate is two channels: the layer clusters of all its tracksters, matched like one trackster, "
+        "and its track, matched by the track association. The calorimeter part is the whole of each trackster, "
+        "whatever share of its energy the candidate takes, so a neutral residual and its charged candidate have "
+        "the same calorimeter match. A truth-driven folder is named collection_workingPoint[_class]_level and "
+        "overlays the two levels; a reco-driven folder is named collection[_class]_workingPoint and overlays the "
+        "two adaptive working points. At PU200 the levels hold signal members only, so the reco-driven rates are "
+        "formed mostly on pileup candidates: read nolevelcandidate and pileuprate beside them."
+    ),
     "Vertexing": (
         "A vertex owns no hits, so it is associated to a truth vertex by aggregating the tracks it was built "
         "from, weighted by pt SQUARED. That is the weighting CMSSW's own vertex association uses: "
@@ -414,33 +499,36 @@ PROPOSED = [
     ("Adaptive-level agreement",
      "Fraction of reco objects whose adaptive level equals the fixed best match, versus pt and eta. The direct "
      "measure of what the adaptive climb buys, and flat by construction on single particles."),
-    ("Two-channel candidate matching",
-     "A TICLCandidate should be matched on calo shared energy AND tracker shared hits at once; the payload for "
-     "that is the natural next extension of the shared-hits type."),
     ("Interaction-vertex association for primary vertices",
      "A vertex should be associated to the graph Interaction vertex rather than to particle branches. The present "
      "PV numbers are mechanically correct but aimed at the wrong truth object."),
 ]
 # Metric order drives the page order, so a reader meets efficiency before its failure modes.
-METRIC_ORDER = ["composition", "efficiency", "duplicate", "splitrate", "recopurity", "fakerate",
-                "nocandidate", "nolevelcandidate", "contaminated",
-                "pileuprate", "resolution"]
+METRIC_ORDER = ["composition", "efficiency", "efficiency_track", "efficiency_pid", "efficiency_energy", "duplicate",
+                "splitrate", "mergerate", "recopurity", "fakerate", "nocandidate", "nolevelcandidate", "contaminated",
+                "pileuprate", "trackfakerate", "trackmismatch", "pidpurity", "mergedrate", "pidconfusion",
+                "resolution"]
 # caloeta sits next to eta on purpose: the two answer "where was the branch root
 # produced" and "where did the branch reach the calorimeter", and for anything but the
 # caloBoundary level they are different questions with different answers.
-VARIABLE_ORDER = ["pt", "eta", "caloeta", "phi", "nhits", "vertpos", "zpos", "dxy", "dz", "depth",
+VARIABLE_ORDER = ["pt", "energy", "eta", "caloeta", "phi", "nhits", "vertpos", "zpos", "dxy", "dz", "depth",
                   "root_footprint_fraction", "flavour"]
 # Axes whose bins are named categories rather than numbers, drawn as grouped bars.
 CATEGORICAL = ["reason"]
 # Gaussian slice fits, ordered so bias is read before width for each quantity.
 RESOLUTION_ORDER = [
+    "eres_vs_energy_Mean", "eres_vs_energy_Sigma",
+    "eres_vs_eta_Mean", "eres_vs_eta_Sigma",
+    "rawres_vs_energy_Mean", "rawres_vs_energy_Sigma",
+    "esumres_vs_energy_Mean", "esumres_vs_energy_Sigma",
     "ptres_vs_eta_Mean", "ptres_vs_eta_Sigma",
     "ptres_vs_pt_Mean", "ptres_vs_pt_Sigma",
     "etares_vs_eta_Mean", "etares_vs_eta_Sigma",
     "phires_vs_eta_Mean", "phires_vs_eta_Sigma",
 ]
 _RES_RE = re.compile(r"^(?P<base>\w+res_vs_\w+)_(?P<stat>Mean|Sigma)$")
-RESOLUTION_SOURCES = ["ptres_vs_eta", "ptres_vs_pt", "etares_vs_eta", "phires_vs_eta"]
+RESOLUTION_SOURCES = ["eres_vs_energy", "eres_vs_eta", "rawres_vs_energy", "esumres_vs_energy", "ptres_vs_eta",
+                      "ptres_vs_pt", "etares_vs_eta", "phires_vs_eta"]
 # A Gaussian fitted to a slice with a handful of entries returns a width that is not a
 # resolution. Below this many entries the point is dropped, not drawn.
 MIN_SLICE_ENTRIES = 20
@@ -459,6 +547,14 @@ DENOMINATOR = {
     "nolevelcandidate": "num_reco",
     "contaminated": "num_reco",
     "pileuprate": "num_reco",
+    "efficiency_track": "num_simul",
+    "efficiency_pid": "num_simul",
+    "efficiency_energy": "num_simul",
+    "mergerate": "num_simul",
+    "trackfakerate": "num_charged",
+    "trackmismatch": "num_trackcalo",
+    "pidpurity": "num_levelassoc",
+    "mergedrate": "num_assoc(recoToSim)",
 }
 CATEGORICAL_MEANING = {
     "reason": (
@@ -472,9 +568,9 @@ CATEGORICAL_MEANING = {
     ),
 }
 _ME_RE = re.compile(
-    r"^(?P<metric>efficiency_cumulative|efficiency|recopurity|fakerate|nocandidate|nolevelcandidate"
-    r"|contaminated|duplicate"
-    r"|splitrate|pileuprate)"
+    r"^(?P<metric>efficiency_cumulative|efficiency_track|efficiency_pid|efficiency_energy|efficiency|recopurity"
+    r"|fakerate|nocandidate|nolevelcandidate|contaminated|duplicate|splitrate|mergerate|pileuprate"
+    r"|trackfakerate|trackmismatch|pidpurity|mergedrate)"
     r"_vs_(?P<var>\w+)$"
 )
 
@@ -670,7 +766,7 @@ def collect(files):
                 # ratios; it is carried along so a bar can be dropped when the process
                 # simply does not occur, rather than drawn as a zero efficiency.
                 name = key.GetName()
-                if name.startswith("num_simul_") or name.startswith("num_reco_"):
+                if name.startswith("num_"):
                     if obj.InheritsFrom("TH1") and not obj.InheritsFrom("TH2"):
                         _, counts, _ = hist_arrays(obj)
                         (
@@ -688,6 +784,18 @@ def collect(files):
                             .setdefault("_counts", {})
                             .setdefault("reason", {})[wp]
                         ) = (counts, bin_labels(obj))
+                    continue
+                if name == "pid_confusion" and obj.InheritsFrom("TH2"):
+                    nx, ny = obj.GetNbinsX(), obj.GetNbinsY()
+                    (
+                        data.setdefault(category, {})
+                        .setdefault(collection, {})
+                        .setdefault("_confusion", {})[wp]
+                    ) = (
+                        np.array([[obj.GetBinContent(i, j) for j in range(1, ny + 1)] for i in range(1, nx + 1)]),
+                        [obj.GetXaxis().GetBinLabel(i) for i in range(1, nx + 1)],
+                        [obj.GetYaxis().GetBinLabel(j) for j in range(1, ny + 1)],
+                    )
                     continue
                 if key.GetName() in RESOLUTION_SOURCES:
                     if obj.InheritsFrom("TH2"):
@@ -1101,6 +1209,35 @@ def plot_residual(category, collection, source, per_wp, outdir, index):
     return name, caption
 
 
+def plot_confusion(category, collection, series, matrix, xlabels, ylabels, outdir, index):
+    """One class matrix, each row normalised to one, with the row counts on the axis."""
+    keep_x = [i for i in range(len(xlabels)) if matrix[i].sum() > 0]
+    keep_y = [j for j in range(len(ylabels)) if matrix[:, j].sum() > 0]
+    if not keep_x or not keep_y:
+        return None
+    sub = matrix[np.ix_(keep_x, keep_y)]
+    norm = sub / sub.sum(axis=1, keepdims=True)
+    fig, ax = plt.subplots(figsize=(1.3 * len(keep_y) + 4, 0.9 * len(keep_x) + 3))
+    fig.subplots_adjust(left=0.28, bottom=0.25, top=0.88)
+    ax.imshow(norm, cmap="Blues", vmin=0.0, vmax=1.0, aspect="auto")
+    for a in range(len(keep_x)):
+        for b in range(len(keep_y)):
+            ax.text(b, a, f"{norm[a, b]:.2f}", ha="center", va="center", fontsize=11,
+                    color="white" if norm[a, b] > 0.6 else "black")
+    ax.set_xticks(range(len(keep_y)))
+    ax.set_xticklabels([ylabels[j] for j in keep_y], rotation=40, ha="right", fontsize=12)
+    ax.set_yticks(range(len(keep_x)))
+    ax.set_yticklabels([f"{xlabels[i]} (N={int(matrix[i].sum())})" for i in keep_x], fontsize=12)
+    hep.cms.label(ax=ax, llabel="Private Work", rlabel=f"{series}, {region_label(category)}", fontsize=13)
+    caption = (f"Class matrix of {collection}, {series}, {region_label(category)}, each row normalised to one. "
+               "Diagonal: " + ", ".join(f"{xlabels[i]} {norm[a, keep_y.index(i)]:.2f}"
+                                        for a, i in enumerate(keep_x) if i in keep_y) + ".")
+    name = f"{index:02d}_{category.split('/')[-1]}_{collection}_{series}_pid_confusion.png"
+    fig.savefig(os.path.join(outdir, category.split("/", 1)[0], "pidconfusion", name), dpi=150)
+    plt.close(fig)
+    return name, caption
+
+
 def plot_composition(category, collection, counts, outdir, index, reference=None):
     """What the selected truth branches ARE, by the process that created them."""
     entry = counts.get(reference or REFERENCE_LEVEL) or next(iter(counts.values()))
@@ -1171,6 +1308,13 @@ def main():
                     name, caption = result
                     written.append({"_ord": index, "category": category, "collection": collection, "metric": "composition",
                                     "var": "reason", "png": name, "caption": caption})
+                    index += 1
+            for series, (matrix, xlabels, ylabels) in sorted(data[category][collection].get("_confusion", {}).items()):
+                result = plot_confusion(category, collection, series, matrix, xlabels, ylabels, args.outputDir, index)
+                if result:
+                    name, caption = result
+                    written.append({"_ord": index, "category": category, "collection": collection,
+                                    "metric": "pidconfusion", "var": series, "png": name, "caption": caption})
                     index += 1
             for metric in METRIC_ORDER:
                 per_metric = data[category][collection].get(metric, {})

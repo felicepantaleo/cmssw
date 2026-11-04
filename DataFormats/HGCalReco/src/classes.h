@@ -1,3 +1,5 @@
+#include "DataFormats/HGCalReco/interface/TracksterSoA.h"
+#include "DataFormats/HGCalReco/interface/TracksterHostCollection.h"
 #include <vector>
 #include <array>
 #include "DataFormats/HGCalReco/interface/MtdSoA.h"
@@ -6,6 +8,7 @@
 #include "DataFormats/HGCalReco/interface/TICLLayerTile.h"
 #include "DataFormats/HGCalReco/interface/TICLSeedingRegion.h"
 #include "DataFormats/HGCalReco/interface/TICLCandidate.h"
+#include "DataFormats/HGCalReco/interface/InterpretationHypotheses.h"
 #include "DataFormats/Common/interface/Wrapper.h"
 #include "DataFormats/HGCalReco/interface/HGCalSoARecHitsHostCollection.h"
 #include "DataFormats/HGCalReco/interface/HGCalSoARecHits.h"
@@ -13,3 +16,5 @@
 #include "DataFormats/HGCalReco/interface/HGCalSoARecHitsExtraHostCollection.h"
 #include "DataFormats/HGCalReco/interface/HGCalSoAClusters.h"
 #include "DataFormats/HGCalReco/interface/HGCalSoAClustersHostCollection.h"
+#include "DataFormats/HGCalReco/interface/HGCalSoALayerClustersExtra.h"
+#include "DataFormats/HGCalReco/interface/HGCalSoALayerClustersExtraHostCollection.h"

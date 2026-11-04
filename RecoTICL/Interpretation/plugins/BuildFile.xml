@@ -7,6 +7,7 @@
 <use name="DataFormats/HGCalReco"/>
 <use name="DataFormats/Math"/>
 <use name="DataFormats/MuonReco"/>
+<use name="DataFormats/ParticleFlowCandidate"/>
 <use name="DataFormats/TrackReco"/>
 <use name="FWCore/Framework"/>
 <use name="FWCore/MessageLogger"/>
@@ -19,6 +20,7 @@
 <use name="HeterogeneousCore/AlpakaInterface"/>
 <use name="MagneticField/Engine"/>
 <use name="MagneticField/Records"/>
+<use name="PhysicsTools/ONNXRuntime"/>
 <use name="RecoLocalCalo/HGCalRecAlgos"/>
 <use name="RecoParticleFlow/PFProducer"/>
 <use name="RecoTICL/Common"/>

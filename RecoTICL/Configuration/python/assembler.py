@@ -39,6 +39,15 @@ def step_task_name(name):
     return "ticl" + name + "StepTask"
 
 
+def iteration_labels(it, target):
+    """The labels of the modules of iteration ``it`` whose backend the iteration selects: the cluster filter and the
+    tracksters, or for CLUEstering its device modules, with the merge on the device when its step schedules it."""
+    if it.pattern_type == "CLUEstering":
+        merge = [target.merged_lc_soa] if target.merged_lc_soa_cfi is not None else []
+        return merge + [target.cluestering_label, target.soa_tracksters_label]
+    return [target.filter_label(it.name), target.trackster_label(it.name)]
+
+
 # --------------------------------------------------------------------------- #
 # result container
 # --------------------------------------------------------------------------- #
@@ -150,6 +159,26 @@ def _build_trackster(it, flabel, seed_label, prev_trackster, target):
     return base.clone(**ov)
 
 
+def _build_cluestering(it, target):
+    """The modules of a CLUEstering iteration: CLUEstering on the layer clusters merged on the device, the tracksters
+    built on the device, and their conversion to ticl::Trackster with the mask of their layer clusters and the PID."""
+    if target.merged_lc is not None and target.merged_lc_soa is None:
+        raise PyTICLError("iteration %r: target %r has no layer clusters merged on the device for CLUEstering"
+                          % (it.name, target.name))
+    lc_soa = {} if target.merged_lc_soa is None else dict(hgcalLayerClustersSoA=cms.InputTag(target.merged_lc_soa))
+    clustering = _cfi_default("HGCalCLUEsteringTrackstersProducer@alpaka").clone(**lc_soa, **it.pattern_params)
+    soa = _cfi_default("HGCalSoATrackstersProducer@alpaka").clone(
+        hgcalLayerClustersTrackstersSoA=cms.InputTag(target.cluestering_label), **lc_soa)
+    ov = dict(src=cms.InputTag(target.soa_tracksters_label))
+    if target.initial_mask_tag() is not None:
+        ov["originalMask"] = target.initial_mask_tag()
+    if target.lc_tag() is not None: 
+        ov["layer_clusters"] = target.lc_tag()
+    ov.update(it.trackster_extra)
+    tracksters = _cfi_default("HGCalTrackstersFromSoAProducer").clone(**ov)
+    return clustering, soa, tracksters
+
+
 def _build_links(collection_labels, overrides, target):
     base = _cfi_default("TracksterLinksProducer")
     ov = dict(tracksters_collections=cms.VInputTag(*collection_labels))
@@ -172,18 +201,66 @@ def _build_supercluster_dnn(source_label, overrides, target):
     return base.clone(**ov)
 
 
-def _build_candidate(overrides, links_label, target):
+def _external_inputs(target, tracks="tracks", muons="muons"):
+    """The inputs from outside TICL of a candidate-stage module: tracks, muons and MTD timing."""
+    ov = {tracks: cms.InputTag(target.tracks_label), muons: cms.InputTag(target.muons_label)}
+    if target.timing_label is None:
+        ov.update(useMTDTiming=cms.bool(False))
+    else:
+        ov.update(useMTDTiming=cms.bool(True), timingSoA=cms.InputTag(target.timing_label))
+    return ov
+
+
+def _build_interpretations(overrides, links_label, sc_label, target):
+    """The interpretation stage (``TICLInterpretationProducer``): the final tracksters and the per-track assignment
+    maps, from the linked tracksters and the superclusters."""
+    base = _cfi_default("TICLInterpretationProducer")
+    ov = dict(
+        tracksters_collections=cms.VInputTag(links_label),
+        egamma_tracksters_collections=cms.VInputTag(cms.InputTag(sc_label)),
+        claimUnlinkedTracksters=cms.VInputTag(target.trackster_label("Recovery")),
+        **_external_inputs(target),
+    )
+    if target.lc_tag() is not None:  # HLT-style: remap shared inputs
+        ov["layer_clusters"] = target.lc_tag()
+        ov["layer_clustersTime"] = target.lc_time_tag()
+    ov.update(overrides or {})
+    return base.clone(**ov)
+
+
+def _build_single_stage_candidate(overrides, links_label, target):
+    """The single-stage candidate producer (v5): the final tracksters and the TICLCandidates from the linked
+    tracksters."""
     base = _cfi_default("TICLCandidateProducer")
-    ov = {}
-    if target.lc_tag() is not None:  # HLT-style: remap shared inputs + link collections
+    links = cms.VInputTag(links_label)
+    ov = dict(egamma_tracksters_collections=links,
+              egamma_tracksterlinks_collections=links,
+              general_tracksters_collections=links,
+              general_tracksterlinks_collections=links,
+              **_external_inputs(target))
+    if target.timing_label is None:
+        ov["useTimingAverage"] = cms.bool(False)
+    if target.lc_tag() is not None:  # HLT-style: remap shared inputs
         ov["layer_clusters"] = target.lc_tag()
         ov["layer_clustersTime"] = target.lc_time_tag()
         ov["original_masks"] = cms.VInputTag(target.initial_mask_str())
-        link_tag = cms.VInputTag(links_label)
-        ov["egamma_tracksters_collections"] = link_tag
-        ov["egamma_tracksterlinks_collections"] = cms.VInputTag(links_label)
-        ov["general_tracksters_collections"] = cms.VInputTag(links_label)
-        ov["general_tracksterlinks_collections"] = cms.VInputTag(links_label)
+    ov.update(overrides or {})
+    return base.clone(**ov)
+
+
+def _build_candidate(overrides, target):
+    """The candidate assembly after the interpretation stage: consumes its final tracksters
+    and assignment maps (plus the GSF tracks) and builds the TICLCandidates."""
+    base = _cfi_default("TICLCandidateArbitrationProducer")
+    ov = dict(interpretations=cms.InputTag(target.interpretations_label), **_external_inputs(target, muons="muonSrc"))
+    if target.timing_label is None:
+        ov["useTimingAverage"] = cms.bool(False)
+    if target.gsf_tracks_label is None:
+        ov["useGsfTracks"] = cms.bool(False)
+    else:
+        ov["gsf_tracks"] = cms.InputTag(target.gsf_tracks_label)
+    if target.lc_tag() is not None:  # HLT-style: remap shared inputs
+        ov["layerClusters"] = target.lc_tag()
     ov.update(overrides or {})
     return base.clone(**ov)
 
@@ -194,9 +271,14 @@ def _build_mtd():
 
 def _build_pf(overrides, target):
     base = _cfi_default("PFTICLProducer")
-    ov = dict(ticlCandidateSrc=cms.InputTag(target.candidate_label))
+    ov = dict(ticlCandidateSrc=cms.InputTag(target.candidate_label), muonSrc=cms.InputTag(target.muons_label))
     ov.update(overrides or {})
-    return base.clone(**ov)
+    pf = base.clone(**ov)
+    if pf.muonsFromCandidates.value():
+        # The candidates carry the muon decisions: pfTICL reads no muons and runs no PFMuonAlgo.
+        del pf.muonSrc
+        del pf.pfMuonAlgoParameters
+    return pf
 
 
 # --------------------------------------------------------------------------- #
@@ -253,6 +335,24 @@ def assemble(cfg):
     # iterations
     step_groups = []
     for it in cfg.iterations:
+        if it.pattern_type == "CLUEstering":
+            # CLUEstering reads every layer cluster, without an input mask: it must be the first iteration. Its
+            # device modules have fixed labels, so there is one CLUEstering iteration.
+            if it is not cfg.iterations[0] or it.masks_from:
+                raise PyTICLError("iteration %r: CLUEstering must be the first iteration, without masks_from"
+                                  % it.name)
+            labels = [target.cluestering_label, target.soa_tracksters_label, target.trackster_label(it.name)]
+            for label, module in zip(labels, _build_cluestering(it, target)):
+                m[label] = module
+            if target.merged_lc_soa_cfi is not None:
+                # the step schedules the merge on the device, which only CLUEstering reads
+                cfi = __import__(target.merged_lc_soa_cfi, fromlist=[target.merged_lc_soa])
+                m[target.merged_lc_soa] = getattr(cfi, target.merged_lc_soa)
+                labels.insert(0, target.merged_lc_soa)
+            gname = target.gname("step", it.name)
+            mkgroup(gname, *labels)
+            step_groups.append(gname)
+            continue
         if it.seeding_type is None:
             raise PyTICLError("iteration %r has no seeding region" % it.name)
         if it.filter_type is None:
@@ -305,9 +405,17 @@ def assemble(cfg):
     if cfg.include_mtd:
         m[target.mtd_label] = _build_mtd()
         mkgroup(target.gname("mtd"), target.mtd_label)
-    if cfg.include_candidate:
-        m[target.candidate_label] = _build_candidate(
-            cfg.candidate_spec, target.links_label, target)
+    if cfg.include_candidate and cfg.interpretations_spec is not None:
+        # Two stages: the interpretations give the final tracksters and the assignment maps, the candidate
+        # producer builds the candidates.
+        sc_label = (target.supercluster_dnn_label
+                    if cfg.superclustering_spec is not None else target.links_label)
+        m[target.interpretations_label] = _build_interpretations(
+            cfg.interpretations_spec, target.links_label, sc_label, target)
+        m[target.candidate_label] = _build_candidate(cfg.candidate_spec, target)
+        mkgroup(target.gname("candidate"), target.interpretations_label, target.candidate_label)
+    elif cfg.include_candidate:
+        m[target.candidate_label] = _build_single_stage_candidate(cfg.candidate_spec, target.links_label, target)
         mkgroup(target.gname("candidate"), target.candidate_label)
     if cfg.include_pf:
         m[target.pf_label] = _build_pf(cfg.pf_spec, target)
