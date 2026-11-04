@@ -287,11 +287,11 @@ std::unique_ptr<TICLArbitrationModels> TICLCandidateArbitrationProducer::initial
   options.SetInterOpNumThreads(1);
   auto models = std::make_unique<TICLArbitrationModels>();
   models->neutralShare = std::make_unique<cms::Ort::ONNXRuntime>(
-      ps.getParameter<edm::FileInPath>("neutralShareModel").fullPath(), &options);
+      ps.getParameter<edm::FileInPath>("neutralShareModel").fullPath(), options);
   const auto &calibration = ps.getParameter<std::string>("hadronicTracksterCalibration");
   if (!calibration.empty())
     models->hadronicCalibration =
-        std::make_unique<cms::Ort::ONNXRuntime>(edm::FileInPath(calibration).fullPath(), &options);
+        std::make_unique<cms::Ort::ONNXRuntime>(edm::FileInPath(calibration).fullPath(), options);
   return models;
 }
 
