@@ -95,7 +95,7 @@ class OnnxGraph(torch.nn.Module):
         if op == "Transpose":
             return x[0].permute(a["perm"])
         if op == "Concat":
-            return torch.cat([e.to(x[0].dtype) for e in x], a["axis"])
+            return torch.cat(x, a["axis"])
         if op == "Flatten":
             return torch.flatten(x[0], a.get("axis", 1))
         if op == "Shape":
