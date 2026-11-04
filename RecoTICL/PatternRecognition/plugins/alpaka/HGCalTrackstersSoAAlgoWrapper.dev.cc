@@ -346,7 +346,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
         queue, workDivLayerClusters, KernelTracksterSizes{}, layerClustersClustering, tracksterSizes.data());
     // inclusive scan of the sizes, so offsets[t + 1] is where the layer clusters of trackster t end. The scan leaves
     // the sizes unchanged.
-    iterativePrefixScan<Acc1D>(tracksterSizes.data(), offsets + 1, nTracksters, queue);
+    iterativePrefixScan<Acc1D>(queue, tracksterSizes.data(), offsets + 1, nTracksters);
     alpaka::exec<Acc1D>(queue,
                         workDivLayerClusters,
                         KernelTracksterVertices{},

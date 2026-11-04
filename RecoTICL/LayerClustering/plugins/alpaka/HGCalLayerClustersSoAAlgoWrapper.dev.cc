@@ -323,7 +323,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                         maxEnergyKey.data(),
                         timedHits.data());
     // inclusive scan of the counts, so timedOffsets[c + 1] is where the segment of layer cluster c ends
-    iterativePrefixScan<Acc1D>(timedHits.data(), timedOffsets.data() + 1, nLayerClusters, queue);
+    iterativePrefixScan<Acc1D>(queue, timedHits.data(), timedOffsets.data() + 1, nLayerClusters);
     alpaka::exec<Acc1D>(queue,
                         workDivRecHits,
                         KernelLayerClusterPositionSums{},
