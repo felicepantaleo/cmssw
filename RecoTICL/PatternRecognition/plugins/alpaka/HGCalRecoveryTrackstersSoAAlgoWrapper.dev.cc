@@ -1,6 +1,7 @@
 // Eigen must precede the SoA headers to enable the Eigen columns of the TracksterSoA
 #include <Eigen/Core>
 
+#include <cmath>
 #include <cstdint>
 
 #include <alpaka/alpaka.hpp>
@@ -67,6 +68,15 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
           tracksters.pca()[t].sigmas().setZero();
           tracksters.pca()[t].sigmasPCA().setZero();
           tracksters.id()[t].idProbabilities().setZero();
+          // the energy profile of one layer cluster at the barycenter, as ticl::layerClusterProfile gives it
+          auto profile = tracksters.profile()[t];
+          const bool hasEnergy = energy > 0.f;
+          profile.maxEnergyFraction() = hasEnergy ? 1.f : -1.f;
+          profile.core2EnergyFraction() = hasEnergy ? 1.f : -1.f;
+          profile.core5EnergyFraction() = hasEnergy ? 1.f : -1.f;
+          profile.rmsRadius() = hasEnergy ? 0.f : -1.f;
+          profile.minAbsZ() = hasEnergy ? std::abs(z) : -1.f;
+          profile.lengthZ() = 0.f;
         }
       }
     };

@@ -4,6 +4,8 @@
 #include <cmath>
 #include <limits>
 
+#include "DataFormats/HGCalReco/interface/TracksterSoA.h"
+
 namespace ticl {
 
   std::array<float, 6> layerClusterProfile(const Trackster& trackster,
@@ -23,8 +25,8 @@ namespace ticl {
       const float r = std::sqrt(std::max(0.f, d.mag2() - along * along));
       eSum += e;
       eMax = std::max(eMax, e);
-      eCore2 += r < 2.f ? e : 0.f;
-      eCore5 += r < 5.f ? e : 0.f;
+      eCore2 += r < kProfileCore2Radius ? e : 0.f;
+      eCore5 += r < kProfileCore5Radius ? e : 0.f;
       r2Sum += e * r * r;
       zMin = std::min(zMin, std::abs(static_cast<float>(lc.z())));
       zMax = std::max(zMax, std::abs(static_cast<float>(lc.z())));
