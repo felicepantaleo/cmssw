@@ -17,7 +17,7 @@
 using namespace ticl;
 
 TracksterLinkingbySuperClusteringDNNHeterogeneous::TracksterLinkingbySuperClusteringDNNHeterogeneous(
-    const edm::ParameterSet& ps, edm::ConsumesCollector iC, cms::Ort::ONNXRuntime const* onnxRuntime)
+    const edm::ParameterSet& ps, edm::ConsumesCollector iC, const cms::Ort::ONNXRuntime* onnxRuntime)
     : TracksterLinkingAlgoBase(ps, iC, onnxRuntime),
       pairsToken_(iC.consumes<SuperclusteringDNNPairsHost>(ps.getParameter<edm::InputTag>("pairs"))),
       scoresToken_(iC.consumes<SuperclusteringDNNPairScoresHost>(ps.getParameter<edm::InputTag>("scores"))),
@@ -52,7 +52,7 @@ void TracksterLinkingbySuperClusteringDNNHeterogeneous::linkTracksters(
     std::vector<Trackster>& resultTracksters,
     std::vector<std::vector<unsigned int>>& outputSuperclusters,
     std::vector<std::vector<unsigned int>>& linkedTracksterIdToInputTracksterId) {
-  auto const& inputTracksters = input.tracksters;
+  const auto& inputTracksters = input.tracksters;
   const auto tracksterCount = static_cast<unsigned int>(inputTracksters.size());
   if (tracksterCount == 0) {
     return;
@@ -163,7 +163,7 @@ void TracksterLinkingbySuperClusteringDNNHeterogeneous::linkTracksters(
   }
 
 #ifdef EDM_ML_DEBUG
-  for (std::vector<unsigned int> const& sc : outputSuperclusters) {
+  for (const std::vector<unsigned int>& sc : outputSuperclusters) {
     std::ostringstream s;
     for (unsigned int trackster_id : sc)
       s << trackster_id << " ";
