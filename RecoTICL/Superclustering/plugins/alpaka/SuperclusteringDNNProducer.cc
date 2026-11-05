@@ -1,3 +1,4 @@
+#include <cstdint>
 #include <string>
 #include <utility>
 #include <vector>
@@ -9,44 +10,53 @@
 #include "FWCore/ParameterSet/interface/ParameterSetDescription.h"
 #include "FWCore/ParameterSet/interface/allowedValues.h"
 #include "FWCore/Utilities/interface/Exception.h"
+#include "FWCore/Utilities/interface/FileInPath.h"
 #include "FWCore/Utilities/interface/InputTag.h"
 #include "HeterogeneousCore/AlpakaCore/interface/alpaka/Event.h"
 #include "HeterogeneousCore/AlpakaCore/interface/alpaka/EventSetup.h"
-#include "HeterogeneousCore/AlpakaCore/interface/alpaka/stream/SynchronizingEDProducer.h"
+#include "HeterogeneousCore/AlpakaCore/interface/alpaka/stream/SynchronizingFixedQueueEDProducer.h"
 #include "HeterogeneousCore/AlpakaInterface/interface/config.h"
 #include "RecoTICL/Superclustering/interface/SuperclusteringDNNInputs.h"
+#include "RecoTICL/Superclustering/interface/alpaka/SuperclusteringDNNInferenceRunner.h"
 #include "RecoTICL/Superclustering/interface/alpaka/SuperclusteringDNNPairBuilder.h"
 
 namespace ALPAKA_ACCELERATOR_NAMESPACE {
 
   /*
-   Builds the (seed, candidate) pairs of the superclustering DNN and their input features, from the device
-   tracksters.
-
-   The output size depends on the number of pairs found on the device: acquire() counts them and copies the count
-   to the host, produce() allocates and fills the collections. A SynchronizingEDProducer is what lets acquire()
-   enqueue device work and have the framework wait for it, without blocking a thread, before produce().
+   Builds the (seed, candidate) pairs of the superclustering DNN from the device tracksters and scores them with the
+   DNN. acquire() counts the pairs, and produce(), with their number known on the host, fills them and their features
+   and runs the model in batches of batchSize.
 
    Products, with the same rows:
-     ""         SuperclusteringDNNPairsDevice         the seed and candidate trackster indices of each pair
-     "features" SuperclusteringDNNPairFeaturesDevice  the DNN inputs of each pair
+     ""       SuperclusteringDNNPairsDevice       the seed and candidate trackster indices of each pair
+     "scores" SuperclusteringDNNPairScoresDevice  the DNN score of each pair
   */
-  class SuperclusteringDNNPairFeaturesProducer : public stream::SynchronizingEDProducer<> {
+  class SuperclusteringDNNProducer : public stream::SynchronizingFixedQueueEDProducer<> {
   public:
-    explicit SuperclusteringDNNPairFeaturesProducer(edm::ParameterSet const& config)
-        : SynchronizingEDProducer<>(config),
+    explicit SuperclusteringDNNProducer(edm::ParameterSet const& config)
+        : SynchronizingFixedQueueEDProducer<>(config),
           trackstersToken_{consumes(config.getParameter<edm::InputTag>("tracksters"))},
           builder_{makeSelection(config)},
+          runner_{edm::FileInPath(config.getParameter<std::string>("modelPath")).fullPath(),
+                  featureCount(config),
+                  config.getParameter<uint32_t>("batchSize"),
+                  config.getParameter<bool>("convertToFP16"),
+                  config.getParameter<uint32_t>("warmupIterations")},
           pairsToken_{produces()},
-          featuresToken_{produces("features")} {}
+          scoresToken_{produces("scores")} {}
 
     static void fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
       edm::ParameterSetDescription desc;
       desc.add<edm::InputTag>("tracksters", edm::InputTag("ticlSoATracksters"))
           ->setComment("Device tracksters, in the order of the legacy tracksters that the linking reads");
-      // The preselection of TracksterLinkingbySuperClusteringDNN, with its types and defaults.
+      desc.add<std::string>("modelPath", "RecoTICL/Superclustering/data/supercls_v3.pt")
+          ->setComment("TorchScript export of the superclustering DNN");
       desc.ifValue(edm::ParameterDescription<std::string>("dnnInputsVersion", "v3", true),
                    edm::allowedValues<std::string>("v1", "v2", "v3"));
+      desc.add<uint32_t>("batchSize", 256)->setComment("Pairs per forward pass");
+      desc.add<bool>("convertToFP16", false);
+      desc.add<uint32_t>("warmupIterations", 3);
+      // The preselection of TracksterLinkingbySuperClusteringDNN, with its types and defaults.
       desc.add<float>("deltaEtaWindow", 0.1);
       desc.add<float>("deltaPhiWindow", 0.5);
       desc.add<float>("seedPtThreshold", 4.);
@@ -62,6 +72,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       descriptions.addWithDefaultLabel(desc);
     }
 
+    void beginStream(edm::StreamID, Queue queue) override { runner_.warmup(queue); }
+
     void acquire(device::Event const& event, device::EventSetup const&) override {
       builder_.prepare(event.queue(), event.get(trackstersToken_).const_view());
     }
@@ -71,17 +83,22 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       const auto nPairs = static_cast<int32_t>(builder_.pairCount());
       ticl::SuperclusteringDNNPairsDevice pairs(queue, nPairs);
       ticl::SuperclusteringDNNPairFeaturesDevice features(queue, nPairs);
+      ticl::SuperclusteringDNNPairScoresDevice scores(queue, nPairs);
       builder_.fill(queue, pairs, features);
+      runner_.runInto(queue, features, scores);
       event.emplace(pairsToken_, std::move(pairs));
-      event.emplace(featuresToken_, std::move(features));
+      event.emplace(scoresToken_, std::move(scores));
     }
 
   private:
+    static unsigned int featureCount(edm::ParameterSet const& config) {
+      return ::ticl::makeSuperclusteringDNNInputFromString(config.getParameter<std::string>("dnnInputsVersion"))
+          ->featureCount();
+    }
+
     static SuperclusteringDNNPairSelection makeSelection(edm::ParameterSet const& config) {
       SuperclusteringDNNPairSelection selection{};
-      selection.featureCount =
-          ::ticl::makeSuperclusteringDNNInputFromString(config.getParameter<std::string>("dnnInputsVersion"))
-              ->featureCount();
+      selection.featureCount = featureCount(config);
       selection.deltaEtaWindow = config.getParameter<float>("deltaEtaWindow");
       selection.deltaPhiWindow = config.getParameter<float>("deltaPhiWindow");
       selection.seedPtThreshold = config.getParameter<float>("seedPtThreshold");
@@ -95,14 +112,13 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       const auto categories = config.getParameter<std::vector<int>>("tracksterPIDCategoriesToFilter");
       if (categories.size() > SuperclusteringDNNPairSelection::kMaxPIDCategories) {
         throw cms::Exception("Configuration")
-            << "SuperclusteringDNNPairFeaturesProducer: at most " << SuperclusteringDNNPairSelection::kMaxPIDCategories
+            << "SuperclusteringDNNProducer: at most " << SuperclusteringDNNPairSelection::kMaxPIDCategories
             << " tracksterPIDCategoriesToFilter";
       }
       selection.nPIDCategories = categories.size();
       for (unsigned int i = 0; i < categories.size(); ++i) {
         if (categories[i] < 0 || categories[i] >= static_cast<int>(::ticl::Trackster::ParticleType::unknown) + 1) {
-          throw cms::Exception("Configuration")
-              << "SuperclusteringDNNPairFeaturesProducer: no PID category " << categories[i];
+          throw cms::Exception("Configuration") << "SuperclusteringDNNProducer: no PID category " << categories[i];
         }
         selection.pidCategories[i] = categories[i];
       }
@@ -111,11 +127,12 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
 
     device::EDGetToken<ticl::TracksterDeviceCollection> const trackstersToken_;
     SuperclusteringDNNPairBuilder builder_;
+    SuperclusteringDNNInferenceRunner runner_;
     device::EDPutToken<ticl::SuperclusteringDNNPairsDevice> const pairsToken_;
-    device::EDPutToken<ticl::SuperclusteringDNNPairFeaturesDevice> const featuresToken_;
+    device::EDPutToken<ticl::SuperclusteringDNNPairScoresDevice> const scoresToken_;
   };
 
 }  // namespace ALPAKA_ACCELERATOR_NAMESPACE
 
 #include "HeterogeneousCore/AlpakaCore/interface/alpaka/MakerMacros.h"
-DEFINE_FWK_ALPAKA_MODULE(SuperclusteringDNNPairFeaturesProducer);
+DEFINE_FWK_ALPAKA_MODULE(SuperclusteringDNNProducer);

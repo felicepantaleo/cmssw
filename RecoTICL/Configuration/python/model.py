@@ -79,9 +79,8 @@ class SuperclusterSpec:
     kind: str                         # 'DNN', 'DNNHeterogeneous' or 'Mustache'
     source: str                       # iteration name (or module label) to supercluster
     overrides: Dict = field(default_factory=dict)
-    # DNNHeterogeneous: the overrides of the pair-features and of the inference module
-    features: Dict = field(default_factory=dict)
-    inference: Dict = field(default_factory=dict)
+    # DNNHeterogeneous: the overrides of the device module
+    producer: Dict = field(default_factory=dict)
 
 
 # --------------------------------------------------------------------------- #
@@ -224,13 +223,11 @@ class TICLConfig:
         self._current = None
         return self
 
-    def superclustering_dnn_heterogeneous(self, source, features=None, inference=None, **overrides):
-        """The superclustering DNN on the device (superclusteringDNNHeterogeneous_cff): the pairs and their features
-        (``features`` overrides), the DNN scores (``inference`` overrides) and their association on the host (the
-        linking module, ``overrides``). ``source`` must be a CLUEstering iteration: the pairs index its device
-        tracksters."""
-        self.superclustering_spec = SuperclusterSpec("DNNHeterogeneous", source, overrides, dict(features or {}),
-                                                     dict(inference or {}))
+    def superclustering_dnn_heterogeneous(self, source, producer=None, **overrides):
+        """The superclustering DNN on the device (superclusteringDNNHeterogeneous_cff): the pairs and their DNN scores
+        (``producer`` overrides) and their association on the host (the linking module, ``overrides``). ``source`` must
+        be a CLUEstering iteration: the pairs index its device tracksters."""
+        self.superclustering_spec = SuperclusterSpec("DNNHeterogeneous", source, overrides, dict(producer or {}))
         self._current = None
         return self
 

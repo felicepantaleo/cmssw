@@ -35,7 +35,7 @@ EXPECTED_DELTA = {
         "linkingPSet.type": ("Skeletons", "Cornetto"),
     },
     # The superclustering DNN runs on the device: the v6 linking plugin associates the pairs and the scores of
-    # ticlSuperclusteringDNNPairFeatures and ticlSuperclusteringDNNInference. The seed PID cut is in the pair features.
+    # ticlSuperclusteringDNN. The seed PID cut is in that module.
     "ticlTracksterLinksSuperclusteringDNN": {
         "tracksters_collections": (["ticlTrackstersCLUE3DHigh"], ["ticlTrackstersCLUEstering"]),
         "linkingPSet.type": ("SuperClusteringDNN", "SuperClusteringDNNHeterogeneous"),
@@ -57,8 +57,7 @@ EXPECTED_ADDED = {
     "ticlSoATracksters": "HGCalSoATrackstersProducer@alpaka",
     "ticlTrackstersCLUEstering": "HGCalTrackstersFromSoAProducer",
     "ticlSoATrackstersPID": "TracksterShowerShapeInferenceProducer@alpaka",
-    "ticlSuperclusteringDNNPairFeatures": "SuperclusteringDNNPairFeaturesProducer@alpaka",
-    "ticlSuperclusteringDNNInference": "SuperclusteringDNNInferenceProducer@alpaka",
+    "ticlSuperclusteringDNN": "SuperclusteringDNNProducer@alpaka",
 }
 EXPECTED_REMOVED = {"filteredLayerClustersCLUE3DHigh", "ticlTrackstersCLUE3DHigh"}
 # label -> (v5 producer, v6 producer)
@@ -77,8 +76,7 @@ EXPECTED_FROM_DEFAULT = {
     "ticlTrackstersCLUEstering": ("src", "doPidCut", "cutHadProb"),
     "ticlSoATrackstersPID": (),
     # the device tracksters with their PID, and the v6 seed PID cut (PID >= 0.1 on photon, electron and pi0)
-    "ticlSuperclusteringDNNPairFeatures": ("tracksters", "PIDThreshold", "tracksterPIDCategoriesToFilter"),
-    "ticlSuperclusteringDNNInference": (),
+    "ticlSuperclusteringDNN": ("tracksters", "PIDThreshold", "tracksterPIDCategoriesToFilter"),
 }
 CFI = {
     "TICLInterpretationProducer": ("RecoTICL.Interpretation.ticlInterpretationProducer_cfi",
@@ -91,10 +89,8 @@ CFI = {
                                           "hgCalSoATrackstersProducer"),
     "HGCalTrackstersFromSoAProducer": ("RecoTICL.PatternRecognition.hgCalTrackstersFromSoAProducer_cfi",
                                        "hgCalTrackstersFromSoAProducer"),
-    "SuperclusteringDNNPairFeaturesProducer@alpaka": ("RecoTICL.Superclustering.superclusteringDNNHeterogeneous_cff",
-                                                      "ticlSuperclusteringDNNPairFeatures"),
-    "SuperclusteringDNNInferenceProducer@alpaka": ("RecoTICL.Superclustering.superclusteringDNNHeterogeneous_cff",
-                                                   "ticlSuperclusteringDNNInference"),
+    "SuperclusteringDNNProducer@alpaka": ("RecoTICL.Superclustering.superclusteringDNNHeterogeneous_cff",
+                                          "ticlSuperclusteringDNN"),
     "TracksterShowerShapeInferenceProducer@alpaka": ("RecoTICL.Inference.tracksterShowerShapePID_cff",
                                                      "ticlSoATrackstersPID"),
 }

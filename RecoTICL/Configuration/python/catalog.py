@@ -98,7 +98,6 @@ T_CALOCLUSTERS_SOA = "reco::CaloClusterHostCollection"
 T_LC_CLUSTERING_SOA = "HGCalSoALayerClustersExtraHostCollection"
 T_TRACKSTERS_SOA = "ticl::TracksterHostCollection"
 T_SC_PAIRS_SOA = "ticl::SuperclusteringDNNPairsHost"
-T_SC_FEATURES_SOA = "ticl::SuperclusteringDNNPairFeaturesHost"
 T_SC_SCORES_SOA = "ticl::SuperclusteringDNNPairScoresHost"
 
 
@@ -316,29 +315,19 @@ _SPECS = [
         ),
         backends=("cpu", "gpu"),
     ),
-    # The heterogeneous superclustering DNN: the (seed, candidate) pairs of the device tracksters and their features,
-    # and the DNN score of each pair. Their defaults are the modules of superclusteringDNNHeterogeneous_cff, which
-    # also defines the TracksterLinksProducer that associates the pairs.
+    # The heterogeneous superclustering DNN: the (seed, candidate) pairs of the device tracksters and the DNN score of
+    # each pair. Its default is the module of superclusteringDNNHeterogeneous_cff, which also defines the
+    # TracksterLinksProducer that associates the pairs.
     ModuleSpec(
-        key="SuperclusteringDNNPairFeaturesProducer@alpaka",
+        key="SuperclusteringDNNProducer@alpaka",
         cfi_module="RecoTICL.Superclustering.superclusteringDNNHeterogeneous_cff",
-        cfi_symbol="ticlSuperclusteringDNNPairFeatures",
+        cfi_symbol="ticlSuperclusteringDNN",
         produces=(
             Product(T_SC_PAIRS_SOA),
-            Product(T_SC_FEATURES_SOA, "fixed:features"),
+            Product(T_SC_SCORES_SOA, "fixed:scores"),
         ),
         consumes=(
             Consumed("tracksters", T_TRACKSTERS_SOA),
-        ),
-        backends=("cpu", "gpu"),
-    ),
-    ModuleSpec(
-        key="SuperclusteringDNNInferenceProducer@alpaka",
-        cfi_module="RecoTICL.Superclustering.superclusteringDNNHeterogeneous_cff",
-        cfi_symbol="ticlSuperclusteringDNNInference",
-        produces=(Product(T_SC_SCORES_SOA),),
-        consumes=(
-            Consumed("features", T_SC_FEATURES_SOA),
         ),
         backends=("cpu", "gpu"),
     ),
@@ -391,8 +380,7 @@ GPU_CAPABLE = frozenset([
     "HGCalSoAMergeLayerClustersProducer",
     "HGCalCLUEsteringTrackstersProducer",
     "HGCalSoATrackstersProducer",
-    "SuperclusteringDNNPairFeaturesProducer",
-    "SuperclusteringDNNInferenceProducer",
+    "SuperclusteringDNNProducer",
     "TracksterShowerShapeInferenceProducer",
     "TracksterCNNInferenceProducer",
     "TracksterDNNInferenceProducer",

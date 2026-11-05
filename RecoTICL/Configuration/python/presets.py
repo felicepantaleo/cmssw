@@ -259,20 +259,20 @@ def supercluster_dnn_defaults(pid_threshold=None, emission_pid_threshold=None, p
 def supercluster_dnn_heterogeneous_defaults(pid_threshold=None, emission_pid_threshold=None, pid_categories=None):
     """:func:`supercluster_dnn_defaults` for ``superclustering_dnn_heterogeneous``: the seed PID cut is applied on the
     device, with the pairs; the categories go to both the device and the host modules."""
-    features = {}
+    producer = {}
     pset = cms.PSet(
         type=cms.string("SuperClusteringDNNHeterogeneous"),
         algo_verbosity=cms.int32(0),
         nnWorkingPoint=cms.float(0.57247),
     )
     if pid_threshold is not None:
-        features["PIDThreshold"] = cms.float(pid_threshold)
+        producer["PIDThreshold"] = cms.float(pid_threshold)
     if emission_pid_threshold is not None:
         pset.emissionPIDThreshold = cms.float(emission_pid_threshold)
     if pid_categories is not None:
-        features["tracksterPIDCategoriesToFilter"] = cms.vint32(*pid_categories)
+        producer["tracksterPIDCategoriesToFilter"] = cms.vint32(*pid_categories)
         pset.tracksterPIDCategoriesToFilter = cms.vint32(*pid_categories)
-    return dict(features=features, linkingPSet=pset)
+    return dict(producer=producer, linkingPSet=pset)
 
 
 def candidate_defaults():

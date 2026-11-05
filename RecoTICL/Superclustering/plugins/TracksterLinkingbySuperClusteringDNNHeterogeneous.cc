@@ -175,14 +175,14 @@ void TracksterLinkingbySuperClusteringDNNHeterogeneous::linkTracksters(
 
 void TracksterLinkingbySuperClusteringDNNHeterogeneous::fillPSetDescription(edm::ParameterSetDescription& desc) {
   TracksterLinkingAlgoBase::fillPSetDescription(desc);  // adds algo_verbosity
-  desc.add<edm::InputTag>("pairs", edm::InputTag("ticlSuperclusteringDNNPairFeatures"))
-      ->setComment("Seed and candidate trackster indices of each pair (SuperclusteringDNNPairFeaturesProducer)");
-  desc.add<edm::InputTag>("scores", edm::InputTag("ticlSuperclusteringDNNInference"))
-      ->setComment("DNN score of each pair (SuperclusteringDNNInferenceProducer)");
+  desc.add<edm::InputTag>("pairs", edm::InputTag("ticlSuperclusteringDNN"))
+      ->setComment("Seed and candidate trackster indices of each pair (SuperclusteringDNNProducer)");
+  desc.add<edm::InputTag>("scores", edm::InputTag("ticlSuperclusteringDNN", "scores"))
+      ->setComment("DNN score of each pair (SuperclusteringDNNProducer)");
   desc.add<float>("nnWorkingPoint")
       ->setComment("Working point of DNN (in [0, 1]). DNN score above WP will attempt to supercluster.");
-  // The pair preselection is applied on the device (SuperclusteringDNNPairFeaturesProducer); these are the
-  // parameters of the single-trackster superclusters.
+  // The pair preselection is applied on the device (SuperclusteringDNNProducer); these are the parameters of the
+  // single-trackster superclusters.
   desc.add<float>("seedPtThreshold", 4.)
       ->setComment("Minimum transverse energy of trackster to be considered as seed of a supercluster");
   desc.add<bool>("filterByTracksterPID", true)->setComment("Filter tracksters before superclustering by PID score");
