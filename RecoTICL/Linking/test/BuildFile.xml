@@ -7,3 +7,8 @@
   <use name="RecoTICL/Linking"/>
   <use name="catch2"/>
 </bin>
+<bin name="testCornettoFeatures" file="CornettoFeatures_t.cpp">
+  <use name="RecoTICL/Linking"/>
+  <use name="DataFormats/HGCalReco"/>
+  <use name="catch2"/>
+</bin>
