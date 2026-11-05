@@ -14,7 +14,8 @@
 //   with 0 within timeCompatibilityNSigma times the combined error, with timeResolutionFloor added in
 //   quadrature. The trackster times must be local to the barycenter.
 // - type: when typeVetoProbability > 0 and both carry a PID, the pair is refused if one EM probability is
-//   above typeVetoProbability and the other below 1 - typeVetoProbability.
+//   above typeVetoProbability and the other below 1 - typeVetoProbability. The EM probability of a trackster is
+//   the sum of its PID probabilities over the emCategories (cornetto::emProbability).
 //
 // Grouping, each step independent per trackster:
 // 1. The parent of b is the highest-energy trackster a with more energy than b (equal energy: smaller
@@ -40,6 +41,7 @@
 #include <vector>
 
 #include "DataFormats/HGCalReco/interface/TICLLayerTile.h"
+#include "RecoTICL/Linking/interface/CornettoFeatures.h"
 #include "RecoTICL/Linking/interface/CornettoGeometry.h"
 #include "RecoTICL/Linking/interface/CornettoGrouping.h"
 #include "RecoTICL/Linking/interface/TracksterLinkingAlgoBase.h"
@@ -93,6 +95,14 @@ namespace ticl {
               "EM/hadronic veto threshold: 0 disables the veto, else it must be in [0.5, 1]. A pair is refused if "
               "one EM probability is above this value and the other below 1 - this value. Applies only when both "
               "carry a PID.");
+      iDesc
+          .add<std::vector<int>>("emCategories",
+                                 {static_cast<int>(Trackster::ParticleType::photon),
+                                  static_cast<int>(Trackster::ParticleType::electron),
+                                  static_cast<int>(Trackster::ParticleType::neutral_pion)})
+          ->setComment(
+              "Trackster::ParticleType slots whose PID probabilities sum to the EM probability. At least one value, "
+              "each in [0, 7], no duplicates.");
       iDesc.add<float>("minEmittedEnergy", 1.f)
           ->setComment("Min raw energy [GeV] of an emitted group. Applies after linking.");
       iDesc.add<float>("minEmittedPt", 0.5f)
@@ -175,6 +185,7 @@ namespace ticl {
     const float timeNSigma2_;
     const float timeFloor2_;
     const float typeVetoProbability_;
+    const std::vector<int> emCategories_;
     const float minEmittedEnergy_;
     const float minEmittedPt_;
     const float minEmittedEnergyEM_;
