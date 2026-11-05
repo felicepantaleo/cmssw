@@ -1,4 +1,5 @@
 #include <cstdint>
+#include <limits>
 #include <optional>
 #include <string>
 #include <utility>
@@ -19,9 +20,10 @@
 #include "HeterogeneousCore/AlpakaCore/interface/alpaka/stream/SynchronizingFixedQueueEDProducer.h"
 #include "HeterogeneousCore/AlpakaInterface/interface/config.h"
 #include "HeterogeneousCore/AlpakaInterface/interface/memory.h"
+#include "PhysicsTools/PyTorchAlpaka/interface/BatchedTensorCollection.h"
+#include "PhysicsTools/PyTorchAlpaka/interface/alpaka/AlpakaModel.h"
 #include "RecoTICL/Superclustering/interface/alpaka/SuperclusteringDNN.h"
 #include "RecoTICL/Superclustering/interface/alpaka/SuperclusteringDNNDeviceCollections.h"
-#include "RecoTICL/Superclustering/interface/alpaka/SuperclusteringDNNInferenceRunner.h"
 
 namespace ALPAKA_ACCELERATOR_NAMESPACE {
 
@@ -35,17 +37,26 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
      "scores" SuperclusteringDNNPairScoresDevice  the DNN score of each pair
   */
   class SuperclusteringDNNProducer : public stream::SynchronizingFixedQueueEDProducer<> {
+    using Tensors = cms::torch::alpakatools::BatchedTensorCollection<Queue>;
+
   public:
     explicit SuperclusteringDNNProducer(const edm::ParameterSet& config)
         : SynchronizingFixedQueueEDProducer<>(config),
           trackstersToken_{consumes(config.getParameter<edm::InputTag>("tracksters"))},
           selection_{makeSelection(config)},
-          runner_{edm::FileInPath(config.getParameter<std::string>("modelPath")).fullPath(),
-                  config.getParameter<uint32_t>("batchSize"),
-                  config.getParameter<bool>("convertToFP16"),
-                  config.getParameter<uint32_t>("warmupIterations")},
+          batchSize_{config.getParameter<uint32_t>("batchSize")},
+          warmupIterations_{config.getParameter<uint32_t>("warmupIterations")},
+          dtype_{config.getParameter<bool>("convertToFP16") ? ::torch::kHalf : ::torch::kFloat},
+          model_{edm::FileInPath(config.getParameter<std::string>("modelPath")).fullPath()},
           pairsToken_{produces()},
-          scoresToken_{produces("scores")} {}
+          scoresToken_{produces("scores")} {
+      // TensorCollection takes int sizes
+      if (batchSize_ == 0 || batchSize_ > static_cast<uint32_t>(std::numeric_limits<int32_t>::max())) {
+        throw cms::Exception("Configuration") << "SuperclusteringDNNProducer: batchSize must be in [1, 2^31)";
+      }
+      // Set the precision on the CPU; the first forward pass moves the model to the device of the queue.
+      model_.to(dtype_);
+    }
 
     static void fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
       edm::ParameterSetDescription desc;
@@ -72,7 +83,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       descriptions.addWithDefaultLabel(desc);
     }
 
-    void beginStream(edm::StreamID, Queue queue) override { runner_.warmup(queue); }
+    void beginStream(edm::StreamID, Queue queue) override { warmup(queue); }
 
     void acquire(const device::Event& event, const device::EventSetup&) override {
       auto& queue = event.queue();
@@ -95,7 +106,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       ticl::SuperclusteringDNNPairScoresDevice scores(queue, nPairs);
       if (nPairs > 0) {
         ticl::SuperclusteringDNNAlgo::fillPairs(queue, selection_, *search_, pairs.view(), features.view());
-        runner_.runInto(queue, features, scores);
+        run(queue, features, scores);
       }
       event.emplace(pairsToken_, std::move(pairs));
       event.emplace(scoresToken_, std::move(scores));
@@ -104,6 +115,48 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     }
 
   private:
+    // The forward pass in batches of batchSize pairs: input [pairs, 18], output [pairs, 1]
+    void run(Queue& queue,
+             const ticl::SuperclusteringDNNPairFeaturesDevice& features,
+             ticl::SuperclusteringDNNPairScoresDevice& scores) {
+      const auto f = features.const_view().records();
+      Tensors in, out;
+      in.addBatched<::ticl::SuperclusteringDNNPairFeaturesSoA>("input",
+                                                               batchSize_,
+                                                               f.deltaEtaBaryc(),
+                                                               f.deltaPhiBaryc(),
+                                                               f.multiEn(),
+                                                               f.multiEta(),
+                                                               f.multiPt(),
+                                                               f.seedEta(),
+                                                               f.seedPhi(),
+                                                               f.seedEn(),
+                                                               f.seedPt(),
+                                                               f.theta(),
+                                                               f.thetaXZSeedFrame(),
+                                                               f.thetaYZSeedFrame(),
+                                                               f.thetaXYCmsFrame(),
+                                                               f.thetaYZCmsFrame(),
+                                                               f.thetaXZCmsFrame(),
+                                                               f.explVar(),
+                                                               f.explVarRatio(),
+                                                               f.modDeltaTime());
+      out.addBatched<::ticl::SuperclusteringDNNPairScoresSoA>("output", batchSize_, scores.view().records().score());
+      model_.forward(queue, in, out, dtype_);
+    }
+
+    // A full batch of zeros: the first passes on a device load the model and initialise PyTorch's kernels, which would
+    // otherwise land in the first events.
+    void warmup(Queue& queue) {
+      if (warmupIterations_ == 0)
+        return;
+      ticl::SuperclusteringDNNPairFeaturesDevice features(queue, batchSize_);
+      features.zeroInitialise(queue);
+      ticl::SuperclusteringDNNPairScoresDevice scores(queue, batchSize_);
+      for (uint32_t i = 0; i < warmupIterations_; ++i)
+        run(queue, features, scores);
+    }
+
     static ticl::SuperclusteringDNNPairSelection makeSelection(const edm::ParameterSet& config) {
       ticl::SuperclusteringDNNPairSelection selection{};
       selection.deltaEtaWindow = config.getParameter<float>("deltaEtaWindow");
@@ -134,7 +187,10 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
 
     const device::EDGetToken<ticl::TracksterDeviceCollection> trackstersToken_;
     const ticl::SuperclusteringDNNPairSelection selection_;
-    SuperclusteringDNNInferenceRunner runner_;
+    const uint32_t batchSize_;
+    const uint32_t warmupIterations_;
+    const ::torch::Dtype dtype_;
+    torch::AlpakaModel model_;
     const device::EDPutToken<ticl::SuperclusteringDNNPairsDevice> pairsToken_;
     const device::EDPutToken<ticl::SuperclusteringDNNPairScoresDevice> scoresToken_;
     // from acquire() to produce(): the device buffers of the pairs, and their number (pinned)

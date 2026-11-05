@@ -1,12 +1,13 @@
-#include <cmath>
 #include <cstdint>
+#include <numbers>
 
 #include <Eigen/Geometry>
-#include <xtd/xtd.h>
+#include <xtd/math.h>
 
 #include <alpaka/alpaka.hpp>
 
 #include "HeterogeneousCore/AlpakaInterface/interface/workdivision.h"
+#include "RecoTICL/Superclustering/interface/SuperclusteringDNNInputs.h"
 #include "RecoTICL/Superclustering/interface/alpaka/SuperclusteringDNN.h"
 
 namespace ALPAKA_ACCELERATOR_NAMESPACE::ticl {
@@ -19,11 +20,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::ticl {
 
     // ROOT::Math::etaMax<float>()
     constexpr float kEtaMax = 22756.f;
-    //  constexpr float kBigZScaled = std::powf(std::numeric_limits<float>::epsilon(), -0.25f); //std::pow constexpr from C++26
     constexpr float kBigZScaled = 53.8173714f;
-    // SuperclusteringDNNInputs.h: any delta time outside +/- kDeltaTimeDefault is replaced by kBadDeltaTime
-    constexpr float kDeltaTimeDefault = 50.f;
-    constexpr float kBadDeltaTime = -5.f;
 
     // Following ROOT implementation ROOT::Math::Impl::Eta_FromRhoZ<float>
     // https://root.cern.ch/doc/v636/eta_8h_source.html#l00048
@@ -34,7 +31,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::ticl {
         const float zScaled = z / rho;
         // the Taylor branch is never reached in HGCAL (|eta| < 3.1), kept for completeness
         if (xtd::fabs(zScaled) < kBigZScaled) {
-          return static_cast<float>(xtd::log(zScaled + std::sqrt(zScaled * zScaled + 1.0)));
+          return static_cast<float>(xtd::log(zScaled + xtd::sqrt(zScaled * zScaled + 1.0)));
         }
         return z > 0.f ? static_cast<float>(xtd::log(2.0 * zScaled + 0.5 / zScaled))
                        : static_cast<float>(-xtd::log(-2.0 * zScaled));
@@ -47,9 +44,9 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::ticl {
 
     //Follow reco::deltaPhi implementation
     ALPAKA_FN_ACC inline float deltaPhi(float phi1, float phi2) {
-      constexpr float kPi = static_cast<float>(M_PI);
-      constexpr float kTwoPi = static_cast<float>(2. * M_PI);
-      constexpr float kOneOverTwoPi = static_cast<float>(1. / (2. * M_PI));
+      constexpr float kPi = static_cast<float>(std::numbers::pi);
+      constexpr float kTwoPi = static_cast<float>(2. * std::numbers::pi);
+      constexpr float kOneOverTwoPi = static_cast<float>(1. / (2. * std::numbers::pi));
       const float x = phi1 - phi2;
       if (xtd::fabs(x) <= kPi) {
         return x;
@@ -79,26 +76,16 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::ticl {
       return k;
     }
 
-    // ROOT::Math::VectorUtil::Angle:
-    ALPAKA_FN_ACC inline float angle3D(const Eigen::Vector3f& a, const Eigen::Vector3f& b) {
+    // ROOT::Math::VectorUtil::Angle, and angle2D of SuperclusteringDNNInputs.cc
+    template <typename Vector>
+    ALPAKA_FN_ACC inline float angle(const Vector& a, const Vector& b) {
       const float product = a.squaredNorm() * b.squaredNorm();
       float cosine = 0.f;
       if (product > 0.f) {
         cosine = a.dot(b) / xtd::sqrt(product);
         cosine = cosine > 1.f ? 1.f : (cosine < -1.f ? -1.f : cosine);  //clamp [-1.f, 1.f]
       }
-      return xtd::acosf(cosine);
-    }
-
-    // angle2D of SuperclusteringDNNInputs.cc,
-    ALPAKA_FN_ACC inline float angle2D(const Eigen::Vector2f& a, const Eigen::Vector2f& b) {
-      const float denominator = a.squaredNorm() * b.squaredNorm();
-      float cosine = 0.f;
-      if (denominator > 0.f) {
-        cosine = a.dot(b) / xtd::sqrt(denominator);
-        cosine = cosine > 1.f ? 1.f : (cosine < -1.f ? -1.f : cosine);  //clamp [-1.f, 1.f]
-      }
-      return xtd::acosf(cosine);
+      return xtd::acos(cosine);
     }
 
     // Fills the features of a pair into its row of the SuperclusteringDNNPairFeaturesSoA:
@@ -107,7 +94,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::ticl {
     ALPAKA_FN_ACC inline void fillFeatures(const TracksterKinematics& seed,
                                            const TracksterKinematics& candidate,
                                            Row out) {
-      out.deltaEtaBaryc() = std::abs(candidate.eta) - std::abs(seed.eta);
+      out.deltaEtaBaryc() = xtd::fabs(candidate.eta) - xtd::fabs(seed.eta);
       out.deltaPhiBaryc() = candidate.phi - seed.phi;  // not wrapped, as in the legacy code --> to be checked.
       out.multiEn() = candidate.rawEnergy;
       out.multiEta() = candidate.eta;
@@ -128,21 +115,22 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::ticl {
       const Eigen::Vector3f inSeedFrame = (seedFrame * candidateAxis);
 
       const Eigen::Vector2f beam2D(0.f, 1.f);
-      out.theta() = angle3D(candidateAxis, seedAxis);
-      out.thetaXZSeedFrame() = angle2D(Eigen::Vector2f(inSeedFrame.x(), inSeedFrame.z()), beam2D);
-      out.thetaYZSeedFrame() = angle2D(Eigen::Vector2f(inSeedFrame.y(), inSeedFrame.z()), beam2D);
+      out.theta() = angle(candidateAxis, seedAxis);
+      out.thetaXZSeedFrame() = angle(Eigen::Vector2f(inSeedFrame.x(), inSeedFrame.z()), beam2D);
+      out.thetaYZSeedFrame() = angle(Eigen::Vector2f(inSeedFrame.y(), inSeedFrame.z()), beam2D);
       out.thetaXYCmsFrame() =
-          angle2D(Eigen::Vector2f(candidateAxis.x(), candidateAxis.y()), Eigen::Vector2f(seedAxis.x(), seedAxis.y()));
+          angle(Eigen::Vector2f(candidateAxis.x(), candidateAxis.y()), Eigen::Vector2f(seedAxis.x(), seedAxis.y()));
       out.thetaYZCmsFrame() =
-          angle2D(Eigen::Vector2f(candidateAxis.y(), candidateAxis.z()), Eigen::Vector2f(seedAxis.y(), seedAxis.z()));
+          angle(Eigen::Vector2f(candidateAxis.y(), candidateAxis.z()), Eigen::Vector2f(seedAxis.y(), seedAxis.z()));
       out.thetaXZCmsFrame() =
-          angle2D(Eigen::Vector2f(candidateAxis.x(), candidateAxis.z()), Eigen::Vector2f(seedAxis.x(), seedAxis.z()));
+          angle(Eigen::Vector2f(candidateAxis.x(), candidateAxis.z()), Eigen::Vector2f(seedAxis.x(), seedAxis.z()));
       out.explVar() = candidate.eigenvalue0;
       out.explVarRatio() = candidate.explVarRatio;
 
       const float deltaTime = candidate.time - seed.time;
-      out.modDeltaTime() =
-          (deltaTime < -kDeltaTimeDefault || deltaTime > kDeltaTimeDefault) ? kBadDeltaTime : deltaTime;
+      out.modDeltaTime() = (deltaTime < -::ticl::kDeltaTimeDefault || deltaTime > ::ticl::kDeltaTimeDefault)
+                               ? ::ticl::kBadDeltaTime
+                               : deltaTime;
     }
 
     // TracksterLinkingbySuperClusteringDNN::checkExplainedVarianceRatioCut
@@ -176,10 +164,10 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::ticl {
       if ((seed.kinematics.eta > 0.f) != (candidate.kinematics.eta > 0.f)) {
         return false;
       }
-      if (std::abs(seed.kinematics.eta - candidate.kinematics.eta) >= selection.deltaEtaWindow) {
+      if (xtd::fabs(seed.kinematics.eta - candidate.kinematics.eta) >= selection.deltaEtaWindow) {
         return false;
       }
-      return std::abs(deltaPhi(seed.kinematics.phi, candidate.kinematics.phi)) < selection.deltaPhiWindow;
+      return xtd::fabs(deltaPhi(seed.kinematics.phi, candidate.kinematics.phi)) < selection.deltaPhiWindow;
     }
 
     // One thread per trackster: kinematics and preselection, read from the device trackster columns.

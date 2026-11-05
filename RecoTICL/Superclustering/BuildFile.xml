@@ -5,15 +5,11 @@
 <use name="FWCore/MessageLogger"/>
 <use name="FWCore/Utilities"/>
 <use name="HeterogeneousCore/AlpakaInterface"/>
-<use name="PhysicsTools/PyTorch"/>
-<use name="PhysicsTools/PyTorchAlpaka"/>
 <use name="alpaka"/>
 <use name="eigen"/>
 <use name="xtd"/>
-<use name="pytorch-cuda" for="alpaka/cuda"/>
-<use name="pytorch-rocm" for="alpaka/rocm"/>
 <use name="rootcling"/>
-<!-- The device code and the inference runner in src/alpaka are built for every backend, including serial. -->
+<!-- The device code in src/alpaka is built for every backend, including serial. -->
 <flags ALPAKA_BACKENDS="1"/>
 <export>
   <lib name="1"/>
