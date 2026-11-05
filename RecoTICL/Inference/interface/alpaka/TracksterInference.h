@@ -1,6 +1,7 @@
 #ifndef RecoTICL_Inference_interface_alpaka_TracksterInference_h
 #define RecoTICL_Inference_interface_alpaka_TracksterInference_h
 
+#include <concepts>
 #include <cstdint>
 
 #include <xtd/math.h>
@@ -20,13 +21,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::ticl {
   using TracksterPIDScoresDevice = PortableCollection<::ticl::TracksterPIDScoresLayout<>>;
   using TracksterEnergyDevice = PortableCollection<::ticl::TracksterEnergyLayout<>>;
 
-  // The trackster models on the device. Each selects the tracksters it identifies, fills their inputs from the
-  // tracksters (and their layer clusters), and gives their PID and, with a regression, their energy.
-  enum class TracksterModel { CNN, DNN, PFN, ShowerShape };
-
-  template <TracksterModel M>
-  struct TracksterModelInputs;
-
+  // What a model reads on the device
   struct TracksterModelContext {
     ::ticl::TracksterSoA::ConstView tracksters;
     reco::CaloClusterDeviceCollection::ConstView layerClusters;
@@ -111,59 +106,74 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::ticl {
           write(layer, slot, vertices[kept[layer][slot]]);
     }
 
-    // The image of the CNN and the DNN. The trackster stores no vertex multiplicity: the layer cluster energy is used
-    // as is.
-    template <typename Accept, typename Input>
-    ALPAKA_FN_ACC ALPAKA_FN_INLINE void fillEnergyEtaPhi(const TracksterModelContext& ctx, uint32_t t, Input input) {
-      fillImage<Accept>(ctx, t, [&](uint32_t layer, uint32_t slot, uint32_t cluster) {
+  }  // namespace detail
+
+  // A trackster model on the device. It selects the tracksters it identifies, fills their inputs from the tracksters
+  // (and their layer clusters), and gives their PID and, with a regression, their energy.
+  template <typename M>
+  concept TracksterModel = requires(InferenceTensors& tensors,
+                                    const TracksterModelContext& ctx,
+                                    uint32_t t,
+                                    typename M::Layout::View inputs,
+                                    typename M::Layout::ConstView constInputs,
+                                    float energy) {
+    { M::regression } -> std::convertible_to<bool>;
+    { M::layerClusters } -> std::convertible_to<bool>;
+    { M::minEnergyComment } -> std::convertible_to<const char*>;
+    { M::select(ctx, t) } -> std::same_as<bool>;
+    { M::fill(ctx, t, inputs[0]) } -> std::same_as<void>;
+    { M::add(tensors, constInputs.records(), t) } -> std::same_as<void>;
+    requires not M::regression or requires {
+      { M::regressedEnergy(energy, energy, energy) } -> std::same_as<float>;
+    };
+  };
+
+  // Image models: tracksters of at least minEnergy summed energy of the layer clusters that Accept keeps, whose image
+  // holds those layer clusters.
+  template <typename Accept, bool Regression>
+  struct TracksterImageModel {
+    using Layout = ::ticl::TracksterImageInputsLayout<>;
+    static constexpr bool regression = Regression;
+    static constexpr bool layerClusters = true;
+    static constexpr const char* minEnergyComment = "Min summed layer-cluster energy [GeV] of an identified trackster";
+
+    ALPAKA_FN_ACC ALPAKA_FN_INLINE static bool select(const TracksterModelContext& ctx, uint32_t t) {
+      return detail::reachesMinEnergy<Accept>(ctx, t);
+    }
+
+    template <typename Input>
+    ALPAKA_FN_ACC ALPAKA_FN_INLINE static void fill(const TracksterModelContext& ctx, uint32_t t, Input input) {
+      // the trackster stores no vertex multiplicity: the layer cluster energy is used as is
+      detail::fillImage<Accept>(ctx, t, [&](uint32_t layer, uint32_t slot, uint32_t cluster) {
         const auto position = ctx.layerClusters.position()[cluster];
         const float x = position.x(), y = position.y(), z = position.z();
         input.energy()(layer, slot) = ctx.layerClusters.energy()[cluster].energy();
-        input.absEta()(layer, slot) = absoluteEta(x, y, z);
+        input.absEta()(layer, slot) = detail::absoluteEta(x, y, z);
         input.phi()(layer, slot) = xtd::atan2(y, x);
       });
     }
 
-  }  // namespace detail
+    ALPAKA_FN_ACC ALPAKA_FN_INLINE static float regressedEnergy(float prediction, float, float) { return prediction; }
 
-  // CNN: tracksters of at least minEnergy summed layer-cluster energy. PID only.
-  template <>
-  struct TracksterModelInputs<TracksterModel::CNN> {
-    using Layout = ::ticl::TracksterImageInputsLayout<>;
-    static constexpr bool regression = false;
-    static constexpr bool layerClusters = true;
-    ALPAKA_FN_ACC ALPAKA_FN_INLINE static bool select(const TracksterModelContext& ctx, uint32_t t) {
-      return detail::reachesMinEnergy<detail::AllClusters>(ctx, t);
-    }
-    template <typename Input>
-    ALPAKA_FN_ACC ALPAKA_FN_INLINE static void fill(const TracksterModelContext& ctx, uint32_t t, Input input) {
-      detail::fillEnergyEtaPhi<detail::AllClusters>(ctx, t, input);
-    }
     template <typename Records>
     static void add(InferenceTensors& tensors, Records const& r, uint32_t batch) {
       tensors.addBatched<Layout>("input", batch, r.energy(), r.absEta(), r.phi());
     }
   };
 
-  // DNN: tracksters of at least minEnergy summed layer-cluster energy & in Endcap
-  template <>
-  struct TracksterModelInputs<TracksterModel::DNN> : TracksterModelInputs<TracksterModel::CNN> {
-    static constexpr bool regression = true;
-    ALPAKA_FN_ACC ALPAKA_FN_INLINE static bool select(const TracksterModelContext& ctx, uint32_t t) {
-      return detail::reachesMinEnergy<detail::EndcapClusters>(ctx, t);
-    }
-    template <typename Input>
-    ALPAKA_FN_ACC ALPAKA_FN_INLINE static void fill(const TracksterModelContext& ctx, uint32_t t, Input input) {
-      detail::fillEnergyEtaPhi<detail::EndcapClusters>(ctx, t, input);
-    }
-  };
+  // CNN: all the layer clusters. PID only.
+  using TracksterCNN = TracksterImageModel<detail::AllClusters, false>;
+
+  // DNN: without the barrel layer clusters, with a regression.
+  using TracksterDNN = TracksterImageModel<detail::EndcapClusters, true>;
 
   // PFN: tracksters without barrel layer clusters, with a regression, which keeps the raw energy up to minEnergy.
-  template <>
-  struct TracksterModelInputs<TracksterModel::PFN> {
+  struct TracksterPFN {
     using Layout = ::ticl::TracksterPFNInputsLayout<>;
     static constexpr bool regression = true;
     static constexpr bool layerClusters = true;
+    static constexpr const char* minEnergyComment =
+        "Max raw energy [GeV] up to which the regressed energy is the raw energy";
 
     ALPAKA_FN_ACC ALPAKA_FN_INLINE static bool select(const TracksterModelContext& ctx, uint32_t t) {
       const auto vertices = ctx.tracksters.vertices()[t];
@@ -199,6 +209,10 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::ticl {
       });
     }
 
+    ALPAKA_FN_ACC ALPAKA_FN_INLINE static float regressedEnergy(float prediction, float rawEnergy, float minEnergy) {
+      return not(rawEnergy > minEnergy) ? rawEnergy : prediction;
+    }
+
     template <typename Records>
     static void add(InferenceTensors& tensors, Records const& r, uint32_t batch) {
       tensors.addBatched<Layout>("input", batch, r.energy(), r.absEta(), r.phi(), r.x(), r.y(), r.absZ(), r.cells());
@@ -215,11 +229,12 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::ticl {
   };
 
   // Shower shape: tracksters of at least minEnergy raw energy, from their quantities and energy profile. PID only.
-  template <>
-  struct TracksterModelInputs<TracksterModel::ShowerShape> {
+  struct TracksterShowerShape {
     using Layout = ::ticl::TracksterShowerShapeInputsLayout<>;
     static constexpr bool regression = false;
     static constexpr bool layerClusters = false;
+    static constexpr const char* minEnergyComment = "Min raw energy [GeV] of an identified trackster";
+
     ALPAKA_FN_ACC ALPAKA_FN_INLINE static bool select(const TracksterModelContext& ctx, uint32_t t) {
       return not(ctx.tracksters.energy()[t].rawEnergy() < ctx.minEnergy);
     }
@@ -261,6 +276,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::ticl {
       input.minAbsZ() = profile.minAbsZ();
       input.lengthZ() = profile.lengthZ();
     }
+
     template <typename Records>
     static void add(InferenceTensors& tensors, Records const& r, uint32_t batch) {
       tensors.addBatched<Layout>("input",
@@ -290,8 +306,13 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::ticl {
     }
   };
 
+  static_assert(TracksterModel<TracksterCNN>);
+  static_assert(TracksterModel<TracksterDNN>);
+  static_assert(TracksterModel<TracksterPFN>);
+  static_assert(TracksterModel<TracksterShowerShape>);
+
   template <TracksterModel M>
-  using TracksterModelInputsDevice = PortableCollection<typename TracksterModelInputs<M>::Layout>;
+  using TracksterModelInputsDevice = PortableCollection<typename M::Layout>;
 
   // The device work of a model. The layer clusters are only read by the models that use them.
   template <TracksterModel M>
@@ -305,11 +326,10 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::ticl {
                      const uint32_t* selected,
                      const uint32_t* rows,
                      uint32_t* trackster,
-                     typename TracksterModelInputs<M>::Layout::View inputs);
+                     typename M::Layout::View inputs);
 
     // The predictions of the rows into their tracksters (pid and energy may be null). A model with a regression zeroes
-    // the PID and the regressed energy of the selected tracksters first, and the PFN keeps the raw energy up to
-    // minEnergy.
+    // the PID and the regressed energy of the selected tracksters first.
     static void write(Queue& queue,
                       const uint32_t* trackster,
                       uint32_t nRows,
