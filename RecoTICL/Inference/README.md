@@ -9,8 +9,7 @@ regressed energy, of the tracksters that the model selects. Per event:
    batches of `batchSize`, and write the predictions into the copy.
 
 The device work is in `src/alpaka/TracksterInference.dev.cc`, the model inputs in `interface/alpaka/TracksterInference.h`
-and their layouts in `interface/TracksterInferenceSoA.h`. The models are warmed up (`warmupIterations`) at the first
-event of each stream.
+and their layouts in `interface/TracksterInferenceSoA.h`.
 
 ## Configuration
 
