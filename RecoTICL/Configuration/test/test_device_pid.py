@@ -14,7 +14,7 @@ MODELS = {
     "ShowerShape": (dict(), False),
     "CNN": (dict(), True),
     "DNN": (dict(doRegression=True), True),
-    "PFN": (dict(doRegression=True, minClusterEnergy=2.5), True),
+    "PFN": (dict(doRegression=True, energyThreshold=2.5), True),
 }
 
 

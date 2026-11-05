@@ -52,7 +52,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::ticl {
                                     ::ticl::TracksterPIDScoresLayout<>::ConstView pid,
                                     bool hasEnergy,
                                     ::ticl::TracksterEnergyLayout<>::ConstView energy,
-                                    float minEnergy,
+                                    float energyThreshold,
                                     ::ticl::TracksterSoA::View output) const {
         for (auto row : uniform_elements(acc, nRows)) {
           const auto t = trackster[row];
@@ -62,7 +62,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::ticl {
             probabilities.setZero();
             energies.regressedEnergy() = 0.f;
             if (hasEnergy)
-              energies.regressedEnergy() = M::regressedEnergy(energy[row].energy(), energies.rawEnergy(), minEnergy);
+              energies.regressedEnergy() =
+                  M::regressedEnergy(energy[row].energy(), energies.rawEnergy(), energyThreshold);
           }
           if (hasPID) {
             const auto p = pid[row];
@@ -112,7 +113,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::ticl {
                                         uint32_t nRows,
                                         const TracksterPIDScoresDevice* pid,
                                         const TracksterEnergyDevice* energy,
-                                        float minEnergy,
+                                        float energyThreshold,
                                         ::ticl::TracksterSoA::View output) {
     const auto workDiv = make_workdiv<Acc1D>(divide_up_by(nRows, kBlockSize), kBlockSize);
     alpaka::exec<Acc1D>(queue,
@@ -124,7 +125,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::ticl {
                         pid ? pid->const_view() : ::ticl::TracksterPIDScoresLayout<>::ConstView{},
                         energy != nullptr,
                         energy ? energy->const_view() : ::ticl::TracksterEnergyLayout<>::ConstView{},
-                        minEnergy,
+                        energyThreshold,
                         output);
   }
 

@@ -21,12 +21,13 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::ticl {
   using TracksterPIDScoresDevice = PortableCollection<::ticl::TracksterPIDScoresLayout<>>;
   using TracksterEnergyDevice = PortableCollection<::ticl::TracksterEnergyLayout<>>;
 
-  // What a model reads on the device
+  // What a model reads on the device. energyThreshold is the energy cut of the model: each model says what it means
+  // in energyThresholdComment.
   struct TracksterModelContext {
     ::ticl::TracksterSoA::ConstView tracksters;
     reco::CaloClusterDeviceCollection::ConstView layerClusters;
     uint32_t layersPerEndcap;
-    float minEnergy;
+    float energyThreshold;
   };
 
   namespace detail {
@@ -52,9 +53,9 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::ticl {
       }
     };
 
-    // Whether the summed energy of the accepted layer clusters of trackster t reaches minEnergy
+    // Whether the summed energy of the accepted layer clusters of trackster t reaches energyThreshold
     template <typename Accept>
-    ALPAKA_FN_ACC ALPAKA_FN_INLINE bool reachesMinEnergy(const TracksterModelContext& ctx, uint32_t t) {
+    ALPAKA_FN_ACC ALPAKA_FN_INLINE bool reachesEnergyThreshold(const TracksterModelContext& ctx, uint32_t t) {
       const auto vertices = ctx.tracksters.vertices()[t];
       bool reached = false;
       float energy = 0.f;
@@ -62,7 +63,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::ticl {
         if (not Accept::accept(ctx, vertices[k]))
           continue;
         energy += ctx.layerClusters.energy()[vertices[k]].energy();
-        reached = energy >= ctx.minEnergy;
+        reached = energy >= ctx.energyThreshold;
       }
       return reached;
     }
@@ -119,7 +120,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::ticl {
                                     float energy) {
     { M::regression } -> std::convertible_to<bool>;
     { M::layerClusters } -> std::convertible_to<bool>;
-    { M::minEnergyComment } -> std::convertible_to<const char*>;
+    { M::energyThresholdComment } -> std::convertible_to<const char*>;
     { M::select(ctx, t) } -> std::same_as<bool>;
     { M::fill(ctx, t, inputs[0]) } -> std::same_as<void>;
     { M::add(tensors, constInputs.records(), t) } -> std::same_as<void>;
@@ -128,17 +129,18 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::ticl {
     };
   };
 
-  // Image models: tracksters of at least minEnergy summed energy of the layer clusters that Accept keeps, whose image
+  // Image models: tracksters of at least energyThreshold summed energy of the layer clusters that Accept keeps, whose image
   // holds those layer clusters.
   template <typename Accept, bool Regression>
   struct TracksterImageModel {
     using Layout = ::ticl::TracksterImageInputsLayout<>;
     static constexpr bool regression = Regression;
     static constexpr bool layerClusters = true;
-    static constexpr const char* minEnergyComment = "Min summed layer-cluster energy [GeV] of an identified trackster";
+    static constexpr const char* energyThresholdComment =
+        "Min summed layer-cluster energy [GeV] of an identified trackster";
 
     ALPAKA_FN_ACC ALPAKA_FN_INLINE static bool select(const TracksterModelContext& ctx, uint32_t t) {
-      return detail::reachesMinEnergy<Accept>(ctx, t);
+      return detail::reachesEnergyThreshold<Accept>(ctx, t);
     }
 
     template <typename Input>
@@ -167,12 +169,12 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::ticl {
   // DNN: without the barrel layer clusters, with a regression.
   using TracksterDNN = TracksterImageModel<detail::EndcapClusters, true>;
 
-  // PFN: tracksters without barrel layer clusters, with a regression, which keeps the raw energy up to minEnergy.
+  // PFN: tracksters without barrel layer clusters, with a regression, which keeps the raw energy up to energyThreshold.
   struct TracksterPFN {
     using Layout = ::ticl::TracksterPFNInputsLayout<>;
     static constexpr bool regression = true;
     static constexpr bool layerClusters = true;
-    static constexpr const char* minEnergyComment =
+    static constexpr const char* energyThresholdComment =
         "Max raw energy [GeV] up to which the regressed energy is the raw energy";
 
     ALPAKA_FN_ACC ALPAKA_FN_INLINE static bool select(const TracksterModelContext& ctx, uint32_t t) {
@@ -209,8 +211,10 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::ticl {
       });
     }
 
-    ALPAKA_FN_ACC ALPAKA_FN_INLINE static float regressedEnergy(float prediction, float rawEnergy, float minEnergy) {
-      return not(rawEnergy > minEnergy) ? rawEnergy : prediction;
+    ALPAKA_FN_ACC ALPAKA_FN_INLINE static float regressedEnergy(float prediction,
+                                                                float rawEnergy,
+                                                                float energyThreshold) {
+      return not(rawEnergy > energyThreshold) ? rawEnergy : prediction;
     }
 
     template <typename Records>
@@ -228,17 +232,20 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::ticl {
     }
   };
 
-  // Shower shape: tracksters of at least minEnergy raw energy, from their quantities and energy profile. PID only.
+  // Shower shape: tracksters of at least energyThreshold raw energy, from their quantities and energy profile. PID only.
   struct TracksterShowerShape {
     using Layout = ::ticl::TracksterShowerShapeInputsLayout<>;
     static constexpr bool regression = false;
     static constexpr bool layerClusters = false;
-    static constexpr const char* minEnergyComment = "Min raw energy [GeV] of an identified trackster";
+    static constexpr const char* energyThresholdComment = "Min raw energy [GeV] of an identified trackster";
 
     ALPAKA_FN_ACC ALPAKA_FN_INLINE static bool select(const TracksterModelContext& ctx, uint32_t t) {
-      return not(ctx.tracksters.energy()[t].rawEnergy() < ctx.minEnergy);
+      return not(ctx.tracksters.energy()[t].rawEnergy() < ctx.energyThreshold);
     }
 
+    // The inputs of TracksterInferenceByShowerShape from the converted trackster, whose principal axis points away from
+    // the interaction point, as the SoA one, and whose sigmas are those of the SoA (sqrt(sigma^2) = sigma for
+    // sigma >= 0).
     template <typename Input>
     ALPAKA_FN_ACC ALPAKA_FN_INLINE static void fill(const TracksterModelContext& ctx, uint32_t t, Input input) {
       const auto energy = ctx.tracksters.energy()[t];
@@ -335,7 +342,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::ticl {
                       uint32_t nRows,
                       const TracksterPIDScoresDevice* pid,
                       const TracksterEnergyDevice* energy,
-                      float minEnergy,
+                      float energyThreshold,
                       ::ticl::TracksterSoA::View output);
   };
 
