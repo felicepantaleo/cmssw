@@ -8,6 +8,8 @@
 #include "FWCore/ParameterSet/interface/ConfigurationDescriptions.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/ParameterSet/interface/ParameterSetDescription.h"
+#include "FWCore/ParameterSet/interface/allowedValues.h"
+#include "FWCore/Utilities/interface/EDMException.h"
 #include "FWCore/Utilities/interface/InputTag.h"
 #include "HeterogeneousCore/AlpakaCore/interface/alpaka/EDPutToken.h"
 #include "HeterogeneousCore/AlpakaCore/interface/alpaka/stream/EDProducer.h"
@@ -30,7 +32,18 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
           deltac_(config.getParameter<float>("deltac")),
           kappa_(config.getParameter<float>("kappa")),
           outlierDeltaFactor_(config.getParameter<float>("outlierDeltaFactor")),
-          isScintillator_(config.getParameter<std::string>("detector") == "BH") {}
+          isScintillator_(config.getParameter<std::string>("detector") == "BH") {
+      // CLUEstering divides by deltac and kappa, and needs the outlier distance at least the density radius
+      if (not(deltac_ > 0.f) or not(kappa_ > 0.f)) {
+        throw edm::Exception(edm::errors::Configuration) << "HGCalCLUEsteringLayerClustersProducer: 'deltac' ("
+                                                         << deltac_ << ") and 'kappa' (" << kappa_ << ") must be > 0.";
+      }
+      if (not(outlierDeltaFactor_ >= 1.f)) {
+        throw edm::Exception(edm::errors::Configuration)
+            << "HGCalCLUEsteringLayerClustersProducer: 'outlierDeltaFactor' (" << outlierDeltaFactor_
+            << ") must be >= 1.";
+      }
+    }
 
     void produce(device::Event& iEvent, const device::EventSetup&) override {
       const auto& recHits = iEvent.get(recHitsToken_);
@@ -55,8 +68,12 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     static void fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
       edm::ParameterSetDescription desc;
       desc.add<edm::InputTag>("hgcalRecHitsSoA", edm::InputTag("TO BE DEFINED"));
-      desc.add<std::string>("detector", "EE")
-          ->setComment("HGCAL component; 'BH' selects the periodic (eta,phi) scintillator metric.");
+      desc.ifValue(edm::ParameterDescription<std::string>(
+                       "detector",
+                       "EE",
+                       true,
+                       edm::Comment("HGCAL component; 'BH' selects the periodic (eta,phi) scintillator metric.")),
+                   edm::allowedValues<std::string>("EE", "FH", "BH", "HFNose"));
       desc.add<float>("deltac", 1.3);
       desc.add<float>("kappa", 9.);
       desc.add<float>("outlierDeltaFactor", 2.);
