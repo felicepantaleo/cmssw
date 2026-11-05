@@ -1514,8 +1514,12 @@ void TICLInterpretationProducer::fillDescriptions(edm::ConfigurationDescriptions
   desc.add<std::vector<edm::InputTag>>("egamma_tracksters_collections",
                                        {edm::InputTag("ticlTracksterLinksSuperclusteringDNN")})
       ->setComment("Superclusters: the footprints of the electron and photon hypotheses.");
-  desc.add<std::vector<edm::InputTag>>("claimUnlinkedTracksters", {edm::InputTag("ticlTrackstersRecovery")})
-      ->setComment("Tracksters whose layer clusters outside the input tracksters join the track-claim pool.");
+  desc.add<std::vector<edm::InputTag>>(
+          "claimUnlinkedTracksters",
+          {edm::InputTag("ticlTrackstersCLUEstering"), edm::InputTag("ticlTrackstersRecovery")})
+      ->setComment(
+          "Tracksters whose layer clusters outside the input tracksters join the track-claim pool: the linking "
+          "inputs, so that a group the linking does not emit stays available to the tracks.");
   desc.add<edm::InputTag>("layer_clusters", edm::InputTag("hgcalMergeLayerClusters"));
   desc.add<edm::InputTag>("layer_clustersTime", edm::InputTag("hgcalMergeLayerClusters", "timeLayerCluster"));
   desc.add<edm::InputTag>("tracks", edm::InputTag("generalTracks"));
