@@ -29,7 +29,6 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
           layerClustersClusteringToken_{produces()},
           parameters_{makeParameters(config)} {}
 
-
     void produce(device::Event& iEvent, const device::EventSetup&) override {
       const auto layerClusters = iEvent.get(layerClustersToken_).const_view();
 
@@ -83,6 +82,27 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                "silicon, CE-H scintillator).";
       }
       std::ranges::copy(sigmaT, parameters.sigmaT.begin());
+
+      // CLUEstering divides by these scales and asserts seedingDistance <= outlierDistance on the device
+      auto requirePositive = [](const char* name, float value) {
+        if (not(value > 0.f)) {
+          throw edm::Exception(edm::errors::Configuration)
+              << "HGCalCLUEsteringTrackstersProducer: '" << name << "' must be > 0, got " << value << ".";
+        }
+      };
+      requirePositive("deltac", parameters.deltac);
+      requirePositive("rhoc", parameters.rhoc);
+      requirePositive("outlierDistance", parameters.outlierDistance);
+      requirePositive("seedingDistance", parameters.seedingDistance);
+      requirePositive("layerScale", parameters.layerScale);
+      for (const float value : parameters.sigmaT) {
+        requirePositive("sigmaT", value);
+      }
+      if (parameters.seedingDistance > parameters.outlierDistance) {
+        throw edm::Exception(edm::errors::Configuration)
+            << "HGCalCLUEsteringTrackstersProducer: 'seedingDistance' (" << parameters.seedingDistance
+            << ") must not exceed 'outlierDistance' (" << parameters.outlierDistance << ").";
+      }
       return parameters;
     }
 
