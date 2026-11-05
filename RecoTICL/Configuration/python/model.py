@@ -67,6 +67,9 @@ class IterationSpec:
     # tracksters converted to ticl::Trackster under the usual label. Only a Recovery iteration with the
     # ClusterFilterByAlgoAndSize filter has device modules.
     on_device: bool = False
+    # CLUEstering only: the arguments of makeTracksterInference for the PID of the device tracksters before their
+    # conversion; None: no PID on the device.
+    device_pid: Optional[Dict] = None
 
 
 @dataclass
@@ -185,6 +188,13 @@ class TICLConfig:
 
     def trackster_params(self, **overrides):
         self._cur().trackster_extra.update(overrides)
+        return self
+
+    def device_pid(self, model="ShowerShape", **overrides):
+        """The PID of the tracksters of a CLUEstering iteration on the device, before their conversion: ``model`` is
+        CNN, DNN, PFN or ShowerShape, and the overrides are arguments of makeTracksterInference, e.g. ``pidModel`` or
+        ``doRegression``. The conversion and the superclustering on the device read the identified tracksters."""
+        self._cur().device_pid = dict(model=model, **overrides)
         return self
 
     def masks_from(self, prev_name):

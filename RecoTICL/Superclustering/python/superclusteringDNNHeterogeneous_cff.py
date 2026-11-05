@@ -7,7 +7,7 @@
 
 The linking module has the label and the products of the legacy one (superclustering_cff), so the e/gamma supercluster
 producer and the interpretation read it unchanged. The pairs index the device tracksters, so the linking reads the
-legacy tracksters converted from them, in the same order: ticlSoATracksters -> ticlTrackstersCLUEstering.
+legacy tracksters converted from them, in the same order: ticlSoATrackstersPID -> ticlTrackstersCLUEstering.
 
 The cuts that both the device preselection and the host association apply (seedPtThreshold, filterByTracksterPID,
 tracksterPIDCategoriesToFilter) are in both modules and must agree; pyTICL (presets.v6) sets them together.
@@ -21,7 +21,7 @@ from RecoTICL.Superclustering.superclusteringDNNInferenceProducer_cfi import sup
 from RecoTICL.Superclustering.ticlEGammaSuperClusterProducer_cfi import ticlEGammaSuperClusterProducer as _ticlEGammaSuperClusterProducer
 
 ticlSuperclusteringDNNPairFeatures = _superclusteringDNNPairFeaturesProducer.clone(
-    tracksters = "ticlSoATracksters",
+    tracksters = "ticlSoATrackstersPID",
 )
 
 ticlSuperclusteringDNNInference = _superclusteringDNNInferenceProducer.clone(

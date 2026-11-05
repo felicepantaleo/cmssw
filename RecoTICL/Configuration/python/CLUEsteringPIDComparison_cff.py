@@ -1,33 +1,23 @@
-"""Optional TICLv6 CNN PID validation: CPU ONNX versus GPU PyTorchAlpaka."""
+"""Optional TICLv6 shower-shape PID validation: CPU ONNX versus device PyTorchAlpaka."""
 
 import FWCore.ParameterSet.Config as cms
 
 from RecoTICL.Configuration.iterativeTICL_cff import (
     ticlCLUEsteringStepTask,
-    ticlTrackstersCLUEstering,
     _ticlV6Modules,
 )
+from RecoTICL.Configuration.presets import shower_shape_pid
 from RecoTICL.Configuration.tracksterPIDComparisonAnalyzer_cfi import (
     tracksterPIDComparisonAnalyzer,
 )
 
-# Both converters use the same CLUEstering Tracksters. The CPU converter runs
-# the legacy CNN, while the production converter preserves PyTorchAlpaka scores.
+# Both converters read the same CLUEstering Tracksters. The CPU converter runs the shower-shape PID of
+# mixPID_hi_v1.onnx on the host, while the production converter keeps the scores of its TorchScript export on the
+# device (ticlSoATrackstersPID).
 ticlTrackstersCLUEsteringCPU = _ticlV6Modules["ticlTrackstersCLUEstering"].clone(
     src=cms.InputTag("ticlSoATracksters"),
-    inferenceAlgo=cms.string("TracksterInferenceByCNN"),
-    pluginInferenceAlgoTracksterInferenceByCNN=cms.PSet(
-        algo_verbosity=cms.int32(0),
-        type=cms.string("TracksterInferenceByCNN"),
-        onnxModelPath=cms.string("RecoHGCal/TICL/data/ticlv5/onnx_models/CNN/patternrecognition/id_v0.onnx"),
-        inputNames=cms.vstring("input"),
-        outputNames=cms.vstring("pid_output"),
-        eid_min_cluster_energy=cms.float(1.0),
-        eid_n_layers=cms.int32(50),
-        eid_n_clusters=cms.int32(10),
-        doPID=cms.int32(1),
-        miniBatchSize=cms.untracked.int32(64),
-    ),
+    inferenceAlgo=cms.string("TracksterInferenceByShowerShape"),
+    pluginInferenceAlgoTracksterInferenceByShowerShape=shower_shape_pid("mixPID_hi_v1.onnx"),
     doPidCut=cms.bool(False),
 )
 

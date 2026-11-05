@@ -43,6 +43,8 @@ class Target:
     soa_tracksters_label: str = "ticlSoATracksters"
     # prefix of the layer cluster masks on the device, named after the iteration whose tracksters they mask
     mask_soa_prefix: str = "ticlLayerClusterMask"
+    # label of those tracksters with their PID on the device
+    soa_pid_tracksters_label: str = "ticlSoATrackstersPID"
     # labels of the device modules of the heterogeneous superclustering DNN: the pairs and their features, the scores
     supercluster_pair_features_label: str = "ticlSuperclusteringDNNPairFeatures"
     supercluster_inference_label: str = "ticlSuperclusteringDNNInference"
@@ -182,6 +184,7 @@ HLT = Target(
     cluestering_label="hltTiclCLUEstering",
     soa_tracksters_label="hltTiclSoATracksters",
     mask_soa_prefix="hltTiclLayerClusterMask",
+    soa_pid_tracksters_label="hltTiclSoATrackstersPID",
     supercluster_pair_features_label="hltTiclSuperclusteringDNNPairFeatures",
     supercluster_inference_label="hltTiclSuperclusteringDNNInference",
     barrel_tile_tag=cms.InputTag("hltTiclLayerTileBarrelProducer", "ticlLayerTilesBarrel"),

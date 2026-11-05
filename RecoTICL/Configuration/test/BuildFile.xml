@@ -31,5 +31,7 @@
       command="python3 ${LOCALTOP}/src/RecoTICL/Configuration/test/test_v6_hlt_inputs.py"/>
 <test name="testPyTICLV6Heterogeneous"
       command="python3 ${LOCALTOP}/src/RecoTICL/Configuration/test/test_v6_heterogeneous.py"/>
+<test name="testPyTICLDevicePID"
+      command="python3 ${LOCALTOP}/src/RecoTICL/Configuration/test/test_device_pid.py"/>
 <test name="testPyTICLMergeOrder"
       command="python3 ${LOCALTOP}/src/RecoTICL/Configuration/test/test_merge_order.py"/>

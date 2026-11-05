@@ -56,6 +56,7 @@ EXPECTED_ADDED = {
     "ticlCLUEstering": "HGCalCLUEsteringTrackstersProducer@alpaka",
     "ticlSoATracksters": "HGCalSoATrackstersProducer@alpaka",
     "ticlTrackstersCLUEstering": "HGCalTrackstersFromSoAProducer",
+    "ticlSoATrackstersPID": "TracksterShowerShapeInferenceProducer@alpaka",
     "ticlSuperclusteringDNNPairFeatures": "SuperclusteringDNNPairFeaturesProducer@alpaka",
     "ticlSuperclusteringDNNInference": "SuperclusteringDNNInferenceProducer@alpaka",
 }
@@ -74,12 +75,11 @@ EXPECTED_FROM_DEFAULT = {
     "ticlCLUEstering": ("deltac", "rhoc", "outlierDistance", "seedingDistance", "layerScale", "rhocEtaExponent",
                         "rhocPivotRadius"),
     "ticlSoATracksters": (),
-    # The shower-shape PID and the PID cut of CLUE3DHigh in v6, on the host.
-    "ticlTrackstersCLUEstering": ("doPidCut", "cutHadProb", "inferenceAlgo",
-                                  "pluginInferenceAlgoTracksterInferenceByCNN.",
-                                  "pluginInferenceAlgoTracksterInferenceByShowerShape."),
-    # the v6 seed PID cut (PID >= 0.1 on photon, electron and pi0)
-    "ticlSuperclusteringDNNPairFeatures": ("PIDThreshold", "tracksterPIDCategoriesToFilter"),
+    # The device tracksters with the shower-shape PID of the device, and the PID cut of CLUE3DHigh.
+    "ticlTrackstersCLUEstering": ("src", "doPidCut", "cutHadProb"),
+    "ticlSoATrackstersPID": (),
+    # the device tracksters with their PID, and the v6 seed PID cut (PID >= 0.1 on photon, electron and pi0)
+    "ticlSuperclusteringDNNPairFeatures": ("tracksters", "PIDThreshold", "tracksterPIDCategoriesToFilter"),
     "ticlSuperclusteringDNNInference": (),
 }
 CFI = {
@@ -97,6 +97,8 @@ CFI = {
                                                       "ticlSuperclusteringDNNPairFeatures"),
     "SuperclusteringDNNInferenceProducer@alpaka": ("RecoTICL.Superclustering.superclusteringDNNHeterogeneous_cff",
                                                    "ticlSuperclusteringDNNInference"),
+    "TracksterShowerShapeInferenceProducer@alpaka": ("RecoTICL.Inference.tracksterShowerShapePID_cff",
+                                                     "ticlSoATrackstersPID"),
 }
 
 
