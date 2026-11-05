@@ -18,7 +18,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     using InputDevice = Adapter::InputDevice;
     using ModelOutputDevice = Adapter::ModelOutputDevice;
 
-    SuperclusteringDNNInferenceRunner(std::string const& modelPath,
+    SuperclusteringDNNInferenceRunner(const std::string& modelPath,
                                       uint32_t batchSize,
                                       bool convertToFP16,
                                       uint32_t warmupIterations);
@@ -27,13 +27,13 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
 
     // Enqueues the forward pass in mini-batches of batchSize pairs. The caller allocates scores with one row per row
     // of the features.
-    void runInto(Queue& queue, InputDevice const& features, ModelOutputDevice& scores);
+    void runInto(Queue& queue, const InputDevice& features, ModelOutputDevice& scores);
 
   private:
     torch::AlpakaModel model_;
-    ::torch::Dtype const dtype_;
-    uint32_t const batchSize_;
-    uint32_t const warmupIterations_;
+    const ::torch::Dtype dtype_;
+    const uint32_t batchSize_;
+    const uint32_t warmupIterations_;
   };
 
 }  // namespace ALPAKA_ACCELERATOR_NAMESPACE

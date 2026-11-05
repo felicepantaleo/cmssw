@@ -27,7 +27,7 @@ namespace ticl {
   public:
     TracksterLinkingbySuperClusteringDNNHeterogeneous(const edm::ParameterSet& ps,
                                                       edm::ConsumesCollector iC,
-                                                      cms::Ort::ONNXRuntime const* onnxRuntime = nullptr);
+                                                      const cms::Ort::ONNXRuntime* onnxRuntime = nullptr);
 
     static void fillPSetDescription(edm::ParameterSetDescription& iDesc);
 
@@ -44,13 +44,13 @@ namespace ticl {
   private:
     bool passesPID(const Trackster& ts, float threshold) const;
 
-    edm::EDGetTokenT<SuperclusteringDNNPairsHost> const pairsToken_;
-    edm::EDGetTokenT<SuperclusteringDNNPairScoresHost> const scoresToken_;
-    float const nnWorkingPoint_;
-    float const seedPtThreshold_;
-    bool const filterByTracksterPID_;
-    std::vector<int> const tracksterPIDCategoriesToFilter_;
-    float const emissionPIDThreshold_;
+    const edm::EDGetTokenT<SuperclusteringDNNPairsHost> pairsToken_;
+    const edm::EDGetTokenT<SuperclusteringDNNPairScoresHost> scoresToken_;
+    const float nnWorkingPoint_;
+    const float seedPtThreshold_;
+    const bool filterByTracksterPID_;
+    const std::vector<int> tracksterPIDCategoriesToFilter_;
+    const float emissionPIDThreshold_;
   };
 
 }  // namespace ticl

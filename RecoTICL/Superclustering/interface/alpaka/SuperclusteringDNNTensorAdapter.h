@@ -20,7 +20,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     using ModelOutputSoA = ::ticl::SuperclusteringDNNPairScoresSoA;
 
     template <typename Records>
-    static void registerInputs(SuperclusteringTensors& tensors, Records const& records, uint32_t batchSize) {
+    static void registerInputs(SuperclusteringTensors& tensors, const Records& records, uint32_t batchSize) {
       tensors.addBatched<InputSoA>("input",
                                    batchSize,
                                    records.deltaEtaBaryc(),
@@ -44,7 +44,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     }
 
     template <typename Records>
-    static void registerOutputs(SuperclusteringTensors& tensors, Records const& records, uint32_t batchSize) {
+    static void registerOutputs(SuperclusteringTensors& tensors, const Records& records, uint32_t batchSize) {
       tensors.addBatched<ModelOutputSoA>("output", batchSize, records.score());
     }
   };

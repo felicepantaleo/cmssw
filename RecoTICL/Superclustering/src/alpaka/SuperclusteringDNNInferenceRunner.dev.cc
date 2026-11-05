@@ -9,7 +9,7 @@
 
 namespace ALPAKA_ACCELERATOR_NAMESPACE {
 
-  SuperclusteringDNNInferenceRunner::SuperclusteringDNNInferenceRunner(std::string const& modelPath,
+  SuperclusteringDNNInferenceRunner::SuperclusteringDNNInferenceRunner(const std::string& modelPath,
                                                                        uint32_t batchSize,
                                                                        bool convertToFP16,
                                                                        uint32_t warmupIterations)
@@ -40,7 +40,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
   }
 
   void SuperclusteringDNNInferenceRunner::runInto(Queue& queue,
-                                                  InputDevice const& features,
+                                                  const InputDevice& features,
                                                   ModelOutputDevice& scores) {
     const int total = features.const_view().metadata().size();
     if (scores.const_view().metadata().size() != total) {
