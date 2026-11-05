@@ -145,11 +145,14 @@ namespace io_v1 {
     inline const std::vector<edm::Ptr<ticl::Trackster>> tracksters() const { return tracksters_; };
 
     void setTracksters(const std::vector<edm::Ptr<ticl::Trackster>>& tracksters) { tracksters_ = tracksters; }
+    // Adds a trackster and takes its time as the candidate time.
     void addTrackster(const edm::Ptr<ticl::Trackster>& trackster) {
       tracksters_.push_back(trackster);
       time_ = trackster->time();
       timeError_ = trackster->timeError();
     }
+    // Adds a trackster and keeps the candidate time.
+    void appendTrackster(const edm::Ptr<ticl::Trackster>& trackster) { tracksters_.push_back(trackster); }
     // convenience method to return the ID probability for a certain particle type
     inline float id_probability(ParticleType type) const {
       // probabilities are stored in the same order as defined in the ParticleType enum
