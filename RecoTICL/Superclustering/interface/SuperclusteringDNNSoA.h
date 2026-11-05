@@ -8,8 +8,7 @@
 namespace ticl {
 
   // One row per (seed, candidate) pair that passes the preselection of TracksterLinkingbySuperClusteringDNN.
-  // The columns follow the order of SuperclusteringDNNInputV3::featureNames(). V1 and V2 are prefixes of V3
-  // (9 and 17 features), so the same layout serves every version: register only the first featureCount() columns.
+  // The columns follow the order of SuperclusteringDNNInputV3::featureNames().
   GENERATE_SOA_LAYOUT(SuperclusteringDNNPairFeaturesLayout,
                       SOA_COLUMN(float, deltaEtaBaryc),
                       SOA_COLUMN(float, deltaPhiBaryc),

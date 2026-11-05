@@ -8,7 +8,6 @@
 #include "FWCore/ParameterSet/interface/ConfigurationDescriptions.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/ParameterSet/interface/ParameterSetDescription.h"
-#include "FWCore/ParameterSet/interface/allowedValues.h"
 #include "FWCore/Utilities/interface/Exception.h"
 #include "FWCore/Utilities/interface/FileInPath.h"
 #include "FWCore/Utilities/interface/InputTag.h"
@@ -16,7 +15,6 @@
 #include "HeterogeneousCore/AlpakaCore/interface/alpaka/EventSetup.h"
 #include "HeterogeneousCore/AlpakaCore/interface/alpaka/stream/SynchronizingFixedQueueEDProducer.h"
 #include "HeterogeneousCore/AlpakaInterface/interface/config.h"
-#include "RecoTICL/Superclustering/interface/SuperclusteringDNNInputs.h"
 #include "RecoTICL/Superclustering/interface/alpaka/SuperclusteringDNNInferenceRunner.h"
 #include "RecoTICL/Superclustering/interface/alpaka/SuperclusteringDNNPairBuilder.h"
 
@@ -38,7 +36,6 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
           trackstersToken_{consumes(config.getParameter<edm::InputTag>("tracksters"))},
           builder_{makeSelection(config)},
           runner_{edm::FileInPath(config.getParameter<std::string>("modelPath")).fullPath(),
-                  featureCount(config),
                   config.getParameter<uint32_t>("batchSize"),
                   config.getParameter<bool>("convertToFP16"),
                   config.getParameter<uint32_t>("warmupIterations")},
@@ -51,8 +48,6 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
           ->setComment("Device tracksters, in the order of the legacy tracksters that the linking reads");
       desc.add<std::string>("modelPath", "RecoTICL/Superclustering/data/supercls_v3.pt")
           ->setComment("TorchScript export of the superclustering DNN");
-      desc.ifValue(edm::ParameterDescription<std::string>("dnnInputsVersion", "v3", true),
-                   edm::allowedValues<std::string>("v1", "v2", "v3"));
       desc.add<uint32_t>("batchSize", 256)->setComment("Pairs per forward pass");
       desc.add<bool>("convertToFP16", false);
       desc.add<uint32_t>("warmupIterations", 3);
@@ -91,14 +86,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     }
 
   private:
-    static unsigned int featureCount(edm::ParameterSet const& config) {
-      return ::ticl::makeSuperclusteringDNNInputFromString(config.getParameter<std::string>("dnnInputsVersion"))
-          ->featureCount();
-    }
-
     static SuperclusteringDNNPairSelection makeSelection(edm::ParameterSet const& config) {
       SuperclusteringDNNPairSelection selection{};
-      selection.featureCount = featureCount(config);
       selection.deltaEtaWindow = config.getParameter<float>("deltaEtaWindow");
       selection.deltaPhiWindow = config.getParameter<float>("deltaPhiWindow");
       selection.seedPtThreshold = config.getParameter<float>("seedPtThreshold");
