@@ -29,6 +29,7 @@ TracksterLinkingbyCornetto::TracksterLinkingbyCornetto(const edm::ParameterSet& 
                    conf.getParameter<float>("timeCompatibilityNSigma")),
       timeFloor2_(conf.getParameter<float>("timeResolutionFloor") * conf.getParameter<float>("timeResolutionFloor")),
       typeVetoProbability_(conf.getParameter<float>("typeVetoProbability")),
+      emCategories_(conf.getParameter<std::vector<int>>("emCategories")),
       minEmittedEnergy_(conf.getParameter<float>("minEmittedEnergy")),
       minEmittedPt_(conf.getParameter<float>("minEmittedPt")),
       minEmittedEnergyEM_(conf.getParameter<float>("minEmittedEnergyEM")),
@@ -47,20 +48,32 @@ TracksterLinkingbyCornetto::TracksterLinkingbyCornetto(const edm::ParameterSet& 
                    conf.getParameter<float>("mergeEMTransverseRadius0"),
                    conf.getParameter<float>("mergeEMTransverseSlope")} {
   const bool vetoValid = typeVetoProbability_ == 0.f || (typeVetoProbability_ >= 0.5f && typeVetoProbability_ <= 1.f);
+  auto sortedCategories = emCategories_;
+  std::sort(sortedCategories.begin(), sortedCategories.end());
+  const bool categoriesValid =
+      !sortedCategories.empty() && sortedCategories.front() >= 0 &&
+      sortedCategories.back() < cornetto::kNumParticleTypes &&
+      std::adjacent_find(sortedCategories.begin(), sortedCategories.end()) == sortedCategories.end();
   const auto coneValid = [](const cornetto::Cone& c, const cornetto::Cone& em) {
     return c.maxLongitudinal > 0.f && c.maxBackward >= 0.f && c.radius0 >= 0.f && c.slope >= 0.f && em.radius0 >= 0.f &&
            em.radius0 <= c.radius0 && em.slope >= 0.f && em.slope <= c.slope;
   };
   if (!(etaWindow_ > 0.f && etaWindow_ < std::numbers::pi_v<float>) || !coneValid(cone_, emCone_) ||
-      !coneValid(mergeCone_, mergeEMCone_) || !(conf.getParameter<float>("timeResolutionFloor") >= 0.f) || !vetoValid)
-    throw cms::Exception("Configuration")
-        << "TracksterLinkingbyCornetto: invalid parameters, see the parameter descriptions. etaWindow " << etaWindow_
-        << ", maxLongitudinalDistance " << cone_.maxLongitudinal << ", maxBackwardDistance " << cone_.maxBackward
-        << ", transverseRadius0 " << cone_.radius0 << ", transverseSlope " << cone_.slope << ", emTransverseRadius0 "
-        << emCone_.radius0 << ", emTransverseSlope " << emCone_.slope << ", timeResolutionFloor "
-        << conf.getParameter<float>("timeResolutionFloor") << ", typeVetoProbability " << typeVetoProbability_
-        << ", merge cone " << mergeCone_.maxBackward << " " << mergeCone_.maxLongitudinal << " " << mergeCone_.radius0
-        << " " << mergeCone_.slope << ", merge EM cone " << mergeEMCone_.radius0 << " " << mergeEMCone_.slope;
+      !coneValid(mergeCone_, mergeEMCone_) || !(conf.getParameter<float>("timeResolutionFloor") >= 0.f) || !vetoValid ||
+      !categoriesValid) {
+    cms::Exception e("Configuration");
+    e << "TracksterLinkingbyCornetto: invalid parameters, see the parameter descriptions. etaWindow " << etaWindow_
+      << ", maxLongitudinalDistance " << cone_.maxLongitudinal << ", maxBackwardDistance " << cone_.maxBackward
+      << ", transverseRadius0 " << cone_.radius0 << ", transverseSlope " << cone_.slope << ", emTransverseRadius0 "
+      << emCone_.radius0 << ", emTransverseSlope " << emCone_.slope << ", timeResolutionFloor "
+      << conf.getParameter<float>("timeResolutionFloor") << ", typeVetoProbability " << typeVetoProbability_
+      << ", merge cone " << mergeCone_.maxBackward << " " << mergeCone_.maxLongitudinal << " " << mergeCone_.radius0
+      << " " << mergeCone_.slope << ", merge EM cone " << mergeEMCone_.radius0 << " " << mergeEMCone_.slope
+      << ", emCategories";
+    for (int c : emCategories_)
+      e << " " << c;
+    throw e;
+  }
 }
 
 bool TracksterLinkingbyCornetto::emits(float energy, float pt, float em) const {
@@ -104,15 +117,7 @@ TracksterLinkingbyCornetto::Features TracksterLinkingbyCornetto::computeFeatures
     f.rad[i] = std::sqrt(b.Mag2());
     f.time[i] = ts.time();
     f.timeError[i] = ts.timeError();
-    // -1 for a trackster with no PID: no probability, or only unknown (a merged trackster).
-    float sum = 0.f;
-    for (float v : ts.id_probabilities())
-      sum += v;
-    f.em[i] = sum > ts.id_probability(Trackster::ParticleType::unknown)
-                  ? (ts.id_probability(Trackster::ParticleType::photon) +
-                     ts.id_probability(Trackster::ParticleType::electron)) /
-                        sum
-                  : -1.f;
+    f.em[i] = cornetto::emProbability(ts, emCategories_);
   }
   return f;
 }
