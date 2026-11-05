@@ -778,7 +778,8 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
       const auto track = cand.trackPtr();
       if (track.isNull() || track.key() >= claimOfTrack.size() || claimOfTrack[track.key()] < 0)
         continue;
-      cand.addTrackster(edm::Ptr<Trackster>(tracksters_h, claimOfTrack[track.key()]));
+      // The candidate keeps the time of assignTimeToCandidates.
+      cand.appendTrackster(edm::Ptr<Trackster>(tracksters_h, claimOfTrack[track.key()]));
     }
   }
   if (buildCandidateTracksters_) {
