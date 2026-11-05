@@ -21,37 +21,11 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::ticl {
       return xtd::asinh(xtd::abs(z) / xtd::sqrt(x * x + y * y));
     }
 
-    // Same seed-ID predicate as ticlgeom::Tools::isBarrel()
-    ALPAKA_FN_HOST_ACC bool isBarrel(DetId id) {
-      return (id.det() == DetId::Ecal && id.subdetId() == 1) ||
-             (id.det() == DetId::Hcal && (id.subdetId() == 1 || id.subdetId() == 3));
-    }
-
     template <TracksterModel M>
     struct KernelSelect {
       ALPAKA_FN_ACC void operator()(const Acc1D& acc, TracksterModelContext ctx, uint32_t* selected) const {
-        for (auto t : uniform_elements(acc, ctx.tracksters.energy().metadata().size())) {
-          const auto vertices = ctx.tracksters.vertices()[t];
-          bool select = false;
-          if constexpr (M == TracksterModel::CNN or M == TracksterModel::DNN) {
-            // the summed energy of the layer clusters, without the barrel ones for the DNN
-            float energy = 0.f;
-            for (auto k = 0u; k < vertices.size() and not select; ++k) {
-              if (M == TracksterModel::DNN and isBarrel(ctx.layerClusters.indexes()[vertices[k]].seedID()))
-                continue;
-              energy += ctx.layerClusters.energy()[vertices[k]].energy();
-              select = energy >= ctx.minEnergy;
-            }
-          } else if constexpr (M == TracksterModel::PFN) {
-            // no barrel layer cluster
-            select = true;
-            for (auto k = 0u; k < vertices.size() and select; ++k)
-              select = not isBarrel(ctx.layerClusters.indexes()[vertices[k]].seedID());
-          } else {
-            select = not(ctx.tracksters.energy()[t].rawEnergy() < ctx.minEnergy);
-          }
-          selected[t] = select ? 1u : 0u;
-        }
+        for (auto t : uniform_elements(acc, ctx.tracksters.energy().metadata().size()))
+          selected[t] = TracksterModelInputs<M>::select(ctx, t) ? 1u : 0u;
       }
     };
 
@@ -94,7 +68,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::ticl {
           uint8_t counts[nLayers] = {};
           for (auto k = 0u; k < vertices.size(); ++k) {
             const auto i = vertices[k];
-            if (M == TracksterModel::DNN and isBarrel(ctx.layerClusters.indexes()[i].seedID()))
+            if (M == TracksterModel::DNN and detail::isBarrel(ctx.layerClusters.indexes()[i].seedID()))
               continue;
             const auto layer = static_cast<uint32_t>(ctx.layerClusters.position()[i].layer()) % ctx.layersPerEndcap;
             if (layer >= nLayers)
