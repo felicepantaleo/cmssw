@@ -28,10 +28,10 @@ pyTICL schedules it on the TICLv6 CLUEstering tracksters with `TICLConfig.device
 
 | Model | Selection | Inputs | Before the predictions | Regression |
 |---|---|---|---|---|
-| CNN | summed layer-cluster energy >= `minClusterEnergy` | image | - | none |
+| CNN | summed layer-cluster energy >= `energyThreshold` | image | - | none |
 | DNN | as CNN, without the barrel layer clusters | image without the barrel layer clusters | PID and regressed energy zeroed | model energy |
-| PFN | no barrel layer cluster (empty tracksters too) | image + trackster quantities | PID and regressed energy zeroed | model energy if raw energy > `minClusterEnergy`, else raw energy |
-| ShowerShape | raw energy >= `minClusterEnergy` | 22 shower-shape quantities | - | none |
+| PFN | no barrel layer cluster (empty tracksters too) | image + trackster quantities | PID and regressed energy zeroed | model energy if raw energy > `energyThreshold`, else raw energy |
+| ShowerShape | raw energy >= `energyThreshold` | 22 shower-shape quantities | - | none |
 
 The tracksters that a model does not select keep their values.
 
@@ -58,3 +58,4 @@ Model files, relative to the CMSSW search path (only the enabled models are load
 `TracksterPIDComparisonAnalyzer` and `TracksterEnergyComparisonAnalyzer` compare the PID or the energy of two
 trackster collections row by row; `RecoTICL/Configuration/python/CLUEsteringPIDComparison_cff.py` compares the device
 shower-shape PID of the CLUEstering tracksters with `TracksterInferenceByShowerShape` on the host.
+`test/alpaka/testTracksterInference.dev.cc` tests the selection, inputs and outputs of each model on hand-made tracksters.

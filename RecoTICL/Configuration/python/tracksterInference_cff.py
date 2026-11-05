@@ -13,7 +13,7 @@ _SHOWER_SHAPE_PID = "RecoTICL/Inference/data/showerShapePID/mixPID_hi_v1.pt"
 
 def makeTracksterInference(*, model="CNN", doPID=True, doRegression=False, batchSize=64,
                            tracksters="ticlSoATracksters", layerClusters="hgcalSoAMergeLayerClusters",
-                           pidModel=None, regressionModel=None, minClusterEnergy=1.0,
+                           pidModel=None, regressionModel=None, energyThreshold=1.0,
                            convertToFP16=False, warmupIterations=3):
     if model not in MODELS:
         raise ValueError("model must be one of " + ", ".join(MODELS))
@@ -25,8 +25,8 @@ def makeTracksterInference(*, model="CNN", doPID=True, doRegression=False, batch
         raise ValueError("batchSize must be a positive int fitting the SoA size type")
     if type(warmupIterations) is not int or not 0 <= warmupIterations <= 0xFFFFFFFF:
         raise ValueError("warmupIterations must fit uint32")
-    if not math.isfinite(minClusterEnergy):
-        raise ValueError("minClusterEnergy must be finite")
+    if not math.isfinite(energyThreshold):
+        raise ValueError("energyThreshold must be finite")
     if not isinstance(layerClusters, (str, cms.InputTag)):
         raise TypeError("layerClusters must be the merged CaloClusterSoA InputTag")
     if pidModel is None:
@@ -43,4 +43,4 @@ def makeTracksterInference(*, model="CNN", doPID=True, doRegression=False, batch
     inputs = dict(layerClusters=layerClusters) if model in LAYER_CLUSTER_MODELS else {}
     return default.clone(tracksters=tracksters, pidModel=pidModel, regressionModel=regressionModel, doPID=doPID,
                          doRegression=doRegression, batchSize=batchSize, convertToFP16=convertToFP16,
-                         warmupIterations=warmupIterations, minClusterEnergy=minClusterEnergy, **inputs)
+                         warmupIterations=warmupIterations, energyThreshold=energyThreshold, **inputs)

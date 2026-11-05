@@ -42,12 +42,12 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
         : SynchronizingEDProducer(config),
           trackstersToken_{consumes(config.getParameter<edm::InputTag>("tracksters"))},
           outputToken_{produces()},
-          minEnergy_{static_cast<float>(config.getParameter<double>("minClusterEnergy"))},
+          energyThreshold_{static_cast<float>(config.getParameter<double>("energyThreshold"))},
           batchSize_{config.getParameter<uint32_t>("batchSize")},
           warmupIterations_{config.getParameter<uint32_t>("warmupIterations")},
           dtype_{config.getParameter<bool>("convertToFP16") ? ::torch::kHalf : ::torch::kFloat} {
-      if (not std::isfinite(minEnergy_))
-        throw cms::Exception("Configuration") << "minClusterEnergy must be finite";
+      if (not std::isfinite(energyThreshold_))
+        throw cms::Exception("Configuration") << "energyThreshold must be finite";
       if (batchSize_ == 0 or batchSize_ > static_cast<uint32_t>(std::numeric_limits<int32_t>::max()))
         throw cms::Exception("Configuration") << "Require 0 < batchSize <= INT32_MAX";
       if constexpr (M::layerClusters) {
@@ -87,7 +87,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       desc.add<bool>("convertToFP16", false);
       desc.add<uint32_t>("warmupIterations", 3)
           ->setComment("Inferences on empty inputs at the first event of a stream");
-      desc.add<double>("minClusterEnergy", 1.0)->setComment(M::minEnergyComment);
+      desc.add<double>("energyThreshold", 1.0)->setComment(M::energyThresholdComment);
       descriptions.addWithDefaultLabel(desc);
     }
 
@@ -160,7 +160,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                                          nRows,
                                          pid ? &*pid : nullptr,
                                          energy ? &*energy : nullptr,
-                                         minEnergy_,
+                                         energyThreshold_,
                                          output.view());
       }
       event.emplace(outputToken_, std::move(output));
@@ -177,7 +177,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     }
 
     TracksterModelContext context(device::Event const& event, ::ticl::TracksterSoA::ConstView tracksters) const {
-      return {tracksters, layerClusters(event), static_cast<uint32_t>(layersPerEndcap_), minEnergy_};
+      return {tracksters, layerClusters(event), static_cast<uint32_t>(layersPerEndcap_), energyThreshold_};
     }
 
     // The outputs: the PID [batch, 8] or the energy [batch, 1]
@@ -227,7 +227,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     edm::ESGetToken<TICLGeomLookupHost, CaloGeometryRecord> ticlGeomLookupToken_;
     edm::ESGetToken<TICLGeomLayersHost, CaloGeometryRecord> ticlGeomLayersToken_;
     const device::EDPutToken<ticl::TracksterDeviceCollection> outputToken_;
-    const float minEnergy_;
+    const float energyThreshold_;
     const uint32_t batchSize_;
     const uint32_t warmupIterations_;
     const ::torch::Dtype dtype_;
