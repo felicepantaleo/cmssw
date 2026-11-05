@@ -88,8 +88,7 @@ bool TracksterLinkingbyCornetto::timeCompatible(
     float tAnchor, float errAnchor, float tOther, float errOther, float path) const {
   if (!useTimeGate_ || !(errAnchor > 0.f) || !(errOther > 0.f))
     return true;
-  constexpr float kInvSpeedOfLight = 1.f / 29.9792458f;  // ns/cm
-  const float dt = tOther - tAnchor - path * kInvSpeedOfLight;
+  const float dt = tOther - tAnchor - path * cornetto::kInvSpeedOfLight;
   return dt * dt <= timeNSigma2_ * (errAnchor * errAnchor + errOther * errOther + timeFloor2_);
 }
 
@@ -97,15 +96,7 @@ TracksterLinkingbyCornetto::Features TracksterLinkingbyCornetto::computeFeatures
   const auto& tracksters = input.tracksters;
   const std::size_t n = tracksters.size();
   Features f;
-  f.bary.resize(n);
-  f.energy.resize(n);
-  f.eta.resize(n);
-  f.phi.resize(n);
-  f.rad.resize(n);
-  f.em.resize(n);
-  f.time.resize(n);
-  f.timeError.resize(n);
-  f.valid.resize(n);
+  f.resize(n);
   for (std::size_t i = 0; i < n; ++i) {
     auto const& ts = tracksters[i];
     const auto& b = ts.barycenter();
@@ -145,7 +136,7 @@ bool TracksterLinkingbyCornetto::compatibleIn(
   return true;
 }
 
-void TracksterLinkingbyCornetto::fillTiles(const Features& f, Tiles& tiles) {
+void TracksterLinkingbyCornetto::fillTiles(const Features& f, EndcapTiles& tiles) {
   std::vector<unsigned int> order;
   order.reserve(f.energy.size());
   for (unsigned int i = 0; i < f.energy.size(); ++i)
@@ -162,7 +153,7 @@ void TracksterLinkingbyCornetto::fillTiles(const Features& f, Tiles& tiles) {
 // contains every anchor that can pass the cone.
 template <typename Allowed, typename Test>
 std::vector<unsigned int> TracksterLinkingbyCornetto::findParentsIn(
-    const Features& f, const Tiles& tiles, const cornetto::Cone& cone, Allowed&& allowed, Test&& test) const {
+    const Features& f, const EndcapTiles& tiles, const cornetto::Cone& cone, Allowed&& allowed, Test&& test) const {
   const auto n = static_cast<unsigned int>(f.energy.size());
   const auto ranksAbove = [&f](unsigned int a, unsigned int b) { return cornetto::ranksAbove(f.energy, a, b); };
   std::vector<unsigned int> parents(n);
@@ -192,65 +183,13 @@ std::vector<unsigned int> TracksterLinkingbyCornetto::findParentsIn(
   return parents;
 }
 
-std::vector<unsigned int> TracksterLinkingbyCornetto::findParents(const Features& f, const Tiles& tiles) const {
+std::vector<unsigned int> TracksterLinkingbyCornetto::findParents(const Features& f, const EndcapTiles& tiles) const {
   return findParentsIn(
       f,
       tiles,
       cone_,
       [](unsigned int, unsigned int) { return true; },
       [&](unsigned int a, unsigned int b) { return compatible(f, a, b); });
-}
-
-TracksterLinkingbyCornetto::Features TracksterLinkingbyCornetto::groupFeatures(
-    const Features& f, const std::vector<std::vector<unsigned int>>& groups) const {
-  constexpr float kInvSpeedOfLight = 1.f / 29.9792458f;  // ns/cm
-  const std::size_t n = groups.size();
-  Features g;
-  g.bary.resize(n);
-  g.energy.resize(n);
-  g.eta.resize(n);
-  g.phi.resize(n);
-  g.rad.resize(n);
-  g.em.resize(n);
-  g.time.resize(n);
-  g.timeError.resize(n);
-  g.valid.resize(n);
-  for (std::size_t k = 0; k < n; ++k) {
-    float energy = 0.f, emWeight = 0.f, em = 0.f;
-    math::XYZVectorF weighted;
-    for (unsigned int i : groups[k]) {
-      if (!f.valid[i])
-        continue;
-      energy += f.energy[i];
-      weighted += f.bary[i] * f.energy[i];
-      if (f.em[i] >= 0.f) {
-        emWeight += f.energy[i];
-        em += f.em[i] * f.energy[i];
-      }
-    }
-    const auto bary = energy > 0.f ? weighted / energy : weighted;
-    const float rad = std::sqrt(bary.Mag2());
-    // Member times moved to the group barycenter along the direction from the origin, weighted by their errors.
-    float sumW = 0.f, sumWT = 0.f;
-    for (unsigned int i : groups[k]) {
-      if (!f.valid[i] || !(f.timeError[i] > 0.f))
-        continue;
-      const float w = 1.f / (f.timeError[i] * f.timeError[i]);
-      sumW += w;
-      sumWT += w * (f.time[i] + (rad - f.rad[i]) * kInvSpeedOfLight);
-    }
-    g.bary[k] = bary;
-    g.energy[k] = energy;
-    g.eta[k] = bary.eta();
-    g.phi[k] = bary.phi();
-    g.rad[k] = rad;
-    g.em[k] = emWeight > 0.f ? em / emWeight : -1.f;
-    g.time[k] = sumW > 0.f ? sumWT / sumW : 0.f;
-    g.timeError[k] = sumW > 0.f ? 1.f / std::sqrt(sumW) : -1.f;
-    g.valid[k] = energy > 0.f && std::isfinite(bary.x()) && std::isfinite(bary.y()) && std::isfinite(bary.z()) &&
-                 std::isfinite(energy);
-  }
-  return g;
 }
 
 bool TracksterLinkingbyCornetto::mergeCompatible(const Features& g, unsigned int a, unsigned int b) const {
@@ -266,12 +205,12 @@ std::vector<std::vector<unsigned int>> TracksterLinkingbyCornetto::mergeGroups(
     const Features& f, std::vector<std::vector<unsigned int>> groups) const {
   if (!mergeFragments_ && !mergeDropped_)
     return groups;
-  const Features g = groupFeatures(f, groups);
+  const Features g = cornetto::groupFeatures(f, groups);
   const auto n = static_cast<unsigned int>(groups.size());
   std::vector<bool> emitted(n);
   for (unsigned int k = 0; k < n; ++k)
     emitted[k] = g.valid[k] && emits(g.energy[k], g.energy[k] / std::cosh(g.eta[k]), g.em[k]);
-  const auto tiles = std::make_unique<Tiles>();
+  const auto tiles = std::make_unique<EndcapTiles>();
   fillTiles(g, *tiles);
   const auto allowed = [&](unsigned int a, unsigned int b) {
     return emitted[a] && (emitted[b] ? mergeFragments_ : mergeDropped_);
@@ -300,7 +239,7 @@ void TracksterLinkingbyCornetto::linkTracksters(
   const Features f = computeFeatures(input);
 
   // About 200 kB, so on the heap rather than on the stack.
-  const auto tiles = std::make_unique<Tiles>();
+  const auto tiles = std::make_unique<EndcapTiles>();
   fillTiles(f, *tiles);
 
   // A trackster that is not compatible with its root leaves it.
@@ -309,27 +248,19 @@ void TracksterLinkingbyCornetto::linkTracksters(
                     return compatible(f, root, i);
                   }));
 
+  // The emission rule reads the group energy, the pt along the energy-weighted member barycenter and the group EM
+  // probability.
+  const Features g = cornetto::groupFeatures(f, groups);
   resultTracksters.reserve(resultTracksters.size() + groups.size());
   linkedResultTracksters.reserve(linkedResultTracksters.size() + groups.size());
   linkedTracksterIdToInputTracksterId.reserve(linkedTracksterIdToInputTracksterId.size() + groups.size());
-  for (auto& group : groups) {
-    Trackster merged;
-    merged.mergeTracksters(input.tracksters, group);
-    // The merged trackster has no barycenter yet, so the pt uses the energy-weighted member barycenter.
-    math::XYZVectorF weighted;
-    float emWeight = 0.f, em = 0.f;
-    for (unsigned int i : group) {
-      weighted += input.tracksters[i].barycenter() * input.tracksters[i].raw_energy();
-      if (f.em[i] >= 0.f) {
-        emWeight += f.energy[i];
-        em += f.em[i] * f.energy[i];
-      }
-    }
-    const float pt = merged.raw_energy() / std::cosh(weighted.eta());
-    if (!emits(merged.raw_energy(), pt, emWeight > 0.f ? em / emWeight : -1.f))
+  for (unsigned int k = 0; k < groups.size(); ++k) {
+    if (!g.valid[k] || !emits(g.energy[k], g.energy[k] / std::cosh(g.eta[k]), g.em[k]))
       continue;
+    Trackster merged;
+    merged.mergeTracksters(input.tracksters, groups[k]);
     linkedResultTracksters.push_back({static_cast<unsigned int>(resultTracksters.size())});
     resultTracksters.push_back(std::move(merged));
-    linkedTracksterIdToInputTracksterId.push_back(std::move(group));
+    linkedTracksterIdToInputTracksterId.push_back(std::move(groups[k]));
   }
 }

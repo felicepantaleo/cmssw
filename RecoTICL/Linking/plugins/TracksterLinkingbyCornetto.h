@@ -137,24 +137,10 @@ namespace ticl {
     }
 
   private:
-    using Tiles = std::array<TICLLayerTile, 2>;  // one per endcap, index 1 for z > 0
-
-    // Per-trackster quantities the pair test reads.
-    struct Features {
-      std::vector<math::XYZVectorF> bary;
-      std::vector<float> energy;
-      std::vector<float> eta;
-      std::vector<float> phi;
-      std::vector<float> rad;   // |bary|
-      std::vector<float> em;    // EM probability, negative without a PID
-      std::vector<float> time;  // local to the barycenter [ns]
-      std::vector<float> timeError;
-      std::vector<bool> valid;  // finite barycenter and energy
-    };
+    using EndcapTiles = std::array<TICLLayerTile, 2>;  // one per endcap, index 1 for z > 0
+    using Features = cornetto::Features;
 
     Features computeFeatures(const Inputs& input) const;
-    // Features of the groups, from the features f of their members.
-    Features groupFeatures(const Features& f, const std::vector<std::vector<unsigned int>>& groups) const;
     bool compatible(const Features& f, unsigned int a, unsigned int b) const {
       return compatibleIn(cone_, emCone_, f, a, b);
     }
@@ -167,13 +153,13 @@ namespace ticl {
     bool timeCompatible(float tAnchor, float errAnchor, float tOther, float errOther, float path) const;
     bool emits(float energy, float pt, float em) const;
     // Fills each valid node into the tile of its endcap in decreasing rank, so each bin lists its nodes in that order.
-    static void fillTiles(const Features& f, Tiles& tiles);
+    static void fillTiles(const Features& f, EndcapTiles& tiles);
     // The parent of each node: the highest-ranked node a above it, with allowed(a, node) true, that passes
     // test(a, node). The tiles come from fillTiles.
     template <typename Allowed, typename Test>
     std::vector<unsigned int> findParentsIn(
-        const Features& f, const Tiles& tiles, const cornetto::Cone& cone, Allowed&& allowed, Test&& test) const;
-    std::vector<unsigned int> findParents(const Features& f, const Tiles& tiles) const;
+        const Features& f, const EndcapTiles& tiles, const cornetto::Cone& cone, Allowed&& allowed, Test&& test) const;
+    std::vector<unsigned int> findParents(const Features& f, const EndcapTiles& tiles) const;
     // The groups after the second pass.
     std::vector<std::vector<unsigned int>> mergeGroups(const Features& f,
                                                        std::vector<std::vector<unsigned int>> groups) const;
