@@ -24,6 +24,8 @@ README).  ``test/test_catalog_schema.py`` locks this registry against the live
 from dataclasses import dataclass, field
 from typing import Tuple
 
+from RecoTICL.Configuration.tracksterInference_cff import LAYER_CLUSTER_MODELS
+
 
 # --------------------------------------------------------------------------- #
 # Product / consumption descriptors
@@ -340,6 +342,25 @@ _SPECS = [
         ),
         backends=("cpu", "gpu"),
     ),
+    # The shower-shape PID of the device tracksters: a copy of the tracksters with the probabilities of the model. Its
+    # default is the module of tracksterShowerShapePID_cff.
+    ModuleSpec(
+        key="TracksterShowerShapeInferenceProducer@alpaka",
+        cfi_module="RecoTICL.Inference.tracksterShowerShapePID_cff",
+        cfi_symbol="ticlSoATrackstersPID",
+        produces=(Product(T_TRACKSTERS_SOA),),
+        consumes=(Consumed("tracksters", T_TRACKSTERS_SOA),),
+        backends=("cpu", "gpu"),
+    ),
+    # The other PID models of the device tracksters, which also read the merged layer clusters.
+    *[ModuleSpec(
+        key="Trackster%sInferenceProducer@alpaka" % model,
+        cfi_module="RecoTICL.Inference.trackster%sInferenceProducer_cfi" % model,
+        cfi_symbol="trackster%sInferenceProducer" % model,
+        produces=(Product(T_TRACKSTERS_SOA),),
+        consumes=(Consumed("tracksters", T_TRACKSTERS_SOA), Consumed("layerClusters", T_CALOCLUSTERS_SOA)),
+        backends=("cpu", "gpu"),
+    ) for model in LAYER_CLUSTER_MODELS],
     ModuleSpec(
         key="HGCalTrackstersFromSoAProducer",
         cfi_module="RecoTICL.PatternRecognition.hgCalTrackstersFromSoAProducer_cfi",
@@ -372,6 +393,10 @@ GPU_CAPABLE = frozenset([
     "HGCalSoATrackstersProducer",
     "SuperclusteringDNNPairFeaturesProducer",
     "SuperclusteringDNNInferenceProducer",
+    "TracksterShowerShapeInferenceProducer",
+    "TracksterCNNInferenceProducer",
+    "TracksterDNNInferenceProducer",
+    "TracksterPFNInferenceProducer",
 ])
 
 

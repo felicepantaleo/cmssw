@@ -1,20 +1,26 @@
-"""Factory for paired Alpaka feature-extraction and inference producers."""
+"""Factory for the device trackster inference producers (TracksterInferenceProducer@alpaka)."""
+import importlib
 import math
 
 import FWCore.ParameterSet.Config as cms
 
+# The models that read the layer clusters, and all the models
+LAYER_CLUSTER_MODELS = ("CNN", "DNN", "PFN")
+MODELS = LAYER_CLUSTER_MODELS + ("ShowerShape",)
+
+_SHOWER_SHAPE_PID = "RecoTICL/Inference/data/showerShapePID/mixPID_hi_v1.pt"
 
 
 def makeTracksterInference(*, model="CNN", doPID=True, doRegression=False, batchSize=64,
                            tracksters="ticlSoATracksters", layerClusters="hgcalSoAMergeLayerClusters",
                            pidModel=None, regressionModel=None, minClusterEnergy=1.0,
                            convertToFP16=False, warmupIterations=3):
-    if model not in ("CNN", "DNN", "PFN"):
-        raise ValueError("model must be CNN, DNN or PFN")
+    if model not in MODELS:
+        raise ValueError("model must be one of " + ", ".join(MODELS))
     if not isinstance(doPID, bool) or not isinstance(doRegression, bool):
         raise TypeError("doPID and doRegression must be bool")
-    if model == "CNN" and doRegression:
-        raise ValueError("CNN supports PID only; energy regression requires DNN or PFN")
+    if model in ("CNN", "ShowerShape") and doRegression:
+        raise ValueError(model + " supports PID only; energy regression requires DNN or PFN")
     if type(batchSize) is not int or not 0 < batchSize <= 2147483647:
         raise ValueError("batchSize must be a positive int fitting the SoA size type")
     if type(warmupIterations) is not int or not 0 <= warmupIterations <= 0xFFFFFFFF:
@@ -24,27 +30,17 @@ def makeTracksterInference(*, model="CNN", doPID=True, doRegression=False, batch
     if not isinstance(layerClusters, (str, cms.InputTag)):
         raise TypeError("layerClusters must be the merged CaloClusterSoA InputTag")
     if pidModel is None:
-        pidModel = f"RecoTICL/Inference/data/trackster_pid_{model.lower()}.pt" if doPID else ""
+        pidModel = (_SHOWER_SHAPE_PID if model == "ShowerShape" else
+                    f"RecoTICL/Inference/data/trackster_pid_{model.lower()}.pt") if doPID else ""
     if regressionModel is None:
         regressionModel = f"RecoTICL/Inference/data/trackster_energy_{model.lower()}.pt" if doRegression else ""
     if doPID and not pidModel:
         raise ValueError("An enabled PID task requires a nonempty pidModel path")
     if doRegression and not regressionModel:
         raise ValueError("An enabled regression task requires a nonempty regressionModel path")
-    feature_plugin = "Trackster" + model + "FeaturesProducer"
-    features = cms.EDProducer(
-        feature_plugin + "@alpaka",
-        detector=cms.string("HGCAL"),
-        tracksters=cms.InputTag(tracksters) if isinstance(tracksters, str) else tracksters,
-        layerClusters=cms.InputTag(layerClusters) if isinstance(layerClusters, str) else layerClusters,
-        minClusterEnergy=cms.double(minClusterEnergy),
-    )
-    producer = cms.EDProducer(
-        "Trackster" + model + "InferenceProducer@alpaka",
-        tracksters=features.tracksters, features=cms.InputTag(""),
-        pidModel=cms.string(pidModel), regressionModel=cms.string(regressionModel),
-        doPID=cms.bool(doPID), doRegression=cms.bool(doRegression),
-        batchSize=cms.uint32(batchSize), convertToFP16=cms.bool(convertToFP16),
-        warmupIterations=cms.uint32(warmupIterations), minClusterEnergy=cms.double(minClusterEnergy),
-    )
-    return features, producer
+    name = "trackster" + model + "InferenceProducer"
+    default = getattr(importlib.import_module("RecoTICL.Inference." + name + "_cfi"), name)
+    inputs = dict(layerClusters=layerClusters) if model in LAYER_CLUSTER_MODELS else {}
+    return default.clone(tracksters=tracksters, pidModel=pidModel, regressionModel=regressionModel, doPID=doPID,
+                         doRegression=doRegression, batchSize=batchSize, convertToFP16=convertToFP16,
+                         warmupIterations=warmupIterations, minClusterEnergy=minClusterEnergy, **inputs)

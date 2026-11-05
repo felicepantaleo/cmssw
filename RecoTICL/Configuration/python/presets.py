@@ -148,15 +148,13 @@ def _preset_clue3dbarrel(it):
 
 
 def _preset_cluestering(it):
-    # CLUEstering on the layer clusters merged on the device, with the defaults of the CLUEstering module. The PID runs
-    # on the host on the converted tracksters, with the CNN and the PID cut of CLUE3DHigh.
+    # CLUEstering on the layer clusters merged on the device, with the defaults of the CLUEstering module, and the PID
+    # cut of CLUE3DHigh on the converted tracksters.
     it.pattern_type = "CLUEstering"
     it.pattern_params = dict()
     it.trackster_extra = dict(
         doPidCut=cms.bool(True),
         cutHadProb=cms.double(999),
-        inferenceAlgo=cms.string("TracksterInferenceByCNN"),
-        pluginInferenceAlgoTracksterInferenceByCNN=_CLUE3DHIGH_CNN.clone(),
     )
 
 
@@ -348,13 +346,17 @@ def v6(name="v6", target="offline"):
     interp = dict(pluginInferenceAlgoTracksterInferenceByPFN=pfn,
                   pidInferenceAlgo=cms.string("TracksterInferenceByShowerShape"),
                   pluginInferenceAlgoTracksterInferenceByShowerShape=shower_shape_pid("mixPID_fin_v1.onnx"))
-    # The first iteration is CLUEstering on the layer clusters merged on the device.
-    cfg = (TICLConfig(name, target=target)
-           .iteration("CLUEstering").preset()
-           # Identification from the shower shape and the layer-cluster profile, with the EM score on the scale of
-           # the CNN of v5 in every energy bin.
-           .trackster_params(inferenceAlgo=cms.string("TracksterInferenceByShowerShape"),
+    # The first iteration is CLUEstering on the layer clusters merged on the device, identified from the shower shape
+    # and the layer-cluster profile, with the EM score on the scale of the CNN of v5 in every energy bin.
+    cfg = TICLConfig(name, target=target).iteration("CLUEstering").preset()
+    if cfg.target.name == "offline":
+        # on the device (tracksterShowerShapePID_cff: mixPID_hi_v1)
+        cfg.device_pid()
+    else:
+        # on the host after the conversion: the HLT menu does not run TICLv6
+        cfg.trackster_params(inferenceAlgo=cms.string("TracksterInferenceByShowerShape"),
                              pluginInferenceAlgoTracksterInferenceByShowerShape=shower_shape_pid("mixPID_hi_v1.onnx"))
+    cfg = (cfg
            # Recovery makes tracksters only from the layer clusters of at least 50 MeV.
            .iteration("Recovery").preset().masks_from("CLUEstering").pattern_recovery(algo_verbosity=0, minEnergy=0.05)
            .links(["CLUEstering", "Recovery"], **cornetto_links_defaults())

@@ -13,6 +13,7 @@ import FWCore.ParameterSet.Config as cms
 
 from RecoTICL.Configuration.catalog import CATALOG
 from RecoTICL.Configuration.model import PyTICLError
+from RecoTICL.Configuration.tracksterInference_cff import makeTracksterInference
 
 
 # --------------------------------------------------------------------------- #
@@ -44,8 +45,15 @@ def iteration_labels(it, target):
     tracksters, or for CLUEstering its device modules, with the merge on the device when its step schedules it."""
     if it.pattern_type == "CLUEstering":
         merge = [target.merged_lc_soa] if target.merged_lc_soa_cfi is not None else []
-        return merge + [target.cluestering_label, target.soa_tracksters_label]
+        pid = [target.soa_pid_tracksters_label] if it.device_pid is not None else []
+        return merge + [target.cluestering_label, target.soa_tracksters_label] + pid
     return [target.filter_label(it.name), target.trackster_label(it.name)]
+
+
+def device_tracksters_label(it, target):
+    """The device tracksters of CLUEstering iteration ``it`` that the conversion and the superclustering read: with
+    their PID on the device when the iteration has one."""
+    return target.soa_pid_tracksters_label if it.device_pid is not None else target.soa_tracksters_label
 
 
 # --------------------------------------------------------------------------- #
@@ -135,8 +143,9 @@ def _build_trackster(it, flabel, seed_label, prev_trackster, target):
 
 
 def _build_cluestering(it, target):
-    """The modules of a CLUEstering iteration: CLUEstering on the layer clusters merged on the device, the tracksters
-    built on the device, and their conversion to ticl::Trackster with the mask of their layer clusters and the PID."""
+    """The modules of a CLUEstering iteration as [(label, module)]: CLUEstering on the layer clusters merged on the
+    device, the tracksters built on the device, their PID on the device when the iteration has one, and
+    their conversion to ticl::Trackster with the mask of their layer clusters."""
     if target.merged_lc is not None and target.merged_lc_soa is None:
         raise PyTICLError("iteration %r: target %r has no layer clusters merged on the device for CLUEstering"
                           % (it.name, target.name))
@@ -144,14 +153,19 @@ def _build_cluestering(it, target):
     clustering = _cfi_default("HGCalCLUEsteringTrackstersProducer@alpaka").clone(**lc_soa, **it.pattern_params)
     soa = _cfi_default("HGCalSoATrackstersProducer@alpaka").clone(
         hgcalLayerClustersTrackstersSoA=cms.InputTag(target.cluestering_label), **lc_soa)
-    ov = dict(src=cms.InputTag(target.soa_tracksters_label))
+    modules = [(target.cluestering_label, clustering), (target.soa_tracksters_label, soa)]
+    if it.device_pid is not None:
+        merged = {} if target.merged_lc_soa is None else dict(layerClusters=target.merged_lc_soa)
+        pid = makeTracksterInference(tracksters=target.soa_tracksters_label, **merged, **it.device_pid)
+        modules.append((target.soa_pid_tracksters_label, pid))
+    ov = dict(src=cms.InputTag(device_tracksters_label(it, target)))
     if target.initial_mask_tag() is not None:
         ov["originalMask"] = target.initial_mask_tag()
     if target.lc_tag() is not None: 
         ov["layer_clusters"] = target.lc_tag()
     ov.update(it.trackster_extra)
-    tracksters = _cfi_default("HGCalTrackstersFromSoAProducer").clone(**ov)
-    return clustering, soa, tracksters
+    modules.append((target.trackster_label(it.name), _cfi_default("HGCalTrackstersFromSoAProducer").clone(**ov)))
+    return modules
 
 
 def _build_links(collection_labels, overrides, target):
@@ -180,12 +194,13 @@ def _build_supercluster_dnn(source_label, overrides, target):
 _SHARED_SUPERCLUSTERING_CUTS = ("seedPtThreshold", "filterByTracksterPID", "tracksterPIDCategoriesToFilter")
 
 
-def _build_supercluster_dnn_heterogeneous(source_label, sc, target):
-    """The superclustering DNN on the device: the pairs of the device tracksters and their features, the DNN scores,
-    and the linking module that associates them on the host, from superclusteringDNNHeterogeneous_cff."""
+def _build_supercluster_dnn_heterogeneous(source_label, source, sc, target):
+    """The superclustering DNN on the device: the pairs of the device tracksters of CLUEstering iteration ``source``
+    and their features, the DNN scores, and the linking module that associates them on the host, from
+    superclusteringDNNHeterogeneous_cff."""
     from RecoTICL.Superclustering.superclusteringDNNHeterogeneous_cff import ticlTracksterLinksSuperclusteringDNN
     features = _cfi_default("SuperclusteringDNNPairFeaturesProducer@alpaka").clone(
-        tracksters=cms.InputTag(target.soa_tracksters_label), **sc.features)
+        tracksters=cms.InputTag(device_tracksters_label(source, target)), **sc.features)
     inference = _cfi_default("SuperclusteringDNNInferenceProducer@alpaka").clone(
         features=cms.InputTag(target.supercluster_pair_features_label, "features"), **sc.inference)
     ov = dict(tracksters_collections=[cms.InputTag(source_label)])
@@ -351,9 +366,10 @@ def assemble(cfg):
             if it is not cfg.iterations[0] or it.masks_from:
                 raise PyTICLError("iteration %r: CLUEstering must be the first iteration, without masks_from"
                                   % it.name)
-            labels = [target.cluestering_label, target.soa_tracksters_label, target.trackster_label(it.name)]
-            for label, module in zip(labels, _build_cluestering(it, target)):
+            labels = []
+            for label, module in _build_cluestering(it, target):
                 m[label] = module
+                labels.append(label)
             if target.merged_lc_soa_cfi is not None:
                 # the step schedules the merge on the device, which only CLUEstering reads
                 cfi = __import__(target.merged_lc_soa_cfi, fromlist=[target.merged_lc_soa])
@@ -363,6 +379,8 @@ def assemble(cfg):
             mkgroup(gname, *labels)
             step_groups.append(gname)
             continue
+        if it.device_pid is not None:
+            raise PyTICLError("iteration %r: the PID on the device needs the device tracksters of CLUEstering" % it.name)
         if it.seeding_type is None:
             raise PyTICLError("iteration %r has no seeding region" % it.name)
         if it.filter_type is None:
@@ -402,7 +420,7 @@ def assemble(cfg):
             if source is None or source.pattern_type != "CLUEstering":
                 raise PyTICLError("heterogeneous superclustering: the source %r is not a CLUEstering iteration"
                                   % sc.source)
-            features, inference, linking = _build_supercluster_dnn_heterogeneous(src, sc, target)
+            features, inference, linking = _build_supercluster_dnn_heterogeneous(src, source, sc, target)
             m[target.supercluster_pair_features_label] = features
             m[target.supercluster_inference_label] = inference
             m[target.supercluster_dnn_label] = linking
