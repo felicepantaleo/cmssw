@@ -263,6 +263,7 @@ def _build_candidate(overrides, target):
         ov["gsf_tracks"] = cms.InputTag(target.gsf_tracks_label)
     if target.lc_tag() is not None:  # HLT-style: remap shared inputs
         ov["layerClusters"] = target.lc_tag()
+        ov["candidateTracksters"] = base.candidateTracksters.clone(layerClustersTime=target.lc_time_tag())
     ov.update(overrides or {})
     return base.clone(**ov)
 
