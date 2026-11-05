@@ -39,6 +39,10 @@ def main():
                 continue
             if used in OFFLINE_INPUTS or (used.startswith("ticl") and not used.startswith("hltTicl")):
                 failures.append("%s.%s reads the offline input %s" % (label, name, used))
+    # The candidate tracksters read the layer-cluster time of the HLT merge.
+    time_tag = process.hltTiclCandidate.candidateTracksters.layerClustersTime
+    if (time_tag.getModuleLabel(), time_tag.getProductInstanceLabel()) != ("hltMergeLayerClusters", "timeLayerCluster"):
+        failures.append("hltTiclCandidate.candidateTracksters.layerClustersTime is %s" % time_tag.value())
     for failure in failures:
         print("FAIL:", failure)
     print("v6 HLT inputs: %s" % ("FAILED" if failures else "OK"))
