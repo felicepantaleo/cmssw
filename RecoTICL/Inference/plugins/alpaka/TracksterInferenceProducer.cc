@@ -20,7 +20,7 @@
 #include "Geometry/Records/interface/CaloGeometryRecord.h"
 #include "HeterogeneousCore/AlpakaCore/interface/alpaka/Event.h"
 #include "HeterogeneousCore/AlpakaCore/interface/alpaka/EventSetup.h"
-#include "HeterogeneousCore/AlpakaCore/interface/alpaka/stream/SynchronizingEDProducer.h"
+#include "HeterogeneousCore/AlpakaCore/interface/alpaka/stream/SynchronizingFixedQueueEDProducer.h"
 #include "HeterogeneousCore/AlpakaInterface/interface/memory.h"
 #include "PhysicsTools/PyTorchAlpaka/interface/alpaka/AlpakaModel.h"
 #include "RecoLocalCalo/HGCalRecAlgos/interface/TICLGeomTools.h"
@@ -34,12 +34,12 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
   // with the PID and the regressed energy of the tracksters that M selects. acquire() selects them, and produce(), with
   // their number known on the host, fills their inputs and runs the models in batches of batchSize.
   template <TracksterModel M>
-  class TracksterInferenceProducer : public stream::SynchronizingEDProducer<edm::stream::WatchRuns> {
+  class TracksterInferenceProducer : public stream::SynchronizingFixedQueueEDProducer<edm::stream::WatchRuns> {
     using InputsDevice = TracksterModelInputsDevice<M>;
 
   public:
     explicit TracksterInferenceProducer(edm::ParameterSet const& config)
-        : SynchronizingEDProducer(config),
+        : SynchronizingFixedQueueEDProducer(config),
           trackstersToken_{consumes(config.getParameter<edm::InputTag>("tracksters"))},
           outputToken_{produces()},
           energyThreshold_{static_cast<float>(config.getParameter<double>("energyThreshold"))},
@@ -85,11 +85,12 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       desc.add<bool>("doRegression", M::regression);
       desc.add<uint32_t>("batchSize", 64);
       desc.add<bool>("convertToFP16", false);
-      desc.add<uint32_t>("warmupIterations", 3)
-          ->setComment("Inferences on empty inputs at the first event of a stream");
+      desc.add<uint32_t>("warmupIterations", 3)->setComment("Inferences on empty inputs at the beginning of a stream");
       desc.add<double>("energyThreshold", 1.0)->setComment(M::energyThresholdComment);
       descriptions.addWithDefaultLabel(desc);
     }
+
+    void beginStream(edm::StreamID, Queue queue) override { warmup(queue); }
 
     // The image models place the layer clusters by their layer in an endcap
     void beginRun(edm::Run const&, edm::EventSetup const& setup) override {
@@ -105,10 +106,6 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
 
     void acquire(device::Event const& event, device::EventSetup const&) override {
       auto& queue = event.queue();
-      if (not warmedUp_) {
-        warmup(queue);
-        warmedUp_ = true;
-      }
       const auto tracksters = event.get(trackstersToken_).const_view();
       const uint32_t n = tracksters.energy().metadata().size();
       nSelected_ = cms::alpakatools::make_host_buffer<uint32_t>(queue);
@@ -234,7 +231,6 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     std::optional<torch::AlpakaModel> pid_;
     std::optional<torch::AlpakaModel> regression_;
     int32_t layersPerEndcap_ = 0;
-    bool warmedUp_ = false;
     // from acquire() to produce(): the selected tracksters, their rows, and their number (pinned)
     std::optional<cms::alpakatools::device_buffer<Device, uint32_t[]>> selected_;
     std::optional<cms::alpakatools::device_buffer<Device, uint32_t[]>> rows_;
