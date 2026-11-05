@@ -35,7 +35,6 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
   // their number known on the host, fills their inputs and runs the models in batches of batchSize.
   template <TracksterModel M>
   class TracksterInferenceProducer : public stream::SynchronizingEDProducer<edm::stream::WatchRuns> {
-    using Inputs = TracksterModelInputs<M>;
     using InputsDevice = TracksterModelInputsDevice<M>;
 
   public:
@@ -51,7 +50,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
         throw cms::Exception("Configuration") << "minClusterEnergy must be finite";
       if (batchSize_ == 0 or batchSize_ > static_cast<uint32_t>(std::numeric_limits<int32_t>::max()))
         throw cms::Exception("Configuration") << "Require 0 < batchSize <= INT32_MAX";
-      if constexpr (Inputs::layerClusters) {
+      if constexpr (M::layerClusters) {
         const edm::ESInputTag geometry("",
                                        config.getParameter<std::string>("detector") == "Barrel" ? "withBarrel" : "");
         layerClustersToken_ = consumes(config.getParameter<edm::InputTag>("layerClusters"));
@@ -60,7 +59,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
         ticlGeomLayersToken_ =
             esConsumes<TICLGeomLayersHost, CaloGeometryRecord, edm::Transition::BeginRun>(edm::ESInputTag("", ""));
       }
-      if (config.getParameter<bool>("doRegression") and not Inputs::regression)
+      if (config.getParameter<bool>("doRegression") and not M::regression)
         throw cms::Exception("Configuration") << "this model has no energy regression";
       if (config.getParameter<bool>("doPID"))
         pid_.emplace(edm::FileInPath(config.getParameter<std::string>("pidModel")).fullPath());
@@ -75,7 +74,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     static void fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
       edm::ParameterSetDescription desc;
       desc.add<edm::InputTag>("tracksters", edm::InputTag("ticlSoATracksters"));
-      if constexpr (Inputs::layerClusters) {
+      if constexpr (M::layerClusters) {
         desc.add<edm::InputTag>("layerClusters", edm::InputTag("hgcalSoAMergeLayerClusters"));
         desc.add<std::string>("detector", "HGCAL");
       }
@@ -83,22 +82,18 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       desc.add<std::string>("pidModel", "");
       desc.add<std::string>("regressionModel", "");
       desc.add<bool>("doPID", true);
-      desc.add<bool>("doRegression", Inputs::regression);
+      desc.add<bool>("doRegression", M::regression);
       desc.add<uint32_t>("batchSize", 64);
       desc.add<bool>("convertToFP16", false);
       desc.add<uint32_t>("warmupIterations", 3)
           ->setComment("Inferences on empty inputs at the first event of a stream");
-      desc.add<double>("minClusterEnergy", 1.0)
-          ->setComment(M == TracksterModel::ShowerShape
-                           ? "Min raw energy [GeV] of an identified trackster"
-                           : "Min summed layer-cluster energy [GeV] of an identified trackster; PFN: max raw energy "
-                             "[GeV] up to which the regressed energy is the raw energy");
+      desc.add<double>("minClusterEnergy", 1.0)->setComment(M::minEnergyComment);
       descriptions.addWithDefaultLabel(desc);
     }
 
     // The image models place the layer clusters by their layer in an endcap
     void beginRun(edm::Run const&, edm::EventSetup const& setup) override {
-      if constexpr (Inputs::layerClusters) {
+      if constexpr (M::layerClusters) {
         ticlgeom::Tools tools;
         tools.setGeometry(
             setup.getData(ticlGeomToken_), setup.getData(ticlGeomLookupToken_), setup.getData(ticlGeomLayersToken_));
@@ -175,7 +170,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
 
   private:
     reco::CaloClusterDeviceCollection::ConstView layerClusters(device::Event const& event) const {
-      if constexpr (Inputs::layerClusters)
+      if constexpr (M::layerClusters)
         return event.get(layerClustersToken_).const_view();
       else
         return {};
@@ -206,7 +201,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     template <typename Output>
     void run(Queue& queue, torch::AlpakaModel& model, InputsDevice const& inputs, Output& output) const {
       InferenceTensors in, out;
-      Inputs::add(in, inputs.const_view().records(), batchSize_);
+      M::add(in, inputs.const_view().records(), batchSize_);
       addOutput(out, output);
       model.forward(queue, in, out, dtype_);
     }
@@ -246,10 +241,10 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     std::optional<cms::alpakatools::host_buffer<uint32_t>> nSelected_;
   };
 
-  using TracksterCNNInferenceProducer = TracksterInferenceProducer<TracksterModel::CNN>;
-  using TracksterDNNInferenceProducer = TracksterInferenceProducer<TracksterModel::DNN>;
-  using TracksterPFNInferenceProducer = TracksterInferenceProducer<TracksterModel::PFN>;
-  using TracksterShowerShapeInferenceProducer = TracksterInferenceProducer<TracksterModel::ShowerShape>;
+  using TracksterCNNInferenceProducer = TracksterInferenceProducer<TracksterCNN>;
+  using TracksterDNNInferenceProducer = TracksterInferenceProducer<TracksterDNN>;
+  using TracksterPFNInferenceProducer = TracksterInferenceProducer<TracksterPFN>;
+  using TracksterShowerShapeInferenceProducer = TracksterInferenceProducer<TracksterShowerShape>;
 
 }  // namespace ALPAKA_ACCELERATOR_NAMESPACE
 

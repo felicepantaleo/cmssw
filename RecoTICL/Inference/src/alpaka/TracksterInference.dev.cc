@@ -20,7 +20,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::ticl {
     struct KernelSelect {
       ALPAKA_FN_ACC void operator()(const Acc1D& acc, TracksterModelContext ctx, uint32_t* selected) const {
         for (auto t : uniform_elements(acc, ctx.tracksters.energy().metadata().size()))
-          selected[t] = TracksterModelInputs<M>::select(ctx, t) ? 1u : 0u;
+          selected[t] = M::select(ctx, t) ? 1u : 0u;
       }
     };
 
@@ -32,17 +32,18 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::ticl {
                                     const uint32_t* selected,
                                     const uint32_t* rows,
                                     uint32_t* trackster,
-                                    typename TracksterModelInputs<M>::Layout::View inputs) const {
+                                    typename M::Layout::View inputs) const {
         for (auto t : uniform_elements(acc, ctx.tracksters.energy().metadata().size())) {
           if (selected[t] == 0u)
             continue;
           const auto row = rows[t] - 1u;
           trackster[row] = t;
-          TracksterModelInputs<M>::fill(ctx, t, inputs[row]);
+          M::fill(ctx, t, inputs[row]);
         }
       }
     };
 
+    template <TracksterModel M>
     struct KernelWrite {
       ALPAKA_FN_ACC void operator()(const Acc1D& acc,
                                     const uint32_t* trackster,
@@ -51,22 +52,18 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::ticl {
                                     ::ticl::TracksterPIDScoresLayout<>::ConstView pid,
                                     bool hasEnergy,
                                     ::ticl::TracksterEnergyLayout<>::ConstView energy,
-                                    bool reset,
-                                    bool keepLowRawEnergy,
                                     float minEnergy,
                                     ::ticl::TracksterSoA::View output) const {
         for (auto row : uniform_elements(acc, nRows)) {
           const auto t = trackster[row];
           auto probabilities = output.id()[t].idProbabilities();
-          auto energies = output.energy()[t];
-          if (reset) {
+          if constexpr (M::regression) {
+            auto energies = output.energy()[t];
             probabilities.setZero();
             energies.regressedEnergy() = 0.f;
+            if (hasEnergy)
+              energies.regressedEnergy() = M::regressedEnergy(energy[row].energy(), energies.rawEnergy(), minEnergy);
           }
-          if (hasEnergy)
-            energies.regressedEnergy() = keepLowRawEnergy and not(energies.rawEnergy() > minEnergy)
-                                             ? energies.rawEnergy()
-                                             : energy[row].energy();
           if (hasPID) {
             const auto p = pid[row];
             const float values[8] = {p.probability0(),
@@ -103,7 +100,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::ticl {
                                        const uint32_t* selected,
                                        const uint32_t* rows,
                                        uint32_t* trackster,
-                                       typename TracksterModelInputs<M>::Layout::View inputs) {
+                                       typename M::Layout::View inputs) {
     const uint32_t n = ctx.tracksters.energy().metadata().size();
     const auto workDiv = make_workdiv<Acc1D>(divide_up_by(n, kBlockSize), kBlockSize);
     alpaka::exec<Acc1D>(queue, workDiv, KernelFill<M>{}, ctx, selected, rows, trackster, inputs);
@@ -120,22 +117,20 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::ticl {
     const auto workDiv = make_workdiv<Acc1D>(divide_up_by(nRows, kBlockSize), kBlockSize);
     alpaka::exec<Acc1D>(queue,
                         workDiv,
-                        KernelWrite{},
+                        KernelWrite<M>{},
                         trackster,
                         nRows,
                         pid != nullptr,
                         pid ? pid->const_view() : ::ticl::TracksterPIDScoresLayout<>::ConstView{},
                         energy != nullptr,
                         energy ? energy->const_view() : ::ticl::TracksterEnergyLayout<>::ConstView{},
-                        TracksterModelInputs<M>::regression,
-                        M == TracksterModel::PFN,
                         minEnergy,
                         output);
   }
 
-  template struct TracksterInferenceAlgo<TracksterModel::CNN>;
-  template struct TracksterInferenceAlgo<TracksterModel::DNN>;
-  template struct TracksterInferenceAlgo<TracksterModel::PFN>;
-  template struct TracksterInferenceAlgo<TracksterModel::ShowerShape>;
+  template struct TracksterInferenceAlgo<TracksterCNN>;
+  template struct TracksterInferenceAlgo<TracksterDNN>;
+  template struct TracksterInferenceAlgo<TracksterPFN>;
+  template struct TracksterInferenceAlgo<TracksterShowerShape>;
 
 }  // namespace ALPAKA_ACCELERATOR_NAMESPACE::ticl
