@@ -19,7 +19,6 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     using ModelOutputDevice = Adapter::ModelOutputDevice;
 
     SuperclusteringDNNInferenceRunner(std::string const& modelPath,
-                                      unsigned int featureCount,
                                       uint32_t batchSize,
                                       bool convertToFP16,
                                       uint32_t warmupIterations);
@@ -33,7 +32,6 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
   private:
     torch::AlpakaModel model_;
     ::torch::Dtype const dtype_;
-    unsigned int const featureCount_;
     uint32_t const batchSize_;
     uint32_t const warmupIterations_;
   };

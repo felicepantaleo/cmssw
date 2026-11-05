@@ -10,22 +10,16 @@
 namespace ALPAKA_ACCELERATOR_NAMESPACE {
 
   SuperclusteringDNNInferenceRunner::SuperclusteringDNNInferenceRunner(std::string const& modelPath,
-                                                                       unsigned int featureCount,
                                                                        uint32_t batchSize,
                                                                        bool convertToFP16,
                                                                        uint32_t warmupIterations)
       : model_{modelPath},
         dtype_{convertToFP16 ? ::torch::kHalf : ::torch::kFloat},
-        featureCount_{featureCount},
         batchSize_{batchSize},
         warmupIterations_{warmupIterations} {
     // TensorCollection takes int sizes
     if (batchSize_ == 0 || batchSize_ > static_cast<uint32_t>(std::numeric_limits<int32_t>::max())) {
       throw cms::Exception("Configuration") << "SuperclusteringDNNInferenceRunner: batchSize must be in [1, 2^31)";
-    }
-    if (featureCount_ != 9 && featureCount_ != 17 && featureCount_ != 18) {
-      throw cms::Exception("Configuration")
-          << "SuperclusteringDNNInferenceRunner: " << featureCount_ << " features, expected 9, 17 or 18 (v1, v2, v3)";
     }
     // Set the precision on the CPU; runInto() moves the model to the device of the queue.
     model_.to(dtype_);
@@ -65,7 +59,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     }
 
     SuperclusteringTensors inputs, outputs;
-    Adapter::registerInputs(inputs, featureRecords, batchSize_, featureCount_);
+    Adapter::registerInputs(inputs, featureRecords, batchSize_);
     Adapter::registerOutputs(outputs, scoreRecords, batchSize_);
     model_.forward(queue, inputs, outputs, dtype_);
   }

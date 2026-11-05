@@ -179,29 +179,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
             pairs[row].seedIndex() = seed;
             pairs[row].candidateIndex() = candidate;
 
-            // the columns past featureCount (v1, v2) stay at zero: the model does not read them
-            float f[::ticl::superclustering::kMaxFeatures] = {};
-            ::ticl::superclustering::computeFeatures(
-                tracksters[seed].kinematics, tracksters[candidate].kinematics, selection.featureCount, f);
-            auto out = features[row];
-            out.deltaEtaBaryc() = f[0];
-            out.deltaPhiBaryc() = f[1];
-            out.multiEn() = f[2];
-            out.multiEta() = f[3];
-            out.multiPt() = f[4];
-            out.seedEta() = f[5];
-            out.seedPhi() = f[6];
-            out.seedEn() = f[7];
-            out.seedPt() = f[8];
-            out.theta() = f[9];
-            out.thetaXZSeedFrame() = f[10];
-            out.thetaYZSeedFrame() = f[11];
-            out.thetaXYCmsFrame() = f[12];
-            out.thetaYZCmsFrame() = f[13];
-            out.thetaXZCmsFrame() = f[14];
-            out.explVar() = f[15];
-            out.explVarRatio() = f[16];
-            out.modDeltaTime() = f[17];
+            ::ticl::superclustering::fillFeatures(
+                tracksters[seed].kinematics, tracksters[candidate].kinematics, features[row]);
             ++row;
           }
         }

@@ -3,7 +3,7 @@
 
 // The superclustering DNN features of a (seed, candidate) pair, for the host and the device.
 //
-// This is SuperclusteringDNNInputV1/V2/V3::computeInto (src/SuperclusteringDNNInputs.cc) 
+// This is SuperclusteringDNNInputV3::computeInto (src/SuperclusteringDNNInputs.cc)
 
 #include <cmath>
 #include <cstdint>
@@ -23,7 +23,6 @@ namespace ticl::superclustering {
   // SuperclusteringDNNInputs.h: any delta time outside +/- kDeltaTimeDefault is replaced by kBadDeltaTime
   inline constexpr float kDeltaTimeDefault = 50.f;
   inline constexpr float kBadDeltaTime = -5.f;
-  inline constexpr unsigned int kMaxFeatures = 18;
 
   // What the features and the preselection read from a trackster.
   struct TracksterKinematics {
@@ -118,23 +117,20 @@ namespace ticl::superclustering {
 
   }  // namespace detail
 
-  // Fills out[0, featureCount) for featureCount 9 (v1), 17 (v2) or 18 (v3): v1 and v2 are prefixes of v3.
-  ALPAKA_FN_HOST_ACC inline void computeFeatures(TracksterKinematics const& seed,
-                                                 TracksterKinematics const& candidate,
-                                                 unsigned int featureCount,
-                                                 float* out) {
-    out[0] = std::abs(candidate.eta) - std::abs(seed.eta);
-    out[1] = candidate.phi - seed.phi;  // not wrapped, as in the legacy code --> to be checked.
-    out[2] = candidate.rawEnergy;
-    out[3] = candidate.eta;
-    out[4] = candidate.rawPt;
-    out[5] = seed.eta;
-    out[6] = seed.phi;
-    out[7] = seed.rawEnergy;
-    out[8] = seed.rawPt;
-    if (featureCount <= 9) {
-      return;
-    }
+  // Fills the features of a pair into its row of the SuperclusteringDNNPairFeaturesSoA.
+  template <typename Row>
+  ALPAKA_FN_HOST_ACC inline void fillFeatures(TracksterKinematics const& seed,
+                                              TracksterKinematics const& candidate,
+                                              Row out) {
+    out.deltaEtaBaryc() = std::abs(candidate.eta) - std::abs(seed.eta);
+    out.deltaPhiBaryc() = candidate.phi - seed.phi;  // not wrapped, as in the legacy code --> to be checked.
+    out.multiEn() = candidate.rawEnergy;
+    out.multiEta() = candidate.eta;
+    out.multiPt() = candidate.rawPt;
+    out.seedEta() = seed.eta;
+    out.seedPhi() = seed.phi;
+    out.seedEn() = seed.rawEnergy;
+    out.seedPt() = seed.rawPt;
 
     Eigen::Vector3f const& seedAxis = seed.pca;
     Eigen::Vector3f const& candidateAxis = candidate.pca;
@@ -147,23 +143,20 @@ namespace ticl::superclustering {
     const Eigen::Vector3f inSeedFrame = (seedFrame * candidateAxis);
 
     const Eigen::Vector2f beam2D(0.f, 1.f);
-    out[9] = detail::angle3D(candidateAxis, seedAxis);
-    out[10] = detail::angle2D(Eigen::Vector2f(inSeedFrame.x(), inSeedFrame.z()), beam2D);
-    out[11] = detail::angle2D(Eigen::Vector2f(inSeedFrame.y(), inSeedFrame.z()), beam2D);
-    out[12] = detail::angle2D(Eigen::Vector2f(candidateAxis.x(), candidateAxis.y()),
-                              Eigen::Vector2f(seedAxis.x(), seedAxis.y()));
-    out[13] = detail::angle2D(Eigen::Vector2f(candidateAxis.y(), candidateAxis.z()),
-                              Eigen::Vector2f(seedAxis.y(), seedAxis.z()));
-    out[14] = detail::angle2D(Eigen::Vector2f(candidateAxis.x(), candidateAxis.z()),
-                              Eigen::Vector2f(seedAxis.x(), seedAxis.z()));
-    out[15] = candidate.eigenvalue0;
-    out[16] = candidate.explVarRatio;
-    if (featureCount <= 17) {
-      return;
-    }
+    out.theta() = detail::angle3D(candidateAxis, seedAxis);
+    out.thetaXZSeedFrame() = detail::angle2D(Eigen::Vector2f(inSeedFrame.x(), inSeedFrame.z()), beam2D);
+    out.thetaYZSeedFrame() = detail::angle2D(Eigen::Vector2f(inSeedFrame.y(), inSeedFrame.z()), beam2D);
+    out.thetaXYCmsFrame() = detail::angle2D(Eigen::Vector2f(candidateAxis.x(), candidateAxis.y()),
+                                            Eigen::Vector2f(seedAxis.x(), seedAxis.y()));
+    out.thetaYZCmsFrame() = detail::angle2D(Eigen::Vector2f(candidateAxis.y(), candidateAxis.z()),
+                                            Eigen::Vector2f(seedAxis.y(), seedAxis.z()));
+    out.thetaXZCmsFrame() = detail::angle2D(Eigen::Vector2f(candidateAxis.x(), candidateAxis.z()),
+                                            Eigen::Vector2f(seedAxis.x(), seedAxis.z()));
+    out.explVar() = candidate.eigenvalue0;
+    out.explVarRatio() = candidate.explVarRatio;
 
     const float deltaTime = candidate.time - seed.time;
-    out[17] = (deltaTime < -kDeltaTimeDefault || deltaTime > kDeltaTimeDefault) ? kBadDeltaTime : deltaTime;
+    out.modDeltaTime() = (deltaTime < -kDeltaTimeDefault || deltaTime > kDeltaTimeDefault) ? kBadDeltaTime : deltaTime;
   }
 
 }  // namespace ticl::superclustering

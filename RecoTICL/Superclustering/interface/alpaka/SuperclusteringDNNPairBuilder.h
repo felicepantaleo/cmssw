@@ -16,7 +16,6 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
   struct SuperclusteringDNNPairSelection {
     static constexpr unsigned int kMaxPIDCategories = 8;
 
-    unsigned int featureCount;
     float deltaEtaWindow;
     float deltaPhiWindow;
     float seedPtThreshold;
