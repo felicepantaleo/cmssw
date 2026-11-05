@@ -4,11 +4,11 @@
 TICL plugin for electron superclustering in HGCAL with the superclustering DNN run through PyTorch on any alpaka
 backend: the host step of TracksterLinkingbySuperClusteringDNN.
 
-SuperclusteringDNNPairFeaturesProducer (alpaka) builds the (seed, candidate) pairs and their features from the
-device tracksters, and SuperclusteringDNNInferenceProducer (alpaka, PyTorch) scores them. This plugin reads the pairs
-and their scores, copied to the host by the framework, and makes the superclusters as the legacy plugin does: each
-candidate, in increasing pT rank, joins the best-scoring seed above the working point that has not itself joined a
-supercluster. That step is sequential (a trackster that joins cannot seed any more), hence on the host.
+SuperclusteringDNNProducer (alpaka, PyTorch) builds the (seed, candidate) pairs from the device tracksters and scores
+them. This plugin reads the pairs and their scores, copied to the host by the framework, and makes the superclusters
+as the legacy plugin does: each candidate, in increasing pT rank, joins the best-scoring seed above the working point
+that has not itself joined a supercluster. That step is sequential (a trackster that joins cannot seed any more),
+hence on the host.
 
 The pairs index the device tracksters, so the linking must read the legacy tracksters made from them, in the same
 order (HGCalTrackstersFromSoAProducer), and those alone.

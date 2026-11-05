@@ -6,7 +6,6 @@
 
 namespace ticl {
 
-  using SuperclusteringDNNPairFeaturesHost = PortableHostCollection<SuperclusteringDNNPairFeaturesSoA>;
   using SuperclusteringDNNPairsHost = PortableHostCollection<SuperclusteringDNNPairsSoA>;
   using SuperclusteringDNNPairScoresHost = PortableHostCollection<SuperclusteringDNNPairScoresSoA>;
 

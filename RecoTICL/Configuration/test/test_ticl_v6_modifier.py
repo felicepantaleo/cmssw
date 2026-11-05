@@ -11,7 +11,7 @@ from RecoTICL.Configuration import presets
 
 LABELS = ("ticlCLUEstering", "ticlSoATracksters", "ticlSoATrackstersPID",
           "ticlTrackstersCLUEstering", "ticlTracksterLinks",
-          "ticlSuperclusteringDNNPairFeatures", "ticlSuperclusteringDNNInference",
+          "ticlSuperclusteringDNN",
           "ticlTracksterLinksSuperclusteringDNN", "ticlTracksterInterpretations", "ticlCandidate", "pfTICL")
 
 
@@ -32,7 +32,7 @@ def main():
         failures.append("ticlTracksterInterpretations.claimUnlinkedTracksters is %s" % claim)
     # The first iteration is CLUEstering, which replaces CLUE3DHigh.
     for label in ("ticlCLUEstering", "ticlSoATracksters", "ticlSoATrackstersPID",
-                  "ticlTrackstersCLUEstering", "ticlSuperclusteringDNNPairFeatures", "ticlSuperclusteringDNNInference"):
+                  "ticlTrackstersCLUEstering", "ticlSuperclusteringDNN"):
         if label not in process.iterTICLTask.moduleNames():
             failures.append("%s is not in iterTICLTask" % label)
     for label in ("filteredLayerClustersCLUE3DHigh", "ticlTrackstersCLUE3DHigh"):

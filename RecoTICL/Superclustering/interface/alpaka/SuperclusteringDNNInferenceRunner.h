@@ -11,7 +11,7 @@
 namespace ALPAKA_ACCELERATOR_NAMESPACE {
 
   // PyTorchAlpaka inference of the superclustering DNN, independent of the EDM Event and of the module lifecycle.
-  // Each stream::FixedQueueEDProducer owns its own runner.
+  // Each SuperclusteringDNNProducer owns its own runner.
   class SuperclusteringDNNInferenceRunner {
   public:
     using Adapter = SuperclusteringDNNTensorAdapter;
