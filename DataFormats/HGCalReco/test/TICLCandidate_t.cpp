@@ -5,6 +5,43 @@
 #include <catch2/catch_all.hpp>
 
 #include "DataFormats/HGCalReco/interface/TICLCandidate.h"
+#include "DataFormats/HGCalReco/interface/Trackster.h"
+
+namespace {
+  ticl::Trackster tracksterWithTime(float time, float timeError, float energy) {
+    ticl::Trackster ts;
+    ts.setTimeAndError(time, timeError);
+    ts.setRegressedEnergy(energy);
+    ts.setRawEnergy(energy);
+    ts.setBarycenter({10.f, 0.f, 330.f});
+    return ts;
+  }
+}  // namespace
+
+TEST_CASE("appendTrackster keeps the candidate time, addTrackster takes the trackster time", "[TICLCandidate]") {
+  const auto seed = tracksterWithTime(0.10f, 0.02f, 20.f);
+  const auto claim = tracksterWithTime(-1.f, -1.f, 2.f);
+  edm::Ptr<reco::Track> noTrack;
+  TICLCandidate cand(noTrack, edm::Ptr<ticl::Trackster>(&seed, 0));
+  // The MTD time of the candidate.
+  cand.setTime(0.35f, 0.03f);
+  cand.setMTDTime(0.35f, 0.03f);
+
+  SECTION("appendTrackster") {
+    cand.appendTrackster(edm::Ptr<ticl::Trackster>(&claim, 1));
+    REQUIRE(cand.tracksters().size() == 2);
+    REQUIRE(cand.tracksters()[1].key() == 1);
+    REQUIRE(cand.time() == 0.35f);
+    REQUIRE(cand.timeError() == 0.03f);
+    REQUIRE(cand.MTDtime() == 0.35f);
+  }
+  SECTION("addTrackster") {
+    cand.addTrackster(edm::Ptr<ticl::Trackster>(&claim, 1));
+    REQUIRE(cand.tracksters().size() == 2);
+    REQUIRE(cand.time() == -1.f);
+    REQUIRE(cand.timeError() == -1.f);
+  }
+}
 
 TEST_CASE("TICLCandidate stores a probability as a 16-bit integer with 65535 for 1", "[TICLCandidate]") {
   using C = io_v1::TICLCandidate;
