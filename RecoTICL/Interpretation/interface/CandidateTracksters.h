@@ -2,6 +2,7 @@
 #define RecoTICL_Interpretation_CandidateTracksters_h
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdlib>
 #include <limits>
@@ -32,12 +33,31 @@ namespace ticl {
     ExpectedDeposit deposit{0.67f, 0.04f, 0.2f, 1.5f};
   };
 
-  // The fraction of each layer cluster that each candidate takes. A candidate holds its tracksters of the collection
-  // tracksterId and, for a jet-member track, the jet trackster of the track. A layer cluster that one candidate holds
-  // goes to it with its fraction in the trackster. A layer cluster that several candidates hold: with nearest, the
-  // charged candidates take it nearest track first, within the track radius and their energy budget; the rest goes
-  // to the most energetic neutral candidate that holds it, else to no candidate when a budget is set, else to the
-  // nearest track. impactOf(c) is the HGCAL impact of the track of candidate c.
+  // The source tracksters of a candidate, sorted and without repeats: its tracksters of the collection tracksterId
+  // and, for a jet-member track, the jet trackster of the track.
+  inline std::vector<unsigned int> candidateSourceTracksters(const TICLCandidate &candidate,
+                                                             edm::ProductID tracksterId,
+                                                             const std::vector<int> &trackToTrackster,
+                                                             const std::vector<int> &trackMode) {
+    std::vector<unsigned int> sources;
+    for (auto const &ptr : candidate.tracksters())
+      if (ptr.isNonnull() && ptr.id() == tracksterId)
+        sources.push_back(ptr.key());
+    auto const track = candidate.trackPtr();
+    if (track.isNonnull() && track.key() < trackMode.size() &&
+        trackMode[track.key()] == static_cast<int>(TrackMode::kJetMember) && trackToTrackster[track.key()] >= 0)
+      sources.push_back(trackToTrackster[track.key()]);
+    std::sort(sources.begin(), sources.end());
+    sources.erase(std::unique(sources.begin(), sources.end()), sources.end());
+    return sources;
+  }
+
+  // The fraction of each layer cluster that each candidate takes. A candidate holds its source tracksters
+  // (candidateSourceTracksters). A layer cluster that one candidate holds goes to it with its fraction in the
+  // trackster. A layer cluster that several candidates hold: with nearest, the charged candidates take it nearest
+  // track first, within the track radius and their energy budget; the rest goes to the most energetic neutral
+  // candidate that holds it, else to no candidate when a budget is set, else to the nearest track. impactOf(c) is the
+  // HGCAL impact of the track of candidate c; a track whose impact is not valid takes no contested layer cluster.
   template <typename ImpactOf>
   std::vector<std::map<unsigned int, float>> candidateLayerClusterFractions(
       const std::vector<TICLCandidate> &candidates,
@@ -52,17 +72,7 @@ namespace ticl {
     std::vector<std::vector<unsigned int>> holders(tracksters.size());
     std::vector<double> energySum(tracksters.size(), 0.);
     for (unsigned int c = 0; c < nC; ++c) {
-      std::vector<unsigned int> mine;
-      for (auto const &ptr : candidates[c].tracksters())
-        if (ptr.isNonnull() && ptr.id() == tracksterId)
-          mine.push_back(ptr.key());
-      auto const track = candidates[c].trackPtr();
-      if (track.isNonnull() && track.key() < trackMode.size() &&
-          trackMode[track.key()] == static_cast<int>(TrackMode::kJetMember) && trackToTrackster[track.key()] >= 0)
-        mine.push_back(trackToTrackster[track.key()]);
-      std::sort(mine.begin(), mine.end());
-      mine.erase(std::unique(mine.begin(), mine.end()), mine.end());
-      for (auto t : mine) {
+      for (auto t : candidateSourceTracksters(candidates[c], tracksterId, trackToTrackster, trackMode)) {
         holders[t].push_back(c);
         energySum[t] += candidates[c].energy();
       }
@@ -172,6 +182,37 @@ namespace ticl {
       candidateIndex.push_back(c);
     }
     return result;
+  }
+
+  // Gives merged, with its raw energy set, the properties of its source tracksters: the PID probabilities weighted by
+  // the source raw energies, the sum of the source regressed energies scaled by raw_energy(merged) over the sum of the
+  // source raw energies, and the track and GSF track indices of the sources in order, without repeats. A source
+  // without raw energy adds nothing.
+  inline void copySourceProperties(Trackster &merged, const std::vector<const Trackster *> &sources) {
+    double rawSum = 0.;
+    double regressedSum = 0.;
+    std::array<double, 8> probabilities{};
+    for (auto const *source : sources) {
+      if (!(source->raw_energy() > 0.f))
+        continue;
+      rawSum += source->raw_energy();
+      regressedSum += source->regressed_energy();
+      for (unsigned int i = 0; i < probabilities.size(); ++i)
+        probabilities[i] += source->raw_energy() * source->id_probabilities(i);
+      for (int idx : source->trackIdxs())
+        if (std::find(merged.trackIdxs().begin(), merged.trackIdxs().end(), idx) == merged.trackIdxs().end())
+          merged.addTrackIdx(idx);
+      for (int idx : source->gsftrackIdxs())
+        if (std::find(merged.gsftrackIdxs().begin(), merged.gsftrackIdxs().end(), idx) == merged.gsftrackIdxs().end())
+          merged.addGSFTrackIdx(idx);
+    }
+    if (!(rawSum > 0.))
+      return;
+    merged.setRegressedEnergy(static_cast<float>(regressedSum * merged.raw_energy() / rawSum));
+    std::array<float, 8> p;
+    for (unsigned int i = 0; i < p.size(); ++i)
+      p[i] = static_cast<float>(probabilities[i] / rawSum);
+    merged.setProbabilities(p.data());
   }
 
 }  // namespace ticl

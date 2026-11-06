@@ -807,11 +807,26 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
                           rhtools_.getPositionLayer(rhtools_.lastLayerEE()).z(),
                           rhtools_,
                           true);
+    // The PID, the regressed energy and the track indices of the source tracksters of each candidate.
+    for (unsigned int i = 0; i < candidateIndex.size(); ++i) {
+      std::vector<const Trackster *> sources;
+      for (auto t :
+           candidateSourceTracksters(candidates[candidateIndex[i]], tracksters_h.id(), trackToTrackster, trackMode))
+        sources.push_back(&(*tracksters_h)[t]);
+      copySourceProperties((*candidateTracksters)[i], sources);
+    }
+    std::vector<float> rawEnergies;
+    rawEnergies.reserve(candidateTracksters->size());
+    for (auto const &ts : *candidateTracksters)
+      rawEnergies.push_back(ts.raw_energy());
     const auto candidateTracksters_h = evt.put(std::move(candidateTracksters));
     // A candidate with a rebuilt trackster holds it alone; a candidate without layer clusters keeps its source
     // tracksters.
-    for (unsigned int i = 0; i < candidateIndex.size(); ++i)
-      candidates[candidateIndex[i]].setTracksters({edm::Ptr<Trackster>(candidateTracksters_h, i)});
+    for (unsigned int i = 0; i < candidateIndex.size(); ++i) {
+      auto &cand = candidates[candidateIndex[i]];
+      cand.setTracksters({edm::Ptr<Trackster>(candidateTracksters_h, i)});
+      cand.setRawEnergy(rawEnergies[i]);
+    }
   }
 
   const auto candidates_h = evt.put(std::make_unique<std::vector<TICLCandidate>>(std::move(candidates)));
