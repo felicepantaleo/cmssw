@@ -31,7 +31,7 @@
 // in a copy of the original layer cluster mask, as TrackstersProducer does. The layer clusters of the tracksters are
 // indices in the merged layer clusters, which index the same layer clusters as hgcalMergeLayerClusters.
 // The PID runs on the host on the converted tracksters, with the inference plugin of TrackstersProducer, and
-// overwrites the probabilities of the device. 
+// overwrites the probabilities of the device.
 class HGCalTrackstersFromSoAProducer
     : public edm::stream::EDProducer<edm::GlobalCache<ticl::TICLONNXGlobalCache>, edm::stream::WatchRuns> {
 public:
@@ -169,7 +169,7 @@ private:
   const edm::EDPutTokenT<std::vector<ticl::Trackster>> trackstersToken_;
   const edm::EDPutTokenT<std::vector<float>> maskToken_;
   const bool doPidCut_;
-  const float cutHadProb_;
+  const double cutHadProb_;
   std::unique_ptr<ticl::TracksterInferenceAlgoBase> inferenceAlgo_;
   ticlgeom::Tools rhtools_;
 };
