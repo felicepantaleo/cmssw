@@ -18,4 +18,16 @@
   <class name="alpaka_rocm_async::ticl::TracksterDeviceCollection" persistent="false"/>
   <class name="edm::DeviceProduct<alpaka_rocm_async::ticl::TracksterDeviceCollection>" persistent="false"/>
   <class name="edm::Wrapper<edm::DeviceProduct<alpaka_rocm_async::ticl::TracksterDeviceCollection>>" persistent="false"/>
+  <class name="edm::RefProd<alpaka_rocm_async::ticl::TracksterDeviceCollection>" persistent="false"/>
+  <class name="std::vector<edm::RefProd<alpaka_rocm_async::ticl::TracksterDeviceCollection>>" persistent="false"/>
+  <class name="edm::Wrapper<std::vector<edm::RefProd<alpaka_rocm_async::ticl::TracksterDeviceCollection>>>" persistent="false"/>
+  <class name="alpaka_rocm_async::ticl::LayerClusterMaskDeviceCollection" persistent="false"/>
+  <class name="edm::DeviceProduct<alpaka_rocm_async::ticl::LayerClusterMaskDeviceCollection>" persistent="false"/>
+  <class name="edm::Wrapper<edm::DeviceProduct<alpaka_rocm_async::ticl::LayerClusterMaskDeviceCollection>>" persistent="false"/>
+  <class name="alpaka_rocm_async::ticl::TracksterPidDeviceCollection" persistent="false"/>
+  <class name="edm::DeviceProduct<alpaka_rocm_async::ticl::TracksterPidDeviceCollection>" persistent="false"/>
+  <class name="edm::Wrapper<edm::DeviceProduct<alpaka_rocm_async::ticl::TracksterPidDeviceCollection>>" persistent="false"/>
+  <class name="alpaka_rocm_async::ticl::TracksterLinksDeviceCollection" persistent="false"/>
+  <class name="edm::DeviceProduct<alpaka_rocm_async::ticl::TracksterLinksDeviceCollection>" persistent="false"/>
+  <class name="edm::Wrapper<edm::DeviceProduct<alpaka_rocm_async::ticl::TracksterLinksDeviceCollection>>" persistent="false"/>
 </lcgdict>

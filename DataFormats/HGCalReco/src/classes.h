@@ -1,5 +1,6 @@
 #include "DataFormats/HGCalReco/interface/TracksterSoA.h"
 #include "DataFormats/HGCalReco/interface/TracksterHostCollection.h"
+#include "DataFormats/Common/interface/RefProdVector.h"
 #include <vector>
 #include <array>
 #include "DataFormats/HGCalReco/interface/MtdSoA.h"
@@ -17,3 +18,9 @@
 #include "DataFormats/HGCalReco/interface/HGCalSoAClustersHostCollection.h"
 #include "DataFormats/HGCalReco/interface/HGCalSoALayerClustersExtra.h"
 #include "DataFormats/HGCalReco/interface/HGCalSoALayerClustersExtraHostCollection.h"
+#include "DataFormats/HGCalReco/interface/LayerClusterMaskHostCollection.h"
+#include "DataFormats/HGCalReco/interface/LayerClusterMaskSoA.h"
+#include "DataFormats/HGCalReco/interface/TracksterPidHostCollection.h"
+#include "DataFormats/HGCalReco/interface/TracksterPidSoA.h"
+#include "DataFormats/HGCalReco/interface/TracksterLinksHostCollection.h"
+#include "DataFormats/HGCalReco/interface/TracksterLinksSoA.h"
