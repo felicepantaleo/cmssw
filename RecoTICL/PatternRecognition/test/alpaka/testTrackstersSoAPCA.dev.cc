@@ -92,12 +92,12 @@ TEST_CASE("Trackster properties from the layer clusters") {
     alpaka::memcpy(queue, layerClustersClustering.buffer(), clusteringHost.buffer());
 
     ALPAKA_ACCELERATOR_NAMESPACE::ticl::TracksterDeviceCollection tracksters(
-        queue, kTracksters, kTracksters, kTracksters, kTracksters, kTracksters, kTracksters, n);
+        queue, kTracksters, kTracksters, kTracksters, kTracksters, kTracksters, kTracksters, kTracksters, n);
     HGCalTrackstersSoAAlgoWrapper{}.run(
         queue, kZLimitEm, layerClusters.const_view(), layerClustersClustering.const_view(), tracksters.view());
 
     ::ticl::TracksterHostCollection trackstersHost(
-        queue, kTracksters, kTracksters, kTracksters, kTracksters, kTracksters, kTracksters, n);
+        queue, kTracksters, kTracksters, kTracksters, kTracksters, kTracksters, kTracksters, kTracksters, n);
     alpaka::memcpy(queue, trackstersHost.buffer(), tracksters.buffer());
     alpaka::wait(queue);
     const auto view = trackstersHost.const_view();
