@@ -92,7 +92,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::ticl {
     const uint32_t n = ctx.tracksters.energy().metadata().size();
     const auto workDiv = make_workdiv<Acc1D>(divide_up_by(n, kBlockSize), kBlockSize);
     alpaka::exec<Acc1D>(queue, workDiv, KernelSelect<M>{}, ctx, selected);
-    iterativePrefixScan<Acc1D>(selected, rows, n, queue);
+    iterativePrefixScan<Acc1D>(queue, selected, rows, n);
   }
 
   template <TracksterModel M>
