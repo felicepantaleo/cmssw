@@ -32,3 +32,11 @@
   <use name="RecoTICL/Interpretation"/>
   <use name="catch2"/>
 </bin>
+<bin name="testCandidateTracksters" file="CandidateTracksters_t.cpp">
+  <use name="RecoTICL/Interpretation"/>
+  <use name="DataFormats/CaloRecHit"/>
+  <use name="DataFormats/Common"/>
+  <use name="DataFormats/HGCalReco"/>
+  <use name="DataFormats/TrackReco"/>
+  <use name="catch2"/>
+</bin>
