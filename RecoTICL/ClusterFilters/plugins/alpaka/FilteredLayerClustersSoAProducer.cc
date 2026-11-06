@@ -1,3 +1,6 @@
+// TracksterDeviceCollection.h includes Eigen, which must precede the other SoA headers
+#include "DataFormats/HGCalReco/interface/alpaka/TracksterDeviceCollection.h"
+
 #include <algorithm>
 #include <utility>
 #include <vector>
@@ -8,7 +11,9 @@
 #include "FWCore/ParameterSet/interface/ConfigurationDescriptions.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/ParameterSet/interface/ParameterSetDescription.h"
+#include "FWCore/Utilities/interface/EDGetToken.h"
 #include "FWCore/Utilities/interface/EDMException.h"
+#include "FWCore/Utilities/interface/EDPutToken.h"
 #include "FWCore/Utilities/interface/InputTag.h"
 #include "HeterogeneousCore/AlpakaCore/interface/alpaka/EDPutToken.h"
 #include "HeterogeneousCore/AlpakaCore/interface/alpaka/global/EDProducer.h"
@@ -19,14 +24,17 @@
 namespace ALPAKA_ACCELERATOR_NAMESPACE {
 
   // The mask of the layer clusters that an iteration can use: the input mask, with 0 for each layer cluster that
-  // ClusterFilterByAlgoAndSize rejects.
+  // ClusterFilterByAlgoAndSize rejects. With the mask, the module puts the ordered list of the trackster collections of
+  // the input mask.
   class FilteredLayerClustersSoAProducer : public global::EDProducer<> {
   public:
     FilteredLayerClustersSoAProducer(const edm::ParameterSet& config)
         : EDProducer(config),
           layerClustersToken_{consumes(config.getParameter<edm::InputTag>("LayerClusters"))},
           inputMaskToken_{consumes(config.getParameter<edm::InputTag>("LayerClustersInputMask"))},
+          inputRefsToken_{consumes(config.getParameter<edm::InputTag>("LayerClustersInputMask"))},
           maskToken_{produces()},
+          refsToken_{produces()},
           filter_{makeFilter(config)} {}
 
     void produce(edm::StreamID, device::Event& iEvent, const device::EventSetup&) const override {
@@ -41,6 +49,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       ticl::LayerClusterMaskDeviceCollection mask(iEvent.queue(), nLayerClusters);
       ticl::filterByAlgoAndSize(iEvent.queue(), filter_, layerClusters, inputMask, mask.view());
       iEvent.emplace(maskToken_, std::move(mask));
+      iEvent.emplace(refsToken_, iEvent.get(inputRefsToken_));
     }
 
     static void fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
@@ -74,7 +83,9 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
 
     const device::EDGetToken<reco::CaloClusterDeviceCollection> layerClustersToken_;
     const device::EDGetToken<ticl::LayerClusterMaskDeviceCollection> inputMaskToken_;
+    const edm::EDGetTokenT<ticl::TracksterCollectionRefs> inputRefsToken_;
     const device::EDPutToken<ticl::LayerClusterMaskDeviceCollection> maskToken_;
+    const edm::EDPutTokenT<ticl::TracksterCollectionRefs> refsToken_;
     const ticl::AlgoAndSizeFilter filter_;
   };
 
