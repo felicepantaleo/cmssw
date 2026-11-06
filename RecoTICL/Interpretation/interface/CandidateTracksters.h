@@ -152,7 +152,9 @@ namespace ticl {
     return fractions;
   }
 
-  // One trackster per candidate with layer clusters, from the fractions, and the candidate index of each.
+  // One trackster per candidate with layer clusters, from the fractions, and the candidate index of each. A candidate
+  // with no layer cluster gets no trackster here and keeps its source tracksters: every candidate holds a track or a
+  // trackster.
   inline std::vector<Trackster> tracksterOfFractions(const std::vector<std::map<unsigned int, float>> &fractions,
                                                      std::vector<int> &candidateIndex) {
     std::vector<Trackster> result;

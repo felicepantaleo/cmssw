@@ -808,8 +808,8 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
                           rhtools_,
                           true);
     const auto candidateTracksters_h = evt.put(std::move(candidateTracksters));
-    for (auto &cand : candidates)
-      cand.setTracksters({});
+    // A candidate with a rebuilt trackster holds it alone; a candidate without layer clusters keeps its source
+    // tracksters.
     for (unsigned int i = 0; i < candidateIndex.size(); ++i)
       candidates[candidateIndex[i]].setTracksters({edm::Ptr<Trackster>(candidateTracksters_h, i)});
   }
