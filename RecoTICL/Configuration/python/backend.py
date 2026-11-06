@@ -8,15 +8,17 @@ implements the mechanism that actually drives a portable (``@alpaka``) module to
 CPU (``serial_sync``) or GPU (``cuda_async``) and wires up
 ``ProcessAcceleratorAlpaka`` on the process.
 
-HGCAL local reconstruction / layer clustering is where this matters today: the
-SoA rechit & clustering producers are portable, while the TICL pattern-recognition
-producers are CPU-only.
+The portable modules are the HGCAL SoA rechit and layer clustering producers, the
+CLUEstering iteration, an iteration on the device and the linking on the device. A
+device module reads device products of its own backend only, so an iteration on the
+device follows the backend of the iteration it masks from, and the linking on the
+device follows the backend of the collections it links, which must agree.
 """
 
 import FWCore.ParameterSet.Config as cms
 
 from RecoTICL.Configuration.catalog import CPU, GPU
-from RecoTICL.Configuration.assembler import iteration_labels
+from RecoTICL.Configuration.assembler import iteration_labels, device_links_labels
 
 # pyTICL backend name -> alpaka backend string
 ALPAKA_BACKEND = {CPU: "serial_sync", GPU: "cuda_async"}
@@ -55,6 +57,24 @@ def add_process_accelerator(process, backend=None):
     return process.ProcessAcceleratorAlpaka
 
 
+def iteration_backend(cfg, it):
+    """The backend of the modules of iteration ``it``: its own, or for an iteration on the device the backend of the
+    iteration it masks from."""
+    if it.on_device and it.masks_from in cfg._by_name:
+        return iteration_backend(cfg, cfg._by_name[it.masks_from])
+    return it.backend
+
+
+def device_links_backend(cfg):
+    """The backend of the linking on the device: the backend of the collections it links. Raises when they differ."""
+    from RecoTICL.Configuration.model import PyTICLError
+    backends = {n: iteration_backend(cfg, cfg._by_name[n]) for n in cfg.links_spec.collections if n in cfg._by_name}
+    if len(set(backends.values())) > 1:
+        raise PyTICLError("the linking on the device reads collections on different backends: %s"
+                          % ", ".join("%s on %s" % kv for kv in backends.items()))
+    return next(iter(backends.values()), CPU)
+
+
 def apply_backends(assembled, process):
     """After ``assembled.add_to_process(process)``: drive each portable module to
     its iteration's requested backend and ensure ``ProcessAcceleratorAlpaka`` is
@@ -64,7 +84,10 @@ def apply_backends(assembled, process):
     requested = {}
     for it in cfg.iterations:
         for lbl in iteration_labels(it, cfg.target):
-            requested[lbl] = it.backend
+            requested[lbl] = iteration_backend(cfg, it)
+    if cfg.links_spec and cfg.links_spec.on_device:
+        for lbl in device_links_labels(cfg, cfg.target):
+            requested[lbl] = device_links_backend(cfg)
     any_alpaka = False
     for label, module in assembled.modules.items():
         if is_alpaka(module):

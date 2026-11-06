@@ -27,6 +27,7 @@ from Configuration.ProcessModifiers.ticlv5_TrackLinkingGNN_cff import ticlv5_Tra
 from Configuration.ProcessModifiers.ticl_superclustering_mustache_ticl_cff import ticl_superclustering_mustache_ticl
 from Configuration.ProcessModifiers.ticl_barrel_cff import ticl_barrel
 from Configuration.ProcessModifiers.ticl_v6_cff import ticl_v6
+from Configuration.ProcessModifiers.ticl_v6_heterogeneous_cff import ticl_v6_heterogeneous
 from RecoParticleFlow.PFClusterProducer.particleFlowClusterHGC_cfi import particleFlowClusterHGCal as _particleFlowClusterHGCal
 
 ticlLayerTileTask = cms.Task(ticlLayerTileProducer)
@@ -287,3 +288,31 @@ ticl_v6.toModify(_electronMergedSeeds, EcalBasedSeeds="ticlElectronSeeds")
 # With the Mustache superclustering, the interpretation stage reads the Mustache superclusters.
 (ticl_v6 & ticl_superclustering_mustache_ticl).toModify(
     ticlTracksterInterpretations, egamma_tracksters_collections=["ticlTracksterLinksSuperclusteringMustache"])
+
+# TICLv6 on the device: the Recovery iteration runs on the layer cluster mask after CLUEstering on the device, and the
+# Cornetto linking on the device tracksters of CLUEstering and Recovery, with the PID of the host CLUEstering
+# tracksters. The results are converted to the host products under the same labels, so the consumers do not change.
+_ticlV6Heterogeneous = ticl_v6 & ticl_v6_heterogeneous
+_ticlV6HeterogeneousAssembled = _v6(heterogeneous=True).assemble()
+
+
+# the Tasks of pyTICL that have another name in this file
+_ticlV6HeterogeneousTaskNames = {"ticlEndcapSuperclusteringTask": "ticlSuperclusteringTask"}
+
+
+def _ticlV6HeterogeneousTask(name):
+    """The Task ``name`` of the heterogeneous v6 preset, with the modules and Tasks of this file and the device
+    modules."""
+    children = []
+    for child in _ticlV6HeterogeneousAssembled.task_children[name]:
+        child = _ticlV6HeterogeneousTaskNames.get(child, child)
+        if child not in globals():
+            globals()[child] = _ticlV6HeterogeneousAssembled.modules[child]
+        children.append(globals()[child])
+    return cms.Task(*children)
+
+
+for _label in ("ticlTrackstersRecovery", "ticlTracksterLinks"):
+    _ticlV6Heterogeneous.toReplaceWith(globals()[_label], _ticlV6HeterogeneousAssembled.modules[_label])
+_ticlV6Heterogeneous.toReplaceWith(ticlRecoveryStepTask, _ticlV6HeterogeneousTask("ticlRecoveryStepTask"))
+_ticlV6Heterogeneous.toReplaceWith(ticlTracksterLinksTask, _ticlV6HeterogeneousTask("ticlTracksterLinksTask"))

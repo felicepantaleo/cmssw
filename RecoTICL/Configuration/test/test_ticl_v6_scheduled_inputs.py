@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""With ticl_v6, alone and with each superclustering modifier, no module of iterTICLTask reads a module that is in
-no task."""
+"""With ticl_v6, alone, with each superclustering modifier and on the device, no module of iterTICLTask reads a module
+that is in no task."""
 
 import subprocess
 import sys
@@ -10,6 +10,8 @@ import FWCore.ParameterSet.Config as cms
 MODIFIER_SETS = (
     ("ticl_v6",),
     ("ticl_v6", "ticl_superclustering_mustache_ticl"),
+    ("ticl_v6", "ticl_v6_heterogeneous"),
+    ("ticl_v6", "ticl_v6_heterogeneous", "ticl_superclustering_mustache_ticl"),
 )
 
 

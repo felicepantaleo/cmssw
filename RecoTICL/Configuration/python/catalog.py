@@ -95,6 +95,10 @@ T_MUONREFS = "edm::ValueMap<reco::MuonRef>"
 T_CALOCLUSTERS_SOA = "reco::CaloClusterHostCollection"
 T_LC_CLUSTERING_SOA = "HGCalSoALayerClustersExtraHostCollection"
 T_TRACKSTERS_SOA = "ticl::TracksterHostCollection"
+T_MASK_SOA = "ticl::LayerClusterMaskHostCollection"
+T_TRACKSTER_REFS = "ticl::TracksterCollectionRefs"
+T_PID_SOA = "ticl::TracksterPidHostCollection"
+T_LINKS_SOA = "ticl::TracksterLinksHostCollection"
 
 
 # --------------------------------------------------------------------------- #
@@ -323,6 +327,117 @@ _SPECS = [
             Consumed("src", T_TRACKSTERS_SOA),
             Consumed("originalMask", T_MASK),
             Consumed("layer_clusters", T_CALOCLUSTERS),
+        ),
+    ),
+    # The device Recovery iteration and the device linking: the layer cluster mask after an iteration as a SoA, the
+    # cluster filter and the Recovery on the device, the ordered list of trackster collections that gives the global
+    # index of a trackster, the PID of a host collection as a SoA for the device, the Cornetto linking on the device
+    # and the conversion of its result to the products of TracksterLinksProducer. LayerClusterMaskFromSoAProducer
+    # gives a mask on the device to a host consumer; no preset uses it.
+    ModuleSpec(
+        key="TracksterCollectionRefsProducer@alpaka",
+        cfi_module="RecoTICL.PatternRecognition.tracksterCollectionRefsProducer_cfi",
+        cfi_symbol="tracksterCollectionRefsProducer",
+        produces=(Product(T_TRACKSTER_REFS),),
+        consumes=(
+            Consumed("tracksters", T_TRACKSTERS_SOA, vector=True),
+        ),
+        backends=("cpu", "gpu"),
+    ),
+    ModuleSpec(
+        key="LayerClusterMaskSoAProducer@alpaka",
+        cfi_module="RecoTICL.ClusterFilters.layerClusterMaskSoAProducer_cfi",
+        cfi_symbol="layerClusterMaskSoAProducer",
+        produces=(
+            Product(T_MASK_SOA),
+            Product(T_TRACKSTER_REFS),
+        ),
+        consumes=(
+            Consumed("layerClusters", T_CALOCLUSTERS_SOA),
+            Consumed("inputMask", T_MASK_SOA),
+            Consumed("tracksters", T_TRACKSTERS_SOA, vector=True),
+            Consumed("trackstersRefs", T_TRACKSTER_REFS),
+        ),
+        backends=("cpu", "gpu"),
+    ),
+    ModuleSpec(
+        key="FilteredLayerClustersSoAProducer@alpaka",
+        cfi_module="RecoTICL.ClusterFilters.filteredLayerClustersSoAProducer_cfi",
+        cfi_symbol="filteredLayerClustersSoAProducer",
+        produces=(
+            Product(T_MASK_SOA),
+            Product(T_TRACKSTER_REFS),
+        ),
+        consumes=(
+            Consumed("LayerClusters", T_CALOCLUSTERS_SOA),
+            Consumed("LayerClustersInputMask", T_MASK_SOA),
+        ),
+        backends=("cpu", "gpu"),
+    ),
+    ModuleSpec(
+        key="HGCalRecoveryTrackstersSoAProducer@alpaka",
+        cfi_module="RecoTICL.PatternRecognition.hgCalRecoveryTrackstersSoAProducer_cfi",
+        cfi_symbol="hgCalRecoveryTrackstersSoAProducer",
+        produces=(Product(T_TRACKSTERS_SOA),),
+        consumes=(
+            Consumed("layer_clusters", T_CALOCLUSTERS_SOA),
+            Consumed("filtered_mask", T_MASK_SOA),
+        ),
+        backends=("cpu", "gpu"),
+    ),
+    ModuleSpec(
+        key="TracksterPidSoAProducer@alpaka",
+        cfi_module="RecoTICL.PatternRecognition.tracksterPidSoAProducer_cfi",
+        cfi_symbol="tracksterPidSoAProducer",
+        produces=(Product(T_PID_SOA),),
+        consumes=(
+            Consumed("src", T_TRACKSTERS),
+            Consumed("reference", T_TRACKSTERS_SOA),
+        ),
+        backends=("cpu", "gpu"),
+    ),
+    ModuleSpec(
+        key="TracksterLinksSoAProducer@alpaka",
+        cfi_module="RecoTICL.Linking.tracksterLinksSoAProducer_cfi",
+        cfi_symbol="tracksterLinksSoAProducer",
+        produces=(
+            Product(T_TRACKSTERS_SOA),
+            Product(T_LINKS_SOA, "fixed:links"),
+        ),
+        consumes=(
+            Consumed("tracksters", T_TRACKSTERS_SOA, vector=True),
+            Consumed("trackstersRefs", T_TRACKSTER_REFS),
+            Consumed("pid", T_PID_SOA, vector=True),
+            Consumed("layer_clusters", T_CALOCLUSTERS_SOA),
+        ),
+        backends=("cpu", "gpu"),
+    ),
+    ModuleSpec(
+        key="TracksterLinksFromSoAProducer",
+        cfi_module="RecoTICL.Linking.tracksterLinksFromSoAProducer_cfi",
+        cfi_symbol="tracksterLinksFromSoAProducer",
+        # the products of TracksterLinksProducer
+        produces=(
+            Product(T_TRACKSTERS),
+            Product(T_LINKS),
+            Product(T_LINKS, "fixed:linkedTracksterIdToInputTracksterId"),
+            Product(T_MASK),
+        ),
+        consumes=(
+            Consumed("src", T_TRACKSTERS_SOA),
+            Consumed("links", T_LINKS_SOA),
+            Consumed("layer_clusters", T_CALOCLUSTERS),
+            Consumed("original_masks", T_MASK, vector=True),
+        ),
+    ),
+    ModuleSpec(
+        key="LayerClusterMaskFromSoAProducer",
+        cfi_module="RecoTICL.ClusterFilters.layerClusterMaskFromSoAProducer_cfi",
+        cfi_symbol="layerClusterMaskFromSoAProducer",
+        produces=(Product(T_MASK, "param:instance"),),
+        consumes=(
+            Consumed("src", T_MASK_SOA),
+            Consumed("referenceMask", T_MASK),
         ),
     ),
 ]
