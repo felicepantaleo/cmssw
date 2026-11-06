@@ -18,3 +18,5 @@
 #include "DataFormats/HGCalReco/interface/HGCalSoAClustersHostCollection.h"
 #include "DataFormats/HGCalReco/interface/HGCalSoALayerClustersExtra.h"
 #include "DataFormats/HGCalReco/interface/HGCalSoALayerClustersExtraHostCollection.h"
+#include "DataFormats/HGCalReco/interface/LayerClusterMaskHostCollection.h"
+#include "DataFormats/HGCalReco/interface/LayerClusterMaskSoA.h"
