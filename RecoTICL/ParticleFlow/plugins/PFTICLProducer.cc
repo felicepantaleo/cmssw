@@ -82,7 +82,11 @@ void PFTICLProducer::fillDescriptions(edm::ConfigurationDescriptions& descriptio
                                       false,
                                       true,
                                       edm::Comment("Copy the muon decisions of the candidate producer (the muon of "
-                                                   "each candidate and its track type) instead of PFMuonAlgo.")),
+                                                   "each candidate and its track type) instead of PFMuonAlgo. "
+                                                   "Candidates of TICLCandidateArbitrationProducer need true: it "
+                                                   "applies the muon rule before it changes the candidate "
+                                                   "tracksters, so false applies the rule again on other "
+                                                   "tracksters and is not supported.")),
       false >>
               (edm::ParameterDescription<edm::InputTag>("muonSrc", edm::InputTag("muons1stStep"), true) and
                edm::ParameterDescription<edm::ParameterSetDescription>("pfMuonAlgoParameters", psd_PFMuonAlgo, true)) or
