@@ -30,7 +30,6 @@ tracksterProducerTypes = (
     "TICLCandidateProducer",
     "TICLInterpretationProducer",
     "HGCalTrackstersFromSoAProducer",
-    "TICLCandidateTrackstersProducer",
     "TICLCandidateArbitrationProducer",
 )
 
