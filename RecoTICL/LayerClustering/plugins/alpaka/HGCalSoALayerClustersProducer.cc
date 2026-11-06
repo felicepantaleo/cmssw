@@ -8,6 +8,7 @@
 #include "FWCore/ParameterSet/interface/ConfigurationDescriptions.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/ParameterSet/interface/ParameterSetDescription.h"
+#include "FWCore/Utilities/interface/EDMException.h"
 #include "FWCore/Utilities/interface/InputTag.h"
 #include "HeterogeneousCore/AlpakaCore/interface/alpaka/EDPutToken.h"
 #include "HeterogeneousCore/AlpakaCore/interface/alpaka/stream/SynchronizingEDProducer.h"
@@ -29,6 +30,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
           layerClustersToken_{produces()},
           thresholdW0_(config.getParameter<float>("thresholdW0")),
           positionDeltaRho2_(config.getParameter<float>("positionDeltaRho2")),
+          algoId_(algoId(config.getParameter<std::string>("detector"))),
           isScintillator_(config.getParameter<std::string>("detector") == "BH"),
           nHitsTime_(config.getParameter<unsigned int>("nHitsTime")) {}
 
@@ -48,6 +50,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
           iEvent.queue(), nLayerClusters, nLayerClusters, nLayerClusters, nLayerClusters);
       algo_.run(iEvent.queue(),
                 nLayerClusters,
+                algoId_,
                 thresholdW0_,
                 positionDeltaRho2_,
                 isScintillator_,
@@ -72,11 +75,27 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     }
 
   private:
+    // The algorithm of the layer clusters of a component, as HGCalMergedLayerClustersFromSoAProducer sets it
+    static ::reco::CaloCluster::AlgoId algoId(const std::string& detector) {
+      if (detector == "EE") {
+        return ::reco::CaloCluster::hgcal_em;
+      } else if (detector == "FH") {
+        return ::reco::CaloCluster::hgcal_had;
+      } else if (detector == "BH") {
+        return ::reco::CaloCluster::hgcal_scintillator;
+      } else if (detector == "HFNose") {
+        return ::reco::CaloCluster::hfnose;
+      }
+      throw edm::Exception(edm::errors::Configuration)
+          << "HGCalSoALayerClustersProducer: unknown HGCAL component '" << detector << "'.";
+    }
+
     const device::EDGetToken<HGCalSoARecHitsDeviceCollection> recHitsToken_;
     const device::EDGetToken<HGCalSoARecHitsExtraDeviceCollection> recHitsClusteringToken_;
     const device::EDPutToken<reco::CaloClusterDeviceCollection> layerClustersToken_;
     const float thresholdW0_;
     const float positionDeltaRho2_;
+    const ::reco::CaloCluster::AlgoId algoId_;
     const bool isScintillator_;
     const unsigned int nHitsTime_;
     const HGCalLayerClustersSoAAlgoWrapper algo_{};
