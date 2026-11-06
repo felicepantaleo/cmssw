@@ -771,6 +771,8 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
                                *propagator_,
                                *trackingGeometry_,
                                *hgcons_);
+  // The muon rule runs once, on the tracksters of the arbitration, before the claim attachment and the candidate
+  // tracksters; pfTICL copies its decisions (muonsFromCandidates).
   auto muons = applyMuonKinematics(tracks_h, evt.getHandle(muons_token_), candidates);
   if (attachClaimTracksters_) {
     const auto &claimOfTrack = evt.get(trackToClaimTrackster_token_);
