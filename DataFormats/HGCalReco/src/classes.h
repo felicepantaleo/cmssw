@@ -21,3 +21,7 @@
 #include "DataFormats/HGCalReco/interface/HGCalSoALayerClustersExtraHostCollection.h"
 #include "DataFormats/HGCalReco/interface/LayerClusterMaskHostCollection.h"
 #include "DataFormats/HGCalReco/interface/LayerClusterMaskSoA.h"
+#include "DataFormats/HGCalReco/interface/TracksterPidHostCollection.h"
+#include "DataFormats/HGCalReco/interface/TracksterPidSoA.h"
+#include "DataFormats/HGCalReco/interface/TracksterLinksHostCollection.h"
+#include "DataFormats/HGCalReco/interface/TracksterLinksSoA.h"

@@ -1,5 +1,7 @@
 #include "DataFormats/HGCalReco/interface/alpaka/TracksterDeviceCollection.h"
 #include "DataFormats/HGCalReco/interface/alpaka/LayerClusterMaskDeviceCollection.h"
+#include "DataFormats/HGCalReco/interface/alpaka/TracksterPidDeviceCollection.h"
+#include "DataFormats/HGCalReco/interface/alpaka/TracksterLinksDeviceCollection.h"
 #include "DataFormats/Common/interface/DeviceProduct.h"
 #include "DataFormats/Common/interface/Wrapper.h"
 #include "DataFormats/HGCalReco/interface/HGCalSoARecHits.h"
