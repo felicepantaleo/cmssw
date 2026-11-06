@@ -320,11 +320,13 @@ def shower_shape_pid(model):
                     outputNames=cms.vstring("pid"))
 
 
-def v6(name="v6", target="offline"):
+def v6(name="v6", target="offline", heterogeneous=False):
     """Return a :class:`TICLConfig` for TICLv6, the configuration of the ``ticl_v6`` process modifier: Cornetto
     linking, the interpretation stage (hypotheses, global arbitration, track claim) and the candidates from its maps.
     The interpretation stage runs the PFN energy regression of the v5 candidates and the shower-shape PID; the other
-    parameters are the module defaults."""
+    parameters are the module defaults. With ``heterogeneous`` (the ``ticl_v6_heterogeneous`` modifier with
+    ``ticl_v6``), the Recovery iteration and the Cornetto linking run on the device, on the tracksters of CLUEstering
+    and Recovery on the device, and their results are converted under the same labels."""
     # The PFN gives the energy regression; the PID comes from the shower shape and the layer-cluster profile of the
     # final tracksters and footprints, with the EM score on the scale of the linking CNN of v5 in every energy bin.
     pfn = candidate_defaults()["pluginInferenceAlgoTracksterInferenceByPFN"].clone(
@@ -341,7 +343,7 @@ def v6(name="v6", target="offline"):
                              pluginInferenceAlgoTracksterInferenceByShowerShape=shower_shape_pid("mixPID_hi_v1.onnx"))
            # Recovery makes tracksters only from the layer clusters of at least 50 MeV.
            .iteration("Recovery").preset().masks_from("CLUEstering").pattern_recovery(algo_verbosity=0, minEnergy=0.05)
-           .links(["CLUEstering", "Recovery"], **cornetto_links_defaults())
+           .links(["CLUEstering", "Recovery"], on_device=heterogeneous, **cornetto_links_defaults())
            # photon, electron AND neutral_pion: a pi0 is an electromagnetic object.
            .superclustering_dnn(source="CLUEstering",
                                 **supercluster_dnn_defaults(pid_threshold=0.1, emission_pid_threshold=0.3,
@@ -350,6 +352,8 @@ def v6(name="v6", target="offline"):
            .candidate()
            # The candidate producer sets the muon kinematics; pfTICL copies its muon decisions.
            .pf(muonsFromCandidates=cms.bool(True), **pf_defaults()))
+    if heterogeneous:
+        cfg._by_name["Recovery"].on_device = True
     if cfg.target.name == "offline":
         # A photon or pi0 candidate at or above 10 GeV whose e/gamma supercluster has a type score below 0.35, or
         # that has no supercluster, is a neutral hadron.
