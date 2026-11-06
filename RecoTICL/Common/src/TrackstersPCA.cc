@@ -15,6 +15,56 @@
 #include <vector>
 #include <functional>
 
+void ticl::assignGeometricFrame(Trackster &trackster,
+                                const std::vector<reco::CaloCluster> &layerClusters,
+                                const ticlgeom::Tools &rhtools) {
+  // One or two layer clusters give no principal axes. The frame is geometric: e0 radial, e1 azimuthal,
+  // e2 = e0 x e1. The widths are the size w of the seed cell, as the standard deviation w / sqrt(12).
+  const Eigen::Vector3f pos(trackster.barycenter().x(), trackster.barycenter().y(), trackster.barycenter().z());
+  const float norm = pos.norm();
+  if (norm > 0.f) {
+    const float rT = std::sqrt(pos.x() * pos.x() + pos.y() * pos.y());
+    const Eigen::Vector3f e0 = pos / norm;
+    // Azimuthal direction; on the beam line, the x axis.
+    const Eigen::Vector3f e1 =
+        (rT > 0.f) ? Eigen::Vector3f(-pos.y() / rT, pos.x() / rT, 0.f) : Eigen::Vector3f(1.f, 0.f, 0.f);
+    const Eigen::Vector3f e2 = e0.cross(e1).normalized();
+    Eigen::Matrix3f evecs;
+    evecs.col(0) = e0;
+    evecs.col(1) = e1;
+    evecs.col(2) = e2;
+
+    // Size of the seed cell [cm]; zero outside the HGCAL silicon and scintillator.
+    constexpr float kScintThicknessCm = 0.3f;  // CE-H scintillator tile
+    float wPhi = 0.f, wEta = 0.f, wLong = 0.f;
+    const auto seed = layerClusters[trackster.vertices(0)].seed();
+    if (rhtools.isScintillator(seed)) {
+      // A tile is rT dEta by rT dPhi at the transverse radius rT.
+      const auto dEtaDPhi = rhtools.getScintDEtaDPhi(seed);
+      wEta = rT * dEtaDPhi.first;
+      wPhi = rT * dEtaDPhi.second;
+      wLong = kScintThicknessCm;
+    } else if (rhtools.isSilicon(seed)) {
+      // getRadiusToSide gives numeric_limits<float>::max() for a cell that is not in the geometry.
+      const float rToSide = rhtools.getRadiusToSide(seed);
+      const float siThickness = rhtools.getSiThickness(seed);
+      if (rToSide < std::numeric_limits<float>::max() and std::isfinite(siThickness)) {
+        wEta = wPhi = 2.f * rToSide;
+        wLong = 1e-4f * siThickness;  // um -> cm
+      }
+    }
+    constexpr float kUniform = 1.f / 12.f;  // variance of a uniform distribution of width 1
+    Eigen::Vector3f sigmasEigen;
+    sigmasEigen << wLong * wLong * kUniform, wPhi * wPhi * kUniform, wEta * wEta * kUniform;
+    // Lab-frame sigmas: the transverse cell size for x and y, the thickness for z.
+    const float wT = std::max(wEta, wPhi);
+    Eigen::Vector3f sigmasLab;
+    sigmasLab << wT * wT * kUniform, wT * wT * kUniform, wLong * wLong * kUniform;
+    trackster.fillPCAVariables(
+        Eigen::Vector3f::Zero(), evecs, sigmasLab, sigmasEigen, 3, ticl::Trackster::PCAOrdering::descending);
+  }
+}
+
 void ticl::assignPCAtoTracksters(std::vector<Trackster> &tracksters,
                                  const std::vector<reco::CaloCluster> &layerClusters,
                                  const edm::ValueMap<std::pair<float, float>> &layerClustersTime,
@@ -152,51 +202,7 @@ void ticl::assignPCAtoTracksters(std::vector<Trackster> &tracksters,
     LogDebug("TrackstersPCA") << "Time:          " << trackster.time() << " +/- " << trackster.timeError() << std::endl;
 
     if (N <= 2) {
-      // One or two layer clusters give no principal axes. The frame is geometric: e0 radial, e1 azimuthal,
-      // e2 = e0 x e1. The widths are the size w of the seed cell, as the standard deviation w / sqrt(12).
-      const Eigen::Vector3f pos = barycenter;
-      const float norm = pos.norm();
-      if (norm > 0.f) {
-        const float rT = std::sqrt(pos.x() * pos.x() + pos.y() * pos.y());
-        const Eigen::Vector3f e0 = pos / norm;
-        // Azimuthal direction; on the beam line, the x axis.
-        const Eigen::Vector3f e1 =
-            (rT > 0.f) ? Eigen::Vector3f(-pos.y() / rT, pos.x() / rT, 0.f) : Eigen::Vector3f(1.f, 0.f, 0.f);
-        const Eigen::Vector3f e2 = e0.cross(e1).normalized();
-        Eigen::Matrix3f evecs;
-        evecs.col(0) = e0;
-        evecs.col(1) = e1;
-        evecs.col(2) = e2;
-
-        // Size of the seed cell [cm]; zero outside the HGCAL silicon and scintillator.
-        constexpr float kScintThicknessCm = 0.3f;  // CE-H scintillator tile
-        float wPhi = 0.f, wEta = 0.f, wLong = 0.f;
-        const auto seed = layerClusters[trackster.vertices(0)].seed();
-        if (rhtools.isScintillator(seed)) {
-          // A tile is rT dEta by rT dPhi at the transverse radius rT.
-          const auto dEtaDPhi = rhtools.getScintDEtaDPhi(seed);
-          wEta = rT * dEtaDPhi.first;
-          wPhi = rT * dEtaDPhi.second;
-          wLong = kScintThicknessCm;
-        } else if (rhtools.isSilicon(seed)) {
-          // getRadiusToSide gives numeric_limits<float>::max() for a cell that is not in the geometry.
-          const float rToSide = rhtools.getRadiusToSide(seed);
-          const float siThickness = rhtools.getSiThickness(seed);
-          if (rToSide < std::numeric_limits<float>::max() and std::isfinite(siThickness)) {
-            wEta = wPhi = 2.f * rToSide;
-            wLong = 1e-4f * siThickness;  // um -> cm
-          }
-        }
-        constexpr float kUniform = 1.f / 12.f;  // variance of a uniform distribution of width 1
-        Eigen::Vector3f sigmasEigen;
-        sigmasEigen << wLong * wLong * kUniform, wPhi * wPhi * kUniform, wEta * wEta * kUniform;
-        // Lab-frame sigmas: the transverse cell size for x and y, the thickness for z.
-        const float wT = std::max(wEta, wPhi);
-        Eigen::Vector3f sigmasLab;
-        sigmasLab << wT * wT * kUniform, wT * wT * kUniform, wLong * wLong * kUniform;
-        trackster.fillPCAVariables(
-            Eigen::Vector3f::Zero(), evecs, sigmasLab, sigmasEigen, 3, ticl::Trackster::PCAOrdering::descending);
-      }
+      assignGeometricFrame(trackster, layerClusters, rhtools);
     }
 
     if (N > 2) {
