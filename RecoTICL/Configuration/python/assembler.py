@@ -41,11 +41,50 @@ def step_task_name(name):
 
 def iteration_labels(it, target):
     """The labels of the modules of iteration ``it`` whose backend the iteration selects: the cluster filter and the
-    tracksters, or for CLUEstering its device modules, with the merge on the device when its step schedules it."""
+    tracksters, or for CLUEstering its device modules, with the merge on the device when its step schedules it, or
+    for an iteration on the device its mask, filter and tracksters on the device."""
     if it.pattern_type == "CLUEstering":
         merge = [target.merged_lc_soa] if target.merged_lc_soa_cfi is not None else []
         return merge + [target.cluestering_label, target.soa_tracksters_label]
+    if it.on_device:
+        return [target.refs_label(it.masks_from), target.mask_soa_label(it.masks_from),
+                target.filter_soa_label(it.name), target.soa_trackster_label(it.name)]
     return [target.filter_label(it.name), target.trackster_label(it.name)]
+
+
+# ticl::cornetto::kMaxCollections of the linking on the device
+MAX_DEVICE_LINKED_COLLECTIONS = 4
+
+
+def device_trackster_label(it, target):
+    """The label of the tracksters of iteration ``it`` on the device, or None when the iteration has none."""
+    if it.pattern_type == "CLUEstering":
+        return target.soa_tracksters_label
+    if it.on_device:
+        return target.soa_trackster_label(it.name)
+    return None
+
+
+def check_device_source(m, it, target):
+    """Raises when the host tracksters of iteration ``it`` are not the device tracksters: a PID cut of the host
+    conversion erases tracksters that the device consumers still read."""
+    host = m.get(target.trackster_label(it.name))
+    if host is None or not hasattr(host, "doPidCut") or not host.doPidCut.value():
+        return
+    if host.cutHadProb.value() <= 1.:
+        raise PyTICLError("iteration %r: the device modules read its device tracksters, which are before the PID cut "
+                          "of %s (cutHadProb %g); the cut must keep every trackster (cutHadProb > 1)"
+                          % (it.name, target.trackster_label(it.name), host.cutHadProb.value()))
+
+
+def device_links_labels(cfg, target):
+    """The labels of the portable modules of a linking on the device: the PID SoAs, the ordered list and the
+    linking."""
+    if cfg.links_spec is None or not cfg.links_spec.on_device:
+        return []
+    pid = [target.pid_soa_label(n) for n in cfg.links_spec.collections
+           if cfg._by_name[n].trackster_extra.get("inferenceAlgo", cms.string("")).value()]
+    return pid + [target.links_refs_label, target.links_soa_label]
 
 
 # --------------------------------------------------------------------------- #
@@ -177,6 +216,116 @@ def _build_cluestering(it, target):
     ov.update(it.trackster_extra)
     tracksters = _cfi_default("HGCalTrackstersFromSoAProducer").clone(**ov)
     return clustering, soa, tracksters
+
+
+def _merged_lc_soa(target, param):
+    """The merged layer clusters on the device for a portable module, or nothing to keep the cfi default."""
+    return {} if target.merged_lc_soa is None else {param: cms.InputTag(target.merged_lc_soa)}
+
+
+def _build_refs(soa_labels):
+    """The ordered list of the device trackster collections ``soa_labels``."""
+    return _cfi_default("TracksterCollectionRefsProducer@alpaka").clone(tracksters=cms.VInputTag(*soa_labels))
+
+
+def _build_mask_soa(soa_label, refs_label, target):
+    """The layer cluster mask on the device after the iteration whose device tracksters are ``soa_label``: 0 for
+    their layer clusters, 1 for the others."""
+    return _cfi_default("LayerClusterMaskSoAProducer@alpaka").clone(
+        tracksters=cms.VInputTag(soa_label), trackstersRefs=cms.InputTag(refs_label),
+        **_merged_lc_soa(target, "layerClusters"))
+
+
+def _build_filter_soa(it, mask_label, target):
+    """The cluster filter of iteration ``it`` on the device, from the mask on the device after the iteration it masks
+    from."""
+    if it.filter_type != "ClusterFilterByAlgoAndSize":
+        raise PyTICLError("iteration %r: the device has the ClusterFilterByAlgoAndSize filter only, not %r"
+                          % (it.name, it.filter_type))
+    return _cfi_default("FilteredLayerClustersSoAProducer@alpaka").clone(
+        LayerClustersInputMask=cms.InputTag(mask_label), **_merged_lc_soa(target, "LayerClusters"),
+        **it.filter_params)
+
+
+def _build_recovery_soa(it, filter_soa_label, target):
+    """The Recovery of iteration ``it`` on the device. ``algo_verbosity`` has no device counterpart."""
+    params = {k: v for k, v in it.pattern_params.items() if k != "algo_verbosity"}
+    return _cfi_default("HGCalRecoveryTrackstersSoAProducer@alpaka").clone(
+        filtered_mask=cms.InputTag(filter_soa_label), **_merged_lc_soa(target, "layer_clusters"), **params)
+
+
+def _build_tracksters_from_soa(it, soa_label, prev_trackster, target):
+    """The conversion of the device tracksters of iteration ``it`` to ticl::Trackster, with the mask of their layer
+    clusters, as TrackstersProducer puts them."""
+    ov = dict(src=cms.InputTag(soa_label))
+    if prev_trackster:
+        ov["originalMask"] = cms.InputTag(prev_trackster)
+    elif target.initial_mask_tag() is not None:
+        ov["originalMask"] = target.initial_mask_tag()
+    if target.lc_tag() is not None:
+        ov["layer_clusters"] = target.lc_tag()
+    ov.update(it.trackster_extra)
+    return _cfi_default("HGCalTrackstersFromSoAProducer").clone(**ov)
+
+
+# The settings of TracksterLinksProducer that change the result and that the linking on the device does not have
+_HOST_ONLY_LINKING_SETTINGS = ("regressionAndPid", "inferenceAlgo", "detector")
+
+
+def _device_linking_parameters(overrides):
+    """The parameters of the device Cornetto linking from the ``linkingPSet`` of the host linking: the same names
+    and values, the floats as double. ``type`` and ``algo_verbosity`` have no device counterpart. The parameters of
+    the second pass have none either, so the second pass must be off. The host linking must not run the regression
+    and the PID, and must be on HGCAL."""
+    overrides = overrides or {}
+    pset = overrides.get("linkingPSet")
+    if pset is None or getattr(pset, "type").value() != "Cornetto":
+        raise PyTICLError("the linking on the device needs a linkingPSet of type Cornetto")
+    host = _cfi_default("TracksterLinksProducer")
+    for name in _HOST_ONLY_LINKING_SETTINGS:
+        value = overrides.get(name, getattr(host, name))
+        value = value.value() if hasattr(value, "value") else value
+        if value != getattr(host, name).value():
+            raise PyTICLError("the linking on the device has no %s: it must keep %r, got %r"
+                              % (name, getattr(host, name).value(), value))
+    device = set(_cfi_default("TracksterLinksSoAProducer@alpaka").parameterNames_())
+    for name in ("mergeFragments", "mergeDropped"):
+        if hasattr(pset, name) and getattr(pset, name).value():
+            raise PyTICLError("the linking on the device has no second pass: linkingPSet.%s must be False" % name)
+    params = {}
+    for name in pset.parameterNames_():
+        if name in ("type", "algo_verbosity"):
+            continue
+        if name not in device:
+            if name.startswith("merge"):
+                continue  # a parameter of the second pass, which is off
+            raise PyTICLError("linkingPSet.%s has no device counterpart" % name)
+        value = getattr(pset, name)
+        if isinstance(value, (cms.float, cms.double)):
+            params[name] = cms.double(value.value())
+        elif isinstance(value, (cms.vint32, cms.bool)):
+            params[name] = value
+        else:
+            raise PyTICLError("linkingPSet.%s: a %s has no device counterpart" % (name, type(value).__name__))
+    return params
+
+
+def _build_links_soa(soa_labels, pid_tags, overrides, target):
+    """The Cornetto linking on the device of the device trackster collections ``soa_labels``, each with its PID SoA in
+    ``pid_tags`` (an empty tag for the PID of the trackster SoA)."""
+    return _cfi_default("TracksterLinksSoAProducer@alpaka").clone(
+        tracksters=cms.VInputTag(*soa_labels), trackstersRefs=cms.InputTag(target.links_refs_label),
+        pid=cms.VInputTag(*pid_tags), **_merged_lc_soa(target, "layer_clusters"),
+        **_device_linking_parameters(overrides))
+
+
+def _build_links_from_soa(target):
+    """The products of TracksterLinksProducer from the linking on the device."""
+    ov = dict(src=cms.InputTag(target.links_soa_label), links=cms.InputTag(target.links_soa_label, "links"))
+    if target.lc_tag() is not None:
+        ov["layer_clusters"] = target.lc_tag()
+        ov["original_masks"] = cms.VInputTag(target.initial_mask_str())
+    return _cfi_default("TracksterLinksFromSoAProducer").clone(**ov)
 
 
 def _build_links(collection_labels, overrides, target):
@@ -356,6 +505,35 @@ def assemble(cfg):
             mkgroup(gname, *labels)
             step_groups.append(gname)
             continue
+        if it.on_device:
+            # The device has the Recovery pattern recognition, on the mask after the iteration it masks from. The
+            # mask on the device and the ordered list of that iteration are made here, since only a device consumer
+            # reads them.
+            if it.pattern_type != "Recovery":
+                raise PyTICLError("iteration %r: the device has the Recovery pattern recognition only, not %r"
+                                  % (it.name, it.pattern_type))
+            prev_it = cfg._by_name.get(it.masks_from) if it.masks_from else None
+            prev_soa = device_trackster_label(prev_it, target) if prev_it is not None else None
+            if prev_soa is None:
+                raise PyTICLError("iteration %r on the device must mask from an iteration with tracksters on the "
+                                  "device" % it.name)
+            check_device_source(m, prev_it, target)
+            refs_label = target.refs_label(it.masks_from)
+            mask_label = target.mask_soa_label(it.masks_from)
+            if refs_label not in m:
+                m[refs_label] = _build_refs([prev_soa])
+            if mask_label not in m:
+                m[mask_label] = _build_mask_soa(prev_soa, refs_label, target)
+            flabel = target.filter_soa_label(it.name)
+            slabel = target.soa_trackster_label(it.name)
+            tlabel = target.trackster_label(it.name)
+            m[flabel] = _build_filter_soa(it, mask_label, target)
+            m[slabel] = _build_recovery_soa(it, flabel, target)
+            m[tlabel] = _build_tracksters_from_soa(it, slabel, target.trackster_label(it.masks_from), target)
+            gname = target.gname("step", it.name)
+            mkgroup(gname, refs_label, mask_label, flabel, slabel, tlabel)
+            step_groups.append(gname)
+            continue
         if it.seeding_type is None:
             raise PyTICLError("iteration %r has no seeding region" % it.name)
         if it.filter_type is None:
@@ -381,7 +559,34 @@ def assemble(cfg):
         mkgroup(target.gname("iterations"), *step_groups)
 
     # links + superclustering
-    if cfg.links_spec:
+    links_children = []
+    if cfg.links_spec and cfg.links_spec.on_device:
+        # The linking on the device reads the device tracksters of the collections, with the PID of the host
+        # tracksters of the collections that have one, and the result is converted under the usual label.
+        soa_labels, pid_tags = [], []
+        if len(cfg.links_spec.collections) > MAX_DEVICE_LINKED_COLLECTIONS:
+            raise PyTICLError("the linking on the device links at most %d collections, got %d"
+                              % (MAX_DEVICE_LINKED_COLLECTIONS, len(cfg.links_spec.collections)))
+        for n in cfg.links_spec.collections:
+            it = cfg._by_name.get(n)
+            soa = device_trackster_label(it, target) if it is not None else None
+            if soa is None:
+                raise PyTICLError("the linking on the device needs the tracksters of iteration %r on the device" % n)
+            check_device_source(m, it, target)
+            soa_labels.append(soa)
+            if it.trackster_extra.get("inferenceAlgo", cms.string("")).value():
+                pid_label = target.pid_soa_label(n)
+                m[pid_label] = _cfi_default("TracksterPidSoAProducer@alpaka").clone(
+                    src=cms.InputTag(target.trackster_label(n)), reference=cms.InputTag(soa))
+                links_children.append(pid_label)
+                pid_tags.append(cms.InputTag(pid_label))
+            else:
+                pid_tags.append(cms.InputTag(""))
+        m[target.links_refs_label] = _build_refs(soa_labels)
+        m[target.links_soa_label] = _build_links_soa(soa_labels, pid_tags, cfg.links_spec.overrides, target)
+        m[target.links_label] = _build_links_from_soa(target)
+        links_children += [target.links_refs_label, target.links_soa_label]
+    elif cfg.links_spec:
         labels = [target.trackster_label(n) for n in cfg.links_spec.collections]
         m[target.links_label] = _build_links(labels, cfg.links_spec.overrides, target)
 
@@ -394,7 +599,7 @@ def assemble(cfg):
 
 
     if target.links_label in m:
-        links_children = [target.links_label]
+        links_children.append(target.links_label)
         if target.gname("superclustering") in t:
             links_children.append(target.gname("superclustering"))
         mkgroup(target.gname("links"), *links_children)

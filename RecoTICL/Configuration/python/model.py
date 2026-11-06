@@ -63,12 +63,18 @@ class IterationSpec:
     # recovery pass is intermediate (its tracksters are captured by the links),
     # so it is not kept in the Event Content (cf. ticlIterLabelsPSet.labels).
     persist: bool = True
+    # the iteration runs on the device: the cluster filter and the pattern recognition as portable modules, with the
+    # tracksters converted to ticl::Trackster under the usual label. Only a Recovery iteration with the
+    # ClusterFilterByAlgoAndSize filter has device modules.
+    on_device: bool = False
 
 
 @dataclass
 class LinksSpec:
     collections: List[str]            # iteration names feeding ticlTracksterLinks
     overrides: Dict = field(default_factory=dict)
+    # the linking runs on the device (Cornetto only), with the result converted under the usual label
+    on_device: bool = False
 
 
 @dataclass
@@ -192,6 +198,12 @@ class TICLConfig:
         self._cur().backend = GPU
         return self
 
+    def on_device(self):
+        """The current iteration runs on the device: the cluster filter and the pattern recognition as portable
+        modules, read from the tracksters on the device of the iteration it masks from. Only Recovery has them."""
+        self._cur().on_device = True
+        return self
+
     # -- presets ----------------------------------------------------------- #
 
     def preset(self, name=None):
@@ -201,8 +213,11 @@ class TICLConfig:
 
     # -- top-level stages -------------------------------------------------- #
 
-    def links(self, collections, **overrides):
-        self.links_spec = LinksSpec(collections=list(collections), overrides=overrides)
+    def links(self, collections, on_device=False, **overrides):
+        """The linking of the tracksters of ``collections``. With ``on_device`` the Cornetto linking runs on the device
+        on the tracksters that the collections have on the device, and the result is converted under the usual
+        label."""
+        self.links_spec = LinksSpec(collections=list(collections), overrides=overrides, on_device=on_device)
         self._current = None
         return self
 
