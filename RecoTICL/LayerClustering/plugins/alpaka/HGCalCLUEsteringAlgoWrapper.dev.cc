@@ -6,6 +6,7 @@
 
 #include "HeterogeneousCore/AlpakaInterface/interface/config.h"
 #include "HeterogeneousCore/AlpakaInterface/interface/memory.h"
+#include "HeterogeneousCore/AlpakaInterface/interface/prefixScan.h"
 #include "HeterogeneousCore/AlpakaInterface/interface/workdivision.h"
 
 #include "HGCalCLUEsteringAlgoWrapper.h"
@@ -20,14 +21,34 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
 
   namespace {
 
-    // Copies the seed flag of each rechit from CLUEstering and counts the layer clusters: one per seed, as
-    // CLUEstering gives the k-th seed the cluster index k
+    // Per seed: its rank in rechit order is the index of its layer cluster. seedEnd is the inclusive scan of isSeed.
+    struct KernelRankSeeds {
+      ALPAKA_FN_ACC void operator()(const Acc1D& acc,
+                                    const int32_t* isSeed,
+                                    const int32_t* seedEnd,
+                                    HGCalSoARecHitsExtraDeviceCollection::ConstView recHitsClustering,
+                                    int32_t* rankedIndex,
+                                    uint32_t nRecHits) const {
+        for (auto i : uniform_elements(acc, nRecHits)) {
+          if (isSeed[i]) {
+            rankedIndex[recHitsClustering[i].clusterIndex()] = seedEnd[i] - 1;
+          }
+        }
+      }
+    };
+
+    // Per rechit: its layer cluster as the rank of the seed, its seed flag, and the number of layer clusters
     struct KernelMarkSeeds {
       ALPAKA_FN_ACC void operator()(const Acc1D& acc,
                                     const int32_t* isSeed,
+                                    const int32_t* rankedIndex,
                                     HGCalSoARecHitsExtraDeviceCollection::View recHitsClustering,
                                     uint32_t nRecHits) const {
         for (auto i : uniform_elements(acc, nRecHits)) {
+          const int cluster = recHitsClustering[i].clusterIndex();
+          if (cluster >= 0) {
+            recHitsClustering[i].clusterIndex() = rankedIndex[cluster];
+          }
           recHitsClustering[i].isSeed() = isSeed[i];
           if (isSeed[i]) {
             alpaka::atomicAdd(acc, &recHitsClustering.numberOfClustersScalar(), 1u);
@@ -76,13 +97,25 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       algo.make_clusters(queue, d_points, batchItemSizes);
     }
 
-    // The kernel reads is_seed from d_points, which is destroyed when run() returns, possibly before the kernel has
-    // run. This is safe: on CUDA CLUEstering frees its device memory in queue order (cudaFreeAsync), on ROCm hipFree
-    // waits for the device to finish, and the serial backend runs the kernel immediately.
+    // The layer clusters are numbered by their seeds in rechit order, so the result does not depend on the order in
+    // which CLUEstering finds the seeds. d_points releases is_seed only after the queued kernels that read it.
+    const int32_t* isSeed = d_points.view().is_seed().data();
+    auto seedEnd = make_device_buffer<int32_t[]>(queue, nRecHits);
+    iterativePrefixScan<Acc1D>(queue, isSeed, seedEnd.data(), nRecHits);
+    // there are at most as many layer clusters as rechits
+    auto rankedIndex = make_device_buffer<int32_t[]>(queue, nRecHits);
     constexpr uint32_t blockSize = 256;
     const auto workDivRecHits = make_workdiv<Acc1D>(divide_up_by(nRecHits, blockSize), blockSize);
+    alpaka::exec<Acc1D>(queue,
+                        workDivRecHits,
+                        KernelRankSeeds{},
+                        isSeed,
+                        seedEnd.data(),
+                        recHitsClustering,
+                        rankedIndex.data(),
+                        nRecHits);
     alpaka::exec<Acc1D>(
-        queue, workDivRecHits, KernelMarkSeeds{}, d_points.view().is_seed().data(), recHitsClustering, nRecHits);
+        queue, workDivRecHits, KernelMarkSeeds{}, isSeed, rankedIndex.data(), recHitsClustering, nRecHits);
   }
 
 }  // namespace ALPAKA_ACCELERATOR_NAMESPACE
