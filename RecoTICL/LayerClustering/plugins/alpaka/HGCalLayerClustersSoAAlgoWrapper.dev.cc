@@ -221,6 +221,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     // Also sets the columns not computed yet to the defaults of reco::CaloCluster.
     struct KernelLayerClusterPositionAndTime {
       ALPAKA_FN_ACC void operator()(const Acc1D& acc,
+                                    ::reco::CaloCluster::AlgoId algoId,
                                     bool isScintillator,
                                     uint32_t nHitsTime,
                                     HGCalSoARecHitsDeviceCollection::ConstView recHits,
@@ -258,7 +259,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
 
           layerClusters.energy()[c].correctedEnergy() = -1.f;
           layerClusters.energy()[c].correctedEnergyUncertainty() = -1.f;
-          layerClusters.indexes()[c].algoID() = ::reco::CaloCluster::undefined;
+          layerClusters.indexes()[c].algoID() = algoId;
           layerClusters.indexes()[c].flags() = 0;
         }
       }
@@ -268,6 +269,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
 
   void HGCalLayerClustersSoAAlgoWrapper::run(Queue& queue,
                                              uint32_t nLayerClusters,
+                                             ::reco::CaloCluster::AlgoId algoId,
                                              float thresholdW0,
                                              float positionDeltaRho2,
                                              bool isScintillator,
@@ -338,6 +340,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     alpaka::exec<Acc1D>(queue,
                         workDivLayerClusters,
                         KernelLayerClusterPositionAndTime{},
+                        algoId,
                         isScintillator,
                         nHitsTime,
                         recHits,
