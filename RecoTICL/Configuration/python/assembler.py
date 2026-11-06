@@ -71,12 +71,37 @@ class Assembled:
         self.task_children = {}  # name  -> [child identifier, ...]
         self.top = None          # the top group (iterTICLTask / HLTIterTICLSequence)
 
+    def uses_onnx(self):
+        """True if any module runs an ONNX Runtime model, and requires the ONNXService."""
+        return any(_uses_onnx(mod) for mod in self.modules.values())
+
     def add_to_process(self, process):
         for label, mod in self.modules.items():
             setattr(process, label, mod)
         for name, group in self.tasks.items():
             setattr(process, name, group)
+        if self.uses_onnx():
+            process.load("PhysicsTools.ONNXRuntime.ONNXService_cfi")
         return process
+
+
+def _uses_onnx(mod):
+    """True if the module runs an ONNX Runtime model (see TICLONNXGlobalCache.h, GNNInterpretationAlgo.cc and
+    EGammaSuperclusterProducer.cc)."""
+    def value(pset, name, default):
+        return getattr(pset, name).value() if hasattr(pset, name) else default
+
+    if mod.type_() == "EGammaSuperclusterProducer":
+        return bool(value(mod, "enableRegression", False))
+    if hasattr(mod, "linkingPSet") and value(mod.linkingPSet, "onnxModelPath", ""):
+        return True
+    if hasattr(mod, "interpretationDescPSet") and value(mod.interpretationDescPSet, "type", "") == "GNNLink":
+        return True
+    algo = value(mod, "inferenceAlgo", "")
+    if algo and hasattr(mod, "pluginInferenceAlgo" + algo):
+        pset = getattr(mod, "pluginInferenceAlgo" + algo)
+        return any(value(pset, key, "") for key in ("onnxModelPath", "onnxPIDModelPath", "onnxEnergyModelPath"))
+    return False
 
 
 # --------------------------------------------------------------------------- #
@@ -231,14 +256,16 @@ def _external_inputs(target, tracks="tracks", muons="muons"):
     return ov
 
 
-def _build_interpretations(overrides, links_label, sc_label, target):
+def _build_interpretations(overrides, links_label, sc_label, claim_labels, target):
     """The interpretation stage (``TICLInterpretationProducer``): the final tracksters and the per-track assignment
-    maps, from the linked tracksters and the superclusters."""
+    maps, from the linked tracksters and the superclusters. The layer clusters of the ``claim_labels`` collections
+    that are in no linked trackster join the track claim: the linking inputs, so that a group the linking does not
+    emit stays available to the tracks."""
     base = _cfi_default("TICLInterpretationProducer")
     ov = dict(
         tracksters_collections=cms.VInputTag(links_label),
         egamma_tracksters_collections=cms.VInputTag(cms.InputTag(sc_label)),
-        claimUnlinkedTracksters=cms.VInputTag(target.trackster_label("Recovery")),
+        claimUnlinkedTracksters=cms.VInputTag(*claim_labels),
         **_external_inputs(target),
     )
     if target.lc_tag() is not None:  # HLT-style: remap shared inputs
@@ -281,6 +308,7 @@ def _build_candidate(overrides, target):
         ov["gsf_tracks"] = cms.InputTag(target.gsf_tracks_label)
     if target.lc_tag() is not None:  # HLT-style: remap shared inputs
         ov["layerClusters"] = target.lc_tag()
+        ov["candidateTracksters"] = base.candidateTracksters.clone(layerClustersTime=target.lc_time_tag())
     ov.update(overrides or {})
     return base.clone(**ov)
 
@@ -444,8 +472,9 @@ def assemble(cfg):
         # producer builds the candidates.
         sc_label = (target.supercluster_dnn_label
                     if cfg.superclustering_spec is not None else target.links_label)
+        claim_labels = [target.trackster_label(n) for n in cfg.links_spec.collections]
         m[target.interpretations_label] = _build_interpretations(
-            cfg.interpretations_spec, target.links_label, sc_label, target)
+            cfg.interpretations_spec, target.links_label, sc_label, claim_labels, target)
         m[target.candidate_label] = _build_candidate(cfg.candidate_spec, target)
         mkgroup(target.gname("candidate"), target.interpretations_label, target.candidate_label)
     elif cfg.include_candidate:

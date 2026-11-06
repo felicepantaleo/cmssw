@@ -288,10 +288,6 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     alpaka::memset(queue, cells, 0x0);
     auto energy = make_device_view<float>(queue, layerClusters.energy().energy());
     alpaka::memset(queue, energy, 0x0);
-    // reco::CaloID has a virtual destructor, so it cannot be constructed on the device: zero it instead, which gives
-    // the detectors() of a default CaloID
-    auto caloID = make_device_view<::reco::CaloID>(queue, layerClusters.indexes().caloID());
-    alpaka::memset(queue, caloID, 0x0);
     // per layer cluster: the sum of the position weights, and the key of the most energetic rechit (0 is below any
     // rechit)
     auto positionWeightSum = make_device_buffer<float[]>(queue, nLayerClusters);
@@ -323,7 +319,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                         maxEnergyKey.data(),
                         timedHits.data());
     // inclusive scan of the counts, so timedOffsets[c + 1] is where the segment of layer cluster c ends
-    iterativePrefixScan<Acc1D>(timedHits.data(), timedOffsets.data() + 1, nLayerClusters, queue);
+    iterativePrefixScan<Acc1D>(queue, timedHits.data(), timedOffsets.data() + 1, nLayerClusters);
     alpaka::exec<Acc1D>(queue,
                         workDivRecHits,
                         KernelLayerClusterPositionSums{},

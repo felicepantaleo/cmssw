@@ -25,6 +25,11 @@ def main():
             failures.append("%s differs from presets.v6()" % label)
     if "ticlTracksterInterpretations" not in process.iterTICLTask.moduleNames():
         failures.append("ticlTracksterInterpretations is not in iterTICLTask")
+    # The layer clusters of every linking input that are in no linked trackster join the track claim.
+    claim = sorted(cms.InputTag(tag).getModuleLabel()
+                   for tag in process.ticlTracksterInterpretations.claimUnlinkedTracksters)
+    if claim != ["ticlTrackstersCLUEstering", "ticlTrackstersRecovery"]:
+        failures.append("ticlTracksterInterpretations.claimUnlinkedTracksters is %s" % claim)
     # The first iteration is CLUEstering, which replaces CLUE3DHigh.
     for label in ("ticlCLUEstering", "ticlSoATracksters", "ticlSoATrackstersPID",
                   "ticlTrackstersCLUEstering", "ticlSuperclusteringDNN"):

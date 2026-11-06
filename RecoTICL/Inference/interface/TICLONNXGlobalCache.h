@@ -77,7 +77,7 @@ namespace ticl {
     void loadModel(std::string const& modelPath) {
       const std::string fullPath = edm::FileInPath(modelPath).fullPath();
       if (!sessionsByFullPath.contains(fullPath))
-        sessionsByFullPath.emplace(fullPath, std::make_unique<cms::Ort::ONNXRuntime>(fullPath, &sessionOptions_));
+        sessionsByFullPath.emplace(fullPath, std::make_unique<cms::Ort::ONNXRuntime>(fullPath, sessionOptions_));
     }
 
   private:
@@ -94,7 +94,7 @@ namespace ticl {
 
       const std::string fullPath = edm::FileInPath(model).fullPath();
       if (!sessionsByFullPath.contains(fullPath))
-        sessionsByFullPath.emplace(fullPath, std::make_unique<cms::Ort::ONNXRuntime>(fullPath, &sess_opts));
+        sessionsByFullPath.emplace(fullPath, std::make_unique<cms::Ort::ONNXRuntime>(fullPath, sess_opts));
     }
   };
 

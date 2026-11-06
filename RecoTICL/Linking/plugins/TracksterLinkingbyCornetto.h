@@ -14,7 +14,8 @@
 //   with 0 within timeCompatibilityNSigma times the combined error, with timeResolutionFloor added in
 //   quadrature. The trackster times must be local to the barycenter.
 // - type: when typeVetoProbability > 0 and both carry a PID, the pair is refused if one EM probability is
-//   above typeVetoProbability and the other below 1 - typeVetoProbability.
+//   above typeVetoProbability and the other below 1 - typeVetoProbability. The EM probability of a trackster is
+//   the sum of its PID probabilities over the emCategories (cornetto::emProbability).
 //
 // Grouping, each step independent per trackster:
 // 1. The parent of b is the highest-energy trackster a with more energy than b (equal energy: smaller
@@ -40,6 +41,7 @@
 #include <vector>
 
 #include "DataFormats/HGCalReco/interface/TICLLayerTile.h"
+#include "RecoTICL/Linking/interface/CornettoFeatures.h"
 #include "RecoTICL/Linking/interface/CornettoGeometry.h"
 #include "RecoTICL/Linking/interface/CornettoGrouping.h"
 #include "RecoTICL/Linking/interface/TracksterLinkingAlgoBase.h"
@@ -93,6 +95,14 @@ namespace ticl {
               "EM/hadronic veto threshold: 0 disables the veto, else it must be in [0.5, 1]. A pair is refused if "
               "one EM probability is above this value and the other below 1 - this value. Applies only when both "
               "carry a PID.");
+      iDesc
+          .add<std::vector<int>>("emCategories",
+                                 {static_cast<int>(Trackster::ParticleType::photon),
+                                  static_cast<int>(Trackster::ParticleType::electron),
+                                  static_cast<int>(Trackster::ParticleType::neutral_pion)})
+          ->setComment(
+              "Trackster::ParticleType slots whose PID probabilities sum to the EM probability. At least one value, "
+              "each in [0, 7], no duplicates.");
       iDesc.add<float>("minEmittedEnergy", 1.f)
           ->setComment("Min raw energy [GeV] of an emitted group. Applies after linking.");
       iDesc.add<float>("minEmittedPt", 0.5f)
@@ -127,24 +137,10 @@ namespace ticl {
     }
 
   private:
-    using Tiles = std::array<TICLLayerTile, 2>;  // one per endcap, index 1 for z > 0
-
-    // Per-trackster quantities the pair test reads.
-    struct Features {
-      std::vector<math::XYZVectorF> bary;
-      std::vector<float> energy;
-      std::vector<float> eta;
-      std::vector<float> phi;
-      std::vector<float> rad;   // |bary|
-      std::vector<float> em;    // EM probability, negative without a PID
-      std::vector<float> time;  // local to the barycenter [ns]
-      std::vector<float> timeError;
-      std::vector<bool> valid;  // finite barycenter and energy
-    };
+    using EndcapTiles = std::array<TICLLayerTile, 2>;  // one per endcap, index 1 for z > 0
+    using Features = cornetto::Features;
 
     Features computeFeatures(const Inputs& input) const;
-    // Features of the groups, from the features f of their members.
-    Features groupFeatures(const Features& f, const std::vector<std::vector<unsigned int>>& groups) const;
     bool compatible(const Features& f, unsigned int a, unsigned int b) const {
       return compatibleIn(cone_, emCone_, f, a, b);
     }
@@ -157,13 +153,13 @@ namespace ticl {
     bool timeCompatible(float tAnchor, float errAnchor, float tOther, float errOther, float path) const;
     bool emits(float energy, float pt, float em) const;
     // Fills each valid node into the tile of its endcap in decreasing rank, so each bin lists its nodes in that order.
-    static void fillTiles(const Features& f, Tiles& tiles);
+    static void fillTiles(const Features& f, EndcapTiles& tiles);
     // The parent of each node: the highest-ranked node a above it, with allowed(a, node) true, that passes
     // test(a, node). The tiles come from fillTiles.
     template <typename Allowed, typename Test>
     std::vector<unsigned int> findParentsIn(
-        const Features& f, const Tiles& tiles, const cornetto::Cone& cone, Allowed&& allowed, Test&& test) const;
-    std::vector<unsigned int> findParents(const Features& f, const Tiles& tiles) const;
+        const Features& f, const EndcapTiles& tiles, const cornetto::Cone& cone, Allowed&& allowed, Test&& test) const;
+    std::vector<unsigned int> findParents(const Features& f, const EndcapTiles& tiles) const;
     // The groups after the second pass.
     std::vector<std::vector<unsigned int>> mergeGroups(const Features& f,
                                                        std::vector<std::vector<unsigned int>> groups) const;
@@ -175,6 +171,7 @@ namespace ticl {
     const float timeNSigma2_;
     const float timeFloor2_;
     const float typeVetoProbability_;
+    const std::vector<int> emCategories_;
     const float minEmittedEnergy_;
     const float minEmittedPt_;
     const float minEmittedEnergyEM_;

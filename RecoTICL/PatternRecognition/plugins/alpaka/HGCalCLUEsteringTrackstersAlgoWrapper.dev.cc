@@ -229,16 +229,35 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       }
     };
 
-    // Per point -> per cluster: the number of points
+    // Per seed: its rank in point order is the index of its cluster. seedEnd is the inclusive scan of isSeed.
+    struct KernelRankSeeds {
+      ALPAKA_FN_ACC void operator()(const Acc1D& acc,
+                                    uint32_t nPoints,
+                                    const int32_t* isSeed,
+                                    const int32_t* seedEnd,
+                                    PointsDeviceCollection::ConstView points,
+                                    int32_t* rankedIndex) const {
+        for (auto p : uniform_elements(acc, nPoints)) {
+          if (isSeed[p]) {
+            rankedIndex[points[p].clusterIndex()] = seedEnd[p] - 1;
+          }
+        }
+      }
+    };
+
+    // Per point: its cluster as the rank of the seed. Per cluster: the number of points
     struct KernelCountClusterSizes {
       ALPAKA_FN_ACC void operator()(const Acc1D& acc,
                                     uint32_t nPoints,
-                                    PointsDeviceCollection::ConstView points,
+                                    const int32_t* rankedIndex,
+                                    PointsDeviceCollection::View points,
                                     uint32_t* clusterSizes) const {
         for (auto p : uniform_elements(acc, nPoints)) {
           const int cluster = points[p].clusterIndex();
           if (cluster != kInvalidCluster) {
-            alpaka::atomicAdd(acc, &clusterSizes[cluster], 1u);
+            const int32_t ranked = rankedIndex[cluster];
+            points[p].clusterIndex() = ranked;
+            alpaka::atomicAdd(acc, &clusterSizes[ranked], 1u);
           }
         }
       }
@@ -297,7 +316,6 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       const Parameters& parameters,
       reco::CaloClusterDeviceCollection::ConstView layerClusters,
       HGCalSoALayerClustersExtraDeviceCollection::View layerClustersClustering) const {
-
     auto nTracksters = make_device_view<unsigned int>(queue, layerClustersClustering.numberOfTrackstersScalar());
     alpaka::memset(queue, nTracksters, 0x0);
     auto nVertices = make_device_view<unsigned int>(queue, layerClustersClustering.numberOfVerticesScalar());
@@ -338,7 +356,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                         isPoint.data(),
                         extents.data());
     // inclusive scan of the point flags
-    iterativePrefixScan<Acc1D>(isPoint.data(), pointEnd.data(), nLayerClusters, queue);
+    iterativePrefixScan<Acc1D>(queue, isPoint.data(), pointEnd.data(), nLayerClusters);
     alpaka::memcpy(queue, hostNPoints, make_device_view(queue, pointEnd.data() + nLayerClusters - 1, 1));
     alpaka::exec<Acc1D>(queue,
                         workDivLayerClusters,
@@ -397,9 +415,29 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     auto isTrackster = make_device_buffer<uint32_t[]>(queue, nPoints);
     auto tracksterEnd = make_device_buffer<uint32_t[]>(queue, nPoints);
 
+    // The clusters are numbered by their seeds in point order, so the tracksters do not depend on the order in which
+    // CLUEstering finds the seeds. clusteringPoints releases is_seed only after the queued kernels that read it.
+    const int32_t* isSeed = clusteringPoints.view().is_seed().data();
+    auto seedEnd = make_device_buffer<int32_t[]>(queue, nPoints);
+    iterativePrefixScan<Acc1D>(queue, isSeed, seedEnd.data(), nPoints);
+    auto rankedIndex = make_device_buffer<int32_t[]>(queue, nPoints);
+
     const auto workDivPoints = make_workdiv<Acc1D>(divide_up_by(nPoints, blockSize), blockSize);
-    alpaka::exec<Acc1D>(
-        queue, workDivPoints, KernelCountClusterSizes{}, nPoints, points.const_view(), clusterSizes.data());
+    alpaka::exec<Acc1D>(queue,
+                        workDivPoints,
+                        KernelRankSeeds{},
+                        nPoints,
+                        isSeed,
+                        seedEnd.data(),
+                        points.const_view(),
+                        rankedIndex.data());
+    alpaka::exec<Acc1D>(queue,
+                        workDivPoints,
+                        KernelCountClusterSizes{},
+                        nPoints,
+                        rankedIndex.data(),
+                        points.view(),
+                        clusterSizes.data());
     alpaka::exec<Acc1D>(queue,
                         workDivPoints,
                         KernelSelectTracksters{},
@@ -409,7 +447,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                         isTrackster.data(),
                         layerClustersClustering);
     // inclusive scan of the trackster flags
-    iterativePrefixScan<Acc1D>(isTrackster.data(), tracksterEnd.data(), nPoints, queue);
+    iterativePrefixScan<Acc1D>(queue, isTrackster.data(), tracksterEnd.data(), nPoints);
     alpaka::exec<Acc1D>(queue,
                         workDivLayerClusters,
                         KernelWriteLayerClustersClustering{},

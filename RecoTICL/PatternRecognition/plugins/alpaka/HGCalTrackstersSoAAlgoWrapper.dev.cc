@@ -82,6 +82,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       float timeWeight;
       // the layer clusters used by the PCA: the most energetic one of each layer of the cleaning window
       uint64_t layerMaxEnergyKey[kCleaningWindow];
+      uint32_t cleanedCount;
       float cleanedEnergy;
       float cleanedPosition[3];  // weighted by energy
       // weighted by energy / cleanedEnergy
@@ -218,14 +219,18 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
             return slot >= 0 and layerClusterOfEnergyKey(s.layerMaxEnergyKey[slot]) == i;
           };
 
-          // the PCA needs at least 3 layer clusters; the condition is the same for all the threads of the block
+          // The PCA needs at least 3 layer clusters, and at least 2 in the cleaned set with a spread to normalise:
+          // 1 - weight2 is 0 when one layer cluster carries all the cleaned energy. Both conditions are the same for
+          // all the threads of the block.
           const bool hasPCA = last - first > 2;
+          bool validPCA = false;
           if (hasPCA) {
             for (auto vertex : independent_group_elements(acc, first, last)) {
               const uint32_t i = vertices.content()[vertex].values();
               if (isCleaned(i)) {
                 const auto position = layerClusters.position()[i];
                 const float energy = layerClusters.energy()[i].energy();
+                alpaka::atomicAdd(acc, &s.cleanedCount, 1u, block);
                 alpaka::atomicAdd(acc, &s.cleanedEnergy, energy, block);
                 alpaka::atomicAdd(acc, &s.cleanedPosition[0], energy * position.x(), block);
                 alpaka::atomicAdd(acc, &s.cleanedPosition[1], energy * position.y(), block);
@@ -259,34 +264,36 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
             }
             alpaka::syncBlockThreads(acc);
 
-            if (once_per_block(acc)) {
-              const float* c = s.covariance;
-              Eigen::Matrix3f covariance;
-              covariance << c[0], c[1], c[3], c[1], c[2], c[4], c[3], c[4], c[5];
-              covariance *= 1.f / (1.f - s.weight2);
-              Eigen::SelfAdjointEigenSolver<Eigen::Matrix3f> solver(covariance);
-              if (solver.info() == Eigen::Success) {
-                Eigen::Map<Eigen::Vector3f>(s.eigenvalues) = solver.eigenvalues();
-                Eigen::Map<Eigen::Matrix3f>(s.eigenvectors) = solver.eigenvectors();
-              }
-            }
-            alpaka::syncBlockThreads(acc);
-
-            // The spreads along the principal axes, with eigenvectors^T. They equal the square roots of the
-            // eigenvalues, but the eigenvalues much smaller than the largest one carry its rounding error, and this
-            // sum does not. ticl::assignPCAtoTracksters (CMSSW_20_1_0_pre4) projects with eigenvectors instead.
-            const Eigen::Map<const Eigen::Matrix3f> eigenvectors(s.eigenvectors);
-            for (auto vertex : independent_group_elements(acc, first, last)) {
-              const uint32_t i = vertices.content()[vertex].values();
-              if (isCleaned(i)) {
-                const float weight = layerClusters.energy()[i].energy() * invCleanedEnergy;
-                const Eigen::Vector3f projected = eigenvectors.transpose() * deviation(i);
-                for (int k = 0; k < 3; ++k) {
-                  alpaka::atomicAdd(acc, &s.sigmasPCA2[k], weight * projected(k) * projected(k), block);
+            validPCA = s.cleanedCount >= 2 and s.weight2 < 1.f;
+            if (validPCA) {
+              if (once_per_block(acc)) {
+                const float* c = s.covariance;
+                Eigen::Matrix3f covariance;
+                covariance << c[0], c[1], c[3], c[1], c[2], c[4], c[3], c[4], c[5];
+                covariance *= 1.f / (1.f - s.weight2);
+                Eigen::SelfAdjointEigenSolver<Eigen::Matrix3f> solver(covariance);
+                if (solver.info() == Eigen::Success) {
+                  Eigen::Map<Eigen::Vector3f>(s.eigenvalues) = solver.eigenvalues();
+                  Eigen::Map<Eigen::Matrix3f>(s.eigenvectors) = solver.eigenvectors();
                 }
               }
+              alpaka::syncBlockThreads(acc);
+
+              // The spreads along the principal axes, with eigenvectors^T: the small eigenvalues carry the rounding
+              // error of the largest one, and this sum does not.
+              const Eigen::Map<const Eigen::Matrix3f> eigenvectors(s.eigenvectors);
+              for (auto vertex : independent_group_elements(acc, first, last)) {
+                const uint32_t i = vertices.content()[vertex].values();
+                if (isCleaned(i)) {
+                  const float weight = layerClusters.energy()[i].energy() * invCleanedEnergy;
+                  const Eigen::Vector3f projected = eigenvectors.transpose() * deviation(i);
+                  for (int k = 0; k < 3; ++k) {
+                    alpaka::atomicAdd(acc, &s.sigmasPCA2[k], weight * projected(k) * projected(k), block);
+                  }
+                }
+              }
+              alpaka::syncBlockThreads(acc);
             }
-            alpaka::syncBlockThreads(acc);
           }
 
           // The energy profile around the first principal axis, or the barycenter direction without one, as
@@ -343,11 +350,11 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
             pca.eigenvectors().setZero();
             pca.sigmas().setZero();
             pca.sigmasPCA().setZero();
-            if (hasPCA) {
+            if (validPCA) {
               const Eigen::Map<const Eigen::Matrix3f> eigenvectors(s.eigenvectors);
               const float normalisation = 1.f - s.weight2;
-              // The spreads along x, y, z are the diagonal of the covariance matrix: each layer cluster weighted by its
-              // own weight, where ticl::assignPCAtoTracksters (CMSSW_20_1_0_pre4) uses the previous layer cluster's.
+              // The spreads along x, y, z are the diagonal of the covariance matrix, each layer cluster with its own
+              // weight.
               const float diagonal[3] = {s.covariance[0], s.covariance[2], s.covariance[5]};
               // in decreasing eigenvalue order
               for (int k = 0; k < 3; ++k) {
@@ -417,7 +424,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
         queue, workDivLayerClusters, KernelTracksterSizes{}, layerClustersClustering, tracksterSizes.data());
     // inclusive scan of the sizes, so offsets[t + 1] is where the layer clusters of trackster t end. The scan leaves
     // the sizes unchanged.
-    iterativePrefixScan<Acc1D>(tracksterSizes.data(), offsets + 1, nTracksters, queue);
+    iterativePrefixScan<Acc1D>(queue, tracksterSizes.data(), offsets + 1, nTracksters);
     alpaka::exec<Acc1D>(queue,
                         workDivLayerClusters,
                         KernelTracksterVertices{},

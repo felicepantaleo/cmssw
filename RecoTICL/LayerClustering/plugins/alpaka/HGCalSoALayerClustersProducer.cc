@@ -1,3 +1,4 @@
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -34,17 +35,19 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     // The number of layer clusters is on the device, and the host needs it to allocate them
     void acquire(const device::Event& iEvent, const device::EventSetup&) override {
       const auto recHitsClustering = iEvent.get(recHitsClusteringToken_).view();
+      nLayerClusters_ = cms::alpakatools::make_host_buffer<unsigned int>(iEvent.queue());
       alpaka::memcpy(iEvent.queue(),
-                     cms::alpakatools::make_host_view<unsigned int>(nLayerClusters_),
+                     *nLayerClusters_,
                      cms::alpakatools::make_device_view<const unsigned int>(
                          alpaka::getDev(iEvent.queue()), recHitsClustering.numberOfClustersScalar()));
     }
 
     void produce(device::Event& iEvent, const device::EventSetup&) override {
+      const unsigned int nLayerClusters = *nLayerClusters_->data();
       reco::CaloClusterDeviceCollection layerClusters(
-          iEvent.queue(), nLayerClusters_, nLayerClusters_, nLayerClusters_, nLayerClusters_);
+          iEvent.queue(), nLayerClusters, nLayerClusters, nLayerClusters, nLayerClusters);
       algo_.run(iEvent.queue(),
-                nLayerClusters_,
+                nLayerClusters,
                 thresholdW0_,
                 positionDeltaRho2_,
                 isScintillator_,
@@ -77,8 +80,9 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     const bool isScintillator_;
     const unsigned int nHitsTime_;
     const HGCalLayerClustersSoAAlgoWrapper algo_{};
-    // copied from the device in acquire, used in produce
-    unsigned int nLayerClusters_ = 0;
+    // The number of layer clusters, copied from the device in acquire and used in produce. Pinned, so that the copy
+    // does not block acquire.
+    std::optional<cms::alpakatools::host_buffer<unsigned int>> nLayerClusters_;
   };
 
 }  // namespace ALPAKA_ACCELERATOR_NAMESPACE

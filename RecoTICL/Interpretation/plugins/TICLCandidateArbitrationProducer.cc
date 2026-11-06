@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <map>
 #include <limits>
+#include <optional>
 #include <span>
 
 #include "FWCore/Framework/interface/stream/EDProducer.h"
@@ -35,6 +36,11 @@
 #include "DataFormats/ParticleFlowCandidate/interface/PFCandidate.h"
 #include "RecoParticleFlow/PFProducer/interface/PFMuonAlgo.h"
 #include "RecoTICL/Interpretation/interface/AssignmentMaps.h"
+#include "RecoTICL/Interpretation/interface/CandidateTracksters.h"
+#include "RecoTICL/Interpretation/interface/TrackImpact.h"
+#include "RecoTICL/Common/interface/TICLUtils.h"
+#include "RecoTICL/Common/interface/TrackstersPCA.h"
+#include "RecoLocalCalo/HGCalRecAlgos/interface/TICLGeomTools.h"
 #include "RecoTICL/Interpretation/interface/CandidateTime.h"
 #include "RecoTICL/Interpretation/interface/ModelFeatures.h"
 #include "RecoTICL/Interpretation/interface/MuonKinematics.h"
@@ -77,6 +83,19 @@ private:
   const edm::EDGetTokenT<std::vector<int>> trackMode_token_;
   const edm::EDGetTokenT<std::vector<int>> neutralIdx_token_;
   const edm::EDGetTokenT<std::vector<int>> neutralPdg_token_;
+  // The candidate of a track holds the claim trackster of the track.
+  const bool attachClaimTracksters_;
+  edm::EDGetTokenT<std::vector<int>> trackToClaimTrackster_token_;
+  // One trackster per candidate from the layer clusters of its tracksters (CandidateTracksters.h), put as the
+  // trackster product; each candidate then holds its trackster.
+  bool buildCandidateTracksters_ = false;
+  CandidateTrackstersParameters candidateTrackstersParameters_;
+  edm::EDGetTokenT<edm::ValueMap<std::pair<float, float>>> layerClustersTime_token_;
+  edm::ESGetToken<TICLGeomHost, CaloGeometryRecord> ticlGeomToken_;
+  edm::ESGetToken<TICLGeomLookupHost, CaloGeometryRecord> ticlGeomLookupToken_;
+  edm::ESGetToken<TICLGeomLayersHost, CaloGeometryRecord> ticlGeomLayersToken_;
+  ticlgeom::Tools rhtools_;
+  std::array<std::unique_ptr<GeomDet>, 2> frontDisks_;
   const edm::EDGetTokenT<std::vector<reco::Track>> tracks_token_;
   // Without the GSF tracks an electron keeps the track kinematics.
   const bool useGsfTracks_;
@@ -268,11 +287,11 @@ std::unique_ptr<TICLArbitrationModels> TICLCandidateArbitrationProducer::initial
   options.SetInterOpNumThreads(1);
   auto models = std::make_unique<TICLArbitrationModels>();
   models->neutralShare = std::make_unique<cms::Ort::ONNXRuntime>(
-      ps.getParameter<edm::FileInPath>("neutralShareModel").fullPath(), &options);
+      ps.getParameter<edm::FileInPath>("neutralShareModel").fullPath(), options);
   const auto &calibration = ps.getParameter<std::string>("hadronicTracksterCalibration");
   if (!calibration.empty())
     models->hadronicCalibration =
-        std::make_unique<cms::Ort::ONNXRuntime>(edm::FileInPath(calibration).fullPath(), &options);
+        std::make_unique<cms::Ort::ONNXRuntime>(edm::FileInPath(calibration).fullPath(), options);
   return models;
 }
 
@@ -283,6 +302,7 @@ TICLCandidateArbitrationProducer::TICLCandidateArbitrationProducer(const edm::Pa
       trackMode_token_(consumes<std::vector<int>>(interpretationTag(ps, "trackMode"))),
       neutralIdx_token_(consumes<std::vector<int>>(interpretationTag(ps, "neutralIdx"))),
       neutralPdg_token_(consumes<std::vector<int>>(interpretationTag(ps, "neutralPdg"))),
+      attachClaimTracksters_(ps.getParameter<bool>("attachClaimTracksters")),
       tracks_token_(consumes<std::vector<reco::Track>>(ps.getParameter<edm::InputTag>("tracks"))),
       useGsfTracks_(ps.getParameter<bool>("useGsfTracks")),
       useMTDTiming_(ps.getParameter<bool>("useMTDTiming")),
@@ -331,6 +351,30 @@ TICLCandidateArbitrationProducer::TICLCandidateArbitrationProducer(const edm::Pa
       hdc_token_(esConsumes<HGCalDDDConstants, IdealGeometryRecord, edm::Transition::BeginRun>(
           edm::ESInputTag("", "HGCalEESensitive"))),
       hgcons_(nullptr) {
+  if (attachClaimTracksters_)
+    trackToClaimTrackster_token_ = consumes<std::vector<int>>(interpretationTag(ps, "trackToClaimTrackster"));
+  const auto &candidateTracksters = ps.getParameter<edm::ParameterSet>("candidateTracksters");
+  const auto &assignment = candidateTracksters.getParameter<std::string>("assignment");
+  if (assignment != "none" && assignment != "nearest" && assignment != "energyShare")
+    throw cms::Exception("Configuration") << "candidateTracksters.assignment must be none, nearest or energyShare";
+  buildCandidateTracksters_ = assignment != "none";
+  if (buildCandidateTracksters_) {
+    candidateTrackstersParameters_ = {
+        .nearest = assignment == "nearest",
+        .radius0 = static_cast<float>(candidateTracksters.getParameter<double>("radius0")),
+        .radiusSlope = static_cast<float>(candidateTracksters.getParameter<double>("radiusSlope")),
+        .budgetScale = static_cast<float>(candidateTracksters.getParameter<double>("budgetScale")),
+        .deposit = {static_cast<float>(candidateTracksters.getParameter<double>("expectedDepositResponse")),
+                    static_cast<float>(candidateTracksters.getParameter<double>("expectedDepositLogSlope")),
+                    0.f,
+                    1.f}};
+    layerClustersTime_token_ = consumes<edm::ValueMap<std::pair<float, float>>>(
+        candidateTracksters.getParameter<edm::InputTag>("layerClustersTime"));
+    ticlGeomToken_ = esConsumes<TICLGeomHost, CaloGeometryRecord, edm::Transition::BeginRun>();
+    ticlGeomLookupToken_ = esConsumes<TICLGeomLookupHost, CaloGeometryRecord, edm::Transition::BeginRun>();
+    ticlGeomLayersToken_ = esConsumes<TICLGeomLayersHost, CaloGeometryRecord, edm::Transition::BeginRun>();
+    produces<std::vector<Trackster>>();
+  }
   if (useMTDTiming_) {
     inputTimingToken_ = consumes<MtdHostCollection>(ps.getParameter<edm::InputTag>("timingSoA"));
   }
@@ -365,6 +409,11 @@ void TICLCandidateArbitrationProducer::beginRun(edm::Run const &, edm::EventSetu
   bfield_ = es.getHandle(bfield_token_);
   propagator_ = es.getHandle(propagator_token_);
   trackingGeometry_ = es.getHandle(trackingGeometry_token_);
+  if (buildCandidateTracksters_) {
+    rhtools_.setGeometry(
+        es.getData(ticlGeomToken_), es.getData(ticlGeomLookupToken_), es.getData(ticlGeomLayersToken_));
+    frontDisks_ = utils::buildHGCalFirstDisks(*hgcons_);
+  }
 }
 
 TICLCandidateArbitrationProducer::CombinedEnergy TICLCandidateArbitrationProducer::combinedEnergy(
@@ -722,7 +771,65 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
                                *propagator_,
                                *trackingGeometry_,
                                *hgcons_);
+  // The muon rule runs once, on the tracksters of the arbitration, before the claim attachment and the candidate
+  // tracksters; pfTICL copies its decisions (muonsFromCandidates).
   auto muons = applyMuonKinematics(tracks_h, evt.getHandle(muons_token_), candidates);
+  if (attachClaimTracksters_) {
+    const auto &claimOfTrack = evt.get(trackToClaimTrackster_token_);
+    for (auto &cand : candidates) {
+      const auto track = cand.trackPtr();
+      if (track.isNull() || track.key() >= claimOfTrack.size() || claimOfTrack[track.key()] < 0)
+        continue;
+      // The candidate keeps the time of assignTimeToCandidates.
+      cand.appendTrackster(edm::Ptr<Trackster>(tracksters_h, claimOfTrack[track.key()]));
+    }
+  }
+  if (buildCandidateTracksters_) {
+    std::vector<std::optional<TrackImpact>> impacts(candidates.size());
+    auto impactOf = [&](unsigned int c) -> const TrackImpact & {
+      if (!impacts[c])
+        impacts[c] = propagateToHGCalFront(*candidates[c].trackPtr(), bfield_.product(), *propagator_, frontDisks_);
+      return *impacts[c];
+    };
+    auto const &layerClusters = evt.get(layerClustersToken_);
+    const auto fractions = candidateLayerClusterFractions(candidates,
+                                                          tracksters_h.id(),
+                                                          *tracksters_h,
+                                                          trackToTrackster,
+                                                          trackMode,
+                                                          layerClusters,
+                                                          impactOf,
+                                                          candidateTrackstersParameters_);
+    std::vector<int> candidateIndex;
+    auto candidateTracksters =
+        std::make_unique<std::vector<Trackster>>(tracksterOfFractions(fractions, candidateIndex));
+    assignPCAtoTracksters(*candidateTracksters,
+                          layerClusters,
+                          evt.get(layerClustersTime_token_),
+                          rhtools_.getPositionLayer(rhtools_.lastLayerEE()).z(),
+                          rhtools_,
+                          true);
+    // The PID, the regressed energy and the track indices of the source tracksters of each candidate.
+    for (unsigned int i = 0; i < candidateIndex.size(); ++i) {
+      std::vector<const Trackster *> sources;
+      for (auto t :
+           candidateSourceTracksters(candidates[candidateIndex[i]], tracksters_h.id(), trackToTrackster, trackMode))
+        sources.push_back(&(*tracksters_h)[t]);
+      copySourceProperties((*candidateTracksters)[i], sources);
+    }
+    std::vector<float> rawEnergies;
+    rawEnergies.reserve(candidateTracksters->size());
+    for (auto const &ts : *candidateTracksters)
+      rawEnergies.push_back(ts.raw_energy());
+    const auto candidateTracksters_h = evt.put(std::move(candidateTracksters));
+    // A candidate with a rebuilt trackster holds it alone; a candidate without layer clusters keeps its source
+    // tracksters.
+    for (unsigned int i = 0; i < candidateIndex.size(); ++i) {
+      auto &cand = candidates[candidateIndex[i]];
+      cand.setTracksters({edm::Ptr<Trackster>(candidateTracksters_h, i)});
+      cand.setRawEnergy(rawEnergies[i]);
+    }
+  }
 
   const auto candidates_h = evt.put(std::make_unique<std::vector<TICLCandidate>>(std::move(candidates)));
   auto muonMap = std::make_unique<edm::ValueMap<reco::MuonRef>>();
@@ -854,6 +961,24 @@ void TICLCandidateArbitrationProducer::fillDescriptions(edm::ConfigurationDescri
   desc.add<edm::InputTag>("interpretations", edm::InputTag("ticlTracksterInterpretations"))
       ->setComment("Final tracksters and assignment maps of TICLInterpretationProducer.");
   desc.add<edm::InputTag>("tracks", edm::InputTag("generalTracks"));
+  edm::ParameterSetDescription candidateTracksters;
+  candidateTracksters.add<std::string>("assignment", "nearest")
+      ->setComment("none, nearest (a shared layer cluster goes to one candidate) or energyShare.");
+  candidateTracksters.add<double>("radius0", 3.)->setComment("Track radius [cm] at the HGCAL front.");
+  candidateTracksters.add<double>("radiusSlope", 0.05)->setComment("Growth of the track radius per cm of depth.");
+  candidateTracksters.add<double>("budgetScale", 1.3)
+      ->setComment(
+          "A charged hadron takes shared layer clusters up to this times its expected raw deposit; 0: no limit.");
+  candidateTracksters.add<double>("expectedDepositResponse", 0.67)
+      ->setComment("Expected raw deposit (response + logSlope ln p) p of a charged hadron.");
+  candidateTracksters.add<double>("expectedDepositLogSlope", 0.04);
+  candidateTracksters.add<edm::InputTag>("layerClustersTime",
+                                         edm::InputTag("hgcalMergeLayerClusters", "timeLayerCluster"));
+  desc.add<edm::ParameterSetDescription>("candidateTracksters", candidateTracksters)
+      ->setComment(
+          "One trackster per candidate, after the energy, the time and the muon kinematics of the candidates.");
+  desc.add<bool>("attachClaimTracksters", true)
+      ->setComment("The candidate of a track holds the claim trackster of the track, after the energy and the time.");
   desc.add<bool>("useGsfTracks", true)->setComment("Give the electrons the direction and the charge of the GSF track.");
   desc.add<edm::InputTag>("gsf_tracks", edm::InputTag("electronGsfTracks"));
   desc.add<edm::InputTag>("timingSoA", edm::InputTag("mtdSoA"));
