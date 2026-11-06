@@ -6,7 +6,6 @@
 #include "DataFormats/SoATemplate/interface/SoABlocks.h"
 #include "DataFormats/SoATemplate/interface/SoALayout.h"
 #include "DataFormats/CaloRecHit/interface/CaloCluster.h"
-#include "DataFormats/CaloRecHit/interface/CaloID.h"
 #include "DataFormats/DetId/interface/DetId.h"
 #include <xtd/xtd.h>
 
@@ -24,8 +23,8 @@ namespace reco {
                       SOA_COLUMN(float, correctedEnergy),
                       SOA_COLUMN(float, correctedEnergyUncertainty))
 
+  // The CaloID is not stored: the host producers that build reco::CaloCluster set it from the detector they read
   GENERATE_SOA_LAYOUT(CaloClusterSoAIndexes,
-                      SOA_COLUMN(CaloID, caloID),
                       SOA_COLUMN(CaloCluster::AlgoID, algoID),
                       SOA_COLUMN(DetId, seedID),
                       SOA_COLUMN(uint32_t, flags))
