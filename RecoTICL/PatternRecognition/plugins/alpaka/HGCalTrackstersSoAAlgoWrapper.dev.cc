@@ -263,9 +263,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
               }
               alpaka::syncBlockThreads(acc);
 
-              // The spreads along the principal axes, with eigenvectors^T. They equal the square roots of the
-              // eigenvalues, but the eigenvalues much smaller than the largest one carry its rounding error, and this
-              // sum does not. ticl::assignPCAtoTracksters (CMSSW_20_1_0_pre4) projects with eigenvectors instead.
+              // The spreads along the principal axes, with eigenvectors^T: the small eigenvalues carry the rounding
+              // error of the largest one, and this sum does not.
               const Eigen::Map<const Eigen::Matrix3f> eigenvectors(s.eigenvectors);
               for (auto vertex : independent_group_elements(acc, first, last)) {
                 const uint32_t i = vertices.content()[vertex].values();
@@ -304,8 +303,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
             if (validPCA) {
               const Eigen::Map<const Eigen::Matrix3f> eigenvectors(s.eigenvectors);
               const float normalisation = 1.f - s.weight2;
-              // The spreads along x, y, z are the diagonal of the covariance matrix: each layer cluster weighted by its
-              // own weight, where ticl::assignPCAtoTracksters (CMSSW_20_1_0_pre4) uses the previous layer cluster's.
+              // The spreads along x, y, z are the diagonal of the covariance matrix, each layer cluster with its own
+              // weight.
               const float diagonal[3] = {s.covariance[0], s.covariance[2], s.covariance[5]};
               // in decreasing eigenvalue order
               for (int k = 0; k < 3; ++k) {
