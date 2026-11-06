@@ -305,6 +305,15 @@ public:
       isPU.reserve(table_size);
     }
 
+    // The trackster of a candidate Ptr: by index in the configured tracksters when the Ptr is in that product, else
+    // the pointed trackster of its own product (a trackster made for the candidate); nullptr when that product is
+    // not in the event.
+    auto tracksterOf = [&](const TProd& t) -> const ticl::Trackster* {
+      if (t.id() == tracksters_h.id())
+        return &tracksters.at(t.key());
+      return t.isAvailable() ? t.get() : nullptr;
+    };
+
     for (size_t i = 0; i < candidates.size(); ++i) {
       const auto& cand = candidates[i];
       const auto& children = cand.tracksters();
@@ -314,13 +323,10 @@ public:
       for (const auto& t : children) {
         tracksterKeys.push_back(t.key());
 
-        // get the trackster and its track indices
-        const auto& trackster = tracksters.at(t.key());
-        const auto& trackIdxs = trackster.trackIdxs();
-
-        if (!trackIdxs.empty()) {
+        const auto* trackster = tracksterOf(t);
+        if (trackster != nullptr && !trackster->trackIdxs().empty()) {
           // for now, only one track
-          const auto trackIdx = trackIdxs[0];
+          const auto trackIdx = trackster->trackIdxs()[0];
           const auto& track = tracks.at(trackIdx);
 
           int iSide = int(track.eta() > 0);
@@ -349,7 +355,7 @@ public:
             track_boundaryPz.push_back(kInvalidBoundaryValue);
           }
         } else {
-          // no tracks associated with this trackster
+          // no trackster in the event, or no track associated with this trackster
           track_boundaryX.push_back(kInvalidBoundaryValue);
           track_boundaryY.push_back(kInvalidBoundaryValue);
           track_boundaryZ.push_back(kInvalidBoundaryValue);
@@ -393,8 +399,9 @@ public:
       // seedID/seedIndex, then read its g4Track eventId/bunchCrossing
       if (hasPUInfo_) {
         int puFlag = -1;
-        if (caloParticles_h.isValid() && cpToSCMap_h.isValid() && !children.empty()) {
-          const auto& firstTrackster = tracksters[children[0].key()];
+        const auto* firstTracksterPtr = children.empty() ? nullptr : tracksterOf(children[0]);
+        if (caloParticles_h.isValid() && cpToSCMap_h.isValid() && firstTracksterPtr != nullptr) {
+          const auto& firstTrackster = *firstTracksterPtr;
           const auto& caloParticles = *caloParticles_h;
           const auto& cpToSCMap = *cpToSCMap_h;
 
@@ -443,7 +450,8 @@ public:
 
       auto outcoltable = std::make_unique<nanoaod::FlatTable>(coltablesize, coltable.name, false, false);
 
-      outcoltable->addColumn<uint32_t>("tracksterIndex", tracksterKeys, "Index of associated Trackster");
+      outcoltable->addColumn<uint32_t>(
+          "tracksterIndex", tracksterKeys, "Index of associated Trackster in the product the candidate points to");
       outcoltable->addColumn<float>("track_boundaryX", track_boundaryX, "Track X position at HGCal boundary");
       outcoltable->addColumn<float>("track_boundaryY", track_boundaryY, "Track Y position at HGCal boundary");
       outcoltable->addColumn<float>("track_boundaryZ", track_boundaryZ, "Track Z position at HGCal boundary");
