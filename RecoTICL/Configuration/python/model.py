@@ -63,6 +63,9 @@ class IterationSpec:
     # recovery pass is intermediate (its tracksters are captured by the links),
     # so it is not kept in the Event Content (cf. ticlIterLabelsPSet.labels).
     persist: bool = True
+    # CLUEstering only: the arguments of makeTracksterInference for the PID of the device tracksters before their
+    # conversion; None: no PID on the device.
+    device_pid: Optional[Dict] = None
 
 
 @dataclass
@@ -73,9 +76,11 @@ class LinksSpec:
 
 @dataclass
 class SuperclusterSpec:
-    kind: str                         # 'DNN' or 'Mustache'
+    kind: str                         # 'DNN', 'DNNHeterogeneous' or 'Mustache'
     source: str                       # iteration name (or module label) to supercluster
     overrides: Dict = field(default_factory=dict)
+    # DNNHeterogeneous: the overrides of the device module
+    producer: Dict = field(default_factory=dict)
 
 
 # --------------------------------------------------------------------------- #
@@ -178,6 +183,13 @@ class TICLConfig:
         self._cur().trackster_extra.update(overrides)
         return self
 
+    def device_pid(self, model="ShowerShape", **overrides):
+        """The PID of the tracksters of a CLUEstering iteration on the device, before their conversion: ``model`` is
+        CNN, DNN, PFN or ShowerShape, and the overrides are arguments of makeTracksterInference, e.g. ``pidModel`` or
+        ``doRegression``. The conversion and the superclustering on the device read the identified tracksters."""
+        self._cur().device_pid = dict(model=model, **overrides)
+        return self
+
     def masks_from(self, prev_name):
         self._cur().masks_from = prev_name
         return self
@@ -208,6 +220,14 @@ class TICLConfig:
 
     def superclustering_dnn(self, source, **overrides):
         self.superclustering_spec = SuperclusterSpec("DNN", source, overrides)
+        self._current = None
+        return self
+
+    def superclustering_dnn_heterogeneous(self, source, producer=None, **overrides):
+        """The superclustering DNN on the device (superclusteringDNNHeterogeneous_cff): the pairs and their DNN scores
+        (``producer`` overrides) and their association on the host (the linking module, ``overrides``). ``source`` must
+        be a CLUEstering iteration: the pairs index its device tracksters."""
+        self.superclustering_spec = SuperclusterSpec("DNNHeterogeneous", source, overrides, dict(producer or {}))
         self._current = None
         return self
 

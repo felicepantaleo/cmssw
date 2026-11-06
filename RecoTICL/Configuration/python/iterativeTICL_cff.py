@@ -232,8 +232,10 @@ ticlTracksterInterpretations = _ticlV6Modules["ticlTracksterInterpretations"]
 # layer clusters that its tracksters do not use.
 ticlCLUEstering = _ticlV6Modules["ticlCLUEstering"]
 ticlSoATracksters = _ticlV6Modules["ticlSoATracksters"]
+# The shower-shape PID of the device tracksters, on the device; the conversion keeps its probabilities.
+ticlSoATrackstersPID = _ticlV6Modules["ticlSoATrackstersPID"]
 ticlTrackstersCLUEstering = _ticlV6Modules["ticlTrackstersCLUEstering"]
-ticlCLUEsteringStepTask = cms.Task(ticlCLUEstering, ticlSoATracksters, ticlTrackstersCLUEstering)
+ticlCLUEsteringStepTask = cms.Task(ticlCLUEstering, ticlSoATracksters, ticlSoATrackstersPID, ticlTrackstersCLUEstering)
 ticl_v6.toReplaceWith(ticlIterationsTask, cms.Task(ticlCLUEsteringStepTask, ticlRecoveryStepTask))
 # Only the inputs and the Recovery threshold change, so that the other modifiers of these modules still apply.
 ticl_v6.toModify(filteredLayerClustersRecovery,
@@ -245,7 +247,12 @@ ticl_v6.toModify(ticlTrackstersRecovery,
     ticlTracksterLinksSuperclusteringMustache,
     tracksters_collections=_ticlV6Modules["ticlTracksterLinksSuperclusteringDNN"].tracksters_collections)
 ticl_v6.toReplaceWith(ticlTracksterLinks, _ticlV6Modules["ticlTracksterLinks"])
+# TICLv6: the superclustering DNN runs on the device (superclusteringDNNHeterogeneous_cff): the pairs of the device
+# tracksters and their DNN scores, then the linking module associates them on the host.
+ticlSuperclusteringDNN = _ticlV6Modules["ticlSuperclusteringDNN"]
 ticl_v6.toReplaceWith(ticlTracksterLinksSuperclusteringDNN, _ticlV6Modules["ticlTracksterLinksSuperclusteringDNN"])
+(ticl_v6 & ~ticl_superclustering_mustache_ticl).toModify(
+    ticlSuperclusteringTask, lambda t: t.add(ticlSuperclusteringDNN))
 ticl_v6.toReplaceWith(ticlCandidate, _ticlV6Modules["ticlCandidate"])
 ticl_v6.toModify(ticlCandidateTask, lambda t: t.add(ticlTracksterInterpretations))
 # TICLv6 candidates carry the muon kinematics; pfTICL copies their muon decisions.

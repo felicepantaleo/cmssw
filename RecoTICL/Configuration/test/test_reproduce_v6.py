@@ -14,6 +14,7 @@ from RecoTICL.Configuration import presets
 # module -> subtrees that differ as a whole: a new plugin type replaces the whole parameter set.
 EXPECTED_WHOLESALE = {
     "ticlTracksterLinks": ("linkingPSet",),
+    "ticlTracksterLinksSuperclusteringDNN": ("linkingPSet",),
     "pfTICL": ("pfMuonAlgoParameters",),
 }
 
@@ -33,10 +34,12 @@ EXPECTED_DELTA = {
                                    ["ticlTrackstersCLUEstering", "ticlTrackstersRecovery"]),
         "linkingPSet.type": ("Skeletons", "Cornetto"),
     },
+    # The superclustering DNN runs on the device: the v6 linking plugin associates the pairs and the scores of
+    # ticlSuperclusteringDNN. The seed PID cut is in that module.
     "ticlTracksterLinksSuperclusteringDNN": {
         "tracksters_collections": (["ticlTrackstersCLUE3DHigh"], ["ticlTrackstersCLUEstering"]),
-        # absent in v5, so v5 carries the plugin defaults (0.8, 0, photon and electron)
-        "linkingPSet.PIDThreshold": (None, 0.1),
+        "linkingPSet.type": ("SuperClusteringDNN", "SuperClusteringDNNHeterogeneous"),
+        # absent in v5, so v5 carries the plugin defaults (0, photon and electron)
         "linkingPSet.emissionPIDThreshold": (None, 0.3),
         "linkingPSet.tracksterPIDCategoriesToFilter": (None, [0, 1, 3]),
     },
@@ -53,6 +56,8 @@ EXPECTED_ADDED = {
     "ticlCLUEstering": "HGCalCLUEsteringTrackstersProducer@alpaka",
     "ticlSoATracksters": "HGCalSoATrackstersProducer@alpaka",
     "ticlTrackstersCLUEstering": "HGCalTrackstersFromSoAProducer",
+    "ticlSoATrackstersPID": "TracksterShowerShapeInferenceProducer@alpaka",
+    "ticlSuperclusteringDNN": "SuperclusteringDNNProducer@alpaka",
 }
 EXPECTED_REMOVED = {"filteredLayerClustersCLUE3DHigh", "ticlTrackstersCLUE3DHigh"}
 # label -> (v5 producer, v6 producer)
@@ -67,10 +72,11 @@ EXPECTED_FROM_DEFAULT = {
     "ticlCandidate": ("photonMinScore", "photonScoreMinPt", "eGammaScore", "eGammaTracksters"),
     "ticlCLUEstering": (),
     "ticlSoATracksters": (),
-    # The shower-shape PID and the PID cut of CLUE3DHigh in v6, on the host.
-    "ticlTrackstersCLUEstering": ("doPidCut", "cutHadProb", "inferenceAlgo",
-                                  "pluginInferenceAlgoTracksterInferenceByCNN.",
-                                  "pluginInferenceAlgoTracksterInferenceByShowerShape."),
+    # The device tracksters with the shower-shape PID of the device, and the PID cut of CLUE3DHigh.
+    "ticlTrackstersCLUEstering": ("src", "doPidCut", "cutHadProb"),
+    "ticlSoATrackstersPID": (),
+    # the device tracksters with their PID, and the v6 seed PID cut (PID >= 0.1 on photon, electron and pi0)
+    "ticlSuperclusteringDNN": ("tracksters", "PIDThreshold", "tracksterPIDCategoriesToFilter"),
 }
 CFI = {
     "TICLInterpretationProducer": ("RecoTICL.Interpretation.ticlInterpretationProducer_cfi",
@@ -83,6 +89,10 @@ CFI = {
                                           "hgCalSoATrackstersProducer"),
     "HGCalTrackstersFromSoAProducer": ("RecoTICL.PatternRecognition.hgCalTrackstersFromSoAProducer_cfi",
                                        "hgCalTrackstersFromSoAProducer"),
+    "SuperclusteringDNNProducer@alpaka": ("RecoTICL.Superclustering.superclusteringDNNHeterogeneous_cff",
+                                          "ticlSuperclusteringDNN"),
+    "TracksterShowerShapeInferenceProducer@alpaka": ("RecoTICL.Inference.tracksterShowerShapePID_cff",
+                                                     "ticlSoATrackstersPID"),
 }
 
 

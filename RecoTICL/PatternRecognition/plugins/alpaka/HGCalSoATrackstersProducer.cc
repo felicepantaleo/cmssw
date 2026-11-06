@@ -26,8 +26,8 @@
 
 namespace ALPAKA_ACCELERATOR_NAMESPACE {
 
-  // Builds the tracksters (their layer clusters, energy, barycenter, time and principal components) from the layer
-  // clusters and their clustering (the trackster of each layer cluster)
+  // Builds the tracksters (their layer clusters, energy, barycenter, time, principal components and energy profile)
+  // from the layer clusters and their clustering (the trackster of each layer cluster)
   class HGCalSoATrackstersProducer : public stream::SynchronizingEDProducer<> {
   public:
     HGCalSoATrackstersProducer(const edm::ParameterSet& config)
@@ -63,9 +63,9 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
           iSetup.getData(ticlGeomToken_), iSetup.getData(ticlGeomLookupToken_), iSetup.getData(ticlGeomLayersToken_));
       const float zLimitEm = geometry.getPositionLayer(geometry.lastLayerEE()).z();
 
-      const unsigned int nTracksters = (*counts_)[0];
-      ticl::TracksterDeviceCollection tracksters(
-          iEvent.queue(), nTracksters, nTracksters, nTracksters, nTracksters, nTracksters, nTracksters, (*counts_)[1]);
+      // one row per trackster in every block, and one per layer cluster of the tracksters in the vertices
+      const unsigned int n = (*counts_)[0];
+      ticl::TracksterDeviceCollection tracksters(iEvent.queue(), n, n, n, n, n, n, n, (*counts_)[1]);
       algo_.run(iEvent.queue(),
                 zLimitEm,
                 iEvent.get(layerClustersToken_).const_view(),

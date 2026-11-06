@@ -12,7 +12,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
   public:
     // Fills the tracksters from the clustering of the layer clusters: the layer clusters of each trackster, and its
     // energy, barycenter, time and principal components, as ticl::assignPCAtoTracksters does with energy weighting,
-    // the PCA cleaning and the local time, except for the spreads. The layer clusters with |z| up to
+    // the PCA cleaning and the local time, except for the spreads, and its energy profile around the principal axis,
+    // as ticl::layerClusterProfile. The layer clusters with |z| up to
     // zLimitEm count to the electromagnetic energy. The sums over the layer clusters are atomic, so on a GPU their
     // order, and the results at the rounding level, vary from run to run.
     void run(Queue& queue,

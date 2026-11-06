@@ -24,6 +24,8 @@ README).  ``test/test_catalog_schema.py`` locks this registry against the live
 from dataclasses import dataclass, field
 from typing import Tuple
 
+from RecoTICL.Configuration.tracksterInference_cff import LAYER_CLUSTER_MODELS
+
 
 # --------------------------------------------------------------------------- #
 # Product / consumption descriptors
@@ -95,6 +97,8 @@ T_MUONREFS = "edm::ValueMap<reco::MuonRef>"
 T_CALOCLUSTERS_SOA = "reco::CaloClusterHostCollection"
 T_LC_CLUSTERING_SOA = "HGCalSoALayerClustersExtraHostCollection"
 T_TRACKSTERS_SOA = "ticl::TracksterHostCollection"
+T_SC_PAIRS_SOA = "ticl::SuperclusteringDNNPairsHost"
+T_SC_SCORES_SOA = "ticl::SuperclusteringDNNPairScoresHost"
 
 
 # --------------------------------------------------------------------------- #
@@ -311,6 +315,41 @@ _SPECS = [
         ),
         backends=("cpu", "gpu"),
     ),
+    # The heterogeneous superclustering DNN: the (seed, candidate) pairs of the device tracksters and the DNN score of
+    # each pair. Its default is the module of superclusteringDNNHeterogeneous_cff, which also defines the
+    # TracksterLinksProducer that associates the pairs.
+    ModuleSpec(
+        key="SuperclusteringDNNProducer@alpaka",
+        cfi_module="RecoTICL.Superclustering.superclusteringDNNHeterogeneous_cff",
+        cfi_symbol="ticlSuperclusteringDNN",
+        produces=(
+            Product(T_SC_PAIRS_SOA),
+            Product(T_SC_SCORES_SOA, "fixed:scores"),
+        ),
+        consumes=(
+            Consumed("tracksters", T_TRACKSTERS_SOA),
+        ),
+        backends=("cpu", "gpu"),
+    ),
+    # The shower-shape PID of the device tracksters: a copy of the tracksters with the probabilities of the model. Its
+    # default is the module of tracksterShowerShapePID_cff.
+    ModuleSpec(
+        key="TracksterShowerShapeInferenceProducer@alpaka",
+        cfi_module="RecoTICL.Inference.tracksterShowerShapePID_cff",
+        cfi_symbol="ticlSoATrackstersPID",
+        produces=(Product(T_TRACKSTERS_SOA),),
+        consumes=(Consumed("tracksters", T_TRACKSTERS_SOA),),
+        backends=("cpu", "gpu"),
+    ),
+    # The other PID models of the device tracksters, which also read the merged layer clusters.
+    *[ModuleSpec(
+        key="Trackster%sInferenceProducer@alpaka" % model,
+        cfi_module="RecoTICL.Inference.trackster%sInferenceProducer_cfi" % model,
+        cfi_symbol="trackster%sInferenceProducer" % model,
+        produces=(Product(T_TRACKSTERS_SOA),),
+        consumes=(Consumed("tracksters", T_TRACKSTERS_SOA), Consumed("layerClusters", T_CALOCLUSTERS_SOA)),
+        backends=("cpu", "gpu"),
+    ) for model in LAYER_CLUSTER_MODELS],
     ModuleSpec(
         key="HGCalTrackstersFromSoAProducer",
         cfi_module="RecoTICL.PatternRecognition.hgCalTrackstersFromSoAProducer_cfi",
@@ -341,6 +380,11 @@ GPU_CAPABLE = frozenset([
     "HGCalSoAMergeLayerClustersProducer",
     "HGCalCLUEsteringTrackstersProducer",
     "HGCalSoATrackstersProducer",
+    "SuperclusteringDNNProducer",
+    "TracksterShowerShapeInferenceProducer",
+    "TracksterCNNInferenceProducer",
+    "TracksterDNNInferenceProducer",
+    "TracksterPFNInferenceProducer",
 ])
 
 
@@ -361,7 +405,8 @@ FILTER_TYPES = frozenset(
 )
 PATTERN_TYPES = frozenset(["CLUE3D", "CA", "FastJet", "Recovery", "CLUEstering"])
 LINKING_TYPES = frozenset(
-    ["Skeletons", "Cornetto", "SuperClusteringDNN", "SuperClusteringMustache", "FastJet", "Recovery"]
+    ["Skeletons", "Cornetto", "SuperClusteringDNN", "SuperClusteringDNNHeterogeneous", "SuperClusteringMustache",
+     "FastJet", "Recovery"]
 )
 INFERENCE_TYPES = frozenset(
     ["TracksterInferenceByCNN", "TracksterInferenceByDNN", "TracksterInferenceByPFN"]
