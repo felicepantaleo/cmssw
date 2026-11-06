@@ -125,6 +125,19 @@ def validate_assembled(assembled):
                     "(alpaka) implementation; available backends: %s"
                     % (it.name, lbl, mod.type_(), ", ".join(spec.backends)))
 
+    # --- device modules: one backend for a device product and its consumers ---- #
+    from RecoTICL.Configuration.backend import iteration_backend, device_links_backend
+    for it in cfg.iterations:
+        if it.on_device and it.masks_from in cfg._by_name and it.backend == GPU and \
+                iteration_backend(cfg, it) != GPU:
+            errors.append("iteration %r on the device requests GPU, but it follows the backend of %r, which is %s"
+                          % (it.name, it.masks_from, iteration_backend(cfg, it)))
+    if cfg.links_spec is not None and cfg.links_spec.on_device:
+        try:
+            device_links_backend(cfg)
+        except PyTICLError as e:
+            errors.append(str(e))
+
     if errors:
         raise PyTICLError(
             "pyTICL plumbing validation failed (%d problem(s)):\n  - %s"
