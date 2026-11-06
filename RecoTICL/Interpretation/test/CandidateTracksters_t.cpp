@@ -16,6 +16,7 @@
 
 namespace {
   constexpr int kChargedHadron = static_cast<int>(ticl::TrackMode::kChargedHadron);
+  constexpr int kNotSelected = static_cast<int>(ticl::TrackMode::kNotSelected);
   constexpr float kFrontZ = 320.f;
 
   // The test Ptrs have no product: the fractions see them in the collection edm::ProductID().
@@ -117,4 +118,59 @@ TEST_CASE("a neutral candidate whose layer clusters all go to a track keeps its 
   requireInvariant(s, candidateIndex, built);
   REQUIRE(s.candidates[1].tracksters().size() == 1);
   REQUIRE(s.candidates[1].tracksters()[0].key() == 0);
+}
+
+TEST_CASE("candidateSourceTracksters lists the held tracksters and the jet trackster of a jet member",
+          "[CandidateTracksters]") {
+  Scene s;
+  s.tracksters = {trackster({}, 1.f, 1.f), trackster({}, 1.f, 1.f), trackster({}, 1.f, 1.f)};
+  s.tracks = {track(1.f, 0.f, 30.f)};
+  s.trackToTrackster = {2};
+  s.trackMode = {static_cast<int>(ticl::TrackMode::kJetMember)};
+  s.addCharged(0, 1, impactAt(10.f, 0.f));
+  s.candidates[0].appendTrackster(edm::Ptr<ticl::Trackster>(&s.tracksters[1], 1));
+  REQUIRE(ticl::candidateSourceTracksters(s.candidates[0], kTracksterId, s.trackToTrackster, s.trackMode) ==
+          std::vector<unsigned int>{1, 2});
+  s.trackMode = {kNotSelected};
+  REQUIRE(ticl::candidateSourceTracksters(s.candidates[0], kTracksterId, s.trackToTrackster, s.trackMode) ==
+          std::vector<unsigned int>{1});
+}
+
+TEST_CASE("copySourceProperties scales the regressed energy and copies the PID and the track indices",
+          "[CandidateTracksters]") {
+  ticl::Trackster source = trackster({0, 1}, 10.f, 12.f);
+  std::array<float, 8> p{0.1f, 0.f, 0.f, 0.f, 0.7f, 0.2f, 0.f, 0.f};
+  source.setProbabilities(p.data());
+  source.addTrackIdx(7);
+  source.addGSFTrackIdx(3);
+
+  SECTION("one source") {
+    ticl::Trackster merged = trackster({0}, 8.f, 0.f);
+    ticl::copySourceProperties(merged, {&source});
+    REQUIRE(merged.regressed_energy() == Catch::Approx(9.6f));
+    for (unsigned int i = 0; i < p.size(); ++i)
+      REQUIRE(merged.id_probabilities(i) == Catch::Approx(p[i]));
+    REQUIRE(merged.trackIdxs() == std::vector<int>{7});
+    REQUIRE(merged.gsftrackIdxs() == std::vector<int>{3});
+  }
+  SECTION("two sources") {
+    ticl::Trackster other = trackster({2}, 30.f, 33.f);
+    std::array<float, 8> q{0.5f, 0.f, 0.f, 0.f, 0.3f, 0.2f, 0.f, 0.f};
+    other.setProbabilities(q.data());
+    other.addTrackIdx(7);
+    other.addTrackIdx(9);
+    ticl::Trackster merged = trackster({0, 2}, 20.f, 0.f);
+    ticl::copySourceProperties(merged, {&source, &other});
+    // (12 + 33) x 20 / 40
+    REQUIRE(merged.regressed_energy() == Catch::Approx(22.5f));
+    REQUIRE(merged.id_probabilities(0) == Catch::Approx(0.4f));
+    REQUIRE(merged.id_probabilities(4) == Catch::Approx(0.4f));
+    REQUIRE(merged.trackIdxs() == std::vector<int>{7, 9});
+  }
+  SECTION("no source with raw energy") {
+    ticl::Trackster merged = trackster({0}, 8.f, 0.f);
+    ticl::Trackster empty;
+    ticl::copySourceProperties(merged, {&empty});
+    REQUIRE(merged.regressed_energy() == 0.f);
+  }
 }
