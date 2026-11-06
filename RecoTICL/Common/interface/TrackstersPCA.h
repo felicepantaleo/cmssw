@@ -30,6 +30,12 @@ namespace ticl {
                              bool isBarrel = false,
                              int minLayer = 10,
                              int maxLayer = 10);
+  // The principal components of a trackster with one or two layer clusters, which give no principal axes: a geometric
+  // frame (e0 radial, e1 azimuthal, e2 = e0 x e1) with the size of the seed cell of its first layer cluster as the
+  // spread. The trackster must have its barycenter. A barycenter at the origin leaves the components unchanged.
+  void assignGeometricFrame(Trackster &trackster,
+                            const std::vector<reco::CaloCluster> &layerClusters,
+                            const ticlgeom::Tools &rhtools);
   std::pair<float, float> computeLocalTracksterTime(const Trackster &trackster,
                                                     const std::vector<reco::CaloCluster> &layerClusters,
                                                     const edm::ValueMap<std::pair<float, float>> &layerClustersTime,
