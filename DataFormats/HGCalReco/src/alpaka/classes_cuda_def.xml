@@ -18,4 +18,7 @@
   <class name="alpaka_cuda_async::ticl::TracksterDeviceCollection" persistent="false"/>
   <class name="edm::DeviceProduct<alpaka_cuda_async::ticl::TracksterDeviceCollection>" persistent="false"/>
   <class name="edm::Wrapper<edm::DeviceProduct<alpaka_cuda_async::ticl::TracksterDeviceCollection>>" persistent="false"/>
+  <class name="alpaka_cuda_async::ticl::LayerClusterMaskDeviceCollection" persistent="false"/>
+  <class name="edm::DeviceProduct<alpaka_cuda_async::ticl::LayerClusterMaskDeviceCollection>" persistent="false"/>
+  <class name="edm::Wrapper<edm::DeviceProduct<alpaka_cuda_async::ticl::LayerClusterMaskDeviceCollection>>" persistent="false"/>
 </lcgdict>
