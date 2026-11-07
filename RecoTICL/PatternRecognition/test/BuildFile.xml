@@ -9,3 +9,14 @@
   <use name="HeterogeneousCore/AlpakaInterface"/>
   <flags ALPAKA_BACKENDS="1"/>
 </bin>
+<bin name="testRecoveryTracksters" file="alpaka/testRecoveryTracksters.dev.cc">
+  <use name="alpaka"/>
+  <use name="catch2"/>
+  <use name="eigen"/>
+  <use name="DataFormats/CaloRecHit"/>
+  <use name="DataFormats/DetId"/>
+  <use name="DataFormats/HGCalReco"/>
+  <use name="DataFormats/Portable"/>
+  <use name="HeterogeneousCore/AlpakaInterface"/>
+  <flags ALPAKA_BACKENDS="1"/>
+</bin>
