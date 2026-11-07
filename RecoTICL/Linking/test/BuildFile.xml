@@ -12,3 +12,16 @@
   <use name="DataFormats/HGCalReco"/>
   <use name="catch2"/>
 </bin>
+<bin name="testCornettoAlgo" file="alpaka/testCornettoAlgo.dev.cc">
+  <use name="alpaka"/>
+  <use name="catch2"/>
+  <use name="eigen"/>
+  <use name="DataFormats/CaloRecHit"/>
+  <use name="DataFormats/DetId"/>
+  <use name="DataFormats/HGCalReco"/>
+  <use name="DataFormats/Math"/>
+  <use name="DataFormats/Portable"/>
+  <use name="HeterogeneousCore/AlpakaInterface"/>
+  <use name="RecoTICL/Linking"/>
+  <flags ALPAKA_BACKENDS="1"/>
+</bin>
