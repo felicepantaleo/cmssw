@@ -65,7 +65,9 @@ EXPECTED_FROM_DEFAULT = {
                                      "pluginInferenceAlgoTracksterInferenceByShowerShape."),
     # The photon candidate type from the e/gamma supercluster score.
     "ticlCandidate": ("photonMinScore", "photonScoreMinPt", "eGammaScore", "eGammaTracksters"),
-    "ticlCLUEstering": (),
+    # The CLUEstering parameters of the tune point p2.
+    "ticlCLUEstering": ("deltac", "rhoc", "outlierDistance", "seedingDistance", "layerScale", "rhocEtaExponent",
+                        "rhocPivotRadius"),
     "ticlSoATracksters": (),
     # The shower-shape PID and the PID cut of CLUE3DHigh in v6, on the host.
     "ticlTrackstersCLUEstering": ("doPidCut", "cutHadProb", "inferenceAlgo",

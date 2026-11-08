@@ -93,6 +93,15 @@ hgcalLayerClustersHSci = hgCalLayerClustersFromSoAProducer.clone(
     hgcalRecHitsLayerClustersSoA = 'hgcalCLUEsteringHSci',
     detector = 'BH')
 
+# TICLv6: the layer clustering parameters of the tune point p2
+from Configuration.ProcessModifiers.ticl_v6_cff import ticl_v6
+ticl_v6.toModify(hgcalCLUEsteringEE, deltac = 1.3842619336199442, kappa = 7.70371499020564,
+                 outlierDeltaFactor = 1.193126585361772)
+ticl_v6.toModify(hgcalCLUEsteringHSi, deltac = 1.2857984208454247, kappa = 5.487172898811695,
+                 outlierDeltaFactor = 2.3419098337644857)
+ticl_v6.toModify(hgcalCLUEsteringHSci, deltac = 0.03388934280881225, kappa = 9.710221064795272,
+                 outlierDeltaFactor = 2.5685114022807243)
+
 # ---- HFNose (silicon, only under the phase2_hfnose modifier) ----
 hgcalSoARecHitsHFNose = hgCalSoARecHitsProducer.clone(
     detector = 'HFNose',
