@@ -1010,7 +1010,7 @@ void TICLCandidateArbitrationProducer::fillDescriptions(edm::ConfigurationDescri
           "A charged hadron or recovery winner on an EM trackster is an electron only above this trackster energy over "
           "track momentum, else a charged pion. 0 disables the test.");
   desc.add<edm::FileInPath>("neutralShareModel",
-                            edm::FileInPath("RecoTICL/Interpretation/data/neutralEnergy/neutralShare_mlp_m6d.onnx"))
+                            edm::FileInPath("RecoTICL/Interpretation/data/neutralEnergy/neutralShare_mlp_v2.onnx"))
       ->setComment("ONNX model of the share of a neutral trackster energy that comes from the particle it represents.");
   desc.add<float>("neutralMinEnergy", 1.f)
       ->setComment("Neutral candidates below this corrected energy are not produced.");
