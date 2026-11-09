@@ -133,6 +133,10 @@ _hfnose_RawToDigiTask.add(hfnoseDigis)
 from Configuration.Eras.Modifier_phase2_hfnose_cff import phase2_hfnose
 phase2_hfnose.toReplaceWith(RawToDigiTask,_hfnose_RawToDigiTask)
 
+RawToDigiTask_hgcalOnly = cms.Task(hgcalDigis)
+phase2_hfnose.toReplaceWith(RawToDigiTask_hgcalOnly, cms.Task(hgcalDigis, hfnoseDigis))
+RawToDigi_hgcalOnly = cms.Sequence(RawToDigiTask_hgcalOnly)
+
 # No preshower for Phase 2 ECAL
 from Configuration.Eras.Modifier_phase2_ecal_devel_cff import phase2_ecal_devel
 phase2_ecal_devel.toReplaceWith(RawToDigiTask, RawToDigiTask.copyAndExclude([ecalPreshowerDigis]))
