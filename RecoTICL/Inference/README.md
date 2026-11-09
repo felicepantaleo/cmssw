@@ -48,3 +48,4 @@ Model files, relative to the CMSSW search path (only the enabled models are load
 
 ## Validation
 
+`test/alpaka/testTracksterInference.dev.cc` tests the selection, inputs and outputs of each model on hand-made tracksters.
