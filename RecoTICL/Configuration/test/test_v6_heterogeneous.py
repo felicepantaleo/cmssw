@@ -22,14 +22,17 @@ EXPECTED_ADDED = {
     "ticlLayerClusterMaskCLUEsteringSoA": "LayerClusterMaskSoAProducer@alpaka",
     "filteredLayerClustersRecoverySoA": "FilteredLayerClustersSoAProducer@alpaka",
     "ticlTrackstersRecoverySoA": "HGCalRecoveryTrackstersSoAProducer@alpaka",
-    "ticlTrackstersCLUEsteringPidSoA": "TracksterPidSoAProducer@alpaka",
+    "ticlSoATrackstersPID": "TracksterShowerShapeInferenceProducer@alpaka",
+    "ticlSuperclusteringDNN": "SuperclusteringDNNProducer@alpaka",
     "ticlTracksterLinksInputRefs": "TracksterCollectionRefsProducer@alpaka",
     "ticlTracksterLinksSoA": "TracksterLinksSoAProducer@alpaka",
 }
 EXPECTED_REMOVED = {"ticlSeedingGlobal", "filteredLayerClustersRecovery"}
 # label -> (host producer, producer with the device chain)
 EXPECTED_REPLACED = {"ticlTrackstersRecovery": ("TrackstersProducer", "HGCalTrackstersFromSoAProducer"),
-                     "ticlTracksterLinks": ("TracksterLinksProducer", "TracksterLinksFromSoAProducer")}
+                     "ticlTracksterLinks": ("TracksterLinksProducer", "TracksterLinksFromSoAProducer"),
+                     "ticlTrackstersCLUEstering": ("HGCalTrackstersFromSoAProducer", "HGCalTrackstersFromSoAProducer"),
+                     "ticlTracksterLinksSuperclusteringDNN": ("TracksterLinksProducer", "TracksterLinksProducer")}
 # the modules of the modifier that the test compares with the preset
 LABELS = tuple(EXPECTED_ADDED) + tuple(EXPECTED_REPLACED)
 
@@ -145,12 +148,12 @@ def main():
         got = getattr(d.ticlTracksterLinksSoA, name, None)
         if got is None or got.value() != want:
             failures.append("ticlTracksterLinksSoA.%s is %r, the host linking has %r" % (name, got, want))
-    # the device linking reads the two collections in the order of the host linking, with the PID of CLUEstering
+    # the device linking reads the two collections in the order of the host linking, with the PID on the device tracksters
     def labels(tags):
         return [cms.InputTag(t).getModuleLabel() if isinstance(t, str) else t.getModuleLabel() for t in tags]
-    if labels(d.ticlTracksterLinksSoA.tracksters) != ["ticlSoATracksters", "ticlTrackstersRecoverySoA"]:
+    if labels(d.ticlTracksterLinksSoA.tracksters) != ["ticlSoATrackstersPID", "ticlTrackstersRecoverySoA"]:
         failures.append("ticlTracksterLinksSoA.tracksters is %s" % d.ticlTracksterLinksSoA.tracksters)
-    if labels(d.ticlTracksterLinksSoA.pid) != ["ticlTrackstersCLUEsteringPidSoA", ""]:
+    if labels(d.ticlTracksterLinksSoA.pid) != ["", ""]:
         failures.append("ticlTracksterLinksSoA.pid is %s" % d.ticlTracksterLinksSoA.pid)
     # the Recovery on the device has the filter and the energy threshold of the host Recovery
     if d.filteredLayerClustersRecoverySoA.algo_number.value() != h.filteredLayerClustersRecovery.algo_number.value():
