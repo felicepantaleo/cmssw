@@ -607,7 +607,9 @@ def assemble(cfg):
     links_children = []
     if cfg.links_spec and cfg.links_spec.on_device:
         # The linking on the device reads the device tracksters of the collections, with the PID of the host
-        # tracksters of the collections that have one, and the result is converted under the usual label.
+        # tracksters of the collections that have one, and the result is converted under the usual label. A
+        # CLUEstering iteration with its PID on the device has no PID on the host: the linking reads the PID of its
+        # device tracksters (an empty PID tag).
         soa_labels, pid_tags = [], []
         if len(cfg.links_spec.collections) > MAX_DEVICE_LINKED_COLLECTIONS:
             raise PyTICLError("the linking on the device links at most %d collections, got %d"
