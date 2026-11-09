@@ -26,6 +26,7 @@ from Validation.HGCalValidation.HLT_TICLIterLabels_cff import hltTiclIterLabelsP
 tracksterProducerTypes = (
     "TrackstersProducer",
     "TracksterLinksProducer",
+    "TracksterLinksFromSoAProducer",
     "MergedTrackstersProducer",
     "TICLCandidateProducer",
     "TICLInterpretationProducer",
