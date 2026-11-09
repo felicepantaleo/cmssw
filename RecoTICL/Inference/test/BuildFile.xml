@@ -1,0 +1,16 @@
+<bin name="testTracksterInference" file="alpaka/testTracksterInference.dev.cc">
+  <use name="alpaka"/>
+  <use name="catch2"/>
+  <use name="eigen"/>
+  <use name="xtd"/>
+  <use name="DataFormats/CaloRecHit"/>
+  <use name="DataFormats/HGCalReco"/>
+  <use name="DataFormats/Portable"/>
+  <use name="FWCore/Utilities"/>
+  <use name="HeterogeneousCore/AlpakaInterface"/>
+  <use name="PhysicsTools/PyTorchAlpaka"/>
+  <use name="RecoTICL/Inference"/>
+  <use name="pytorch-cuda" for="alpaka/cuda"/>
+  <use name="pytorch-rocm" for="alpaka/rocm"/>
+  <flags ALPAKA_BACKENDS="1"/>
+</bin>
