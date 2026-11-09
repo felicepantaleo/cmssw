@@ -41,6 +41,7 @@ The offsets currently in use are:
 * 0.422: Alpaka, HCAL only, portable
 * 0.423: Alpaka, HCAL only, portable vs CPU validation
 * 0.424: Alpaka, HCAL only, portable profiling
+* 0.432: Alpaka, HGCAL only, TICLv6 with the Recovery iteration and the Cornetto linking on the device
 * 0.492: Alpaka, full reco with pixel quadruplets
 * 0.496: Alpaka, full reco with pixel triplets
 * 0.5: Legacy pixel tracking only (CPU)
