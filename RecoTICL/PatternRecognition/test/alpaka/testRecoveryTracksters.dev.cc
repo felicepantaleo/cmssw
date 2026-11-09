@@ -97,11 +97,11 @@ TEST_CASE("Recovery tracksters on the device") {
     REQUIRE(nTracksters == kSelected.size());
 
     ALPAKA_ACCELERATOR_NAMESPACE::ticl::TracksterDeviceCollection tracksters(
-        queue, nTracksters, nTracksters, nTracksters, nTracksters, nTracksters, nTracksters, nTracksters);
+        queue, nTracksters, nTracksters, nTracksters, nTracksters, nTracksters, nTracksters, nTracksters, nTracksters);
     algo.fillTracksters(
         queue, kZLimitEm, layerClusters.const_view(), selected.data(), positions.data(), tracksters.view());
     ::ticl::TracksterHostCollection trackstersHost(
-        queue, nTracksters, nTracksters, nTracksters, nTracksters, nTracksters, nTracksters, nTracksters);
+        queue, nTracksters, nTracksters, nTracksters, nTracksters, nTracksters, nTracksters, nTracksters, nTracksters);
     alpaka::memcpy(queue, trackstersHost.buffer(), tracksters.buffer());
     alpaka::wait(queue);
     const auto view = trackstersHost.const_view();

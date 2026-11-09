@@ -119,14 +119,14 @@ TEST_CASE("Layer cluster masks on the device") {
 
     SECTION("The layer clusters of the tracksters are masked") {
       const int32_t nVertices = kTracksterVertices.size();
-      ::ticl::TracksterHostCollection trackstersHost(queue, 1, 1, 1, 1, 1, 1, nVertices);
+      ::ticl::TracksterHostCollection trackstersHost(queue, 1, 1, 1, 1, 1, 1, 1, nVertices);
       auto vertices = trackstersHost.view().vertices();
       vertices.offsets()[0].keys_offsets() = 0;
       vertices.offsets()[1].keys_offsets() = nVertices;
       for (int32_t k = 0; k < nVertices; ++k) {
         vertices.content()[k].values() = kTracksterVertices[k];
       }
-      TracksterDeviceCollection tracksters(queue, 1, 1, 1, 1, 1, 1, nVertices);
+      TracksterDeviceCollection tracksters(queue, 1, 1, 1, 1, 1, 1, 1, nVertices);
       alpaka::memcpy(queue, tracksters.buffer(), trackstersHost.buffer());
       LayerClusterMaskDeviceCollection mask(queue, n);
       algos::fillMaskWithOnes(queue, mask.view());

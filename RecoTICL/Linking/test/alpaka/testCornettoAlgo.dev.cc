@@ -101,7 +101,7 @@ namespace {
   ::ticl::TracksterHostCollection makeTracksters(Queue& queue, const std::vector<Input>& in, uint32_t firstCluster) {
     const auto n = static_cast<int32_t>(in.size());
     const auto nVertices = static_cast<int32_t>(kLayerClustersPerTrackster * in.size());
-    ::ticl::TracksterHostCollection tracksters(queue, n, n, n, n, n, n, nVertices);
+    ::ticl::TracksterHostCollection tracksters(queue, n, n, n, n, n, n, n, nVertices);
     auto view = tracksters.view();
     for (int32_t i = 0; i < n; ++i) {
       view.energy()[i].rawEnergy() = in[i].energy;
@@ -235,9 +235,9 @@ TEST_CASE("Cornetto linking on the device") {
     const int32_t n2 = scenario.second.size();
     const int32_t nClusters = kLayerClustersPerTrackster * (n1 + n2);
     const auto first = toDevice<TracksterDeviceCollection>(
-        queue, firstHost, n1, n1, n1, n1, n1, n1, int32_t(kLayerClustersPerTrackster) * n1);
+        queue, firstHost, n1, n1, n1, n1, n1, n1, n1, int32_t(kLayerClustersPerTrackster) * n1);
     const auto second = toDevice<TracksterDeviceCollection>(
-        queue, secondHost, n2, n2, n2, n2, n2, n2, int32_t(kLayerClustersPerTrackster) * n2);
+        queue, secondHost, n2, n2, n2, n2, n2, n2, n2, int32_t(kLayerClustersPerTrackster) * n2);
     const auto pid = toDevice<TracksterPidDeviceCollection>(queue, pidHost, n2);
     const auto layerClusters =
         toDevice<CaloClusterDeviceCollection>(queue, layerClustersHost, nClusters, nClusters, nClusters, nClusters);
@@ -268,12 +268,12 @@ TEST_CASE("Cornetto linking on the device") {
     REQUIRE(scratch.nVertices() == kLayerClustersPerTrackster * nMembers);
 
     TracksterDeviceCollection tracksters(
-        queue, nLinked, nLinked, nLinked, nLinked, nLinked, nLinked, scratch.nVertices());
+        queue, nLinked, nLinked, nLinked, nLinked, nLinked, nLinked, nLinked, scratch.nVertices());
     TracksterLinksDeviceCollection links(queue, nLinked, scratch.nMembers());
     algo.fill(queue, inputs, scratch, kZLimitEm, layerClusters.const_view(), tracksters.view(), links.view());
 
     ::ticl::TracksterHostCollection trackstersHost(
-        queue, nLinked, nLinked, nLinked, nLinked, nLinked, nLinked, scratch.nVertices());
+        queue, nLinked, nLinked, nLinked, nLinked, nLinked, nLinked, nLinked, scratch.nVertices());
     ::ticl::TracksterLinksHostCollection linksHost(queue, nLinked, scratch.nMembers());
     alpaka::memcpy(queue, trackstersHost.buffer(), tracksters.buffer());
     alpaka::memcpy(queue, linksHost.buffer(), links.buffer());
@@ -324,7 +324,7 @@ TEST_CASE("Cornetto linking on the device without tracksters") {
   for (const auto& device : devices) {
     Queue queue(device);
     const auto emptyHost = makeTracksters(queue, {}, 0);
-    const auto empty = toDevice<TracksterDeviceCollection>(queue, emptyHost, 0, 0, 0, 0, 0, 0, 0);
+    const auto empty = toDevice<TracksterDeviceCollection>(queue, emptyHost, 0, 0, 0, 0, 0, 0, 0, 0);
     const auto layerClustersHost = makeLayerClusters(queue, {});
     const auto layerClusters = toDevice<CaloClusterDeviceCollection>(queue, layerClustersHost, 0, 0, 0, 0);
 
@@ -340,7 +340,7 @@ TEST_CASE("Cornetto linking on the device without tracksters") {
     REQUIRE(scratch.nVertices() == 0);
     REQUIRE(scratch.nMembers() == 0);
 
-    TracksterDeviceCollection tracksters(queue, 0, 0, 0, 0, 0, 0, 0);
+    TracksterDeviceCollection tracksters(queue, 0, 0, 0, 0, 0, 0, 0, 0);
     TracksterLinksDeviceCollection links(queue, 0, 0);
     algo.fill(queue, inputs, scratch, kZLimitEm, layerClusters.const_view(), tracksters.view(), links.view());
 
@@ -548,7 +548,7 @@ TEST_CASE("Cornetto linking on the device against the host Cornetto") {
         int32_t nVertices = 0;
         for (int32_t i = 0; i < n; ++i)
           nVertices += event.vertices[offset + i].size();
-        ::ticl::TracksterHostCollection host(queue, n, n, n, n, n, n, nVertices);
+        ::ticl::TracksterHostCollection host(queue, n, n, n, n, n, n, n, nVertices);
         ::ticl::TracksterPidHostCollection pidHost(queue, n);
         auto view = host.view();
         int32_t v = 0;
@@ -572,7 +572,7 @@ TEST_CASE("Cornetto linking on the device against the host Cornetto") {
             view.vertices().content()[v++].values() = lc;
         }
         view.vertices().offsets()[n].keys_offsets() = v;
-        collections.push_back(toDevice<TracksterDeviceCollection>(queue, host, n, n, n, n, n, n, nVertices));
+        collections.push_back(toDevice<TracksterDeviceCollection>(queue, host, n, n, n, n, n, n, n, nVertices));
         pids.push_back(toDevice<TracksterPidDeviceCollection>(queue, pidHost, n));
         inputs.offsets[c] = offset;
         inputs.tracksters[c] = collections.back().const_view();
@@ -592,11 +592,11 @@ TEST_CASE("Cornetto linking on the device against the host Cornetto") {
       REQUIRE(nLinked == expected.size());
 
       TracksterDeviceCollection tracksters(
-          queue, nLinked, nLinked, nLinked, nLinked, nLinked, nLinked, scratch.nVertices());
+          queue, nLinked, nLinked, nLinked, nLinked, nLinked, nLinked, nLinked, scratch.nVertices());
       TracksterLinksDeviceCollection links(queue, nLinked, scratch.nMembers());
       algo.fill(queue, inputs, scratch, kZLimitEm, layerClusters.const_view(), tracksters.view(), links.view());
       ::ticl::TracksterHostCollection trackstersHost(
-          queue, nLinked, nLinked, nLinked, nLinked, nLinked, nLinked, scratch.nVertices());
+          queue, nLinked, nLinked, nLinked, nLinked, nLinked, nLinked, nLinked, scratch.nVertices());
       ::ticl::TracksterLinksHostCollection linksHost(queue, nLinked, scratch.nMembers());
       alpaka::memcpy(queue, trackstersHost.buffer(), tracksters.buffer());
       alpaka::memcpy(queue, linksHost.buffer(), links.buffer());

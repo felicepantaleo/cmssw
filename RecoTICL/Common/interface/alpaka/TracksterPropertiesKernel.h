@@ -5,9 +5,11 @@
 #include <Eigen/Core>
 #include <Eigen/Eigenvalues>
 
+#include <algorithm>
 #include <bit>
 #include <cmath>
 #include <cstdint>
+#include <limits>
 
 #include <alpaka/alpaka.hpp>
 
@@ -59,6 +61,10 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::ticl::properties {
     return distance2;
   }
 
+  ALPAKA_FN_ACC ALPAKA_FN_INLINE float dot3(const float a[3], const float b[3]) {
+    return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  }
+
   // The sums over the layer clusters of the trackster processed by a block, in shared memory
   struct TracksterSums {
     // all the layer clusters
@@ -66,6 +72,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::ticl::properties {
     float emEnergy;
     float position[3];  // weighted by energy
     uint64_t maxEnergyKey;
+    uint32_t minAbsZ;  // the bits of the non-negative floats, ordered as their values
+    uint32_t maxAbsZ;
     float time;  // weighted by 1 / timeError^2
     float timeWeight;
     // the layer clusters used by the PCA: with cleaning, the most energetic one of each layer of the cleaning window
@@ -80,10 +88,14 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::ticl::properties {
     // the eigen-decomposition of the covariance matrix, in increasing eigenvalue order, the eigenvectors column-major
     float eigenvalues[3];
     float eigenvectors[9];
+    // the energy within 2 and 5 cm of the profile axis, and weighted by the squared distance from it
+    float core2Energy;
+    float core5Energy;
+    float radius2Energy;
   };
 
-  // Per trackster, one block: its energy, barycenter, time and principal components from its layer clusters, as
-  // ticl::assignPCAtoTracksters does with energy weighting and the local time. With clean, the PCA uses the most
+  // Per trackster, one block: its energy, barycenter, time, principal components and energy profile from its layer
+  // clusters, as ticl::assignPCAtoTracksters and ticl::layerClusterProfile do with energy weighting and the local time. With clean, the PCA uses the most
   // energetic layer cluster of each layer of the cleaning window, as the pattern recognition does; without, it uses
   // every layer cluster, as the linking does. The threads of the block share the layer clusters of the trackster and
   // sum over them in shared memory; after each sum, every thread computes what depends on it. The PID probabilities
@@ -105,6 +117,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::ticl::properties {
 
         if (once_per_block(acc)) {
           s = TracksterSums{};
+          s.minAbsZ = std::numeric_limits<uint32_t>::max();
         }
         alpaka::syncBlockThreads(acc);
 
@@ -121,6 +134,9 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::ticl::properties {
           alpaka::atomicAdd(acc, &s.position[1], energy * position.y(), block);
           alpaka::atomicAdd(acc, &s.position[2], energy * position.z(), block);
           alpaka::atomicMax(acc, &s.maxEnergyKey, energyKey(energy, i), block);
+          const auto absZ = std::bit_cast<uint32_t>(std::abs(position.z()));
+          alpaka::atomicMin(acc, &s.minAbsZ, absZ, block);
+          alpaka::atomicMax(acc, &s.maxAbsZ, absZ, block);
         }
         alpaka::syncBlockThreads(acc);
 
@@ -258,6 +274,39 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::ticl::properties {
           }
         }
 
+        // The energy profile around the first principal axis, or the barycenter direction without one, as
+        // ticl::layerClusterProfile. Without a PCA the eigenvectors stay 0.
+        float axis[3] = {s.eigenvectors[6], s.eigenvectors[7], s.eigenvectors[8]};
+        float axis2 = dot3(axis, axis);
+        if (not(axis2 > 0.f) or not std::isfinite(axis2)) {
+          for (int k = 0; k < 3; ++k) {
+            axis[k] = barycenter[k];
+          }
+          axis2 = dot3(axis, axis);
+        }
+        if (axis2 > 0.f) {
+          const float norm = std::sqrt(axis2);
+          for (int k = 0; k < 3; ++k) {
+            axis[k] /= norm;
+          }
+        }
+        for (auto vertex : independent_group_elements(acc, first, last)) {
+          const uint32_t i = vertices.content()[vertex].values();
+          const auto position = layerClusters.position()[i];
+          const float energy = layerClusters.energy()[i].energy();
+          const float d[3] = {position.x() - barycenter[0], position.y() - barycenter[1], position.z() - barycenter[2]};
+          const float along = dot3(d, axis);
+          const float r = std::sqrt(std::max(0.f, dot3(d, d) - along * along));
+          if (r < ::ticl::kProfileCore2Radius) {
+            alpaka::atomicAdd(acc, &s.core2Energy, energy, block);
+          }
+          if (r < ::ticl::kProfileCore5Radius) {
+            alpaka::atomicAdd(acc, &s.core5Energy, energy, block);
+          }
+          alpaka::atomicAdd(acc, &s.radius2Energy, energy * r * r, block);
+        }
+        alpaka::syncBlockThreads(acc);
+
         if (once_per_block(acc)) {
           auto energy = tracksters.energy()[t];
           energy.rawEnergy() = s.energy;
@@ -298,6 +347,27 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::ticl::properties {
           }
 
           tracksters.id()[t].idProbabilities().setZero();
+
+          auto profile = tracksters.profile()[t];
+          if (s.energy > 0.f) {
+            // a non-finite value is 0
+            const auto finite = [](float value) { return std::isfinite(value) ? value : 0.f; };
+            const float maxEnergy = std::bit_cast<float>(static_cast<uint32_t>(s.maxEnergyKey >> 32));
+            const float minAbsZ = std::bit_cast<float>(s.minAbsZ);
+            profile.maxEnergyFraction() = finite(maxEnergy / s.energy);
+            profile.core2EnergyFraction() = finite(s.core2Energy / s.energy);
+            profile.core5EnergyFraction() = finite(s.core5Energy / s.energy);
+            profile.rmsRadius() = finite(std::sqrt(s.radius2Energy / s.energy));
+            profile.minAbsZ() = finite(minAbsZ);
+            profile.lengthZ() = finite(std::bit_cast<float>(s.maxAbsZ) - minAbsZ);
+          } else {
+            profile.maxEnergyFraction() = -1.f;
+            profile.core2EnergyFraction() = -1.f;
+            profile.core5EnergyFraction() = -1.f;
+            profile.rmsRadius() = -1.f;
+            profile.minAbsZ() = -1.f;
+            profile.lengthZ() = 0.f;
+          }
         }
         // the shared sums are reset for the next trackster of the block
         alpaka::syncBlockThreads(acc);

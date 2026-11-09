@@ -92,7 +92,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
 
       const uint32_t nLinked = scratch_.nLinked();
       ticl::TracksterDeviceCollection tracksters(
-          iEvent.queue(), nLinked, nLinked, nLinked, nLinked, nLinked, nLinked, scratch_.nVertices());
+          iEvent.queue(), nLinked, nLinked, nLinked, nLinked, nLinked, nLinked, nLinked, scratch_.nVertices());
       ticl::TracksterLinksDeviceCollection links(iEvent.queue(), nLinked, scratch_.nMembers());
       algo_.fill(iEvent.queue(),
                  inputs_,
