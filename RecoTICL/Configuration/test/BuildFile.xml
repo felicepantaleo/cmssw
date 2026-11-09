@@ -33,3 +33,5 @@
       command="python3 ${LOCALTOP}/src/RecoTICL/Configuration/test/test_v6_heterogeneous.py"/>
 <test name="testPyTICLMergeOrder"
       command="python3 ${LOCALTOP}/src/RecoTICL/Configuration/test/test_merge_order.py"/>
+<test name="testPyTICLHGCalOnly"
+      command="python3 ${LOCALTOP}/src/RecoTICL/Configuration/test/test_hgcal_only.py"/>
