@@ -344,14 +344,31 @@ def shower_shape_pid(model):
                     outputNames=cms.vstring("pid"))
 
 
+def supercluster_dnn_heterogeneous_defaults(pid_threshold=None, emission_pid_threshold=None, pid_categories=None):
+    """:func:`supercluster_dnn_defaults` for ``superclustering_dnn_heterogeneous``: the seed PID cut is applied on the
+    device, with the pairs; the categories go to both the device and the host modules."""
+    producer = {}
+    pset = cms.PSet(type=cms.string("SuperClusteringDNNHeterogeneous"),
+                    algo_verbosity=cms.int32(0),
+                    nnWorkingPoint=cms.float(0.57247))
+    if pid_threshold is not None:
+        producer["PIDThreshold"] = cms.float(pid_threshold)
+    if emission_pid_threshold is not None:
+        pset.emissionPIDThreshold = cms.float(emission_pid_threshold)
+    if pid_categories is not None:
+        producer["tracksterPIDCategoriesToFilter"] = cms.vint32(*pid_categories)
+        pset.tracksterPIDCategoriesToFilter = cms.vint32(*pid_categories)
+    return dict(producer=producer, linkingPSet=pset)
+
+
 def v6(name="v6", target="offline", heterogeneous=False):
     """Return a :class:`TICLConfig` for TICLv6, the configuration of the ``ticl_v6`` process modifier: Cornetto
     linking, the interpretation stage (hypotheses, global arbitration, track claim) and the candidates from its maps.
     The interpretation stage runs the PFN energy regression of the v5 candidates and the shower-shape PID. The
     CLUEstering and Cornetto parameters are those of the tune point p2; the other parameters are the module defaults.
-    With ``heterogeneous`` (the ``ticl_v6_heterogeneous`` modifier with ``ticl_v6``), the Recovery iteration and the
-    Cornetto linking run on the device, on the tracksters of CLUEstering and Recovery on the device, and their results
-    are converted under the same labels."""
+    With ``heterogeneous`` (the ``ticl_v6_heterogeneous`` modifier with ``ticl_v6``), the shower-shape PID of the
+    CLUEstering tracksters, the Recovery iteration, the Cornetto linking and the superclustering DNN run on the device,
+    and their results are converted under the same labels."""
     # The PFN gives the energy regression; the PID comes from the shower shape and the layer-cluster profile of the
     # final tracksters and footprints, with the EM score on the scale of the linking CNN of v5 in every energy bin.
     pfn = candidate_defaults()["pluginInferenceAlgoTracksterInferenceByPFN"].clone(
@@ -360,19 +377,26 @@ def v6(name="v6", target="offline", heterogeneous=False):
                   pidInferenceAlgo=cms.string("TracksterInferenceByShowerShape"),
                   pluginInferenceAlgoTracksterInferenceByShowerShape=shower_shape_pid("mixPID_fin_v2.onnx"))
     # The first iteration is CLUEstering on the layer clusters merged on the device.
-    cfg = (TICLConfig(name, target=target)
-           .iteration("CLUEstering").preset()
-           # Identification from the shower shape and the layer-cluster profile, with the EM score on the scale of
-           # the CNN of v5 in every energy bin.
-           .trackster_params(inferenceAlgo=cms.string("TracksterInferenceByShowerShape"),
+    # Identification from the shower shape and the layer-cluster profile, with the EM score on the scale of the CNN of
+    # v5 in every energy bin.
+    cfg = TICLConfig(name, target=target).iteration("CLUEstering").preset()
+    if heterogeneous:
+        cfg.device_pid()
+    else:
+        cfg.trackster_params(inferenceAlgo=cms.string("TracksterInferenceByShowerShape"),
                              pluginInferenceAlgoTracksterInferenceByShowerShape=shower_shape_pid("mixPID_hi_v2.onnx"))
+    cfg = (cfg
            # Recovery makes tracksters only from the layer clusters of at least 50 MeV.
            .iteration("Recovery").preset().masks_from("CLUEstering").pattern_recovery(algo_verbosity=0, minEnergy=0.05)
            .links(["CLUEstering", "Recovery"], on_device=heterogeneous, **cornetto_links_defaults())
-           # photon, electron AND neutral_pion: a pi0 is an electromagnetic object.
-           .superclustering_dnn(source="CLUEstering",
-                                **supercluster_dnn_defaults(pid_threshold=0.1, emission_pid_threshold=0.3,
-                                                            pid_categories=(0, 1, 3)))
+           )
+    # photon, electron AND neutral_pion: a pi0 is an electromagnetic object.
+    sc_cuts = dict(pid_threshold=0.1, emission_pid_threshold=0.3, pid_categories=(0, 1, 3))
+    if heterogeneous:
+        cfg.superclustering_dnn_heterogeneous(source="CLUEstering", **supercluster_dnn_heterogeneous_defaults(**sc_cuts))
+    else:
+        cfg.superclustering_dnn(source="CLUEstering", **supercluster_dnn_defaults(**sc_cuts))
+    cfg = (cfg
            .interpretations(**interp)
            .candidate()
            # The candidate producer sets the muon kinematics; pfTICL copies its muon decisions.

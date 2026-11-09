@@ -289,9 +289,10 @@ ticl_v6.toModify(_electronMergedSeeds, EcalBasedSeeds="ticlElectronSeeds")
 (ticl_v6 & ticl_superclustering_mustache_ticl).toModify(
     ticlTracksterInterpretations, egamma_tracksters_collections=["ticlTracksterLinksSuperclusteringMustache"])
 
-# TICLv6 on the device: the Recovery iteration runs on the layer cluster mask after CLUEstering on the device, and the
-# Cornetto linking on the device tracksters of CLUEstering and Recovery, with the PID of the host CLUEstering
-# tracksters. The results are converted to the host products under the same labels, so the consumers do not change.
+# TICLv6 on the device: the shower-shape PID runs on the CLUEstering tracksters on the device, the Recovery iteration on
+# the layer cluster mask after them, the Cornetto linking on the device tracksters of CLUEstering and Recovery, and the
+# superclustering DNN on the identified tracksters. The results are converted to the host products under the same
+# labels, so the consumers do not change.
 _ticlV6Heterogeneous = ticl_v6 & ticl_v6_heterogeneous
 _ticlV6HeterogeneousAssembled = _v6(heterogeneous=True).assemble()
 
@@ -312,7 +313,10 @@ def _ticlV6HeterogeneousTask(name):
     return cms.Task(*children)
 
 
-for _label in ("ticlTrackstersRecovery", "ticlTracksterLinks"):
+for _label in ("ticlTrackstersCLUEstering", "ticlTrackstersRecovery", "ticlTracksterLinks",
+               "ticlTracksterLinksSuperclusteringDNN"):
     _ticlV6Heterogeneous.toReplaceWith(globals()[_label], _ticlV6HeterogeneousAssembled.modules[_label])
+_ticlV6Heterogeneous.toReplaceWith(ticlCLUEsteringStepTask, _ticlV6HeterogeneousTask("ticlCLUEsteringStepTask"))
 _ticlV6Heterogeneous.toReplaceWith(ticlRecoveryStepTask, _ticlV6HeterogeneousTask("ticlRecoveryStepTask"))
+_ticlV6Heterogeneous.toReplaceWith(ticlSuperclusteringTask, _ticlV6HeterogeneousTask("ticlEndcapSuperclusteringTask"))
 _ticlV6Heterogeneous.toReplaceWith(ticlTracksterLinksTask, _ticlV6HeterogeneousTask("ticlTracksterLinksTask"))
