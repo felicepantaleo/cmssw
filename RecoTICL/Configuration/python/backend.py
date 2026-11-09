@@ -88,6 +88,10 @@ def apply_backends(assembled, process):
     if cfg.links_spec and cfg.links_spec.on_device:
         for lbl in device_links_labels(cfg, cfg.target):
             requested[lbl] = device_links_backend(cfg)
+    sc = cfg.superclustering_spec
+    if sc is not None and sc.kind == "DNNHeterogeneous":
+        # the superclustering DNN reads the device tracksters of its source iteration
+        requested[cfg.target.supercluster_producer_label] = iteration_backend(cfg, cfg._by_name[sc.source])
     any_alpaka = False
     for label, module in assembled.modules.items():
         if is_alpaka(module):

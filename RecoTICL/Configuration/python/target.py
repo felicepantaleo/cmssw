@@ -41,6 +41,10 @@ class Target:
     # labels of the device modules of a CLUEstering iteration: CLUEstering, then the tracksters built on the device
     cluestering_label: str = "ticlCLUEstering"
     soa_tracksters_label: str = "ticlSoATracksters"
+    # label of those tracksters with their PID on the device
+    soa_pid_tracksters_label: str = "ticlSoATrackstersPID"
+    # label of the device module of the heterogeneous superclustering DNN: the pairs and their scores
+    supercluster_producer_label: str = "ticlSuperclusteringDNN"
     # prefix of the layer cluster masks on the device, named after the iteration whose tracksters they mask
     mask_soa_prefix: str = "ticlLayerClusterMask"
     # InputTag for layer_clusters_barrel_tiles; None -> keep the cfi default
@@ -178,6 +182,8 @@ HLT = Target(
     merged_lc_soa_cfi="RecoTICL.LayerClustering.hltHgcalSoAMergeLayerClusters_cfi",
     cluestering_label="hltTiclCLUEstering",
     soa_tracksters_label="hltTiclSoATracksters",
+    soa_pid_tracksters_label="hltTiclSoATrackstersPID",
+    supercluster_producer_label="hltTiclSuperclusteringDNN",
     mask_soa_prefix="hltTiclLayerClusterMask",
     barrel_tile_tag=cms.InputTag("hltTiclLayerTileBarrelProducer", "ticlLayerTilesBarrel"),
     barrel_tile_label="hltTiclLayerTileBarrelProducer",
