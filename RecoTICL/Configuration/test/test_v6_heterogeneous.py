@@ -22,7 +22,6 @@ EXPECTED_ADDED = {
     "ticlLayerClusterMaskCLUEsteringSoA": "LayerClusterMaskSoAProducer@alpaka",
     "filteredLayerClustersRecoverySoA": "FilteredLayerClustersSoAProducer@alpaka",
     "ticlTrackstersRecoverySoA": "HGCalRecoveryTrackstersSoAProducer@alpaka",
-    "ticlTrackstersCLUEsteringPidSoA": "TracksterPidSoAProducer@alpaka",
     "ticlTracksterLinksInputRefs": "TracksterCollectionRefsProducer@alpaka",
     "ticlTracksterLinksSoA": "TracksterLinksSoAProducer@alpaka",
 }
@@ -145,13 +144,18 @@ def main():
         got = getattr(d.ticlTracksterLinksSoA, name, None)
         if got is None or got.value() != want:
             failures.append("ticlTracksterLinksSoA.%s is %r, the host linking has %r" % (name, got, want))
-    # the device linking reads the two collections in the order of the host linking, with the PID of CLUEstering
+    # the device linking reads the two collections in the order of the host linking; the CLUEstering tracksters with
+    # their PID on the device, so that no PID comes from the host (empty PID tags)
     def labels(tags):
         return [cms.InputTag(t).getModuleLabel() if isinstance(t, str) else t.getModuleLabel() for t in tags]
-    if labels(d.ticlTracksterLinksSoA.tracksters) != ["ticlSoATracksters", "ticlTrackstersRecoverySoA"]:
+    if labels(d.ticlTracksterLinksSoA.tracksters) != ["ticlSoATrackstersPID", "ticlTrackstersRecoverySoA"]:
         failures.append("ticlTracksterLinksSoA.tracksters is %s" % d.ticlTracksterLinksSoA.tracksters)
-    if labels(d.ticlTracksterLinksSoA.pid) != ["ticlTrackstersCLUEsteringPidSoA", ""]:
+    if labels(d.ticlTracksterLinksSoA.pid) != ["", ""]:
         failures.append("ticlTracksterLinksSoA.pid is %s" % d.ticlTracksterLinksSoA.pid)
+    # the layer cluster mask after CLUEstering reads the same device tracksters as the linking
+    if labels(d.ticlLayerClusterMaskCLUEsteringSoA.tracksters) != ["ticlSoATrackstersPID"]:
+        failures.append("ticlLayerClusterMaskCLUEsteringSoA.tracksters is %s"
+                        % d.ticlLayerClusterMaskCLUEsteringSoA.tracksters)
     # the Recovery on the device has the filter and the energy threshold of the host Recovery
     if d.filteredLayerClustersRecoverySoA.algo_number.value() != h.filteredLayerClustersRecovery.algo_number.value():
         failures.append("filteredLayerClustersRecoverySoA.algo_number differs from the host filter")
