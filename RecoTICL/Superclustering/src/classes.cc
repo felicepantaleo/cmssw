@@ -1,0 +1,5 @@
+#include "DataFormats/Portable/interface/PortableHostCollectionReadRules.h"
+#include "RecoTICL/Superclustering/interface/SuperclusteringDNNHostCollections.h"
+
+SET_PORTABLEHOSTCOLLECTION_READ_RULES(ticl::SuperclusteringDNNPairsHost);
+SET_PORTABLEHOSTCOLLECTION_READ_RULES(ticl::SuperclusteringDNNPairScoresHost);

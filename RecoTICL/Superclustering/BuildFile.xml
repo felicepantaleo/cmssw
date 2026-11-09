@@ -1,5 +1,16 @@
+<use name="DataFormats/Common"/>
 <use name="DataFormats/HGCalReco"/>
+<use name="DataFormats/Portable"/>
+<use name="DataFormats/SoATemplate"/>
 <use name="FWCore/MessageLogger"/>
+<use name="FWCore/Utilities"/>
+<use name="HeterogeneousCore/AlpakaInterface"/>
+<use name="alpaka"/>
+<use name="eigen"/>
+<use name="xtd"/>
+<use name="rootcling"/>
+<!-- The device code in src/alpaka is built for every backend, including serial. -->
+<flags ALPAKA_BACKENDS="1"/>
 <export>
   <lib name="1"/>
 </export>
