@@ -12,12 +12,12 @@ from RecoTICL.Configuration.tracksterPIDComparisonAnalyzer_cfi import (
 )
 
 # Both converters read the same CLUEstering Tracksters. The CPU converter runs the shower-shape PID of
-# mixPID_hi_v1.onnx on the host, while the production converter keeps the scores of its TorchScript export on the
+# mixPID_hi_v2.onnx on the host, while the production converter keeps the scores of its TorchScript export on the
 # device (ticlSoATrackstersPID).
 ticlTrackstersCLUEsteringCPU = _ticlV6Modules["ticlTrackstersCLUEstering"].clone(
     src=cms.InputTag("ticlSoATracksters"),
     inferenceAlgo=cms.string("TracksterInferenceByShowerShape"),
-    pluginInferenceAlgoTracksterInferenceByShowerShape=shower_shape_pid("mixPID_hi_v1.onnx"),
+    pluginInferenceAlgoTracksterInferenceByShowerShape=shower_shape_pid("mixPID_hi_v2.onnx"),
     doPidCut=cms.bool(False),
 )
 

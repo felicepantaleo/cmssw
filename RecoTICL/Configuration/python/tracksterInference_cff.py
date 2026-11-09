@@ -8,7 +8,7 @@ import FWCore.ParameterSet.Config as cms
 LAYER_CLUSTER_MODELS = ("CNN", "DNN", "PFN")
 MODELS = LAYER_CLUSTER_MODELS + ("ShowerShape",)
 
-_SHOWER_SHAPE_PID = "RecoTICL/Inference/data/showerShapePID/mixPID_hi_v1.pt"
+_SHOWER_SHAPE_PID = "RecoTICL/Inference/data/showerShapePID/mixPID_hi_v2.pt"
 
 
 def makeTracksterInference(*, model="CNN", doPID=True, doRegression=False, batchSize=64,

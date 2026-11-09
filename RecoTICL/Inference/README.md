@@ -45,7 +45,8 @@ The tracksters that a model does not select keep their values.
 Model files, relative to the CMSSW search path (only the enabled models are loaded):
 
 - `RecoTICL/Inference/data/trackster_pid_cnn.pt`: `CNN/patternrecognition/id_v0.onnx` of RecoHGCal-TICL
-- `RecoTICL/Inference/data/showerShapePID/mixPID_hi_v1.pt`, `mixPID_fin_v1.pt`: `test/exportShowerShapePIDToTorchScript.py`
+- `RecoTICL/Inference/data/showerShapePID/mixPID_hi_v2.pt` (the device PID of v6), `mixPID_hi_v1.pt`, `mixPID_fin_v1.pt`:
+  `test/exportShowerShapePIDToTorchScript.py`
 - DNN and PFN, from the ONNX models of RecoHGCal-TICL (`ticlv5/onnx_models`) with `test/exportImageModelToTorchScript.py`:
   - `trackster_pid_dnn.pt`, `trackster_energy_dnn.pt`: `DNN/linking/id_v0.onnx`, `DNN/linking/energy_v0.onnx`
   - `trackster_pid_pfn.pt`, `trackster_energy_pfn.pt`: `CNN/linking/id_v0.onnx`, `PFN/linking/energy_v1.onnx`

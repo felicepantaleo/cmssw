@@ -380,7 +380,7 @@ def v6(name="v6", target="offline", heterogeneous=False):
     # and the layer-cluster profile, with the EM score on the scale of the CNN of v5 in every energy bin.
     cfg = TICLConfig(name, target=target).iteration("CLUEstering").preset()
     if cfg.target.name == "offline":
-        # on the device (tracksterShowerShapePID_cff: mixPID_hi_v1)
+        # on the device (tracksterShowerShapePID_cff: mixPID_hi_v2)
         cfg.device_pid()
     else:
         # on the host after the conversion: the HLT menu does not run TICLv6
