@@ -67,6 +67,14 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
           tracksters.pca()[t].sigmas().setZero();
           tracksters.pca()[t].sigmasPCA().setZero();
           tracksters.id()[t].idProbabilities().setZero();
+          // A Recovery trackster has no energy profile: the values of a trackster without energy.
+          auto profile = tracksters.profile()[t];
+          profile.maxEnergyFraction() = -1.f;
+          profile.core2EnergyFraction() = -1.f;
+          profile.core5EnergyFraction() = -1.f;
+          profile.rmsRadius() = -1.f;
+          profile.minAbsZ() = -1.f;
+          profile.lengthZ() = 0.f;
         }
       }
     };

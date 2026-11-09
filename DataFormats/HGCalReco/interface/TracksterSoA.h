@@ -30,6 +30,22 @@ namespace ticl {
 
   GENERATE_SOA_LAYOUT(TracksterSoAId, SOA_EIGEN_COLUMN(TracksterIdProbabilities, idProbabilities))
 
+  // The radii [cm] of the core energies of the profile, shared with ticl::layerClusterProfile on the host
+  inline constexpr float kProfileCore2Radius = 2.f;
+  inline constexpr float kProfileCore5Radius = 5.f;
+
+  // The energy profile of the layer clusters around the first principal axis (the barycenter direction without one),
+  // as ticl::layerClusterProfile: the fractions of the energy in the most energetic layer cluster and within 2 and
+  // 5 cm of the axis, the energy-weighted rms distance from the axis [cm], and the |z| range [cm]. Without energy:
+  // -1, -1, -1, -1, -1, 0.
+  GENERATE_SOA_LAYOUT(TracksterSoAProfile,
+                      SOA_COLUMN(float, maxEnergyFraction),
+                      SOA_COLUMN(float, core2EnergyFraction),
+                      SOA_COLUMN(float, core5EnergyFraction),
+                      SOA_COLUMN(float, rmsRadius),
+                      SOA_COLUMN(float, minAbsZ),
+                      SOA_COLUMN(float, lengthZ))
+
   // The layer clusters of each trackster, as indices in the merged layer clusters.
   template <CMS_SOA_BYTE_SIZE_TYPE ALIGNMENT, bool ALIGNMENT_ENFORCEMENT>
   using TracksterSoAVertices = AssociationMapLayout<uint32_t, uint32_t>::Layout<ALIGNMENT, ALIGNMENT_ENFORCEMENT>;
@@ -40,6 +56,7 @@ namespace ticl {
                       SOA_BLOCK(timing, TracksterSoATiming),
                       SOA_BLOCK(pca, TracksterSoAPCA),
                       SOA_BLOCK(id, TracksterSoAId),
+                      SOA_BLOCK(profile, TracksterSoAProfile),
                       SOA_BLOCK(vertices, TracksterSoAVertices))
 
   using TracksterSoA = TracksterSoALayout<>;

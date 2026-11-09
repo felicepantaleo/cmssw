@@ -75,8 +75,15 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       const float zLimitEm = std::abs(geometry.getPositionLayer(geometry.lastLayerEE(false), false).z());
 
       const uint32_t nTracksters = *nTracksters_->data();
-      ticl::TracksterDeviceCollection tracksters(
-          iEvent.queue(), nTracksters, nTracksters, nTracksters, nTracksters, nTracksters, nTracksters, nTracksters);
+      ticl::TracksterDeviceCollection tracksters(iEvent.queue(),
+                                                 nTracksters,
+                                                 nTracksters,
+                                                 nTracksters,
+                                                 nTracksters,
+                                                 nTracksters,
+                                                 nTracksters,
+                                                 nTracksters,
+                                                 nTracksters);
       algo_.fillTracksters(iEvent.queue(),
                            zLimitEm,
                            iEvent.get(layerClustersToken_).const_view(),
