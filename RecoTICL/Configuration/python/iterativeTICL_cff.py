@@ -318,5 +318,6 @@ for _label in ("ticlTrackstersCLUEstering", "ticlTrackstersRecovery", "ticlTrack
     _ticlV6Heterogeneous.toReplaceWith(globals()[_label], _ticlV6HeterogeneousAssembled.modules[_label])
 _ticlV6Heterogeneous.toReplaceWith(ticlCLUEsteringStepTask, _ticlV6HeterogeneousTask("ticlCLUEsteringStepTask"))
 _ticlV6Heterogeneous.toReplaceWith(ticlRecoveryStepTask, _ticlV6HeterogeneousTask("ticlRecoveryStepTask"))
-_ticlV6Heterogeneous.toReplaceWith(ticlSuperclusteringTask, _ticlV6HeterogeneousTask("ticlEndcapSuperclusteringTask"))
+(_ticlV6Heterogeneous & ~ticl_superclustering_mustache_ticl).toReplaceWith(
+    ticlSuperclusteringTask, _ticlV6HeterogeneousTask("ticlEndcapSuperclusteringTask"))
 _ticlV6Heterogeneous.toReplaceWith(ticlTracksterLinksTask, _ticlV6HeterogeneousTask("ticlTracksterLinksTask"))
