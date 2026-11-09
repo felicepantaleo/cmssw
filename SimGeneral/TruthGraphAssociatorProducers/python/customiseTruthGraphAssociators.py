@@ -169,7 +169,8 @@ def customiseTruthBranchValidationGun(process):
 
 def customiseTruthBranchValidationHGCalOnly(process):
     """Schedule the association maps and the plots of the tracksters only, for a job that
-    reconstructs only HGCAL. Tracks, vertices and candidates are not required.
+    reconstructs only HGCAL. Tracks, vertices and candidates are not required. The job does
+    not run hgcalValidator: these plots replace it.
     """
     if _isHarvesting(process):
         process.load(_validationCff)
@@ -187,6 +188,8 @@ def customiseTruthBranchValidationHGCalOnly(process):
                 process.truthBranchTargets
                 + process.truthBranchTracksterAssociators
                 + process.truthBranchTracksterValidator)
+    if hasattr(process, "hgcalValidator"):
+        del process.hgcalValidator
     return process
 
 
