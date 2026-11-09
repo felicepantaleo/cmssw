@@ -1510,6 +1510,31 @@ upgradeWFs['HGCalOnly'] = UpgradeWorkflow_HGCalOnly(
     offset = 0.531,
 )
 
+# HGCal-only reconstruction with TICLv6 and its device chain, with validation
+#  - Phase-2 only
+#  - RAW2DIGI + HGCal-only reconstruction up to the Cornetto linking and the superclustering DNN
+#  - truth-graph validation of the tracksters
+#  - harvesting
+upgradeWFs['HGCalOnlyTICLv6Alpaka'] = UpgradeWorkflow_HGCalOnly(
+    digi = {
+        # nothing special needed for the HGCal-only reconstruction
+    },
+    reco = {
+        '-s': 'RAW2DIGI:RawToDigi_hgcalOnly,RECO:reconstruction_hgcalOnly,VALIDATION:@HGCalOnlyValidation',
+        '--procModifiers': 'ticl_v6,ticl_v6_heterogeneous',
+        '--customise': 'Validation/Configuration/customiseHGCalOnly.customiseHGCalOnly,SimGeneral/TruthGraphAssociatorProducers/customiseTruthGraphAssociators.customiseTruthBranchValidationHGCalOnly',
+        '--datatier': 'GEN-SIM-RECO,DQMIO',
+        '--eventcontent': 'FEVTDEBUGHLT,DQM',
+    },
+    harvest = {
+        '-s': 'HARVESTING:@HGCalOnlyValidation',
+        '--procModifiers': 'ticl_v6,ticl_v6_heterogeneous',
+        '--customise': 'SimGeneral/TruthGraphAssociatorProducers/customiseTruthGraphAssociators.customiseTruthBranchValidationHGCalOnly',
+    },
+    suffix = 'HGCalOnlyTICLv6Alpaka',
+    offset = 0.432,
+)
+
 ###############################################################################################################
 ### Alpaka workflows
 ###
