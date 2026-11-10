@@ -55,6 +55,10 @@ private:
   // per-module TProfile: <E_nMIPs> vs channel; consumed by harvester as avgrechit_nmips.
   std::map<MonitoredElementKey_t, MonitorElement*> avgRechitNmips_;
   std::map<int, std::string> endCapKey = {{-1, "Minus"}, {1, "Plus"}};
+  // once crate information available in the collection to be replaced :):
+  std::map<uint32_t, int> cratePerFED_;
+  std::map<int, MonitorElement*>
+      recHitTimePerCrate_;  // first int expected to be -1 or 1 to say which endcap we are at and then second in to be the crate....
 };
 
 //
@@ -171,6 +175,8 @@ void HGCalRecHitDQM::analyze(const edm::Event& iEvent, const edm::EventSetup& iS
     hitsum[endcap][layer] += 1;
     h_energy->Fill(nmips);
     if (time > 0) {
+      const int crate = cratePerFED_.at(indexinfo.fedId());
+      recHitTimePerCrate_.at(endcap)->Fill(crate, time);
       h_time->Fill(time);
       h_timevsE->Fill(nmips, time);
     }
@@ -200,6 +206,15 @@ void HGCalRecHitDQM::bookHistograms(DQMStore::IBooker& ibook, edm::Run const& ru
   // bookHistograms runs once per run: rebuild the module maps instead of appending to them.
   followedModules_.clear();
   HGCALMap.clear();
+  recHitTimePerCrate_.clear();
+  cratePerFED_.clear();
+  for (const auto& fed : moduleIndexer.fedReadoutSequences()) {
+    if (fed.readoutTypes_.empty())
+      continue;
+
+    cratePerFED_[fed.id] = fed.crate;
+  }
+
   for (const auto& ele : hgcal::dqm::readoutModules(moduleIndexer, moduleInfo)) {
     followedModules_[MonitoredElementKey_t(ele.fedid, ele.modid)] = ele;
     HGCALMap[ele.endcap][ele.layer][ele.cassette][ele.typecode] = ele;
@@ -243,6 +258,22 @@ void HGCalRecHitDQM::bookHistograms(DQMStore::IBooker& ibook, edm::Run const& ru
           ibook.book1D("rechitenergy", label + ";RecHit energy [MIPs]; RecHits", 100, 0, 250);
       recHitSummariesLayers_[endcap][layer]["rechittimevsenergy"] =
           ibook.book2D("rechittimevsenergy", label + ";Energy [MIP]; RecHit time [ps]", 100, -10, 1000, 100, 0, 5000);
+    }
+    // RecHit timing information per crate.
+    const auto& crates = moduleIndexer.uniqueCrates();
+    if (!crates.empty()) {
+      const auto [minIt, maxIt] = std::minmax_element(crates.begin(), crates.end());
+      const int minCrate = *minIt;
+      const int maxCrate = *maxIt;
+      ibook.setCurrentFolder(endcapFolder);
+      recHitTimePerCrate_[endcap] = ibook.bookProfile("rechittimevscrateProfile",
+                                                      label + ";Crate number;Mean RecHit time [ps]",
+                                                      maxCrate - minCrate + 1,
+                                                      minCrate - 0.5,
+                                                      maxCrate + 0.5,
+                                                      0.,
+                                                      0.,
+                                                      "");
     }
   }
 }
