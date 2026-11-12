@@ -6,6 +6,8 @@
 #include "FWCore/ParameterSet/interface/FileInPath.h"
 #include "PhysicsTools/ONNXRuntime/interface/ONNXRuntime.h"
 
+#include "onnxServices.h"
+
 namespace {
   // Three neutral tracksters of a PU200 QCD event (regressed energy 1.5, 12 and 80 GeV), in the order of the 31 inputs of
   // TICLCandidateArbitrationProducer, and the shares that ONNX Runtime gives in the training environment.
@@ -31,6 +33,8 @@ namespace {
 }  // namespace
 
 TEST_CASE("The neutral share model gives the training shares", "[NeutralShareModel]") {
+  const edm::OwningServiceToken token = makeONNXServices();
+  const edm::ServiceRegistry::Operate operate(token);
   cms::Ort::ONNXRuntime model(edm::FileInPath(kModel).fullPath());
   std::vector<float> x;
   for (auto const& row : kInputs)
@@ -45,6 +49,8 @@ TEST_CASE("The neutral share model gives the training shares", "[NeutralShareMod
 }
 
 TEST_CASE("The neutral share model rejects another number of inputs", "[NeutralShareModel]") {
+  const edm::OwningServiceToken token = makeONNXServices();
+  const edm::ServiceRegistry::Operate operate(token);
   cms::Ort::ONNXRuntime model(edm::FileInPath(kModel).fullPath());
   cms::Ort::FloatArrays input{std::vector<float>(30, 0.f)};
   REQUIRE_THROWS(model.run({"features"}, input, {{1, 30}}, {}, 1));

@@ -13,6 +13,8 @@
 #include "PhysicsTools/ONNXRuntime/interface/ONNXRuntime.h"
 #include "RecoTICL/Interpretation/interface/ModelFeatures.h"
 
+#include "onnxServices.h"
+
 using Catch::Matchers::WithinAbs;
 using Catch::Matchers::WithinRel;
 using ticl::Hypothesis;
@@ -199,6 +201,8 @@ TEST_CASE("The interpretation models give the logits of the training environment
                                          -17.30788230895996f,
                                          -20.496549606323242f,
                                          13.615545272827148f};
+  const edm::OwningServiceToken token = makeONNXServices();
+  const edm::ServiceRegistry::Operate operate(token);
   auto run = [](const char* model, const std::vector<float>& input, int64_t nFeatures) {
     cms::Ort::ONNXRuntime network(edm::FileInPath(model).fullPath());
     cms::Ort::FloatArrays inputs{input};
