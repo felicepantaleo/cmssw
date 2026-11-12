@@ -93,7 +93,7 @@ hgcalLayerClustersHSci = hgCalLayerClustersFromSoAProducer.clone(
     hgcalRecHitsLayerClustersSoA = 'hgcalCLUEsteringHSci',
     detector = 'BH')
 
-# TICLv6: the layer clustering parameters of the tune point p2
+# TICLv6: the tuned layer clustering parameters
 from Configuration.ProcessModifiers.ticl_v6_cff import ticl_v6
 ticl_v6.toModify(hgcalCLUEsteringEE, deltac = 1.3842619336199442, kappa = 7.70371499020564,
                  outlierDeltaFactor = 1.193126585361772)

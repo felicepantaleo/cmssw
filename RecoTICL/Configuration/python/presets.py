@@ -148,17 +148,17 @@ def _preset_clue3dbarrel(it):
 
 
 def _preset_cluestering(it):
-    # CLUEstering on the layer clusters merged on the device, with the parameters of the TICLv6 tune point p2. The PID
-    # runs on the host on the converted tracksters, with the CNN and the PID cut of CLUE3DHigh.
+    # CLUEstering on the layer clusters merged on the device, with the tuned TICLv6 parameters. The PID runs on the
+    # host on the converted tracksters, with the CNN and the PID cut of CLUE3DHigh.
     it.pattern_type = "CLUEstering"
     it.pattern_params = dict(
-        deltac=1.6997148722485347,
-        rhoc=0.30483237976950317,
-        outlierDistance=3.3167447136046313,
-        seedingDistance=2.7718042783093337,
-        layerScale=3.377194342176505,
-        rhocEtaExponent=3.0117299351406634,
-        rhocPivotRadius=0.39770189059528605,
+        deltac=1.072,
+        rhoc=0.2574,
+        outlierDistance=2.490,
+        seedingDistance=2.077,
+        layerScale=6.341,
+        rhocEtaExponent=3.018,
+        rhocPivotRadius=0.5486,
         minLayerClusters=2,
         minSiliconCells=2,
     )
@@ -240,24 +240,25 @@ def links_defaults():
 
 
 def cornetto_links_defaults():
-    """``ticlTracksterLinks`` overrides for v6: :func:`links_defaults` with the Cornetto linking plugin and the cone,
-    time, type veto and emission parameters of the TICLv6 tune point p2, without the second pass. The EM probability
-    sums photon, electron and neutral pion (``emCategories``), the EM definition of the superclustering of the same
-    preset. The other parameters keep the plugin defaults."""
+    """``ticlTracksterLinks`` overrides for v6: :func:`links_defaults` with the Cornetto linking plugin and the tuned
+    cone, time, type veto and emission parameters of TICLv6, without the second pass. The EM probability sums photon,
+    electron and neutral pion (``emCategories``), the EM definition of the superclustering of the same preset. The
+    other parameters keep the plugin defaults."""
     d = links_defaults()
     d["linkingPSet"] = cms.PSet(
         type=cms.string("Cornetto"), algo_verbosity=cms.int32(0),
         emCategories=cms.vint32(0, 1, 3),
-        maxLongitudinalDistance=cms.float(96.70198965421127),
-        maxBackwardDistance=cms.float(13.713195659245459),
-        emTransverseRadius0=cms.float(1.7134312957413216),
-        emTransverseSlope=cms.float(0.012746363098379409),
-        transverseRadius0=cms.float(2.5920967073489423),
-        transverseSlope=cms.float(0.01787202233663772),
+        maxLongitudinalDistance=cms.float(80.58),
+        maxBackwardDistance=cms.float(18.35),
+        emTransverseRadius0=cms.float(1.828),
+        emTransverseSlope=cms.float(0.01179),
+        transverseRadius0=cms.float(2.683),
+        transverseSlope=cms.float(0.01649),
         timeCompatibilityNSigma=cms.float(2.4490096877491254),
         typeVetoProbability=cms.float(0.5576434880810307),
-        minEmittedEnergy=cms.float(1.6552707168382577),
-        minEmittedPt=cms.float(0.9236337717849741),
+        minEmittedEnergy=cms.float(1.348),
+        minEmittedPt=cms.float(0.8179),
+        minEmittedEnergyAnyPt=cms.float(0.5779),
         minEmittedEnergyEM=cms.float(0.8516300438820504),
         minEmittedPtEM=cms.float(0.5),
         mergeFragments=cms.bool(False),
@@ -365,7 +366,7 @@ def v6(name="v6", target="offline", heterogeneous=False):
     """Return a :class:`TICLConfig` for TICLv6, the configuration of the ``ticl_v6`` process modifier: Cornetto
     linking, the interpretation stage (hypotheses, global arbitration, track claim) and the candidates from its maps.
     The interpretation stage runs the PFN energy regression of the v5 candidates and the shower-shape PID. The
-    CLUEstering and Cornetto parameters are those of the tune point p2; the other parameters are the module defaults.
+    CLUEstering and Cornetto parameters are tuned; the other parameters are the module defaults.
     With ``heterogeneous`` (the ``ticl_v6_heterogeneous`` modifier with ``ticl_v6``), the shower-shape PID of the
     CLUEstering tracksters, the Recovery iteration, the Cornetto linking and the superclustering DNN run on the device,
     and their results are converted under the same labels."""
