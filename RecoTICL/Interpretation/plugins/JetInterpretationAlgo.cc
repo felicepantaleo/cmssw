@@ -12,6 +12,7 @@ JetInterpretationAlgo::JetInterpretationAlgo(const edm::ParameterSet &conf, edm:
     : TICLInterpretationAlgoBase(conf, iC),
       delta_tk_ts_(conf.getParameter<float>("delta_tk_ts")),
       min_trackster_energy_(conf.getParameter<float>("min_trackster_energy")),
+      min_jet_energy_over_p_(conf.getParameter<float>("min_jet_energy_over_p")),
       recovery_max_distance_(conf.getParameter<float>("recovery_max_distance")),
       expectedDeposit_{conf.getParameter<float>("expectedDepositResponse"),
                        conf.getParameter<float>("expectedDepositLogSlope"),
@@ -98,6 +99,8 @@ void JetInterpretationAlgo::makeOpinions(const Inputs &input,
     if (inTracks.size() < 2)
       continue;
     const float e = ts.raw_energy();
+    if (e < min_jet_energy_over_p_ * sumP)
+      continue;
     const float balance = 1.f - std::abs(e - sumP) / std::max(e, sumP);
     if (balance <= 0.f)
       continue;
@@ -225,6 +228,8 @@ void JetInterpretationAlgo::makeSharedFootprintOpinions(const Inputs &input,
       e += tracksters[iTs].raw_energy();
       inGroup[iTs] = false;
     }
+    if (e < min_jet_energy_over_p_ * sumP)
+      continue;
     const float balance = 1.f - std::abs(e - sumP) / std::max(e, sumP);
     if (balance <= 0.f)
       continue;
@@ -242,6 +247,8 @@ void JetInterpretationAlgo::fillPSetDescription(edm::ParameterSetDescription &de
   desc.add<float>("delta_tk_ts", 0.1f)->setComment("(eta,phi) window to associate tracks to a trackster.");
   desc.add<float>("min_trackster_energy", 5.0f)
       ->setComment("Min trackster raw energy [GeV] for a jet (multi-track) reading.");
+  desc.add<float>("min_jet_energy_over_p", 0.f)
+      ->setComment("Min ratio of the raw energy of a jet footprint to the summed momentum of its tracks.");
   desc.add<float>("recovery_max_distance", 5.f)
       ->setComment(
           "Recovery footprint: the tracksters in the window within this transverse distance [cm] of the track, nearest "

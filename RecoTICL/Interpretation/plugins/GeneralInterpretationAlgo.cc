@@ -17,7 +17,8 @@ GeneralInterpretationAlgo::GeneralInterpretationAlgo(const edm::ParameterSet &co
       del_tk_ts_layer1_(conf.getParameter<float>("delta_tk_ts_layer1")),
       del_tk_ts_int_(conf.getParameter<float>("delta_tk_ts_interface")),
       timing_quality_threshold_(conf.getParameter<float>("timing_quality_threshold")),
-      min_neutral_hadron_energy_(conf.getParameter<float>("min_neutral_hadron_energy")) {}
+      min_neutral_hadron_energy_(conf.getParameter<float>("min_neutral_hadron_energy")),
+      energy_margin_n_sigma_(conf.getParameter<float>("energy_margin_n_sigma")) {}
 
 void GeneralInterpretationAlgo::initialize(const HGCalDDDConstants *hgcons,
                                            const ticlgeom::Tools rhtools,
@@ -150,7 +151,8 @@ bool GeneralInterpretationAlgo::timeAndEnergyCompatible(float &total_raw_energy,
                                                         const float &tkBeta,
                                                         const GlobalPoint &tkMtdPos,
                                                         bool useMTDTiming) {
-  float threshold = std::min(0.2 * trackster.raw_energy(), 10.0);
+  const double sigmaP = track.qoverpError() * track.p() * track.p();
+  float threshold = std::max(std::min(0.2 * trackster.raw_energy(), 10.0), energy_margin_n_sigma_ * sigmaP);
   bool energyCompatible = (total_raw_energy + trackster.raw_energy() < track.p() + threshold);
 
   if (!useMTDTiming)
@@ -461,5 +463,8 @@ void GeneralInterpretationAlgo::fillPSetDescription(edm::ParameterSetDescription
   desc.add<float>("timing_quality_threshold", 0.5);
   desc.add<float>("min_neutral_hadron_energy", 1.f)
       ->setComment("Hypotheses: min raw energy [GeV] of a trackster for a neutral-hadron hypothesis.");
+  desc.add<float>("energy_margin_n_sigma", 0.f)
+      ->setComment(
+          "The margin of the energy test of a track and its tracksters is at least this number of momentum errors.");
   TICLInterpretationAlgoBase::fillPSetDescription(desc);
 }

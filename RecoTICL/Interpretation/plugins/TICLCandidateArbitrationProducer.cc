@@ -85,6 +85,9 @@ private:
   const edm::EDGetTokenT<std::vector<int>> neutralPdg_token_;
   // The candidate of a track holds the claim trackster of the track.
   const bool attachClaimTracksters_;
+  // The energy combination of a charged hadron or a jet member adds the regressed energy of the claim trackster of
+  // its track to the trackster energy. A track with a claim trackster and no trackster takes their combined energy.
+  const bool useClaimTracksterEnergy_;
   edm::EDGetTokenT<std::vector<int>> trackToClaimTrackster_token_;
   // One trackster per candidate from the layer clusters of its tracksters (CandidateTracksters.h), put as the
   // trackster product; each candidate then holds its trackster.
@@ -202,12 +205,15 @@ private:
   // Energy error of a trackster that measures the energy e.
   float tracksterEnergyError(const Trackster &ts, float e) const;
 
-  // A charged hadron that shares the energy of a trackster with the other charged hadrons on it.
+  // A charged hadron that shares the energy of a trackster with the other charged hadrons on it. claimEnergy and
+  // claimVariance are the energy and the variance of the claim trackster of its track (useClaimTracksterEnergy_), else 0.
   struct ChargedOnTrackster {
     size_t candidate;
     float energy;
     float variance;
     bool jetMember;
+    float claimEnergy;
+    float claimVariance;
   };
   // Sets the weighted-average energies of the charged hadrons of each trackster and adds them to trackSumP.
   void combineChargedHadrons(const edm::Handle<std::vector<Trackster>> &tracksters_h,
@@ -303,6 +309,7 @@ TICLCandidateArbitrationProducer::TICLCandidateArbitrationProducer(const edm::Pa
       neutralIdx_token_(consumes<std::vector<int>>(interpretationTag(ps, "neutralIdx"))),
       neutralPdg_token_(consumes<std::vector<int>>(interpretationTag(ps, "neutralPdg"))),
       attachClaimTracksters_(ps.getParameter<bool>("attachClaimTracksters")),
+      useClaimTracksterEnergy_(ps.getParameter<bool>("useClaimTracksterEnergy")),
       tracks_token_(consumes<std::vector<reco::Track>>(ps.getParameter<edm::InputTag>("tracks"))),
       useGsfTracks_(ps.getParameter<bool>("useGsfTracks")),
       useMTDTiming_(ps.getParameter<bool>("useMTDTiming")),
@@ -351,7 +358,7 @@ TICLCandidateArbitrationProducer::TICLCandidateArbitrationProducer(const edm::Pa
       hdc_token_(esConsumes<HGCalDDDConstants, IdealGeometryRecord, edm::Transition::BeginRun>(
           edm::ESInputTag("", "HGCalEESensitive"))),
       hgcons_(nullptr) {
-  if (attachClaimTracksters_)
+  if (attachClaimTracksters_ || useClaimTracksterEnergy_)
     trackToClaimTrackster_token_ = consumes<std::vector<int>>(interpretationTag(ps, "trackToClaimTrackster"));
   const auto &candidateTracksters = ps.getParameter<edm::ParameterSet>("candidateTracksters");
   const auto &assignment = candidateTracksters.getParameter<std::string>("assignment");
@@ -474,14 +481,19 @@ void TICLCandidateArbitrationProducer::combineChargedHadrons(
   }
   for (auto const &[tsIdx, charged] : chargedOnTrackster) {
     const auto &ts = (*tracksters_h)[tsIdx];
-    float eSum = 0.f, varSum = 0.f;
+    float eSum = 0.f, varSum = 0.f, eClaim = 0.f, varClaim = 0.f;
     for (auto const &c : charged) {
       eSum += c.energy;
       varSum += c.variance;
+      eClaim += c.claimEnergy;
+      varClaim += c.claimVariance;
     }
     const auto cal = calibrated.find(tsIdx);
-    const float eTrackster = cal != calibrated.end() ? cal->second.first : ts.regressed_energy();
-    const float sigmaTrackster = cal != calibrated.end() ? cal->second.second : tracksterEnergyError(ts, eSum);
+    const float eTrackster = (cal != calibrated.end() ? cal->second.first : ts.regressed_energy()) + eClaim;
+    // The calibrated error is the error of the trackster alone: the variance of the claim tracksters adds to it.
+    float sigmaTrackster = cal != calibrated.end() ? cal->second.second : tracksterEnergyError(ts, eSum);
+    if (cal != calibrated.end() && varClaim > 0.f)
+      sigmaTrackster = std::sqrt(sigmaTrackster * sigmaTrackster + varClaim);
     const float varTotal = varSum + sigmaTrackster * sigmaTrackster;
     const float diff = eTrackster - eSum;
     bool combine = std::abs(diff) < energyCompatibilityNSigma_ * std::sqrt(varTotal);
@@ -606,11 +618,31 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
   std::vector<TICLCandidate> candidates;
   std::map<int, float> trackSumP;
   std::map<int, std::vector<ChargedOnTrackster>> chargedOnTrackster;
-  // Energy and variance of the track of a charged hadron, with the pion mass.
-  auto chargedOnTrack = [&](const reco::Track &tk, bool jetMember) {
+  const std::vector<int> *claimOfTrack = useClaimTracksterEnergy_ ? &evt.get(trackToClaimTrackster_token_) : nullptr;
+  auto claimTracksterOf = [&](size_t iTrack) -> const Trackster * {
+    if (claimOfTrack == nullptr || iTrack >= claimOfTrack->size() || (*claimOfTrack)[iTrack] < 0)
+      return nullptr;
+    return &(*tracksters_h)[(*claimOfTrack)[iTrack]];
+  };
+  // The last candidate, a charged hadron with the pion mass, joins the energy combination of its trackster
+  // (combineChargedHadrons). With a claim trackster and no trackster, it takes the combined energy of the two.
+  auto addToEnergyCombination = [&](size_t iTrack, const reco::Track &tk, int tsIdx, bool jetMember) {
     const float p = tk.p();
     const float sigmaP = hadronicTrackMomentumErrorScale_ * tk.qoverpError() * p * p;
-    return ChargedOnTrackster{candidates.size() - 1, std::sqrt(p * p + ticl::mpion2), sigmaP * sigmaP, jetMember};
+    const Trackster *claim = claimTracksterOf(iTrack);
+    if (tsIdx < 0) {
+      if (claim != nullptr)
+        candidates.back().setP4(
+            p4Along(tk.momentum(), combinedEnergy(p, sigmaP, ticl::mpion, *claim).energy, ticl::mpion));
+      return;
+    }
+    ChargedOnTrackster c{candidates.size() - 1, std::sqrt(p * p + ticl::mpion2), sigmaP * sigmaP, jetMember, 0.f, 0.f};
+    if (claim != nullptr) {
+      c.claimEnergy = claim->regressed_energy();
+      const float sigma = tracksterEnergyError(*claim, c.claimEnergy);
+      c.claimVariance = sigma * sigma;
+    }
+    chargedOnTrackster[tsIdx].push_back(c);
   };
   // A GSF track goes to one electron only.
   std::vector<bool> gsfUsed(gsfTracks.size(), false);
@@ -684,8 +716,7 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
       TICLCandidate cand(trackPtr, noTrackster);
       cand.setTypeProbabilities(chargedTypeProbabilities(iTrack));
       candidates.push_back(cand);
-      if (tsIdx >= 0)
-        chargedOnTrackster[tsIdx].push_back(chargedOnTrack(tk, true));
+      addToEnergyCombination(iTrack, tk, tsIdx, true);
     } else if (tracksterPtr.isNonnull() && !tracksterPtr->isHadronic()) {
       // Charged hadron or recovery on an EM trackster: an electron (the trackster PID) when E/p passes
       // electronMinEOverP_, else a charged pion, with the combined energy along the track. A compatible trackster is all
@@ -710,8 +741,7 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
       cand.setP4(p4Polar);
       cand.setTypeProbabilities(chargedTypeProbabilities(iTrack));
       candidates.push_back(cand);
-      if (tsIdx >= 0)
-        chargedOnTrackster[tsIdx].push_back(chargedOnTrack(tk, false));
+      addToEnergyCombination(iTrack, tk, tsIdx, false);
     }
   }
   combineChargedHadrons(tracksters_h, chargedOnTrackster, trackSumP, candidates);
@@ -979,6 +1009,10 @@ void TICLCandidateArbitrationProducer::fillDescriptions(edm::ConfigurationDescri
           "One trackster per candidate, after the energy, the time and the muon kinematics of the candidates.");
   desc.add<bool>("attachClaimTracksters", true)
       ->setComment("The candidate of a track holds the claim trackster of the track, after the energy and the time.");
+  desc.add<bool>("useClaimTracksterEnergy", false)
+      ->setComment(
+          "The energy combination of a charged hadron or a jet member adds the regressed energy of the claim trackster "
+          "of its track to the trackster energy.");
   desc.add<bool>("useGsfTracks", true)->setComment("Give the electrons the direction and the charge of the GSF track.");
   desc.add<edm::InputTag>("gsf_tracks", edm::InputTag("electronGsfTracks"));
   desc.add<edm::InputTag>("timingSoA", edm::InputTag("mtdSoA"));

@@ -386,6 +386,11 @@ private:
   const float plattB_;
   const float trackBonus_;
   const float trackOnlyWeight_;
+  // Upper bounds of the hypothesis model inputs; 0 is no bound. The energy and momentum bounds are log(1 + GeV).
+  const float maxFeatureLogRawEnergy_;
+  const float maxFeatureLogTrackP_;
+  const float maxFeatureTrackPt_;
+  const float maxFeatureLayerClusters_;
   const unsigned int maxExactComponent_;
   const unsigned long searchBudget_;
   // A jet hypothesis on an EM footprint is never accepted.
@@ -452,6 +457,10 @@ TICLInterpretationProducer::TICLInterpretationProducer(const edm::ParameterSet &
       plattB_(ps.getParameter<float>("arbitrationPlattB")),
       trackBonus_(ps.getParameter<float>("arbitrationTrackBonus")),
       trackOnlyWeight_(ps.getParameter<float>("arbitrationTrackOnlyWeight")),
+      maxFeatureLogRawEnergy_(std::log1p(std::max(ps.getParameter<float>("arbitrationMaxFeatureRawEnergy"), 0.f))),
+      maxFeatureLogTrackP_(std::log1p(std::max(ps.getParameter<float>("arbitrationMaxFeatureTrackP"), 0.f))),
+      maxFeatureTrackPt_(ps.getParameter<float>("arbitrationMaxFeatureTrackPt")),
+      maxFeatureLayerClusters_(ps.getParameter<float>("arbitrationMaxFeatureLayerClusters")),
       maxExactComponent_(ps.getParameter<unsigned int>("arbitrationMaxExactComponent")),
       searchBudget_(ps.getParameter<unsigned int>("arbitrationSearchBudget")),
       vetoJetOnEMFootprint_(ps.getParameter<bool>("arbitrationVetoJetOnEMFootprint")),
@@ -911,12 +920,21 @@ std::vector<float> TICLInterpretationProducer::modelWeights(const Opinions &opin
       rows.push_back(i);
   std::vector<float> features(rows.size() * modelFeatures_, 0.f);
   std::array<float, kN> x;
+  // A slot with no footprint or no track holds -1 and keeps it.
+  const auto bound = [](float &value, float max) {
+    if (max > 0.f)
+      value = std::min(value, max);
+  };
   for (unsigned int r = 0; r < rows.size(); ++r) {
     const auto &h = hypotheses[rows[r]];
     const Trackster *footprint = h.tracksterIdx >= 0 ? &opinions.tracksters[h.tracksterIdx] : nullptr;
     x.fill(0.f);
     modelfeatures::fillHypothesisFeatures(
         h, footprint, tracks, {compSize[rows[r]], muonTrack, electronTrack, emRecoveryTrack}, x);
+    bound(x[modelfeatures::hypothesis::kLogRawEnergy], maxFeatureLogRawEnergy_);
+    bound(x[modelfeatures::hypothesis::kLogTrackP], maxFeatureLogTrackP_);
+    bound(x[modelfeatures::hypothesis::kTrackPt], maxFeatureTrackPt_);
+    bound(x[modelfeatures::hypothesis::kNLayerClusters], maxFeatureLayerClusters_);
     std::copy_n(x.begin(), modelFeatures_, features.begin() + r * modelFeatures_);
   }
   const std::vector<float> logits = arbitrationModel_.logits(std::move(features), rows.size());
@@ -1394,7 +1412,7 @@ TICLInterpretationProducer::FinalTracksters TICLInterpretationProducer::finalTra
     finalTs.leftoverIndex.push_back(static_cast<int>(result.size()));
     result.push_back(std::move(*pruned));
   }
-  // One claim trackster per claiming track. The charged candidate takes its energy from the track.
+  // One claim trackster per claiming track.
   finalTs.claimIndex.assign(nTracks, -1);
   for (unsigned int v = 0; v < claimingTrack.size(); ++v) {
     if (claimingTrack[v] < 0)
@@ -1576,6 +1594,14 @@ void TICLInterpretationProducer::fillDescriptions(edm::ConfigurationDescriptions
   desc.add<float>("arbitrationPlattB", 0.f);
   desc.add<float>("arbitrationTrackBonus", 20.0f)->setComment("Weight added per track a hypothesis covers.");
   desc.add<float>("arbitrationTrackOnlyWeight", -1.0f)->setComment("Weight of a track-only hypothesis.");
+  desc.add<float>("arbitrationMaxFeatureRawEnergy", 0.f)
+      ->setComment("Upper bound of the footprint raw energy [GeV] that the hypothesis model reads; 0 is no bound.");
+  desc.add<float>("arbitrationMaxFeatureTrackP", 0.f)
+      ->setComment("Upper bound of the track momentum [GeV] that the hypothesis model reads; 0 is no bound.");
+  desc.add<float>("arbitrationMaxFeatureTrackPt", 0.f)
+      ->setComment("Upper bound of the track pT [GeV] that the hypothesis model reads; 0 is no bound.");
+  desc.add<float>("arbitrationMaxFeatureLayerClusters", 0.f)
+      ->setComment("Upper bound of the number of layer clusters that the hypothesis model reads; 0 is no bound.");
   desc.add<unsigned int>("arbitrationMaxExactComponent", 64)
       ->setComment("Largest component solved by branch and bound (at most 64); larger ones are greedy.");
   desc.add<unsigned int>("arbitrationSearchBudget", 1000000)

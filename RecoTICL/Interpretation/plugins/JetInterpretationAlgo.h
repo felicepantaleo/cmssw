@@ -62,6 +62,8 @@ namespace ticl {
     const float delta_tk_ts_;
     // Min trackster raw energy for a jet on one trackster.
     const float min_trackster_energy_;
+    // Min ratio of the raw energy of a jet footprint to the summed momentum of its tracks.
+    const float min_jet_energy_over_p_;
     // Recovery footprint: the tracksters in the window within this transverse distance [cm] of the track, nearest
     // first, up to the expected deposit.
     const float recovery_max_distance_;

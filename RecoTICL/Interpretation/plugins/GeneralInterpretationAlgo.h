@@ -78,6 +78,8 @@ namespace ticl {
     const float timing_quality_threshold_;
     // Min raw energy [GeV] of a trackster for a neutral-hadron hypothesis.
     const float min_neutral_hadron_energy_;
+    // The margin of the energy test of a track and its tracksters is at least this number of momentum errors.
+    const float energy_margin_n_sigma_;
 
     const HGCalDDDConstants *hgcons_;
 
