@@ -69,6 +69,17 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     auto const ncells = host_g4Hits.view().metadata().size();
     HGCalRealisticSimHitDevice device_g4Hits(queue, ncells);
     alpaka::memcpy(queue, device_g4Hits.buffer(), host_g4Hits.const_buffer());
+    age(queue, device_g4Hits, ageConds, denseIndex, cellInfo);
+    return device_g4Hits;
+  }
+
+  // @short apply all calibration kernels in place
+  void HGCalAgeingAlgorithms::age(Queue& queue,
+                                  HGCalRealisticSimHitDevice& device_g4Hits,
+                                  HGCalAgeingCondsDevice const& ageConds,
+                                  HGCalDenseIndexInfoDevice const& denseIndex,
+                                  HGCalMappingCellParamDevice const& cellInfo) const {
+    auto const ncells = device_g4Hits.view().metadata().size();
 
     // number of items per group and division in groups to cover the whole problem
     uint32_t items = n_threads_;
@@ -93,8 +104,6 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     int n_hits_to_print = 10;
     alpaka::exec<Acc1D>(queue, grid, HGCalAgeingKernel_printHits{}, device_g4Hits.view(), n_hits_to_print);
 #endif
-
-    return device_g4Hits;
   }
 
 }  // namespace ALPAKA_ACCELERATOR_NAMESPACE

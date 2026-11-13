@@ -24,6 +24,7 @@
   <use name="CondFormats/DataRecord"/>
   <use name="HeterogeneousCore/AlpakaCore"/>
   <use name="HeterogeneousCore/AlpakaInterface"/>
+  <use name="SimCalorimetry/HGCalSimProducers"/>
   <flags ALPAKA_BACKENDS="1"/>
   <flags EDM_PLUGIN="1"/>
 </library>

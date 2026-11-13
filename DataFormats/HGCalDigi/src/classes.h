@@ -7,6 +7,8 @@
 #include "DataFormats/HGCalDigi/interface/HGCalRawDataEmulatorInfo.h"
 #include "DataFormats/HGCalDigi/interface/HGCalSimHitAccumHost.h"
 #include "DataFormats/HGCalDigi/interface/HGCalSimHitAccumSoA.h"
+#include "DataFormats/HGCalDigi/interface/HGCalSimHitListHost.h"
+#include "DataFormats/HGCalDigi/interface/HGCalSimHitListSoA.h"
 #include "DataFormats/HGCalDigi/interface/HGCalDigiHost.h"
 #include "DataFormats/HGCalDigi/interface/HGCalDigiSoA.h"
 #include "DataFormats/HGCalDigi/interface/HGCalECONDPacketInfoHost.h"

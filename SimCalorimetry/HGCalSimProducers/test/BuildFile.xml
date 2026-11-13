@@ -1,0 +1,10 @@
+<bin file="alpaka/testHGCalSimHitListAlgorithms.dev.cc" name="testHGCalSimHitListAlgorithms">
+  <use name="alpaka"/>
+  <use name="catch2"/>
+  <use name="CondFormats/HGCalObjects"/>
+  <use name="DataFormats/HGCalDigi"/>
+  <use name="FWCore/Utilities"/>
+  <use name="HeterogeneousCore/AlpakaInterface"/>
+  <use name="SimCalorimetry/HGCalSimProducers"/>
+  <flags ALPAKA_BACKENDS="1"/>
+</bin>

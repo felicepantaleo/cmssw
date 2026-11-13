@@ -76,6 +76,15 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                                    HGCalDenseIndexInfoDevice const&,
                                    HGCalMappingCellParamDevice const&) const;
 
+    /**
+      @short apply the ageing and the realistic response in place, to accumulators already on the device
+    */
+    void age(Queue&,
+             HGCalRealisticSimHitDevice&,
+             HGCalAgeingCondsDevice const&,
+             HGCalDenseIndexInfoDevice const&,
+             HGCalMappingCellParamDevice const&) const;
+
   private:
     int n_blocks_, n_threads_;
   };

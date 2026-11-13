@@ -39,6 +39,7 @@
 // includes for data formats
 #include "DataFormats/HGCalDigi/interface/HGCalSimHitAccumHost.h"
 #include "DataFormats/HGCalDigi/interface/alpaka/HGCalSimHitAccumDevice.h"
+#include "DataFormats/HGCalDigi/interface/HGCalSimHitListHost.h"
 #include "DataFormats/HGCalDigi/interface/HGCalDigiHost.h"
 #include "DataFormats/HGCalDigi/interface/alpaka/HGCalDigiDevice.h"
 #include "DataFormats/HGCalDigi/interface/HGCalECONDPacketInfoHost.h"
@@ -53,6 +54,7 @@
 
 //kernels handlers
 #include "SimCalorimetry/HGCalSimProducers/interface/alpaka/HGCalDigitizerAlgorithms.h"
+#include "SimCalorimetry/HGCalSimProducers/interface/alpaka/HGCalSimHitListAlgorithms.h"
 
 namespace ALPAKA_ACCELERATOR_NAMESPACE {
 
@@ -72,7 +74,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                              CLHEP::HepJamesRandom&);
 
     const edm::EDGetTokenT<float> lhcPhaseShiftToken_;
-    const edm::EDGetTokenT<hgcaldigi::HGCalSimHitAccumHost> g4HitsAccTkn_;
+    edm::EDGetTokenT<hgcaldigi::HGCalSimHitAccumHost> g4HitsAccTkn_;
+    edm::EDGetTokenT<hgcaldigi::HGCalSimHitListHost> g4HitListTkn_;
     edm::ESWatcher<HGCalAgeingCondsRcd> ageingCondsWatcher_;
     const edm::ESGetToken<hgcal::HGCalAgeingCondsHost, HGCalAgeingCondsRcd> ageingCondsTkn_;
     const edm::ESGetToken<hgcal::HGCalDenseIndexInfoHost, HGCalDenseIndexInfoRcd> denseIndexTkn_;
@@ -80,6 +83,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     const edm::ESGetToken<hgcal::HGCalMappingModuleParamHost, HGCalElectronicsMappingRcd> moduleInfoTkn_;
     const edm::ESGetToken<hgcal::HGCalMappingCellParamHost, HGCalElectronicsMappingRcd> cellInfoToken_;
     const int n_blocks_, n_threads_;
+    const HGCalSimHitListAlgorithms accumulator_;
     const HGCalAgeingAlgorithms ripener_;
     const HGCalECONDAlgorithms concentrator_;
     const HGCalROCDigitizerAlgorithms digitizer_;
@@ -106,7 +110,6 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
   HGCalDigitizerProducer::HGCalDigitizerProducer(const edm::ParameterSet& iConfig)
       : SynchronizingEDProducer(iConfig),
         lhcPhaseShiftToken_{consumes<float>(iConfig.getParameter<edm::InputTag>("lhcPhaseShift"))},
-        g4HitsAccTkn_{consumes<hgcaldigi::HGCalSimHitAccumHost>(iConfig.getParameter<edm::InputTag>("g4HitsAcc"))},
         ageingCondsTkn_{esConsumes(iConfig.getParameter<edm::ESInputTag>("ageingConds"))},
         denseIndexTkn_{esConsumes(iConfig.getParameter<edm::ESInputTag>("denseIndexer"))},
         readoutMapTkn_{esConsumes(iConfig.getParameter<edm::ESInputTag>("readoutMap"))},
@@ -114,11 +117,18 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
         cellInfoToken_{esConsumes(iConfig.getParameter<edm::ESInputTag>("cellInfo"))},
         n_blocks_{iConfig.getParameter<int>("n_blocks")},
         n_threads_{iConfig.getParameter<int>("n_threads")},
+        accumulator_{n_threads_},
         ripener_{n_blocks_, n_threads_},
         concentrator_{n_blocks_, n_threads_},
         digitizer_{n_blocks_, n_threads_},
         produceExtra_(iConfig.getParameter<bool>("produceExtra")),
         crateTimeJumpsSigma_ns_(static_cast<float>(iConfig.getParameter<double>("crateTimeJumpsSigma_ns"))) {
+    auto const& g4HitList = iConfig.getParameter<edm::InputTag>("g4HitList");
+    if (g4HitList.label().empty()) {
+      g4HitsAccTkn_ = consumes(iConfig.getParameter<edm::InputTag>("g4HitsAcc"));
+    } else {
+      g4HitListTkn_ = consumes(g4HitList);
+    }
     rocDigisTkn_ = produces("HGCROCDigis");
     econInfoTkn_ = produces("HGCECONInfo");
 
@@ -133,7 +143,10 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
   void HGCalDigitizerProducer::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
     edm::ParameterSetDescription desc;
     desc.add<edm::InputTag>("lhcPhaseShift", edm::InputTag("lhcPhaseShift"));
-    desc.add<edm::InputTag>("g4HitsAcc", edm::InputTag("hgcalDigis", "DIGI", "TEST"));
+    desc.add<edm::InputTag>("g4HitsAcc", edm::InputTag("hgcalDigis", "DIGI", "TEST"))
+        ->setComment("Accumulated Geant4 hits, one row per dense index; read only if g4HitList is empty");
+    desc.add<edm::InputTag>("g4HitList", edm::InputTag())
+        ->setComment("Geant4 hit list, accumulated on the device; if empty, g4HitsAcc is read");
     desc.add("ageingConds", edm::ESInputTag{})->setComment("Label for ageing parameters");
     desc.add("readoutMap", edm::ESInputTag{})->setComment("Readout map of HGCAL (module indexer)");
     desc.add("denseIndexer", edm::ESInputTag{})->setComment("Dense indexer SoA source");
@@ -187,8 +200,9 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     int nmodules = moduleInfo.view().metadata().size();
     const auto& cellInfo = iSetup.getData(cellInfoToken_);
     int ncellinfo = cellInfo.view().metadata().size();
-    const auto& g4AccHits = iEvent.get(g4HitsAccTkn_);
-    auto nchannels = g4AccHits.view().metadata().size();
+    const bool useHitList = !g4HitListTkn_.isUninitialized();
+    auto const* g4AccHits = useHitList ? nullptr : &iEvent.get(g4HitsAccTkn_);
+    auto nchannels = useHitList ? denseIndexer.view().metadata().size() : g4AccHits->view().metadata().size();
     // Read LHC phase shift
     auto const& lhcPhaseShift = iEvent.getHandle(lhcPhaseShiftToken_);
     auto const& lhc_phaseshift = lhcPhaseShift.isValid() ? *lhcPhaseShift : 0.;
@@ -237,7 +251,12 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     alpaka::wait(queue);
 
     //run ageing
-    agedG4HitsAcc_device_ = ripener_.age(queue, g4AccHits, ageingConds_device, denseIndex_device, cellInfo_device);
+    if (useHitList) {
+      agedG4HitsAcc_device_ = accumulator_.accumulate(queue, iEvent.get(g4HitListTkn_), nchannels);
+      ripener_.age(queue, agedG4HitsAcc_device_.value(), ageingConds_device, denseIndex_device, cellInfo_device);
+    } else {
+      agedG4HitsAcc_device_ = ripener_.age(queue, *g4AccHits, ageingConds_device, denseIndex_device, cellInfo_device);
+    }
 
     //run digitization
     if (agedG4HitsAcc_device_.has_value()) {

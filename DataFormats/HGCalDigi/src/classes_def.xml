@@ -39,6 +39,14 @@
   <class name="hgcaldigi::HGCalSimHitAccumSoALayout<128,false>"/>
   <class name="edm::Wrapper<PortableHostCollection<hgcaldigi::HGCalSimHitAccumSoALayout<128,false> > >" splitLevel="0"/>
 
+  <class name="hgcaldigi::HGCalSimHitListHost"  rntupleStreamerMode="true"/>
+  <!-- ::Layout alias must be listed before the aliased-to type -->
+  <class name="hgcaldigi::HGCalSimHitListHost::Layout"/>
+  <class name="hgcaldigi::HGCalSimHitListSoA"/>
+  <class name="hgcaldigi::HGCalSimHitListSoA::View"/>
+  <class name="hgcaldigi::HGCalSimHitListSoALayout<128,false>"/>
+  <class name="edm::Wrapper<PortableHostCollection<hgcaldigi::HGCalSimHitListSoALayout<128,false> > >" splitLevel="0"/>
+
   <class name="hgcaldigi::HGCalRealisticSimHitHost"  rntupleStreamerMode="true"/>
   <!-- ::Layout alias must be listed before the aliased-to type -->
   <class name="hgcaldigi::HGCalRealisticSimHitHost::Layout"/>
