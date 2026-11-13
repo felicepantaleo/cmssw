@@ -387,10 +387,7 @@ private:
   const float trackBonus_;
   const float trackOnlyWeight_;
   // Upper bounds of the hypothesis model inputs; 0 is no bound. The energy and momentum bounds are log(1 + GeV).
-  const float maxFeatureLogRawEnergy_;
-  const float maxFeatureLogTrackP_;
-  const float maxFeatureTrackPt_;
-  const float maxFeatureLayerClusters_;
+  const modelfeatures::HypothesisFeatureBounds featureBounds_;
   const unsigned int maxExactComponent_;
   const unsigned long searchBudget_;
   // A jet hypothesis on an EM footprint is never accepted.
@@ -398,6 +395,8 @@ private:
   // Each Jet hypothesis also has a variant without the track and the footprint of each Electron hypothesis of its
   // tracks.
   const bool jetVariantsWithoutElectrons_;
+  // min_jet_energy_over_p of the Jet interpretation, for these variants.
+  const float minJetEnergyOverP_;
   // Without neutral-hadron hypotheses, their footprints only give the PID of the input tracksters to the inference
   // cache.
   const bool neutralHadronHypotheses_;
@@ -457,14 +456,16 @@ TICLInterpretationProducer::TICLInterpretationProducer(const edm::ParameterSet &
       plattB_(ps.getParameter<float>("arbitrationPlattB")),
       trackBonus_(ps.getParameter<float>("arbitrationTrackBonus")),
       trackOnlyWeight_(ps.getParameter<float>("arbitrationTrackOnlyWeight")),
-      maxFeatureLogRawEnergy_(std::log1p(std::max(ps.getParameter<float>("arbitrationMaxFeatureRawEnergy"), 0.f))),
-      maxFeatureLogTrackP_(std::log1p(std::max(ps.getParameter<float>("arbitrationMaxFeatureTrackP"), 0.f))),
-      maxFeatureTrackPt_(ps.getParameter<float>("arbitrationMaxFeatureTrackPt")),
-      maxFeatureLayerClusters_(ps.getParameter<float>("arbitrationMaxFeatureLayerClusters")),
+      featureBounds_{ps.getParameter<float>("arbitrationMaxFeatureRawEnergy"),
+                     ps.getParameter<float>("arbitrationMaxFeatureTrackP"),
+                     ps.getParameter<float>("arbitrationMaxFeatureTrackPt"),
+                     ps.getParameter<float>("arbitrationMaxFeatureLayerClusters")},
       maxExactComponent_(ps.getParameter<unsigned int>("arbitrationMaxExactComponent")),
       searchBudget_(ps.getParameter<unsigned int>("arbitrationSearchBudget")),
       vetoJetOnEMFootprint_(ps.getParameter<bool>("arbitrationVetoJetOnEMFootprint")),
       jetVariantsWithoutElectrons_(ps.getParameter<bool>("arbitrationJetVariantsWithoutElectrons")),
+      minJetEnergyOverP_(
+          ps.getParameter<edm::ParameterSet>("jetInterpretationDescPSet").getParameter<float>("min_jet_energy_over_p")),
       neutralHadronHypotheses_(ps.getParameter<bool>("arbitrationNeutralHadronHypotheses")),
       claimProtectEMThreshold_(ps.getParameter<float>("arbitrationTrackClaimProtectEMThreshold")),
       expectedDeposit_{ps.getParameter<float>("expectedDepositResponse"),
@@ -800,7 +801,8 @@ void TICLInterpretationProducer::addJetVariantsWithoutElectrons(
   for (size_t i = 0; i < tracks.size(); ++i)
     trackP[i] = tracks[i].p();
 
-  for (auto &variant : jetVariantsWithoutElectrons(jets, electronFootprints, lcEnergy, trackP, expectedDeposit_)) {
+  for (auto &variant :
+       jetVariantsWithoutElectrons(jets, electronFootprints, lcEnergy, trackP, expectedDeposit_, minJetEnergyOverP_)) {
     Trackster footprint;
     footprint.vertices() = std::move(variant.vertices);
     footprint.vertex_multiplicity() = std::move(variant.multiplicities);
@@ -920,21 +922,13 @@ std::vector<float> TICLInterpretationProducer::modelWeights(const Opinions &opin
       rows.push_back(i);
   std::vector<float> features(rows.size() * modelFeatures_, 0.f);
   std::array<float, kN> x;
-  // A slot with no footprint or no track holds -1 and keeps it.
-  const auto bound = [](float &value, float max) {
-    if (max > 0.f)
-      value = std::min(value, max);
-  };
   for (unsigned int r = 0; r < rows.size(); ++r) {
     const auto &h = hypotheses[rows[r]];
     const Trackster *footprint = h.tracksterIdx >= 0 ? &opinions.tracksters[h.tracksterIdx] : nullptr;
     x.fill(0.f);
     modelfeatures::fillHypothesisFeatures(
         h, footprint, tracks, {compSize[rows[r]], muonTrack, electronTrack, emRecoveryTrack}, x);
-    bound(x[modelfeatures::hypothesis::kLogRawEnergy], maxFeatureLogRawEnergy_);
-    bound(x[modelfeatures::hypothesis::kLogTrackP], maxFeatureLogTrackP_);
-    bound(x[modelfeatures::hypothesis::kTrackPt], maxFeatureTrackPt_);
-    bound(x[modelfeatures::hypothesis::kNLayerClusters], maxFeatureLayerClusters_);
+    modelfeatures::boundHypothesisFeatures(featureBounds_, x);
     std::copy_n(x.begin(), modelFeatures_, features.begin() + r * modelFeatures_);
   }
   const std::vector<float> logits = arbitrationModel_.logits(std::move(features), rows.size());
@@ -1597,9 +1591,13 @@ void TICLInterpretationProducer::fillDescriptions(edm::ConfigurationDescriptions
   desc.add<float>("arbitrationMaxFeatureRawEnergy", 0.f)
       ->setComment("Upper bound of the footprint raw energy [GeV] that the hypothesis model reads; 0 is no bound.");
   desc.add<float>("arbitrationMaxFeatureTrackP", 0.f)
-      ->setComment("Upper bound of the track momentum [GeV] that the hypothesis model reads; 0 is no bound.");
+      ->setComment(
+          "Upper bound of the track momentum [GeV] that the hypothesis model reads; 0 is no bound. The track pT and "
+          "the footprint raw energy scale with a bounded momentum.");
   desc.add<float>("arbitrationMaxFeatureTrackPt", 0.f)
-      ->setComment("Upper bound of the track pT [GeV] that the hypothesis model reads; 0 is no bound.");
+      ->setComment(
+          "Upper bound of the track pT [GeV] that the hypothesis model reads, after the momentum bound; 0 is no "
+          "bound.");
   desc.add<float>("arbitrationMaxFeatureLayerClusters", 0.f)
       ->setComment("Upper bound of the number of layer clusters that the hypothesis model reads; 0 is no bound.");
   desc.add<unsigned int>("arbitrationMaxExactComponent", 64)

@@ -62,6 +62,19 @@ namespace ticl::modelfeatures {
                               const HypothesisContext &context,
                               std::span<float, hypothesis::kN> x);
 
+  // Upper bounds of the quantities that the hypothesis model reads; a bound of 0 or less is no bound.
+  struct HypothesisFeatureBounds {
+    float rawEnergy;  // [GeV]
+    float trackP;     // [GeV]
+    float trackPt;    // [GeV]
+    float layerClusters;
+  };
+
+  // Applies the bounds to the filled slots x. A track momentum above bounds.trackP takes the bound, and the track pT
+  // and the footprint raw energy scale with it, so pT / p and E / p stay. Then the bounds of the raw energy, the pT
+  // and the layer clusters apply. A slot with no footprint or no track holds -1 and keeps it.
+  void boundHypothesisFeatures(const HypothesisFeatureBounds &bounds, std::span<float, hypothesis::kN> x);
+
   // Neutral species model (data/arbitration/neutralSpecies_mlp_v3.onnx or neutralSpecies_mlp_v2.onnx): one row per
   // neutral trackster with a positive raw energy.
   namespace neutralSpecies {

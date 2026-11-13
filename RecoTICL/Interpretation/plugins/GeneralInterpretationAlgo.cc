@@ -1,5 +1,6 @@
 #include <algorithm>
 #include "DataFormats/Math/interface/deltaPhi.h"
+#include "RecoTICL/Interpretation/interface/ChargedHadronEnergy.h"
 #include "RecoTICL/Interpretation/interface/TICLInterpretationAlgoBase.h"
 #include "RecoTICL/Common/interface/TICLUtils.h"
 #include "GeneralInterpretationAlgo.h"
@@ -152,7 +153,7 @@ bool GeneralInterpretationAlgo::timeAndEnergyCompatible(float &total_raw_energy,
                                                         const GlobalPoint &tkMtdPos,
                                                         bool useMTDTiming) {
   const double sigmaP = track.qoverpError() * track.p() * track.p();
-  float threshold = std::max(std::min(0.2 * trackster.raw_energy(), 10.0), energy_margin_n_sigma_ * sigmaP);
+  float threshold = chargedHadronEnergyMargin(trackster.raw_energy(), track.p(), sigmaP, energy_margin_n_sigma_);
   bool energyCompatible = (total_raw_energy + trackster.raw_energy() < track.p() + threshold);
 
   if (!useMTDTiming)
@@ -465,6 +466,7 @@ void GeneralInterpretationAlgo::fillPSetDescription(edm::ParameterSetDescription
       ->setComment("Hypotheses: min raw energy [GeV] of a trackster for a neutral-hadron hypothesis.");
   desc.add<float>("energy_margin_n_sigma", 0.f)
       ->setComment(
-          "The margin of the energy test of a track and its tracksters is at least this number of momentum errors.");
+          "The margin of the energy test of a track and its tracksters is at least this number of momentum errors, up "
+          "to the track momentum.");
   TICLInterpretationAlgoBase::fillPSetDescription(desc);
 }

@@ -218,3 +218,49 @@ TEST_CASE("The interpretation models give the logits of the training environment
   for (std::size_t k = 0; k < species.size(); ++k)
     CHECK_THAT(species[k], WithinRel(speciesLogits[k], 1e-4f) || WithinAbs(speciesLogits[k], 1e-4f));
 }
+
+TEST_CASE("The bounds of the hypothesis features keep pT / p and E / p of a bounded momentum", "[ModelFeatures]") {
+  using namespace hypothesis;
+  // A 1 TeV track at eta 1.6 on a footprint of 900 GeV and 300 layer clusters.
+  const float p = 1000.f, pt = p / std::cosh(1.6f), rawEnergy = 900.f;
+  std::array<float, kN> x{};
+  x[kLogRawEnergy] = std::log1p(rawEnergy);
+  x[kLogTrackP] = std::log1p(p);
+  x[kTrackPt] = pt;
+  x[kNLayerClusters] = 300.f;
+  x[kEOverP] = rawEnergy / p;
+  const auto filled = x;
+
+  SECTION("no bound keeps every slot") {
+    boundHypothesisFeatures({0.f, 0.f, 0.f, 0.f}, x);
+    REQUIRE(x == filled);
+  }
+  SECTION("a momentum below the bound keeps every slot") {
+    boundHypothesisFeatures({0.f, 2000.f, 0.f, 0.f}, x);
+    REQUIRE(x == filled);
+  }
+  SECTION("a bounded momentum scales the pT and the raw energy") {
+    boundHypothesisFeatures({0.f, 280.f, 0.f, 200.f}, x);
+    CHECK_THAT(std::expm1(x[kLogTrackP]), WithinRel(280.f, 1e-4f));
+    CHECK_THAT(x[kTrackPt], WithinRel(0.28f * pt, 1e-4f));
+    CHECK_THAT(std::expm1(x[kLogRawEnergy]), WithinRel(0.28f * rawEnergy, 1e-4f));
+    CHECK(x[kNLayerClusters] == 200.f);
+    CHECK(x[kEOverP] == filled[kEOverP]);
+  }
+  SECTION("the bounds of the raw energy and the pT apply after the scaling") {
+    boundHypothesisFeatures({236.f, 280.f, 70.f, 0.f}, x);
+    CHECK_THAT(std::expm1(x[kLogRawEnergy]), WithinRel(236.f, 1e-4f));
+    CHECK(x[kTrackPt] == 70.f);
+    CHECK(x[kNLayerClusters] == 300.f);
+  }
+  SECTION("a slot with no footprint or no track keeps -1") {
+    x[kLogRawEnergy] = -1.f;
+    boundHypothesisFeatures({236.f, 280.f, 70.f, 200.f}, x);
+    CHECK(x[kLogRawEnergy] == -1.f);
+    x[kLogTrackP] = -1.f;
+    x[kTrackPt] = -1.f;
+    boundHypothesisFeatures({236.f, 280.f, 70.f, 200.f}, x);
+    CHECK(x[kLogTrackP] == -1.f);
+    CHECK(x[kTrackPt] == -1.f);
+  }
+}

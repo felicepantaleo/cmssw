@@ -81,6 +81,27 @@ namespace ticl::modelfeatures {
         countTrack(iTk);
   }
 
+  void boundHypothesisFeatures(const HypothesisFeatureBounds &bounds, std::span<float, hypothesis::kN> x) {
+    using namespace hypothesis;
+    if (bounds.trackP > 0.f) {
+      const float maxLogTrackP = std::log1p(bounds.trackP);
+      if (x[kLogTrackP] > maxLogTrackP) {
+        const float scale = bounds.trackP / std::expm1(x[kLogTrackP]);
+        x[kLogTrackP] = maxLogTrackP;
+        if (x[kTrackPt] > 0.f)
+          x[kTrackPt] *= scale;
+        if (x[kLogRawEnergy] > 0.f)
+          x[kLogRawEnergy] = std::log1p(scale * std::expm1(x[kLogRawEnergy]));
+      }
+    }
+    if (bounds.rawEnergy > 0.f)
+      x[kLogRawEnergy] = std::min(x[kLogRawEnergy], std::log1p(bounds.rawEnergy));
+    if (bounds.trackPt > 0.f)
+      x[kTrackPt] = std::min(x[kTrackPt], bounds.trackPt);
+    if (bounds.layerClusters > 0.f)
+      x[kNLayerClusters] = std::min(x[kNLayerClusters], bounds.layerClusters);
+  }
+
   void fillNeutralSpeciesFeatures(const Trackster &ts, std::span<float, neutralSpecies::kN> x) {
     using namespace neutralSpecies;
     std::copy(ts.id_probabilities().begin(), ts.id_probabilities().end(), x.begin() + kPID);
