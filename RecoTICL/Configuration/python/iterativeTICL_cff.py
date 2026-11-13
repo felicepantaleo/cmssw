@@ -260,15 +260,15 @@ from RecoEcal.EgammaClusterProducers.particleFlowSuperClusteringSequence_cff imp
 from RecoLocalCalo.Configuration.hgcalLocalReco_cff import hgcalLocalRecoTask as _hgcalLocalRecoTask
 from RecoEgamma.EgammaPhotonProducers.photonCore_cfi import photonCoreHGC as _photonCoreHGC
 ticlEGammaTracksters = _ticlEGammaTrackstersProducer.clone()
-# A supercluster needs a score of at least 0.6239 below Et 10 GeV and 0.7708 above it. The type score of each e/gamma
+# A supercluster needs a score of at least 0.635 below Et 10 GeV and 0.575 above it. The type score of each e/gamma
 # trackster is the input of the photon candidate type in ticlCandidate.
 ticlEGammaSuperClusters = _ticlEGammaSuperClustersProducer.clone(
     # the tracksters that the superclustering groups
     inputTracksters=_ticlV6Modules["ticlTracksterLinksSuperclusteringDNN"].tracksters_collections[0],
-    scoreModel="RecoTICL/ParticleFlow/data/egammaSuperClusters/score_v2.onnx",
-    minScore=0.6239,
-    minScoreHighEt=0.7708,
-    typeScoreModel="RecoTICL/ParticleFlow/data/egammaSuperClusters/type_v2.onnx")
+    scoreModel="RecoTICL/ParticleFlow/data/egammaSuperClusters/score_v3.onnx",
+    minScore=0.635,
+    minScoreHighEt=0.575,
+    typeScoreModel="RecoTICL/ParticleFlow/data/egammaSuperClusters/type_v3.onnx")
 ticl_v6.toReplaceWith(_hgcalLocalRecoTask, _hgcalLocalRecoTask.copyAndExclude([_particleFlowClusterHGCal]))
 ticl_v6.toReplaceWith(_particleFlowSuperClusteringTask,
                       _particleFlowSuperClusteringTask.copyAndExclude([_particleFlowSuperClusterHGCal]))
