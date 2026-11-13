@@ -244,9 +244,11 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
         return;
       }
 
+      // PCaloHit energy is in GeV, the accumulators are in keV (as expected by the ageing step)
+      const float energy_keV = energy * 1.e6f;
       auto row = accumView[idxIt->second];
-      row.sumE()(tidx, 0) += energy;
-      row.sumExT()(tidx, 0) += energy * tof;
+      row.sumE()(tidx, 0) += energy_keV;
+      row.sumExT()(tidx, 0) += energy_keV * tof;
 
       if (tidx == hgcaldigi::kInTimeBin) {
         ++m.nHitsIT;

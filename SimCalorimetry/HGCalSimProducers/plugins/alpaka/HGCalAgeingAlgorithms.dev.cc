@@ -50,7 +50,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
         auto cellIdx = denseIndex[idx].cellInfoIdx();
         bool isSiPM = cellInfo[cellIdx].isSiPM();
         auto cce = conds[idx].signalScale();
-        auto k_fact = cce / (isSiPM ? keV2MIP : keV2fC);
+        // E[keV] * keV2fC -> q[fC] (Si), E[keV] * keV2MIP -> MIP (SiPM)
+        auto k_fact = cce * (isSiPM ? keV2MIP : keV2fC);
 
         scaleResponse(hit.sumQ(), hit.avgTOA(), k_fact);
 
