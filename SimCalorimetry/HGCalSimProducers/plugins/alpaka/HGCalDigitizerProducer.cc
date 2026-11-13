@@ -154,6 +154,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                                                    CLHEP::HepJamesRandom& engine) {
     //temporary map to keep track of the generated jumps
     std::map<uint16_t, float> crateJumps;
+    //an own generator, so the sequence depends only on the engine and not on the thread
+    CLHEP::RandGauss gauss(engine, 0., crateTimeJumpsSigma_ns_);
     const auto& frs = readoutMap.fedReadoutSequences();
 
     //book jumps for all the cells
@@ -168,9 +170,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       //check if time jump for this crate is already available, otherwise generate it
       std::map<uint16_t, float>::iterator it = crateJumps.find(crate);
       if (it == crateJumps.end()) {
-        it =
-            crateJumps.emplace(crate, static_cast<float>(CLHEP::RandGauss::shoot(&engine, 0., crateTimeJumpsSigma_ns_)))
-                .first;
+        it = crateJumps.emplace(crate, static_cast<float>(gauss.fire())).first;
       }
       auto row = phaseShiftsHost_->view()[i];
       row.deltaT() = it->second;
