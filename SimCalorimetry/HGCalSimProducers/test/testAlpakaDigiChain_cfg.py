@@ -203,9 +203,12 @@ if True:
     process.load("DQMServices.FileIO.DQMFileSaverOnline_cfi")
     process.dqmSaver.tag = 'HGCAL'
     process.dqmSaver.runNumber = 1
+    process.hgcalrechitdqm.RecHits = cms.InputTag('hgcalRecHits','')
+    process.hgcalRecHitDQMSources = cms.Sequence(process.hgcalrechitdqm)
     
     process.dqmPath = cms.Path(
         process.hgcalDQMSources  
+        +process.hgcalRecHitDQMSources
         #+process.hgCalDQMHarvester 
         +process.dqmSaver
     )

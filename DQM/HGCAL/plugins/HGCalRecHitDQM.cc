@@ -252,7 +252,6 @@ void HGCalRecHitDQM::fillDescriptions(edm::ConfigurationDescriptions& descriptio
   desc.add<edm::InputTag>("RecHits", edm::InputTag("hgcalRecHits", ""));
   desc.add<unsigned int>("MinimumEvents", 5000);
   desc.add<unsigned int>("PrescaleFactor", 5000);
-  desc.add<bool>("isSimulation", false);
   descriptions.add("hgcalrechitdqm", desc);
 }
 
