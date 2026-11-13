@@ -37,6 +37,7 @@
 #include "RecoParticleFlow/PFProducer/interface/PFMuonAlgo.h"
 #include "RecoTICL/Interpretation/interface/AssignmentMaps.h"
 #include "RecoTICL/Interpretation/interface/CandidateTracksters.h"
+#include "RecoTICL/Interpretation/interface/ChargedHadronEnergy.h"
 #include "RecoTICL/Interpretation/interface/TrackImpact.h"
 #include "RecoTICL/Common/interface/TICLUtils.h"
 #include "RecoTICL/Common/interface/TrackstersPCA.h"
@@ -86,8 +87,10 @@ private:
   // The candidate of a track holds the claim trackster of the track.
   const bool attachClaimTracksters_;
   // The energy combination of a charged hadron or a jet member adds the regressed energy of the claim trackster of
-  // its track to the trackster energy. A track with a claim trackster and no trackster takes their combined energy.
+  // its track to the trackster energy. A track with a claim trackster and no trackster takes their combined energy
+  // when the claim trackster has at least claimDeposit_.minFraction of the expected raw deposit of the track.
   const bool useClaimTracksterEnergy_;
+  const ExpectedDeposit claimDeposit_;
   edm::EDGetTokenT<std::vector<int>> trackToClaimTrackster_token_;
   // One trackster per candidate from the layer clusters of its tracksters (CandidateTracksters.h), put as the
   // trackster product; each candidate then holds its trackster.
@@ -310,6 +313,13 @@ TICLCandidateArbitrationProducer::TICLCandidateArbitrationProducer(const edm::Pa
       neutralPdg_token_(consumes<std::vector<int>>(interpretationTag(ps, "neutralPdg"))),
       attachClaimTracksters_(ps.getParameter<bool>("attachClaimTracksters")),
       useClaimTracksterEnergy_(ps.getParameter<bool>("useClaimTracksterEnergy")),
+      claimDeposit_{
+          static_cast<float>(
+              ps.getParameter<edm::ParameterSet>("candidateTracksters").getParameter<double>("expectedDepositResponse")),
+          static_cast<float>(
+              ps.getParameter<edm::ParameterSet>("candidateTracksters").getParameter<double>("expectedDepositLogSlope")),
+          ps.getParameter<float>("claimTracksterMinDepositFraction"),
+          std::numeric_limits<float>::max()},
       tracks_token_(consumes<std::vector<reco::Track>>(ps.getParameter<edm::InputTag>("tracks"))),
       useGsfTracks_(ps.getParameter<bool>("useGsfTracks")),
       useMTDTiming_(ps.getParameter<bool>("useMTDTiming")),
@@ -358,7 +368,11 @@ TICLCandidateArbitrationProducer::TICLCandidateArbitrationProducer(const edm::Pa
       hdc_token_(esConsumes<HGCalDDDConstants, IdealGeometryRecord, edm::Transition::BeginRun>(
           edm::ESInputTag("", "HGCalEESensitive"))),
       hgcons_(nullptr) {
-  if (attachClaimTracksters_ || useClaimTracksterEnergy_)
+  if (useClaimTracksterEnergy_ && !attachClaimTracksters_)
+    throw cms::Exception("Configuration") << "useClaimTracksterEnergy requires attachClaimTracksters";
+  if (!(claimDeposit_.minFraction >= 0.f))
+    throw cms::Exception("Configuration") << "claimTracksterMinDepositFraction must be at least 0";
+  if (attachClaimTracksters_)
     trackToClaimTrackster_token_ = consumes<std::vector<int>>(interpretationTag(ps, "trackToClaimTrackster"));
   const auto &candidateTracksters = ps.getParameter<edm::ParameterSet>("candidateTracksters");
   const auto &assignment = candidateTracksters.getParameter<std::string>("assignment");
@@ -618,22 +632,25 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
   std::vector<TICLCandidate> candidates;
   std::map<int, float> trackSumP;
   std::map<int, std::vector<ChargedOnTrackster>> chargedOnTrackster;
-  const std::vector<int> *claimOfTrack = useClaimTracksterEnergy_ ? &evt.get(trackToClaimTrackster_token_) : nullptr;
+  const std::vector<int> *claimOfTrack = attachClaimTracksters_ ? &evt.get(trackToClaimTrackster_token_) : nullptr;
   auto claimTracksterOf = [&](size_t iTrack) -> const Trackster * {
-    if (claimOfTrack == nullptr || iTrack >= claimOfTrack->size() || (*claimOfTrack)[iTrack] < 0)
+    if (!useClaimTracksterEnergy_ || iTrack >= claimOfTrack->size() || (*claimOfTrack)[iTrack] < 0)
       return nullptr;
     return &(*tracksters_h)[(*claimOfTrack)[iTrack]];
   };
   // The last candidate, a charged hadron with the pion mass, joins the energy combination of its trackster
-  // (combineChargedHadrons). With a claim trackster and no trackster, it takes the combined energy of the two.
+  // (combineChargedHadrons). With a claim trackster and no trackster, it takes the combined energy of the two when
+  // useCombinedClaimEnergy allows it.
   auto addToEnergyCombination = [&](size_t iTrack, const reco::Track &tk, int tsIdx, bool jetMember) {
     const float p = tk.p();
     const float sigmaP = hadronicTrackMomentumErrorScale_ * tk.qoverpError() * p * p;
     const Trackster *claim = claimTracksterOf(iTrack);
     if (tsIdx < 0) {
-      if (claim != nullptr)
-        candidates.back().setP4(
-            p4Along(tk.momentum(), combinedEnergy(p, sigmaP, ticl::mpion, *claim).energy, ticl::mpion));
+      if (claim != nullptr) {
+        const float energy = combinedEnergy(p, sigmaP, ticl::mpion, *claim).energy;
+        if (useCombinedClaimEnergy(energy, ticl::mpion, claim->raw_energy(), p, claimDeposit_))
+          candidates.back().setP4(p4Along(tk.momentum(), energy, ticl::mpion));
+      }
       return;
     }
     ChargedOnTrackster c{candidates.size() - 1, std::sqrt(p * p + ticl::mpion2), sigmaP * sigmaP, jetMember, 0.f, 0.f};
@@ -805,13 +822,12 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
   // tracksters; pfTICL copies its decisions (muonsFromCandidates).
   auto muons = applyMuonKinematics(tracks_h, evt.getHandle(muons_token_), candidates);
   if (attachClaimTracksters_) {
-    const auto &claimOfTrack = evt.get(trackToClaimTrackster_token_);
     for (auto &cand : candidates) {
       const auto track = cand.trackPtr();
-      if (track.isNull() || track.key() >= claimOfTrack.size() || claimOfTrack[track.key()] < 0)
+      if (track.isNull() || track.key() >= claimOfTrack->size() || (*claimOfTrack)[track.key()] < 0)
         continue;
       // The candidate keeps the time of assignTimeToCandidates.
-      cand.appendTrackster(edm::Ptr<Trackster>(tracksters_h, claimOfTrack[track.key()]));
+      cand.appendTrackster(edm::Ptr<Trackster>(tracksters_h, (*claimOfTrack)[track.key()]));
     }
   }
   if (buildCandidateTracksters_) {
@@ -1012,7 +1028,13 @@ void TICLCandidateArbitrationProducer::fillDescriptions(edm::ConfigurationDescri
   desc.add<bool>("useClaimTracksterEnergy", false)
       ->setComment(
           "The energy combination of a charged hadron or a jet member adds the regressed energy of the claim trackster "
-          "of its track to the trackster energy.");
+          "of its track to the trackster energy. A track with a claim trackster and no trackster takes the combined "
+          "energy of the two (claimTracksterMinDepositFraction). Requires attachClaimTracksters.");
+  desc.add<float>("claimTracksterMinDepositFraction", 0.2f)
+      ->setComment(
+          "With useClaimTracksterEnergy, a track with no trackster takes the combined energy only when the raw energy "
+          "of its claim trackster is at least this fraction of the expected raw deposit of the track "
+          "(candidateTracksters).");
   desc.add<bool>("useGsfTracks", true)->setComment("Give the electrons the direction and the charge of the GSF track.");
   desc.add<edm::InputTag>("gsf_tracks", edm::InputTag("electronGsfTracks"));
   desc.add<edm::InputTag>("timingSoA", edm::InputTag("mtdSoA"));

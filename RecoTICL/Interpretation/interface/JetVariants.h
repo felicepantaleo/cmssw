@@ -26,16 +26,18 @@ namespace ticl {
 
   // For each jet and each Electron hypothesis of one of its tracks (electronFootprints[track]: the layer clusters of
   // each Electron hypothesis of the track): the jet without that track, on its footprint without the layer clusters of
-  // the Electron footprint. Two tracks or more left give a jet variant, scored by the balance of the energy and the
-  // summed momentum. One track left gives a recovery variant when the energy is in the recovery band of the expected
-  // deposit of the track, with the score of a recovery hypothesis. A variant with the tracks and the layer clusters of
-  // an earlier one is not repeated. lcEnergy and trackP are indexed by layer cluster and by track.
+  // the Electron footprint. Two tracks or more left give a jet variant when the energy is at least minJetEnergyOverP x
+  // the summed momentum, scored by the balance of the energy and the summed momentum. One track left gives a recovery
+  // variant when the energy is in the recovery band of the expected deposit of the track, with the score of a
+  // recovery hypothesis. A variant with the tracks and the layer clusters of an earlier one is not repeated. lcEnergy
+  // and trackP are indexed by layer cluster and by track.
   std::vector<JetVariant> jetVariantsWithoutElectrons(
       const std::vector<JetFootprint> &jets,
       const std::vector<std::vector<std::vector<unsigned int>>> &electronFootprints,
       std::span<const double> lcEnergy,
       std::span<const double> trackP,
-      const ExpectedDeposit &deposit);
+      const ExpectedDeposit &deposit,
+      float minJetEnergyOverP);
 
 }  // namespace ticl
 

@@ -36,6 +36,10 @@
   <use name="RecoTICL/Interpretation"/>
   <use name="catch2"/>
 </bin>
+<bin name="testChargedHadronEnergy" file="ChargedHadronEnergy_t.cpp">
+  <use name="RecoTICL/Interpretation"/>
+  <use name="catch2"/>
+</bin>
 <bin name="testCandidateTracksters" file="CandidateTracksters_t.cpp">
   <use name="RecoTICL/Interpretation"/>
   <use name="DataFormats/CaloRecHit"/>
