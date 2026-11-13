@@ -22,8 +22,8 @@
 #include "CondFormats/DataRecord/interface/HGCalElectronicsMappingRcd.h"
 #include "CondFormats/DataRecord/interface/HGCalAgeingCondsRcd.h"
 
-class HGCalModuleConfigurationRcd
-    : public edm::eventsetup::DependentRecordImplementation<HGCalModuleConfigurationRcd,
-                                                            edm::mpl::Vector<HGCalElectronicsMappingRcd, HGCalAgeingCondsRcd> > {};
+class HGCalModuleConfigurationRcd : public edm::eventsetup::DependentRecordImplementation<
+                                        HGCalModuleConfigurationRcd,
+                                        edm::mpl::Vector<HGCalElectronicsMappingRcd, HGCalAgeingCondsRcd> > {};
 
 #endif

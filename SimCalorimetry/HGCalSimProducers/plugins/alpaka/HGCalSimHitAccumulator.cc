@@ -45,9 +45,9 @@ typedef std::vector<edm::ParameterSet> VPSet;
 struct PCaloHitConfig {
   PCaloHitConfig(int32_t d, bool isc, double deltaT, edm::InputTag tag, edm::EDGetTokenT<edm::PCaloHitContainer> t)
       : det(d), iscalib(isc), tof_delay(deltaT), tkn(t) {
-    LogDebug("HGCalSimHitAccumulator")
-        << "will consume PCaloHits collection for det=" << det << " TOF delay=" << tof_delay << " iscalib=" << iscalib
-        << " collection is" << tag.label() << ":" << tag.instance() << ":" << tag.process();
+    LogDebug("HGCalSimHitAccumulator") << "will consume PCaloHits collection for det=" << det
+                                       << " TOF delay=" << tof_delay << " iscalib=" << iscalib << " collection is"
+                                       << tag.label() << ":" << tag.instance() << ":" << tag.process();
   }
   int32_t det;
   bool iscalib;

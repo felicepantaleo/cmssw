@@ -30,6 +30,8 @@
 #include <string>
 #include <fstream>    // needed to read json file with std::ifstream
 #include <algorithm>  // for std::fill
+#include <functional>
+#include <optional>
 
 namespace ALPAKA_ACCELERATOR_NAMESPACE {
 
@@ -61,8 +63,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
             ->setComment("Label for module indexer to set SoA size");
         desc.add<edm::ESInputTag>("mapSource", edm::ESInputTag(""))
             ->setComment("Label for SoA with module mapper/information");
-        desc.add<edm::ESInputTag>("ageingSource", edm::ESInputTag(""))
-            ->setComment("Label for ageing conditions");
+        desc.add<edm::ESInputTag>("ageingSource", edm::ESInputTag(""))->setComment("Label for ageing conditions");
         desc.add<bool>("applyAgeing", false)
             ->setComment("Override calibration constants with ageing conditions (simulation only)");
         descriptions.addWithDefaultLabel(desc);
@@ -100,11 +101,25 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
         return sfs[idx];
       }
 
+      float quantizeF(float value, float lsb) {
+        if (!(lsb > 0.f))
+          return 0.f;
+        return value / lsb;
+      };
+
       // @short create the ESProducer product: a SoA with channel-level calibration constants
       std::optional<hgcalrechit::HGCalCalibParamHost> produce(const HGCalModuleConfigurationRcd& iRecord) {
         auto const& moduleIndexer = iRecord.get(indexToken_);
         auto const& moduleMapper = iRecord.get(mapToken_);
         edm::LogInfo("HGCalCalibrationESProducer") << "produce: filename=" << filename_.fullPath().c_str();
+
+        //it may or not be available (use reference as in the other records above)
+        std::optional<std::reference_wrapper<const HGCalAgeingCondsHost>> ageing;
+        if (applyAgeing_) {
+          ageing.emplace(iRecord.get(ageingToken_));
+          edm::LogWarning("HGCalCalibrationESProducer")
+              << "Ageing conditions have: " << ageing->get().view().metadata().size() << " entries!";
+        }
 
         // load dense indexing
         const uint32_t nchans = moduleIndexer.maxDataSize();  // channel-level size
@@ -120,9 +135,14 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
         const std::vector<std::string> energy_keys = {"dEdx", "SF_thickness_Si", "SF_thickness_SiPM"};
         check_keys(energy_data, energy_keys, filenameEnergy_.fullPath());
         const float nlayers = energy_data["dEdx"].size();  // number of absorber layers
-        if (nlayers != 47)                                 // TODO: retrieve from nlayers from Geometry
-          edm::LogError("HGCalCalibrationESProducer")
-              << "Expected 47 layers, but got " << nlayers << " in " << filenameEnergy_.fullPath();
+        if (nlayers != 47) {
+          cms::Exception ex("ValueError");
+          ex << "Expected 47 layers, but got " << nlayers << " in " << filenameEnergy_.fullPath();
+          ex.addContext("Calling HGCalCalibrationESProducer::produce()");
+          throw ex;
+        }
+
+        //energy loss
         const std::vector<float> energylosses = energy_data["dEdx"].get<std::vector<float>>();
 
         // loop over all module typecodes, e.g. "ML-F3PT-TX-0003"
@@ -167,6 +187,31 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
           fill_SoA_column<float>(product.view().MIPS_scale(), calib_data_["MIPS_scale"], offset, nrows);
           fill_SoA_column<unsigned char>(product.view().valid(), calib_data_["Valid"], offset, nrows);
 
+          // loop over channels and overwrite with ageing conditions
+          for (uint32_t i = 0; applyAgeing_ && i < nrows; ++i) {
+            auto a = ageing->get().view()[offset + i];
+            auto c = product.view()[offset + i];
+            auto adc_lsb = a.adc_lsb();
+            c.MIPS_scale() = quantizeF(a.signal() * a.signalScale(),
+                                       adc_lsb);  // apply ageing scale to MIP scale signal scale is CCE
+            c.Noise() = quantizeF(
+                a.enc(),
+                a.adc_lsb());  //check how to get ageing-corrected noise, this already taken care of, don't need to apply ageing scale factor
+            c.TOTtoADC() = quantizeF(
+                a.tot_lsb(),
+                a.adc_lsb());  //check how to get ageing-corrected TOTtoADC tot_lsb/adc_lsb, this is related to the active volume. (which is the Vdep-related ageing part)
+            c.ADC_ped() = 0;
+            c.CM_slope() = a.xtalk();
+            c.CM_ped() = 0;
+            c.BXm1_slope() = 0;
+            c.TOT_ped() = 0;
+            c.TOT_lin() = 4095;  //use only linear
+            c.TOT_P0() = 0;
+            c.TOT_P1() = 0;
+            c.TOT_P2() = 0;
+            c.valid() = 1;  //set this to true in simulation
+          }
+
           // default parameters for fine-grain TDC, coarse-grain TDC and time-walk corrections that allow passthrough
           // (for backwards compatibility of older calibration JSONs)
           if (calib_data_.find("TOA_CTDC") == calib_data_.end())
@@ -177,11 +222,14 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
             calib_data_["TOA_TW"] = std::vector<std::vector<float>>(nrows, std::vector<float>(3, 0.));
 
           // fill vectors for ToA correction parameters
+          const auto& toaCTDC = calib_data_.at("TOA_CTDC");
+          const auto& toaFTDC = calib_data_.at("TOA_FTDC");
+          const auto& toaTW = calib_data_.at("TOA_TW");
           for (size_t n = 0; n < nrows; n++) {
             auto vi = product.view()[offset + n];
-            fill_SoA_eigen_row<float>(vi.TOA_CTDC(), calib_data_["TOA_CTDC"], n);
-            fill_SoA_eigen_row<float>(vi.TOA_FTDC(), calib_data_["TOA_FTDC"], n);
-            fill_SoA_eigen_row<float>(vi.TOA_TW(), calib_data_["TOA_TW"], n);
+            fill_SoA_eigen_row<float>(vi.TOA_CTDC(), toaCTDC, n);
+            fill_SoA_eigen_row<float>(vi.TOA_FTDC(), toaFTDC, n);
+            fill_SoA_eigen_row<float>(vi.TOA_TW(), toaTW, n);
           }
 
           // energy loss of absorption layers that sandwich the sensors is provided already averaged

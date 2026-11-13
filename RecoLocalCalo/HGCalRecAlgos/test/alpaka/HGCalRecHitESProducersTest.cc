@@ -113,7 +113,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       for (std::size_t fedid = 0; fedid < nfeds; ++fedid) {
         auto fed = config.feds[fedid];   // HGCalFedConfig
         auto nmods = fed.econds.size();  // number of ECON-Ds for this FED
-        if(nmods==0) continue;
+        if (nmods == 0)
+          continue;
         std::cout << "  fedid=" << fedid << ", nmods=" << nmods << ", passthroughMode=" << fed.mismatchPassthroughMode
                   << ", cbHeaderMarker=0x" << std::hex << fed.cbHeaderMarker << ", slinkHeaderMarker=0x"
                   << fed.slinkHeaderMarker << std::dec << std::endl;
