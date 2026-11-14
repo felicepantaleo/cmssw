@@ -13,7 +13,8 @@ namespace ticl {
       std::span<const double> lcEnergy,
       std::span<const double> trackP,
       const ExpectedDeposit &deposit,
-      float minJetEnergyOverP) {
+      float minJetEnergyOverP,
+      float minJetSumP) {
     std::vector<JetVariant> variants;
     std::set<std::pair<std::vector<int>, std::vector<unsigned int>>> seen;
     std::vector<bool> removed(lcEnergy.size(), false);
@@ -44,7 +45,7 @@ namespace ticl {
           if (!(energy > 0.f) || !(sumP > 0.f))
             continue;
           if (variant.tracks.size() >= 2) {
-            if (energy < minJetEnergyOverP * sumP)
+            if (jetEnergyTooLow(energy, sumP, minJetEnergyOverP, minJetSumP))
               continue;
             variant.score = 1.f - std::abs(energy - sumP) / std::max(energy, sumP);
           } else {

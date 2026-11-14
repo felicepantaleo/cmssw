@@ -395,8 +395,9 @@ private:
   // Each Jet hypothesis also has a variant without the track and the footprint of each Electron hypothesis of its
   // tracks.
   const bool jetVariantsWithoutElectrons_;
-  // min_jet_energy_over_p of the Jet interpretation, for these variants.
+  // min_jet_energy_over_p and min_jet_energy_over_p_min_sum_p of the Jet interpretation, for these variants.
   const float minJetEnergyOverP_;
+  const float minJetSumP_;
   // Without neutral-hadron hypotheses, their footprints only give the PID of the input tracksters to the inference
   // cache.
   const bool neutralHadronHypotheses_;
@@ -466,6 +467,8 @@ TICLInterpretationProducer::TICLInterpretationProducer(const edm::ParameterSet &
       jetVariantsWithoutElectrons_(ps.getParameter<bool>("arbitrationJetVariantsWithoutElectrons")),
       minJetEnergyOverP_(
           ps.getParameter<edm::ParameterSet>("jetInterpretationDescPSet").getParameter<float>("min_jet_energy_over_p")),
+      minJetSumP_(ps.getParameter<edm::ParameterSet>("jetInterpretationDescPSet")
+                      .getParameter<float>("min_jet_energy_over_p_min_sum_p")),
       neutralHadronHypotheses_(ps.getParameter<bool>("arbitrationNeutralHadronHypotheses")),
       claimProtectEMThreshold_(ps.getParameter<float>("arbitrationTrackClaimProtectEMThreshold")),
       expectedDeposit_{ps.getParameter<float>("expectedDepositResponse"),
@@ -801,8 +804,8 @@ void TICLInterpretationProducer::addJetVariantsWithoutElectrons(
   for (size_t i = 0; i < tracks.size(); ++i)
     trackP[i] = tracks[i].p();
 
-  for (auto &variant :
-       jetVariantsWithoutElectrons(jets, electronFootprints, lcEnergy, trackP, expectedDeposit_, minJetEnergyOverP_)) {
+  for (auto &variant : jetVariantsWithoutElectrons(
+           jets, electronFootprints, lcEnergy, trackP, expectedDeposit_, minJetEnergyOverP_, minJetSumP_)) {
     Trackster footprint;
     footprint.vertices() = std::move(variant.vertices);
     footprint.vertex_multiplicity() = std::move(variant.multiplicities);

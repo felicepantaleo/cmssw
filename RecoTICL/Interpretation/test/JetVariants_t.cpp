@@ -18,7 +18,7 @@ TEST_CASE("One track left gives a recovery variant with the recovery band and sc
   electrons[1] = {{5}};
   SECTION("energy in the band") {
     const std::vector<double> lcEnergy{3., 2., 2., 0., 0., 4.};
-    const auto variants = ticl::jetVariantsWithoutElectrons(jets, electrons, lcEnergy, trackP, deposit, 0.f);
+    const auto variants = ticl::jetVariantsWithoutElectrons(jets, electrons, lcEnergy, trackP, deposit, 0.f, 0.f);
     REQUIRE(variants.size() == 1);
     REQUIRE(variants[0].tracks == std::vector<int>{0});
     REQUIRE(variants[0].vertices == std::vector<unsigned int>{0, 1, 2});
@@ -27,7 +27,7 @@ TEST_CASE("One track left gives a recovery variant with the recovery band and sc
   }
   SECTION("energy above the band") {
     const std::vector<double> lcEnergy{10., 2., 2., 0., 0., 4.};
-    REQUIRE(ticl::jetVariantsWithoutElectrons(jets, electrons, lcEnergy, trackP, deposit, 0.f).empty());
+    REQUIRE(ticl::jetVariantsWithoutElectrons(jets, electrons, lcEnergy, trackP, deposit, 0.f, 0.f).empty());
   }
 }
 
@@ -37,7 +37,7 @@ TEST_CASE("A variant equal to an earlier one is not repeated", "[JetVariants]") 
   Footprints electrons(3);
   electrons[1] = {{5}, {5}, {4, 5}};
   const std::vector<double> lcEnergy{3., 2., 2., 0., 1., 4.};
-  REQUIRE(ticl::jetVariantsWithoutElectrons(jets, electrons, lcEnergy, trackP, deposit, 0.f).size() == 1);
+  REQUIRE(ticl::jetVariantsWithoutElectrons(jets, electrons, lcEnergy, trackP, deposit, 0.f, 0.f).size() == 1);
 }
 
 TEST_CASE("Two tracks left give a jet variant without the electron footprint", "[JetVariants]") {
@@ -45,7 +45,7 @@ TEST_CASE("Two tracks left give a jet variant without the electron footprint", "
   Footprints electrons(3);
   electrons[2] = {{2}};
   const std::vector<double> lcEnergy{3., 4., 6., 0., 0., 0.};
-  const auto variants = ticl::jetVariantsWithoutElectrons(jets, electrons, lcEnergy, trackP, deposit, 0.f);
+  const auto variants = ticl::jetVariantsWithoutElectrons(jets, electrons, lcEnergy, trackP, deposit, 0.f, 0.f);
   REQUIRE(variants.size() == 1);
   REQUIRE(variants[0].tracks == std::vector<int>{0, 1});
   REQUIRE(variants[0].vertices == std::vector<unsigned int>{0, 1});
@@ -53,7 +53,18 @@ TEST_CASE("Two tracks left give a jet variant without the electron footprint", "
   // E = 3 + 4 / 2 = 5 GeV against p = 15 GeV.
   REQUIRE_THAT(variants[0].score, Catch::Matchers::WithinAbs(1.f - 10.f / 15.f, 1e-6));
   SECTION("the jet variant needs the minimum energy over the summed momentum") {
-    REQUIRE(ticl::jetVariantsWithoutElectrons(jets, electrons, lcEnergy, trackP, deposit, 0.25f).size() == 1);
-    REQUIRE(ticl::jetVariantsWithoutElectrons(jets, electrons, lcEnergy, trackP, deposit, 0.4f).empty());
+    REQUIRE(ticl::jetVariantsWithoutElectrons(jets, electrons, lcEnergy, trackP, deposit, 0.25f, 0.f).size() == 1);
+    REQUIRE(ticl::jetVariantsWithoutElectrons(jets, electrons, lcEnergy, trackP, deposit, 0.4f, 0.f).empty());
   }
+  SECTION("the minimum energy over the summed momentum applies from the minimum summed momentum") {
+    REQUIRE(ticl::jetVariantsWithoutElectrons(jets, electrons, lcEnergy, trackP, deposit, 0.4f, 15.f).empty());
+    REQUIRE(ticl::jetVariantsWithoutElectrons(jets, electrons, lcEnergy, trackP, deposit, 0.4f, 16.f).size() == 1);
+  }
+}
+
+TEST_CASE("The jet energy test applies from the minimum summed momentum", "[JetVariants]") {
+  REQUIRE(ticl::jetEnergyTooLow(5.f, 15.f, 0.4f, 0.f));
+  REQUIRE(ticl::jetEnergyTooLow(5.f, 15.f, 0.4f, 15.f));
+  REQUIRE_FALSE(ticl::jetEnergyTooLow(5.f, 15.f, 0.4f, 16.f));
+  REQUIRE_FALSE(ticl::jetEnergyTooLow(6.f, 15.f, 0.4f, 0.f));
 }
