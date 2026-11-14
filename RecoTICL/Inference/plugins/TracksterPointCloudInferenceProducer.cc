@@ -128,7 +128,7 @@ std::unique_ptr<cms::Ort::ONNXRuntime> TracksterPointCloudInferenceProducer::ini
     const edm::ParameterSet& ps) {
   const auto model = ps.getParameter<std::string>("modelFile");
   auto session =
-      std::make_unique<cms::Ort::ONNXRuntime>(model.starts_with("/") ? model : edm::FileInPath(model).fullPath());
+      std::make_unique<cms::Ort::ONNXRuntime>(model.starts_with('/') ? model : edm::FileInPath(model).fullPath());
   // The model must take the features of TracksterPointCloud: one inference on one row of one point.
   using PC = ticl::TracksterPointCloud;
   cms::Ort::FloatArrays inputs{std::vector<float>(PC::kNGlobalFeatures, 0.f),
