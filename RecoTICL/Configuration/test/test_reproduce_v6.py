@@ -62,9 +62,16 @@ EXPECTED_REPLACED = {"ticlCandidate": ("TICLCandidateProducer", "TICLCandidateAr
 EXPECTED_FROM_DEFAULT = {
     "ticlTracksterInterpretations": ("tracksters_collections", "egamma_tracksters_collections",
                                      "pluginInferenceAlgoTracksterInferenceByPFN.", "pidInferenceAlgo",
-                                     "pluginInferenceAlgoTracksterInferenceByShowerShape."),
-    # The photon candidate type from the e/gamma supercluster score.
-    "ticlCandidate": ("photonMinScore", "photonScoreMinPt", "eGammaScore", "eGammaTracksters"),
+                                     "pluginInferenceAlgoTracksterInferenceByShowerShape.",
+                                     # The corrections for charged hadrons at high energy.
+                                     "cutTk", "interpretationDescPSet.energy_margin_n_sigma",
+                                     "jetInterpretationDescPSet.min_jet_energy_over_p",
+                                     "arbitrationMaxFeatureRawEnergy", "arbitrationMaxFeatureTrackP",
+                                     "arbitrationMaxFeatureLayerClusters"),
+    # The photon candidate type from the e/gamma supercluster score, the claim trackster energy of the charged hadrons
+    # and the hadronic trackster calibration.
+    "ticlCandidate": ("photonMinScore", "photonScoreMinPt", "eGammaScore", "eGammaTracksters",
+                      "useClaimTracksterEnergy", "hadronicTracksterCalibration"),
     # The tuned CLUEstering parameters.
     "ticlCLUEstering": ("deltac", "rhoc", "outlierDistance", "seedingDistance", "layerScale", "rhocEtaExponent",
                         "rhocPivotRadius"),
