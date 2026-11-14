@@ -377,6 +377,22 @@ def v6(name="v6", target="offline", heterogeneous=False):
     interp = dict(pluginInferenceAlgoTracksterInferenceByPFN=pfn,
                   pidInferenceAlgo=cms.string("TracksterInferenceByShowerShape"),
                   pluginInferenceAlgoTracksterInferenceByShowerShape=shower_shape_pid("mixPID_fin_v2.onnx"))
+    # Charged hadrons at high energy. A track with ptError of 0.5 pT or more stays selected when its curvature error is
+    # below 0.001 per GeV. No Jet on a footprint with a raw energy below 0.25 of the summed momentum of its tracks. The
+    # energy test of a track and its tracksters allows 3 momentum errors. The hypothesis model reads its inputs up to
+    # the 99.9% point of its training rows.
+    interp.update(
+        cutTk=cms.string('1.48 < abs(eta) < 3.0 && pt > 1. && quality("highPurity") && '
+                         '(ptError < 0.5 * pt || ptError < 0.001 * pt * pt)'),
+        jetInterpretationDescPSet=dict(min_jet_energy_over_p=cms.float(0.25)),
+        interpretationDescPSet=dict(energy_margin_n_sigma=cms.float(3.0)),
+        arbitrationMaxFeatureRawEnergy=cms.float(236.0),
+        arbitrationMaxFeatureTrackP=cms.float(280.0),
+        arbitrationMaxFeatureLayerClusters=cms.float(200.0))
+    # The energy of a charged hadron adds the claim trackster of its track, and the hadronic trackster calibration is v2.
+    cand = dict(useClaimTracksterEnergy=cms.bool(True),
+                hadronicTracksterCalibration=cms.string(
+                    "RecoTICL/Interpretation/data/chargedEnergy/hadronicTracksterCalibration_v2.onnx"))
     # The first iteration is CLUEstering on the layer clusters merged on the device.
     # Identification from the shower shape and the layer-cluster profile, with the EM score on the scale of the CNN of
     # v5 in every energy bin.
@@ -399,7 +415,7 @@ def v6(name="v6", target="offline", heterogeneous=False):
         cfg.superclustering_dnn(source="CLUEstering", **supercluster_dnn_defaults(**sc_cuts))
     cfg = (cfg
            .interpretations(**interp)
-           .candidate()
+           .candidate(**cand)
            # The candidate producer sets the muon kinematics; pfTICL copies its muon decisions.
            .pf(muonsFromCandidates=cms.bool(True), **pf_defaults()))
     if heterogeneous:
