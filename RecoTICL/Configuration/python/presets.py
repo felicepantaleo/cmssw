@@ -378,13 +378,13 @@ def v6(name="v6", target="offline", heterogeneous=False):
                   pidInferenceAlgo=cms.string("TracksterInferenceByShowerShape"),
                   pluginInferenceAlgoTracksterInferenceByShowerShape=shower_shape_pid("mixPID_fin_v2.onnx"))
     # Charged hadrons at high energy. A track with ptError of 0.5 pT or more stays selected when its curvature error is
-    # below 0.001 per GeV. No Jet on a footprint with a raw energy below 0.25 of the summed momentum of its tracks. The
+    # below 0.001 per GeV. No Jet on a footprint with a raw energy below 0.10 of the summed momentum of its tracks. The
     # energy test of a track and its tracksters allows 3 momentum errors. The hypothesis model reads its inputs up to
     # the 99.9% point of its training rows.
     interp.update(
         cutTk=cms.string('1.48 < abs(eta) < 3.0 && pt > 1. && quality("highPurity") && '
                          '(ptError < 0.5 * pt || ptError < 0.001 * pt * pt)'),
-        jetInterpretationDescPSet=dict(min_jet_energy_over_p=cms.float(0.25)),
+        jetInterpretationDescPSet=dict(min_jet_energy_over_p=cms.float(0.10)),
         interpretationDescPSet=dict(energy_margin_n_sigma=cms.float(3.0)),
         arbitrationMaxFeatureRawEnergy=cms.float(236.0),
         arbitrationMaxFeatureTrackP=cms.float(280.0),
