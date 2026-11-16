@@ -367,7 +367,7 @@ def v6(name="v6", target="offline", heterogeneous=False):
     linking, the interpretation stage (hypotheses, global arbitration, track claim) and the candidates from its maps.
     The interpretation stage runs the PFN energy regression of the v5 candidates and the shower-shape PID. The
     CLUEstering and Cornetto parameters are tuned; the other parameters are the module defaults.
-    With ``heterogeneous`` (the ``ticl_v6_heterogeneous`` modifier with ``ticl_v6``), the shower-shape PID of the
+    With ``heterogeneous`` (the ``ticl_v6`` modifier without ``ticl_v6_host``), the shower-shape PID of the
     CLUEstering tracksters, the Recovery iteration, the Cornetto linking and the superclustering DNN run on the device,
     and their results are converted under the same labels."""
     # The PFN gives the energy regression; the PID comes from the shower shape and the layer-cluster profile of the

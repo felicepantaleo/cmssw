@@ -1521,14 +1521,14 @@ upgradeWFs['HGCalOnlyTICLv6Alpaka'] = UpgradeWorkflow_HGCalOnly(
     },
     reco = {
         '-s': 'RAW2DIGI:RawToDigi_hgcalOnly,RECO:reconstruction_hgcalOnly,VALIDATION:@HGCalOnlyValidation',
-        '--procModifiers': 'ticl_v6,ticl_v6_heterogeneous',
+        '--procModifiers': 'ticl_v6',
         '--customise': 'Validation/Configuration/customiseHGCalOnly.customiseHGCalOnly,SimGeneral/TruthGraphAssociatorProducers/customiseTruthGraphAssociators.customiseTruthBranchValidationHGCalOnly',
         '--datatier': 'GEN-SIM-RECO,DQMIO',
         '--eventcontent': 'FEVTDEBUGHLT,DQM',
     },
     harvest = {
         '-s': 'HARVESTING:@HGCalOnlyValidation',
-        '--procModifiers': 'ticl_v6,ticl_v6_heterogeneous',
+        '--procModifiers': 'ticl_v6',
         '--customise': 'SimGeneral/TruthGraphAssociatorProducers/customiseTruthGraphAssociators.customiseTruthBranchValidationHGCalOnly',
     },
     suffix = 'HGCalOnlyTICLv6Alpaka',

@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 """TICLv6 on the device is v6 with the Recovery iteration and the Cornetto linking as portable modules: the same
-persisted products under the same labels, the same Cornetto parameters, and the ticl_v6_heterogeneous modifier gives
-the modules of the preset. pyTICL refuses a device chain that cannot give the result of the host chain."""
+persisted products under the same labels, the same Cornetto parameters, and the ticl_v6 modifier gives
+the modules of the preset; with ticl_v6_host it gives the modules of the host preset. pyTICL refuses a device chain that cannot give the result of the host chain."""
 
+import subprocess
 import sys
 import types
 
 import FWCore.ParameterSet.Config as cms
 from Configuration.Eras.Era_Phase2C26I13M9_cff import Phase2C26I13M9
 from Configuration.ProcessModifiers.ticl_v6_cff import ticl_v6
-from Configuration.ProcessModifiers.ticl_v6_heterogeneous_cff import ticl_v6_heterogeneous
+from Configuration.ProcessModifiers.ticl_v6_host_cff import ticl_v6_host
 
 from RecoTICL.Configuration import presets
 from RecoTICL.Configuration.backend import ALPAKA_BACKEND, apply_backends
@@ -166,7 +167,7 @@ def main():
         failures.append("ticlTrackstersRecoverySoA.minEnergy differs from the host Recovery")
 
     # the modifier gives the modules of the preset
-    process = cms.Process("TEST", Phase2C26I13M9, ticl_v6, ticl_v6_heterogeneous)
+    process = cms.Process("TEST", Phase2C26I13M9, ticl_v6)
     process.load("RecoTICL.Configuration.iterativeTICL_cff")
     reference = d.modules
     for label in LABELS:
@@ -182,9 +183,32 @@ def main():
 
     for failure in failures:
         print("FAIL: " + failure)
-    print("v6 heterogeneous: %s" % ("FAILED" if failures else "OK"))
+    # One process per interpreter: the host modifier is checked in a second one.
+    rc = subprocess.call([sys.executable, __file__, "host"])
+    print("v6 heterogeneous: %s" % ("FAILED" if failures or rc else "OK"))
+    return 1 if failures or rc else 0
+
+
+def check_host_modifier():
+    """With ticl_v6_host, the modifier gives the modules of the host preset and no module of the device chain."""
+    failures = []
+    process = cms.Process("TEST", Phase2C26I13M9, ticl_v6, ticl_v6_host)
+    process.load("RecoTICL.Configuration.iterativeTICL_cff")
+    reference = presets.v6().assemble().modules
+    scheduled = set(process.iterTICLTask.moduleNames())
+    for label in EXPECTED_REPLACED:
+        if getattr(process, label).dumpPython() != reference[label].dumpPython():
+            failures.append("%s of ticl_v6_host differs from presets.v6()" % label)
+    for label in EXPECTED_ADDED:
+        if label in scheduled:
+            failures.append("%s is in iterTICLTask with ticl_v6_host" % label)
+    for label in EXPECTED_REMOVED:
+        if label not in scheduled:
+            failures.append("%s is not in iterTICLTask with ticl_v6_host" % label)
+    for failure in failures:
+        print("FAIL: " + failure)
     return 1 if failures else 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(check_host_modifier() if sys.argv[1:] == ["host"] else main())
