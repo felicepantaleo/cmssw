@@ -7,8 +7,6 @@
 #include <utility>
 
 #include "CondFormats/HGCalObjects/interface/TICLGeomHost.h"
-#include "CondFormats/HGCalObjects/interface/TICLGeomLayersHost.h"
-#include "CondFormats/HGCalObjects/interface/TICLGeomLookupHost.h"
 #include "DataFormats/CaloRecHit/interface/alpaka/CaloClusterDeviceCollection.h"
 #include "DataFormats/HGCalReco/interface/alpaka/LayerClusterMaskDeviceCollection.h"
 #include "FWCore/Framework/interface/ConsumesCollector.h"
@@ -39,8 +37,6 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
           filteredMaskToken_{consumes(config.getParameter<edm::InputTag>("filtered_mask"))},
           trackstersToken_{produces()},
           ticlGeomToken_{consumesCollector().esConsumes<TICLGeomHost, CaloGeometryRecord>()},
-          ticlGeomLookupToken_{consumesCollector().esConsumes<TICLGeomLookupHost, CaloGeometryRecord>()},
-          ticlGeomLayersToken_{consumesCollector().esConsumes<TICLGeomLayersHost, CaloGeometryRecord>()},
           minEnergy_{config.getParameter<double>("minEnergy")} {}
 
     // The number of tracksters is on the device, and the host needs it to allocate them
@@ -70,8 +66,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     void produce(device::Event& iEvent, const device::EventSetup& iSetup) override {
       // As PatternRecognitionbyRecovery: the layer clusters up to the last CE-E layer count to the EM energy
       ticlgeom::Tools geometry;
-      geometry.setGeometry(
-          iSetup.getData(ticlGeomToken_), iSetup.getData(ticlGeomLookupToken_), iSetup.getData(ticlGeomLayersToken_));
+      geometry.setGeometry(iSetup.getData(ticlGeomToken_));
       const float zLimitEm = std::abs(geometry.getPositionLayer(geometry.lastLayerEE(false), false).z());
 
       const uint32_t nTracksters = *nTracksters_->data();
@@ -109,8 +104,6 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     const device::EDGetToken<ticl::LayerClusterMaskDeviceCollection> filteredMaskToken_;
     const device::EDPutToken<ticl::TracksterDeviceCollection> trackstersToken_;
     const edm::ESGetToken<TICLGeomHost, CaloGeometryRecord> ticlGeomToken_;
-    const edm::ESGetToken<TICLGeomLookupHost, CaloGeometryRecord> ticlGeomLookupToken_;
-    const edm::ESGetToken<TICLGeomLayersHost, CaloGeometryRecord> ticlGeomLayersToken_;
     const double minEnergy_;
     const HGCalRecoveryTrackstersSoAAlgoWrapper algo_{};
     // Set in acquire and used in produce. The number of tracksters is pinned, so that its copy does not block acquire.

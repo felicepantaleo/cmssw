@@ -34,8 +34,6 @@ public:
         linksSoAToken_(consumes(config.getParameter<edm::InputTag>("links"))),
         layerClustersToken_(consumes(config.getParameter<edm::InputTag>("layer_clusters"))),
         ticlGeomToken_(esConsumes<edm::Transition::BeginRun>()),
-        ticlGeomLookupToken_(esConsumes<edm::Transition::BeginRun>()),
-        ticlGeomLayersToken_(esConsumes<edm::Transition::BeginRun>()),
         trackstersToken_(produces<std::vector<ticl::Trackster>>()),
         linkedTrackstersToken_(produces<std::vector<std::vector<unsigned int>>>()),
         linksToken_(produces<std::vector<std::vector<unsigned int>>>("linkedTracksterIdToInputTracksterId")),
@@ -46,8 +44,7 @@ public:
   }
 
   void beginRun(const edm::Run&, const edm::EventSetup& iSetup) override {
-    rhtools_.setGeometry(
-        iSetup.getData(ticlGeomToken_), iSetup.getData(ticlGeomLookupToken_), iSetup.getData(ticlGeomLayersToken_));
+    rhtools_.setGeometry(iSetup.getData(ticlGeomToken_));
   }
 
   void produce(edm::Event& iEvent, const edm::EventSetup&) override {
@@ -147,8 +144,6 @@ private:
   const edm::EDGetTokenT<std::vector<reco::CaloCluster>> layerClustersToken_;
   std::vector<edm::EDGetTokenT<std::vector<float>>> originalMasksTokens_;
   const edm::ESGetToken<TICLGeomHost, CaloGeometryRecord> ticlGeomToken_;
-  const edm::ESGetToken<TICLGeomLookupHost, CaloGeometryRecord> ticlGeomLookupToken_;
-  const edm::ESGetToken<TICLGeomLayersHost, CaloGeometryRecord> ticlGeomLayersToken_;
   const edm::EDPutTokenT<std::vector<ticl::Trackster>> trackstersToken_;
   const edm::EDPutTokenT<std::vector<std::vector<unsigned int>>> linkedTrackstersToken_;
   const edm::EDPutTokenT<std::vector<std::vector<unsigned int>>> linksToken_;

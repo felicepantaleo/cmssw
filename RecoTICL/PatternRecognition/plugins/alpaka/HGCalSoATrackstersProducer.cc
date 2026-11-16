@@ -5,8 +5,6 @@
 #include <utility>
 
 #include "CondFormats/HGCalObjects/interface/TICLGeomHost.h"
-#include "CondFormats/HGCalObjects/interface/TICLGeomLayersHost.h"
-#include "CondFormats/HGCalObjects/interface/TICLGeomLookupHost.h"
 #include "DataFormats/CaloRecHit/interface/alpaka/CaloClusterDeviceCollection.h"
 #include "DataFormats/HGCalReco/interface/alpaka/HGCalSoALayerClustersExtraDeviceCollection.h"
 #include "FWCore/Framework/interface/ConsumesCollector.h"
@@ -36,9 +34,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
           layerClustersClusteringToken_{
               consumes(config.getParameter<edm::InputTag>("hgcalLayerClustersTrackstersSoA"))},
           trackstersToken_{produces()},
-          ticlGeomToken_{consumesCollector().esConsumes<TICLGeomHost, CaloGeometryRecord>()},
-          ticlGeomLookupToken_{consumesCollector().esConsumes<TICLGeomLookupHost, CaloGeometryRecord>()},
-          ticlGeomLayersToken_{consumesCollector().esConsumes<TICLGeomLayersHost, CaloGeometryRecord>()} {}
+          ticlGeomToken_{consumesCollector().esConsumes<TICLGeomHost, CaloGeometryRecord>()} {}
 
     // The numbers of tracksters and of their layer clusters are on the device, and the host needs them to allocate
     // the tracksters
@@ -59,8 +55,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     void produce(device::Event& iEvent, const device::EventSetup& iSetup) override {
       // The layer clusters up to the last CE-E layer count to the electromagnetic energy
       ticlgeom::Tools geometry;
-      geometry.setGeometry(
-          iSetup.getData(ticlGeomToken_), iSetup.getData(ticlGeomLookupToken_), iSetup.getData(ticlGeomLayersToken_));
+      geometry.setGeometry(iSetup.getData(ticlGeomToken_));
       const float zLimitEm = geometry.getPositionLayer(geometry.lastLayerEE()).z();
 
       // one row per trackster in every block, and one per layer cluster of the tracksters in the vertices
@@ -86,8 +81,6 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     const device::EDGetToken<HGCalSoALayerClustersExtraDeviceCollection> layerClustersClusteringToken_;
     const device::EDPutToken<ticl::TracksterDeviceCollection> trackstersToken_;
     const edm::ESGetToken<TICLGeomHost, CaloGeometryRecord> ticlGeomToken_;
-    const edm::ESGetToken<TICLGeomLookupHost, CaloGeometryRecord> ticlGeomLookupToken_;
-    const edm::ESGetToken<TICLGeomLayersHost, CaloGeometryRecord> ticlGeomLayersToken_;
     const HGCalTrackstersSoAAlgoWrapper algo_{};
     // The numbers of tracksters and of their layer clusters, copied from the device in acquire and used in produce.
     // Pinned, so that the copies do not block acquire.

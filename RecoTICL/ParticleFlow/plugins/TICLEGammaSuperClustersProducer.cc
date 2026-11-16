@@ -95,8 +95,6 @@ private:
   const edm::EDGetTokenT<std::unordered_map<DetId, const unsigned int>> hitMap_token_;
   const edm::EDGetTokenT<edm::RefProdVector<HGCRecHitCollection>> hits_token_;
   const edm::ESGetToken<TICLGeomHost, CaloGeometryRecord> ticlGeomToken_;
-  const edm::ESGetToken<TICLGeomLookupHost, CaloGeometryRecord> ticlGeomLookupToken_;
-  const edm::ESGetToken<TICLGeomLayersHost, CaloGeometryRecord> ticlGeomLayersToken_;
   const double maxTimeDifference_;
   const double seedOnlyMinAbsEta_;
   const unsigned int regressionInputs_;
@@ -124,8 +122,6 @@ TICLEGammaSuperClustersProducer::TICLEGammaSuperClustersProducer(const edm::Para
       hitMap_token_(consumes(ps.getParameter<edm::InputTag>("hitMap"))),
       hits_token_(consumes(ps.getParameter<edm::InputTag>("hits"))),
       ticlGeomToken_(esConsumes<TICLGeomHost, CaloGeometryRecord, edm::Transition::BeginRun>()),
-      ticlGeomLookupToken_(esConsumes<TICLGeomLookupHost, CaloGeometryRecord, edm::Transition::BeginRun>()),
-      ticlGeomLayersToken_(esConsumes<TICLGeomLayersHost, CaloGeometryRecord, edm::Transition::BeginRun>()),
       maxTimeDifference_(ps.getParameter<double>("maxTimeDifference")),
       seedOnlyMinAbsEta_(ps.getParameter<double>("seedOnlyMinAbsEta")),
       regressionInputs_(ps.getParameter<unsigned int>("regressionInputs")),
@@ -155,7 +151,7 @@ TICLEGammaSuperClustersProducer::TICLEGammaSuperClustersProducer(const edm::Para
 }
 
 void TICLEGammaSuperClustersProducer::beginRun(const edm::Run &, const edm::EventSetup &es) {
-  tools_.setGeometry(es.getData(ticlGeomToken_), es.getData(ticlGeomLookupToken_), es.getData(ticlGeomLayersToken_));
+  tools_.setGeometry(es.getData(ticlGeomToken_));
 }
 
 namespace {

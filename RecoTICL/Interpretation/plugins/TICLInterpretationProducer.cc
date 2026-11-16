@@ -355,8 +355,6 @@ private:
   const StringCutObjectSelector<reco::Track> cutTk_;
 
   const edm::ESGetToken<TICLGeomHost, CaloGeometryRecord> ticlGeomToken_;
-  const edm::ESGetToken<TICLGeomLookupHost, CaloGeometryRecord> ticlGeomLookupToken_;
-  const edm::ESGetToken<TICLGeomLayersHost, CaloGeometryRecord> ticlGeomLayersToken_;
   const edm::ESGetToken<HGCalDDDConstants, IdealGeometryRecord> hdc_token_;
   const edm::ESGetToken<MagneticField, IdealMagneticFieldRecord> bfield_token_;
   const edm::ESGetToken<Propagator, TrackingComponentsRecord> propagator_token_;
@@ -440,8 +438,6 @@ TICLInterpretationProducer::TICLInterpretationProducer(const edm::ParameterSet &
       tkEnergyCut_(ps.getParameter<float>("tkEnergyCut")),
       cutTk_(ps.getParameter<std::string>("cutTk")),
       ticlGeomToken_(esConsumes<TICLGeomHost, CaloGeometryRecord, edm::Transition::BeginRun>()),
-      ticlGeomLookupToken_(esConsumes<TICLGeomLookupHost, CaloGeometryRecord, edm::Transition::BeginRun>()),
-      ticlGeomLayersToken_(esConsumes<TICLGeomLayersHost, CaloGeometryRecord, edm::Transition::BeginRun>()),
       hdc_token_(esConsumes<HGCalDDDConstants, IdealGeometryRecord, edm::Transition::BeginRun>(
           edm::ESInputTag("", "HGCalEESensitive"))),
       bfield_token_(esConsumes<MagneticField, IdealMagneticFieldRecord, edm::Transition::BeginRun>()),
@@ -567,7 +563,7 @@ TICLInterpretationProducer::TICLInterpretationProducer(const edm::ParameterSet &
 
 void TICLInterpretationProducer::beginRun(edm::Run const &, edm::EventSetup const &es) {
   const auto &hgcons = es.getData(hdc_token_);
-  rhtools_.setGeometry(es.getData(ticlGeomToken_), es.getData(ticlGeomLookupToken_), es.getData(ticlGeomLayersToken_));
+  rhtools_.setGeometry(es.getData(ticlGeomToken_));
   bfield_ = es.getHandle(bfield_token_);
   propagator_ = es.getHandle(propagator_token_);
   frontDisks_ = ticl::utils::buildHGCalFirstDisks(hgcons);
