@@ -161,6 +161,8 @@ private:
   const float photonMinScore_;
   const float photonScoreMinPt_;
   edm::EDGetTokenT<std::vector<float>> eGammaScore_token_;
+  // Study only: a share per interpretation trackster that replaces the share model where it is not negative.
+  edm::EDGetTokenT<std::vector<float>> shareOverride_token_;
   edm::EDGetTokenT<std::vector<int>> eGammaIndex_token_;
   std::vector<float> neutralEnergyShares(const std::vector<Trackster> &tracksters,
                                          const std::vector<reco::CaloCluster> &layerClusters,
@@ -238,6 +240,7 @@ private:
                                const std::vector<float> &neutralSpeciesProbabilities,
                                const PointCloudEstimates &pc,
                                const std::vector<float> &photonScore,
+                               const std::vector<float> *shareOverride,
                                std::vector<TICLCandidate> &candidates) const;
   // Muons: a charged candidate takes the kinematics of the best muon track when takesMuonKinematics holds. A loose muon
   // is accepted for a muon candidate only. Returns the muon of each candidate and the type of its muon track (-1: none).
@@ -414,6 +417,8 @@ TICLCandidateArbitrationProducer::TICLCandidateArbitrationProducer(const edm::Pa
     const auto &eg = ps.getParameter<edm::InputTag>("eGammaTracksters");
     eGammaIndex_token_ = consumes<std::vector<int>>(edm::InputTag(eg.label(), "interpretationIndex", eg.process()));
   }
+  if (const auto &ov = ps.getParameter<edm::InputTag>("neutralShareOverride"); !ov.label().empty())
+    shareOverride_token_ = consumes<std::vector<float>>(ov);
   produces<std::vector<TICLCandidate>>();
   // Per candidate: its muon (null when none) and the type of the muon track it takes (-1 when none).
   produces<edm::ValueMap<reco::MuonRef>>("muons");
@@ -796,6 +801,13 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
       if (eGammaIndex[k] >= 0 && eGammaIndex[k] < static_cast<int>(photonScore.size()))
         photonScore[eGammaIndex[k]] = eGammaScore[k];
   }
+  const std::vector<float> *shareOverride = nullptr;
+  if (!shareOverride_token_.isUninitialized()) {
+    shareOverride = &evt.get(shareOverride_token_);
+    if (shareOverride->size() != tracksters_h->size())
+      throw cms::Exception("LogicError") << "TICLCandidateArbitrationProducer: " << shareOverride->size()
+                                         << " override shares for " << tracksters_h->size() << " tracksters";
+  }
   appendNeutralCandidates(tracksters_h,
                           evt.get(layerClustersToken_),
                           neutralIdx,
@@ -803,6 +815,7 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
                           evt.get(neutralSpeciesProbabilities_token_),
                           pc,
                           photonScore,
+                          shareOverride,
                           candidates);
   ticl::assignTimeToCandidates(candidates,
                                inputTimingView,
@@ -917,11 +930,16 @@ void TICLCandidateArbitrationProducer::appendNeutralCandidates(const edm::Handle
                                                                const std::vector<float> &neutralSpeciesProbabilities,
                                                                const PointCloudEstimates &pc,
                                                                const std::vector<float> &photonScore,
+                                                               const std::vector<float> *shareOverride,
                                                                std::vector<TICLCandidate> &candidates) const {
   if (neutralSpeciesProbabilities.size() != kNeutralSpecies * neutralIdx.size())
     throw cms::Exception("LogicError") << "TICLCandidateArbitrationProducer: " << neutralSpeciesProbabilities.size()
                                        << " neutral species probabilities for " << neutralIdx.size() << " neutrals";
-  const auto neutralShare = neutralEnergyShares(*tracksters_h, layerClusters, neutralIdx);
+  auto neutralShare = neutralEnergyShares(*tracksters_h, layerClusters, neutralIdx);
+  if (shareOverride != nullptr)
+    for (size_t k = 0; k < neutralIdx.size(); ++k)
+      if (const float s = (*shareOverride)[neutralIdx[k]]; s >= 0.f && !(*tracksters_h)[neutralIdx[k]].vertices().empty())
+        neutralShare[k] = s;
   for (size_t k = 0; k < neutralIdx.size(); ++k) {
     const int idx = neutralIdx[k];
     if (pc.valid(idx) && (*pc.pileup)[idx] > pointCloudMaxPileup_)
@@ -1063,6 +1081,9 @@ void TICLCandidateArbitrationProducer::fillDescriptions(edm::ConfigurationDescri
   desc.add<edm::FileInPath>("neutralShareModel",
                             edm::FileInPath("RecoTICL/Interpretation/data/neutralEnergy/neutralShare_mlp_v2.onnx"))
       ->setComment("ONNX model of the share of a neutral trackster energy that comes from the particle it represents.");
+  desc.add<edm::InputTag>("neutralShareOverride", edm::InputTag())
+      ->setComment("Study only: a share per interpretation trackster that replaces the share model where it is not "
+                   "negative. Empty: the share model.");
   desc.add<float>("neutralMinEnergy", 1.f)
       ->setComment("Neutral candidates below this corrected energy are not produced.");
   desc.add<float>("neutralShareMinPt", 10.f)
