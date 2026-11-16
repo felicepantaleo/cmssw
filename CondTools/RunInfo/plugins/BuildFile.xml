@@ -100,7 +100,11 @@
   <flags EDM_PLUGIN="1"/>
 </library>
 
-<library file="LHCPhaseShiftProducer.cc" name="LHCPhaseShiftProducer">
+<library file="LHCPhaseShiftESSource.cc" name="LHCPhaseShiftESSource">
   <use name="json"/>
+  <flags EDM_PLUGIN="1"/>
+</library>
+
+<library file="LHCPhaseShiftProducer.cc" name="LHCPhaseShiftProducer">
   <flags EDM_PLUGIN="1"/>
 </library>

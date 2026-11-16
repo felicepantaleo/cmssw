@@ -71,7 +71,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                              HGCalDenseIndexInfoHost::ConstView,
                              CLHEP::HepJamesRandom&);
 
-    const edm::EDGetTokenT<std::vector<float>> lhcPhaseShiftToken_;
+    const edm::EDGetTokenT<float> lhcPhaseShiftToken_;
     const edm::EDGetTokenT<hgcaldigi::HGCalSimHitAccumHost> g4HitsAccTkn_;
     edm::ESWatcher<HGCalAgeingCondsRcd> ageingCondsWatcher_;
     const edm::ESGetToken<hgcal::HGCalAgeingCondsHost, HGCalAgeingCondsRcd> ageingCondsTkn_;
@@ -105,7 +105,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
   //
   HGCalDigitizerProducer::HGCalDigitizerProducer(const edm::ParameterSet& iConfig)
       : SynchronizingEDProducer(iConfig),
-        lhcPhaseShiftToken_{consumes<std::vector<float>>(iConfig.getParameter<edm::InputTag>("lhcPhaseShift"))},
+        lhcPhaseShiftToken_{consumes<float>(iConfig.getParameter<edm::InputTag>("lhcPhaseShift"))},
         g4HitsAccTkn_{consumes<hgcaldigi::HGCalSimHitAccumHost>(iConfig.getParameter<edm::InputTag>("g4HitsAcc"))},
         ageingCondsTkn_{esConsumes(iConfig.getParameter<edm::ESInputTag>("ageingConds"))},
         denseIndexTkn_{esConsumes(iConfig.getParameter<edm::ESInputTag>("denseIndexer"))},
@@ -191,7 +191,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     auto nchannels = g4AccHits.view().metadata().size();
     // Read LHC phase shift
     auto const& lhcPhaseShift = iEvent.getHandle(lhcPhaseShiftToken_);
-    auto const& lhc_phaseshift = lhcPhaseShift.isValid() ? lhcPhaseShift->at(1) : 0.;
+    auto const& lhc_phaseshift = lhcPhaseShift.isValid() ? *lhcPhaseShift : 0.;
 
     LogDebug("[HGCalDigitizerProducer]") << "Loaded accumulated Geant 4 hits for " << nchannels << " cells"
                                          << ", " << ageingConds.view().metadata().size() << " ageing conditions"

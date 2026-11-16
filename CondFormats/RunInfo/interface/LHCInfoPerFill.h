@@ -39,6 +39,7 @@ public:
     BEAM2_RF,
     INST_LUMI,
     INST_LUMI_ERR,
+    PHASE_SHIFT,
     FSIZE
   };
   enum TimeParamIndex { CREATE_TIME = 0, BEGIN_TIME, END_TIME, TSIZE };
@@ -104,6 +105,8 @@ public:
   std::string const& lhcComment() const;
 
   std::string const& ctppsStatus() const;
+
+  std::vector<float> const& phaseShift() const;
 
   std::vector<float> const& beam1VC() const;
 
@@ -179,6 +182,8 @@ public:
   void setLhcComment(std::string const& lhcComment);
 
   void setCtppsStatus(std::string const& ctppsStatus);
+
+  void setPhaseShift(std::vector<float> const& phaseShift);
 
   void setBeam1VC(std::vector<float> const& beam1VC);
 

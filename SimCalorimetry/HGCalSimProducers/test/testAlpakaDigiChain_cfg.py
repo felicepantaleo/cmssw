@@ -70,6 +70,10 @@ if options.applyAgeing:
 else:
     process = customise_hgcal_ageing_byalgo_startup(process)
 
+# LHC phase shift source
+process.load('CondTools.RunInfo.lhcPhaseShift_cfi')
+process.load('CondTools.RunInfo.lhcPhaseShiftESSource_cfi')
+
 # random number generator service
 process.RandomNumberGeneratorService = cms.Service(
     "RandomNumberGeneratorService",
@@ -169,6 +173,7 @@ process.hgcalRecHits = cms.EDProducer(
 # step
 process.digi_step = cms.Path(
     process.hgCalSimHitAccumulator
+    *process.lhcPhaseShift
     *process.hgCalDigitizerProducer
     *process.hgcalRecHits
 )

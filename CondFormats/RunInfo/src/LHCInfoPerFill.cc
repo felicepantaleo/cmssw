@@ -71,6 +71,7 @@ static std::string particleTypeToString(LHCInfoPerFill::ParticleTypeId const& pa
 }
 
 LHCInfoPerFill::LHCInfoPerFill() : LHCInfoVectorizedFields(ISIZE, FSIZE, TSIZE, SSIZE) {
+  m_floatParams[PHASE_SHIFT] = std::vector<float>();
   m_floatParams[LUMI_PER_B] = std::vector<float>();
   m_floatParams[BEAM1_VC] = std::vector<float>();
   m_floatParams[BEAM2_VC] = std::vector<float>();
@@ -169,6 +170,10 @@ std::string const& LHCInfoPerFill::lhcComment() const {
 
 std::string const& LHCInfoPerFill::ctppsStatus() const {
   return LHCInfoPerFill::getOneParam(m_stringParams, CTPPS_STATUS);
+}
+
+std::vector<float> const& LHCInfoPerFill::phaseShift() const {
+  return LHCInfoPerFill::getParams(m_floatParams, PHASE_SHIFT);
 }
 
 std::vector<float> const& LHCInfoPerFill::beam1VC() const { return LHCInfoPerFill::getParams(m_floatParams, BEAM1_VC); }
@@ -303,6 +308,10 @@ void LHCInfoPerFill::setLhcComment(std::string const& lhcComment) {
 
 void LHCInfoPerFill::setCtppsStatus(std::string const& ctppsStatus) {
   LHCInfoPerFill::setOneParam(m_stringParams, CTPPS_STATUS, ctppsStatus);
+}
+
+void LHCInfoPerFill::setPhaseShift(std::vector<float> const& phaseShift) {
+  LHCInfoPerFill::setParams(m_floatParams, PHASE_SHIFT, phaseShift);
 }
 
 void LHCInfoPerFill::setBeam1VC(std::vector<float> const& beam1VC) {
