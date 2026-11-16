@@ -187,7 +187,7 @@ namespace ticl {
   // Gives merged, with its raw energy set, the properties of its source tracksters: the PID probabilities weighted by
   // the source raw energies, the sum of the source regressed energies scaled by raw_energy(merged) over the sum of the
   // source raw energies, and the track and GSF track indices of the sources in order, without repeats. A source
-  // without raw energy adds nothing.
+  // without raw energy adds nothing. The regressed energy of merged is not the energy of the candidate that holds it.
   inline void copySourceProperties(Trackster &merged, const std::vector<const Trackster *> &sources) {
     double rawSum = 0.;
     double regressedSum = 0.;
