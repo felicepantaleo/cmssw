@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The ticl_v6 process modifier gives the modules of the pyTICL preset v6, and the preset validates."""
+"""The ticl_v6 process modifier gives the modules of the pyTICL preset v6 on the device, and the preset validates."""
 
 import sys
 
@@ -17,10 +17,10 @@ def main():
     failures = []
     process = cms.Process("TEST", Phase2C26I13M9, ticl_v6)
     process.load("RecoTICL.Configuration.iterativeTICL_cff")
-    reference = presets.v6().validate().modules
+    reference = presets.v6(heterogeneous=True).validate().modules
     for label in LABELS:
         if getattr(process, label).dumpPython() != reference[label].dumpPython():
-            failures.append("%s differs from presets.v6()" % label)
+            failures.append("%s differs from presets.v6(heterogeneous=True)" % label)
     if "ticlTracksterInterpretations" not in process.iterTICLTask.moduleNames():
         failures.append("ticlTracksterInterpretations is not in iterTICLTask")
     # The layer clusters of every linking input that are in no linked trackster join the track claim.
@@ -74,8 +74,8 @@ def main():
     process.load("RecoParticleFlow.PFTracking.mergedElectronSeeds_cfi")
     process.load("RecoEgamma.EgammaPhotonProducers.photonCore_cfi")
     expected = {
-        "filteredLayerClustersRecovery.LayerClustersInputMask": "ticlTrackstersCLUEstering",
-        "ticlTrackstersRecovery.original_mask": "ticlTrackstersCLUEstering",
+        "filteredLayerClustersRecoverySoA.LayerClustersInputMask": "ticlLayerClusterMaskCLUEsteringSoA",
+        "ticlTrackstersRecovery.originalMask": "ticlTrackstersCLUEstering",
         "hgcalValidator.mergedTracksters": "ticlTracksterInterpretations",
         "hltHgcalValidator.mergedTracksters": "hltTiclCandidate",
         "ticlCandidateExtraTable.tracksters": "ticlTracksterInterpretations",

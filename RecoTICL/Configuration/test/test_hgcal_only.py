@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """reconstruction_hgcalOnly reads only the HGCAL digis and the products of its own modules: by default, with ticl_v6
-and with ticl_v6 on the device. No module reads tracks, vertices, MTD or muons."""
+and with ticl_v6 on the host. No module reads tracks, vertices, MTD or muons."""
 
 import subprocess
 import sys
 
 import FWCore.ParameterSet.Config as cms
 
-MODIFIER_SETS = ((), ("ticl_v6",), ("ticl_v6", "ticl_v6_heterogeneous"))
+MODIFIER_SETS = ((), ("ticl_v6",), ("ticl_v6", "ticl_v6_host"))
 # the products of RAW2DIGI
 EXTERNAL = {"hgcalDigis", "hfnoseDigis"}
 # Inputs that a module reads only under a condition on its own parameters.

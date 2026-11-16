@@ -27,7 +27,7 @@ from Configuration.ProcessModifiers.ticlv5_TrackLinkingGNN_cff import ticlv5_Tra
 from Configuration.ProcessModifiers.ticl_superclustering_mustache_ticl_cff import ticl_superclustering_mustache_ticl
 from Configuration.ProcessModifiers.ticl_barrel_cff import ticl_barrel
 from Configuration.ProcessModifiers.ticl_v6_cff import ticl_v6
-from Configuration.ProcessModifiers.ticl_v6_heterogeneous_cff import ticl_v6_heterogeneous
+from Configuration.ProcessModifiers.ticl_v6_host_cff import ticl_v6_host
 from RecoParticleFlow.PFClusterProducer.particleFlowClusterHGC_cfi import particleFlowClusterHGCal as _particleFlowClusterHGCal
 
 ticlLayerTileTask = cms.Task(ticlLayerTileProducer)
@@ -292,8 +292,8 @@ ticl_v6.toModify(_electronMergedSeeds, EcalBasedSeeds="ticlElectronSeeds")
 # TICLv6 on the device: the shower-shape PID runs on the CLUEstering tracksters on the device, the Recovery iteration on
 # the layer cluster mask after them, the Cornetto linking on the device tracksters of CLUEstering and Recovery, and the
 # superclustering DNN on the identified tracksters. The results are converted to the host products under the same
-# labels, so the consumers do not change.
-_ticlV6Heterogeneous = ticl_v6 & ticl_v6_heterogeneous
+# labels, so the consumers do not change. With ticl_v6_host, these modules stay on the host.
+_ticlV6Heterogeneous = ticl_v6 & ~ticl_v6_host
 _ticlV6HeterogeneousAssembled = _v6(heterogeneous=True).assemble()
 
 
