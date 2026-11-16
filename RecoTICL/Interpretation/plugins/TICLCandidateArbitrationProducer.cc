@@ -98,8 +98,6 @@ private:
   CandidateTrackstersParameters candidateTrackstersParameters_;
   edm::EDGetTokenT<edm::ValueMap<std::pair<float, float>>> layerClustersTime_token_;
   edm::ESGetToken<TICLGeomHost, CaloGeometryRecord> ticlGeomToken_;
-  edm::ESGetToken<TICLGeomLookupHost, CaloGeometryRecord> ticlGeomLookupToken_;
-  edm::ESGetToken<TICLGeomLayersHost, CaloGeometryRecord> ticlGeomLayersToken_;
   ticlgeom::Tools rhtools_;
   std::array<std::unique_ptr<GeomDet>, 2> frontDisks_;
   const edm::EDGetTokenT<std::vector<reco::Track>> tracks_token_;
@@ -392,8 +390,6 @@ TICLCandidateArbitrationProducer::TICLCandidateArbitrationProducer(const edm::Pa
     layerClustersTime_token_ = consumes<edm::ValueMap<std::pair<float, float>>>(
         candidateTracksters.getParameter<edm::InputTag>("layerClustersTime"));
     ticlGeomToken_ = esConsumes<TICLGeomHost, CaloGeometryRecord, edm::Transition::BeginRun>();
-    ticlGeomLookupToken_ = esConsumes<TICLGeomLookupHost, CaloGeometryRecord, edm::Transition::BeginRun>();
-    ticlGeomLayersToken_ = esConsumes<TICLGeomLayersHost, CaloGeometryRecord, edm::Transition::BeginRun>();
     produces<std::vector<Trackster>>();
   }
   if (useMTDTiming_) {
@@ -431,8 +427,7 @@ void TICLCandidateArbitrationProducer::beginRun(edm::Run const &, edm::EventSetu
   propagator_ = es.getHandle(propagator_token_);
   trackingGeometry_ = es.getHandle(trackingGeometry_token_);
   if (buildCandidateTracksters_) {
-    rhtools_.setGeometry(
-        es.getData(ticlGeomToken_), es.getData(ticlGeomLookupToken_), es.getData(ticlGeomLayersToken_));
+    rhtools_.setGeometry(es.getData(ticlGeomToken_));
     frontDisks_ = utils::buildHGCalFirstDisks(*hgcons_);
   }
 }

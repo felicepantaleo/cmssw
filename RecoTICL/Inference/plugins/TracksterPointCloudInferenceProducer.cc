@@ -78,8 +78,6 @@ private:
   const edm::EDGetTokenT<std::vector<reco::Track>> trackToken_;
   const edm::EDGetTokenT<MtdHostCollection> timingToken_;
   const edm::ESGetToken<TICLGeomHost, CaloGeometryRecord> ticlGeomToken_;
-  const edm::ESGetToken<TICLGeomLookupHost, CaloGeometryRecord> ticlGeomLookupToken_;
-  const edm::ESGetToken<TICLGeomLayersHost, CaloGeometryRecord> ticlGeomLayersToken_;
   const edm::ESGetToken<MagneticField, IdealMagneticFieldRecord> fieldToken_;
   const edm::ESGetToken<Propagator, TrackingComponentsRecord> propToken_;
   const edm::ESGetToken<HGCalDDDConstants, IdealGeometryRecord> hgconsToken_;
@@ -107,8 +105,6 @@ TracksterPointCloudInferenceProducer::TracksterPointCloudInferenceProducer(const
       trackToken_(consumes<std::vector<reco::Track>>(ps.getParameter<edm::InputTag>("tracks"))),
       timingToken_(consumes<MtdHostCollection>(ps.getParameter<edm::InputTag>("timingSoA"))),
       ticlGeomToken_(esConsumes<TICLGeomHost, CaloGeometryRecord, edm::Transition::BeginRun>()),
-      ticlGeomLookupToken_(esConsumes<TICLGeomLookupHost, CaloGeometryRecord, edm::Transition::BeginRun>()),
-      ticlGeomLayersToken_(esConsumes<TICLGeomLayersHost, CaloGeometryRecord, edm::Transition::BeginRun>()),
       fieldToken_(esConsumes()),
       propToken_(esConsumes(edm::ESInputTag("", ps.getParameter<std::string>("propagator")))),
       hgconsToken_(esConsumes<HGCalDDDConstants, IdealGeometryRecord, edm::Transition::BeginRun>(
@@ -154,7 +150,7 @@ std::unique_ptr<cms::Ort::ONNXRuntime> TracksterPointCloudInferenceProducer::ini
 }
 
 void TracksterPointCloudInferenceProducer::beginRun(edm::Run const&, edm::EventSetup const& es) {
-  rhtools_.setGeometry(es.getData(ticlGeomToken_), es.getData(ticlGeomLookupToken_), es.getData(ticlGeomLayersToken_));
+  rhtools_.setGeometry(es.getData(ticlGeomToken_));
   frontDisks_ = ticl::utils::buildHGCalFirstDisks(es.getData(hgconsToken_));
 }
 

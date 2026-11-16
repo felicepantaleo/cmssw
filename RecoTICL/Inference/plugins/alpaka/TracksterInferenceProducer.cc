@@ -8,8 +8,6 @@
 #include <string>
 
 #include "CondFormats/HGCalObjects/interface/TICLGeomHost.h"
-#include "CondFormats/HGCalObjects/interface/TICLGeomLayersHost.h"
-#include "CondFormats/HGCalObjects/interface/TICLGeomLookupHost.h"
 #include "FWCore/Framework/interface/Run.h"
 #include "FWCore/ParameterSet/interface/ConfigurationDescriptions.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
@@ -55,9 +53,6 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                                        config.getParameter<std::string>("detector") == "Barrel" ? "withBarrel" : "");
         layerClustersToken_ = consumes(config.getParameter<edm::InputTag>("layerClusters"));
         ticlGeomToken_ = esConsumes<TICLGeomHost, CaloGeometryRecord, edm::Transition::BeginRun>(geometry);
-        ticlGeomLookupToken_ = esConsumes<TICLGeomLookupHost, CaloGeometryRecord, edm::Transition::BeginRun>(geometry);
-        ticlGeomLayersToken_ =
-            esConsumes<TICLGeomLayersHost, CaloGeometryRecord, edm::Transition::BeginRun>(edm::ESInputTag("", ""));
       }
       if (config.getParameter<bool>("doRegression") and not M::regression)
         throw cms::Exception("Configuration") << "this model has no energy regression";
@@ -96,8 +91,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     void beginRun(edm::Run const&, edm::EventSetup const& setup) override {
       if constexpr (M::layerClusters) {
         ticlgeom::Tools tools;
-        tools.setGeometry(
-            setup.getData(ticlGeomToken_), setup.getData(ticlGeomLookupToken_), setup.getData(ticlGeomLayersToken_));
+        tools.setGeometry(setup.getData(ticlGeomToken_));
         layersPerEndcap_ = tools.lastLayer(false);
         if (layersPerEndcap_ <= 0)
           throw cms::Exception("TracksterInferenceProducer") << "Invalid number of layers per endcap";
@@ -221,8 +215,6 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     const device::EDGetToken<ticl::TracksterDeviceCollection> trackstersToken_;
     device::EDGetToken<reco::CaloClusterDeviceCollection> layerClustersToken_;
     edm::ESGetToken<TICLGeomHost, CaloGeometryRecord> ticlGeomToken_;
-    edm::ESGetToken<TICLGeomLookupHost, CaloGeometryRecord> ticlGeomLookupToken_;
-    edm::ESGetToken<TICLGeomLayersHost, CaloGeometryRecord> ticlGeomLayersToken_;
     const device::EDPutToken<ticl::TracksterDeviceCollection> outputToken_;
     const float energyThreshold_;
     const uint32_t batchSize_;

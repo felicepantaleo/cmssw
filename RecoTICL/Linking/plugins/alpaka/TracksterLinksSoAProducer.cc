@@ -10,8 +10,6 @@
 #include <vector>
 
 #include "CondFormats/HGCalObjects/interface/TICLGeomHost.h"
-#include "CondFormats/HGCalObjects/interface/TICLGeomLayersHost.h"
-#include "CondFormats/HGCalObjects/interface/TICLGeomLookupHost.h"
 #include "DataFormats/CaloRecHit/interface/alpaka/CaloClusterDeviceCollection.h"
 #include "DataFormats/HGCalReco/interface/Trackster.h"
 #include "DataFormats/HGCalReco/interface/alpaka/TracksterLinksDeviceCollection.h"
@@ -49,8 +47,6 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
           trackstersToken_{produces()},
           linksToken_{produces("links")},
           ticlGeomToken_{consumesCollector().esConsumes<TICLGeomHost, CaloGeometryRecord>()},
-          ticlGeomLookupToken_{consumesCollector().esConsumes<TICLGeomLookupHost, CaloGeometryRecord>()},
-          ticlGeomLayersToken_{consumesCollector().esConsumes<TICLGeomLayersHost, CaloGeometryRecord>()},
           parameters_{readParameters(config)} {
       const auto& tracksters = config.getParameter<std::vector<edm::InputTag>>("tracksters");
       const auto& pid = config.getParameter<std::vector<edm::InputTag>>("pid");
@@ -86,8 +82,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     void produce(device::Event& iEvent, const device::EventSetup& iSetup) override {
       // As the host linking: the layer clusters up to the last CE-E layer count to the EM energy
       ticlgeom::Tools geometry;
-      geometry.setGeometry(
-          iSetup.getData(ticlGeomToken_), iSetup.getData(ticlGeomLookupToken_), iSetup.getData(ticlGeomLayersToken_));
+      geometry.setGeometry(iSetup.getData(ticlGeomToken_));
       const float zLimitEm = geometry.getPositionLayer(geometry.lastLayerEE()).z();
 
       const uint32_t nLinked = scratch_.nLinked();
@@ -237,8 +232,6 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     const device::EDPutToken<ticl::TracksterDeviceCollection> trackstersToken_;
     const device::EDPutToken<ticl::TracksterLinksDeviceCollection> linksToken_;
     const edm::ESGetToken<TICLGeomHost, CaloGeometryRecord> ticlGeomToken_;
-    const edm::ESGetToken<TICLGeomLookupHost, CaloGeometryRecord> ticlGeomLookupToken_;
-    const edm::ESGetToken<TICLGeomLayersHost, CaloGeometryRecord> ticlGeomLayersToken_;
     const ticl::cornetto::Parameters parameters_;
     const ticl::cornetto::Algo algo_{};
     // Set in acquire and used in produce
