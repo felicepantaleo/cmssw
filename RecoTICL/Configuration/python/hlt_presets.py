@@ -137,3 +137,67 @@ def v5_hlt(name="v5_hlt"):
            .pf())
     cfg.include_mtd = False   # the HLT iterTICL sequence has no mtdSoA stage
     return cfg
+
+
+def v6_hlt(name="v6_hlt"):
+    """Return the :class:`TICLConfig` of TICLv6 on the HLT target, with the device chain."""
+    from RecoTICL.Configuration.presets import v6
+    return v6(name, target="HLT", heterogeneous=True)
+
+
+# The TICLv5 modules and sequences of the HLT menu that TICLv6 does not use.
+_V5_ONLY_MODULES = ("hltFilteredLayerClustersCLUE3DHigh", "hltTiclSeedingGlobal", "hltTiclTrackstersCLUE3DHigh",
+                    "hltFilteredLayerClustersRecovery")
+_V5_ONLY_SEQUENCES = ("HLTTiclTrackstersCLUE3DHighStepSequence", "HLTTiclTrackstersRecoverySequence")
+
+
+def _replace_input_label(pset, old, new):
+    for name in pset.parameterNames_():
+        value = getattr(pset, name)
+        if isinstance(value, cms.InputTag):
+            if value.getModuleLabel() == old:
+                value.setModuleLabel(new)
+        elif isinstance(value, cms.VInputTag):
+            for i, tag in enumerate(value):
+                if isinstance(tag, cms.InputTag):
+                    if tag.getModuleLabel() == old:
+                        tag.setModuleLabel(new)
+                elif tag.split(":")[0] == old:
+                    value[i] = ":".join([new] + tag.split(":")[1:])
+        elif isinstance(value, cms.PSet):
+            _replace_input_label(value, old, new)
+        elif isinstance(value, cms.VPSet):
+            for item in value:
+                _replace_input_label(item, old, new)
+
+
+def use_v6(process):
+    """Make the Phase-2 HLT menu in ``process`` run TICLv6 (:func:`v6_hlt`) in the place of TICLv5 (:func:`v5_hlt`).
+    The unseeded e/gamma superclusters read the CLUEstering tracksters and the TICLv6 superclustering DNN. The
+    L1-seeded e/gamma chain does not change."""
+    assembled = v6_hlt().assemble()
+    target = assembled.target
+    old_sequences = dict(process.sequences_())
+    old_first = process.hltTiclTrackstersCLUE3DHigh
+    for label, module in assembled.modules.items():
+        setattr(process, label, module)
+    for name, sequence in assembled.tasks.items():
+        setattr(process, name, sequence)
+    # A sequence of the menu that runs the first iteration or the superclustering alone runs the TICLv6 sequence.
+    superclustering = getattr(process, target.supercluster_dnn_label)
+    containers = [s for n, s in old_sequences.items() if n not in assembled.tasks and n not in _V5_ONLY_SEQUENCES]
+    containers += list(process.paths_().values())
+    for container in containers:
+        container.replace(old_first, process.HLTTiclTrackstersCLUEsteringStepSequence)
+        container.replace(superclustering, process.HLTTiclSuperclusteringSequence)
+    for name in _V5_ONLY_SEQUENCES + _V5_ONLY_MODULES:
+        if hasattr(process, name):
+            delattr(process, name)
+    # A reader of the first iteration reads CLUEstering. A reader of the final tracksters, other than the module of
+    # the PF candidates, reads the interpretation stage.
+    for modules in (process.producers_(), process.filters_(), process.analyzers_()):
+        for label, module in modules.items():
+            _replace_input_label(module, "hltTiclTrackstersCLUE3DHigh", target.trackster_label("CLUEstering"))
+            if label != target.pf_label:
+                _replace_input_label(module, target.candidate_label, target.interpretations_label)
+    return process

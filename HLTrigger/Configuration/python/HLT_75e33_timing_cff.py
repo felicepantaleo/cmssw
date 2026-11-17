@@ -273,6 +273,11 @@ fragment.load("HLTrigger/Configuration/HLT_75e33/services/ThroughputService_cfi"
 fragment.load("HLTrigger/Configuration/HLT_75e33/services/PyTorchService_cfi")
 fragment.load("HLTrigger/Configuration/HLT_75e33/services/ONNXService_cfi")
 
+# TICLv6 with the ticl_v6 process modifier
+from Configuration.ProcessModifiers.ticl_v6_cff import ticl_v6
+from RecoTICL.Configuration.hlt_presets import use_v6 as _useTICLv6
+ticl_v6.toModify(fragment, _useTICLv6)
+
 fragment.schedule = cms.Schedule(*[
 
     fragment.HLT_AK4PFPuppiJet520,
