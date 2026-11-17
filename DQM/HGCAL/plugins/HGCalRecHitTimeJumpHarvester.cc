@@ -9,6 +9,8 @@
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
 #include "FWCore/ParameterSet/interface/ConfigurationDescriptions.h"
 #include "FWCore/ParameterSet/interface/ParameterSetDescription.h"
+#include "CondFormats/RunInfo/interface/LHCInfoPerFill.h"
+#include "CondFormats/DataRecord/interface/LHCInfoPerFillRcd.h"
 #include "TOffsetFitter_crate_2.h"
 #include "TFile.h"
 #include "TFitResult.h"
@@ -19,17 +21,31 @@
 class HGCalRecHitTimeHarvester : public DQMEDHarvester {
 public:
   explicit HGCalRecHitTimeHarvester(const edm::ParameterSet& config)
-      : DQMEDHarvester(config), inputFile_(config.getParameter<std::string>("inputFile")) {}
+      : DQMEDHarvester(config),
+        inputFile_(config.getParameter<std::string>("inputFile")),
+        lhcInfoToken_(esConsumes(config.getParameter<edm::ESInputTag>("lhcInfo"))) {}
 
   static void fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
     edm::ParameterSetDescription desc;
     DQMEDHarvester::fillDescription(desc);
     desc.add<std::string>("inputFile", "");
+    desc.add<edm::ESInputTag>("lhcInfo", edm::ESInputTag("lhcPhaseShiftESSource", "lhcPhaseShift"));
     descriptions.add("hgcalRecHitTimeHarvester", desc);
+  }
+
+  void beginRun(const edm::Run& run, const edm::EventSetup& iSetup) override {
+    const auto& lhcInfo = iSetup.getData(lhcInfoToken_);
+    const auto collidingBunchBitset = lhcInfo.bunchBitsetForBeam1() & lhcInfo.bunchBitsetForBeam2();
+    trainStartEdges_.clear();
+    for (size_t i = 0; i < LHCInfoPerFill::bunchSlots; i++)
+      if ((i == 0 || collidingBunchBitset[i - 1] == 0) && collidingBunchBitset[i] == 1)
+        trainStartEdges_.push_back(i);
   }
 
 private:
   const std::string inputFile_;
+  const edm::ESGetToken<LHCInfoPerFill, LHCInfoPerFillRcd> lhcInfoToken_;
+  std::vector<int> trainStartEdges_;
 
   void dqmEndJob(DQMStore::IBooker& booker, DQMStore::IGetter& getter) override {
     std::unique_ptr<TFile> source;
@@ -78,7 +94,7 @@ private:
         const int i = bins.size();
         bins.push_back(bin);
         // dummy BX=0; crate information only
-        graph.SetPoint(i, i * 3565., mean);
+        graph.SetPoint(i, i * LHCInfoPerFill::bunchSlots, mean);
         graph.SetPointError(i, 0., error);
       }
       if (bins.empty()) {
@@ -88,7 +104,9 @@ private:
 
       const unsigned ncrates = bins.size();
       TOffsetFitter_crate_2 helper(ncrates);
-      TF1 model(("crateTimeModel" + endcap).c_str(), helper, 0., ncrates * 3565. - 1., helper.npars());
+      helper.setTrainStartEdges(trainStartEdges_);
+      TF1 model(
+          ("crateTimeModel" + endcap).c_str(), helper, 0., ncrates * LHCInfoPerFill::bunchSlots - 1., helper.npars());
       // no BX info for now
       model.FixParameter(ncrates, 0.);
       auto result = graph.Fit(&model, "SQN");

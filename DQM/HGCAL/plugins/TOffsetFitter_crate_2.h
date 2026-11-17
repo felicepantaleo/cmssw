@@ -1,6 +1,7 @@
 #ifndef _toffset_fit_helper_crate_2_h_
 #define _toffset_fit_helper_crate_2_h_
 
+#include "CondFormats/RunInfo/interface/LHCInfoPerFill.h"
 #include <vector>
 #include <algorithm>
 #include <iostream>
@@ -32,8 +33,8 @@ public:
     */
   double operator()(double* x, double* par) {
     const int x_value = static_cast<int>(x[0]);
-    const int bx = x_value % 3565;
-    const int crate = x_value / 3565;
+    const int bx = x_value % LHCInfoPerFill::bunchSlots;
+    const int crate = x_value / LHCInfoPerFill::bunchSlots;
     const size_t nedges = train_start_edges_.size();
     const double global_offset = par[nedges + crate];
     const double slope = par[nedges + ncrates_];
