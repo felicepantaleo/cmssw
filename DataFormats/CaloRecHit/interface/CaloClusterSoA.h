@@ -6,7 +6,6 @@
 #include "DataFormats/SoATemplate/interface/SoABlocks.h"
 #include "DataFormats/SoATemplate/interface/SoALayout.h"
 #include "DataFormats/CaloRecHit/interface/CaloCluster.h"
-#include "DataFormats/DetId/interface/DetId.h"
 #include <xtd/xtd.h>
 
 namespace reco {
@@ -23,9 +22,10 @@ namespace reco {
                       SOA_COLUMN(float, correctedEnergy),
                       SOA_COLUMN(float, correctedEnergyUncertainty))
 
+  // seedID is the raw DetId of the seed hit
   GENERATE_SOA_LAYOUT(CaloClusterSoAIndexes,
                       SOA_COLUMN(CaloCluster::AlgoID, algoID),
-                      SOA_COLUMN(DetId, seedID),
+                      SOA_COLUMN(uint32_t, seedID),
                       SOA_COLUMN(uint32_t, flags))
 
   GENERATE_SOA_LAYOUT(CaloClusterSoATiming, SOA_COLUMN(float, time), SOA_COLUMN(float, timeError))

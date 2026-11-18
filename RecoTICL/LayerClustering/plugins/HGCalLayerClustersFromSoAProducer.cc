@@ -16,6 +16,7 @@
 #include "DataFormats/Math/interface/Point3D.h"
 #include "DataFormats/EgammaReco/interface/BasicClusterFwd.h"
 #include "DataFormats/CaloRecHit/interface/CaloClusterHostCollection.h"
+#include "DataFormats/DetId/interface/DetId.h"
 #include "DataFormats/HGCalReco/interface/HGCalSoARecHitsExtraHostCollection.h"
 #include "DataFormats/HGCalReco/interface/HGCalSoARecHitsHostCollection.h"
 
@@ -76,7 +77,7 @@ public:
           reco::CaloID::DET_HGCAL_ENDCAP,
           std::move(thisCluster),
           algoId_);
-      clusters->back().setSeed(deviceView.indexes()[i].seedID());
+      clusters->back().setSeed(DetId(deviceView.indexes()[i].seedID()));
     }
 
     // Populate hits and fractions. This involves two SoAs: the original RecHits

@@ -123,7 +123,7 @@ public:
                               reco::CaloID::DET_HGCAL_ENDCAP,
                               clusterHits,
                               components_[k].algoId,
-                              view.indexes()[i].seedID());
+                              DetId(view.indexes()[i].seedID()));
         times.emplace_back(view.timing()[i].time(), view.timing()[i].timeError());
       }
     }
