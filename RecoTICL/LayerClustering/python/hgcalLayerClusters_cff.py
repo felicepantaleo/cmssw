@@ -18,7 +18,8 @@ from SimCalorimetry.HGCalSimProducers.hgcalDigitizer_cfi import nonAgedNoises_v9
 #   hgcalSoARecHits<Det>       (HGCRecHit  -> HGCalSoARecHits SoA)
 #   hgcalCLUEstering<Det>      (CLUE clustering on the SoA)
 #   hgcalSoALayerClusters<Det> (build the CaloCluster SoA)
-#   hgcalLayerClusters<Det>    (SoA -> legacy reco::CaloCluster products)
+# hgcalMergeLayerClusters converts the SoA layer clusters of EE, HSi and
+# HSci into one collection of reco::CaloCluster.
 #####################################################################
 from RecoTICL.LayerClustering.hgCalSoARecHitsProducer_cfi import hgCalSoARecHitsProducer
 from RecoTICL.LayerClustering.hgCalCLUEsteringLayerClustersProducer_cfi import hgCalCLUEsteringLayerClustersProducer
@@ -55,11 +56,6 @@ hgcalCLUEsteringEE = hgCalCLUEsteringLayerClustersProducer.clone(
 hgcalSoALayerClustersEE = hgCalSoALayerClustersProducer.clone(
     hgcalRecHitsSoA = 'hgcalSoARecHitsEE', hgcalRecHitsLayerClustersSoA = 'hgcalCLUEsteringEE',
     detector = 'EE')
-hgcalLayerClustersEE = hgCalLayerClustersFromSoAProducer.clone(
-    src = 'hgcalSoALayerClustersEE',
-    hgcalRecHitsSoA = 'hgcalSoARecHitsEE',
-    hgcalRecHitsLayerClustersSoA = 'hgcalCLUEsteringEE',
-    detector = 'EE')
 
 # ---- HSi / FH (silicon, hadronic) ----
 hgcalSoARecHitsHSi = _makeSoARecHits('FH', "HGCalRecHit:HGCHEFRecHits")
@@ -68,11 +64,6 @@ hgcalCLUEsteringHSi = hgCalCLUEsteringLayerClustersProducer.clone(
     deltac = 1.3, kappa = 9., outlierDeltaFactor = 2.)
 hgcalSoALayerClustersHSi = hgCalSoALayerClustersProducer.clone(
     hgcalRecHitsSoA = 'hgcalSoARecHitsHSi', hgcalRecHitsLayerClustersSoA = 'hgcalCLUEsteringHSi',
-    detector = 'FH')
-hgcalLayerClustersHSi = hgCalLayerClustersFromSoAProducer.clone(
-    src = 'hgcalSoALayerClustersHSi',
-    hgcalRecHitsSoA = 'hgcalSoARecHitsHSi',
-    hgcalRecHitsLayerClustersSoA = 'hgcalCLUEsteringHSi',
     detector = 'FH')
 
 # ---- HSci / BH (scintillator, hadronic) ----
@@ -85,11 +76,6 @@ hgcalCLUEsteringHSci = hgCalCLUEsteringLayerClustersProducer.clone(
     deltac = 0.0315, kappa = 9., outlierDeltaFactor = 2.)
 hgcalSoALayerClustersHSci = hgCalSoALayerClustersProducer.clone(
     hgcalRecHitsSoA = 'hgcalSoARecHitsHSci', hgcalRecHitsLayerClustersSoA = 'hgcalCLUEsteringHSci',
-    detector = 'BH')
-hgcalLayerClustersHSci = hgCalLayerClustersFromSoAProducer.clone(
-    src = 'hgcalSoALayerClustersHSci',
-    hgcalRecHitsSoA = 'hgcalSoARecHitsHSci',
-    hgcalRecHitsLayerClustersSoA = 'hgcalCLUEsteringHSci',
     detector = 'BH')
 
 # ---- HFNose (silicon, only under the phase2_hfnose modifier) ----
@@ -110,8 +96,7 @@ hgcalSoALayerClustersHFNose = hgCalSoALayerClustersProducer.clone(
 hgcalLayerClustersHFNose = hgCalLayerClustersFromSoAProducer.clone(
     src = 'hgcalSoALayerClustersHFNose',
     hgcalRecHitsSoA = 'hgcalSoARecHitsHFNose',
-    hgcalRecHitsLayerClustersSoA = 'hgcalCLUEsteringHFNose',
-    detector = 'HFNose')
+    hgcalRecHitsLayerClustersSoA = 'hgcalCLUEsteringHFNose')
 
 _v19SiSoAParams = dict(
     maxNumberOfThickIndices = 8,
@@ -137,8 +122,7 @@ _mergedComponents = ['EE', 'HSi', 'HSci']
 hgcalMergeLayerClusters = hgCalMergedLayerClustersFromSoAProducer.clone(
     layerClustersSoA = ['hgcalSoALayerClusters' + component for component in _mergedComponents],
     hgcalRecHitsSoA = ['hgcalSoARecHits' + component for component in _mergedComponents],
-    hgcalRecHitsLayerClustersSoA = ['hgcalCLUEstering' + component for component in _mergedComponents],
-    detectors = ['EE', 'FH', 'BH']
+    hgcalRecHitsLayerClustersSoA = ['hgcalCLUEstering' + component for component in _mergedComponents]
 )
 
 # with the barrel, its layer clusters come after the HGCAL ones
