@@ -36,7 +36,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
           nonAgedNoises_(config.getParameter<std::vector<float>>("noises")),
           dEdXweights_(config.getParameter<std::vector<float>>("dEdXweights")),
           thicknessCorrection_(config.getParameter<std::vector<float>>("thicknessCorrection")),
-          noiseMip_(config.getParameter<double>("noiseMip")),
+          noiseMip_(config.getParameter<edm::ParameterSet>("noiseMip").getParameter<double>("noise_MIP")),
           sciThicknessCorrection_(config.getParameter<double>("sciThicknessCorrection")),
           ticlGeomToken_(consumesCollector().esConsumes<TICLGeomHost, CaloGeometryRecord>(edm::ESInputTag("", ""))),
           hits_token_(consumes<HGCRecHitCollection>(config.getParameter<edm::InputTag>("recHits"))),
@@ -151,7 +151,17 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       desc.add<std::vector<float>>("thicknessCorrection");
       desc.add<std::vector<float>>("noises");
       desc.add<std::vector<float>>("dEdXweights");
-      desc.add<double>("noiseMip", 0.2);
+      // the scintillator noise, as the noise PSet of the HGCAL scintillator digitizer: only noise_MIP is read
+      edm::ParameterSetDescription descNoiseMip;
+      descNoiseMip.add<bool>("scaleByDose", false);
+      descNoiseMip.add<unsigned int>("scaleByDoseAlgo", 0);
+      descNoiseMip.add<double>("scaleByDoseFactor", 1.);
+      descNoiseMip.add<std::string>("doseMap", "");
+      descNoiseMip.add<std::string>("sipmMap", "");
+      descNoiseMip.add<double>("referenceIdark", -1.);
+      descNoiseMip.add<double>("referenceXtalk", -1.);
+      descNoiseMip.add<double>("noise_MIP", 1. / 100.);
+      desc.add<edm::ParameterSetDescription>("noiseMip", descNoiseMip);
       desc.add<double>("sciThicknessCorrection", 1.0);
       desc.add<float>("ecut", 3.);
       descriptions.addWithDefaultLabel(desc);
