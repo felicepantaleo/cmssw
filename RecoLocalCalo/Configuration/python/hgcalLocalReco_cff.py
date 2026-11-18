@@ -26,6 +26,7 @@ from RecoTICL.LayerClustering.hgcalLayerClusters_cff import (
 hgcalLocalRecoTask = cms.Task( HGCalUncalibRecHit,
                                        HGCalRecHit,
                                        recHitMapProducer,
+                                       hgcalLayerClustersAlpakaTask,
                                        hgcalMergeLayerClusters,
                                        particleFlowRecHitHGC,
                                        particleFlowClusterHGCal,
@@ -33,13 +34,10 @@ hgcalLocalRecoTask = cms.Task( HGCalUncalibRecHit,
                                        ticlGeomWithBarrelESProducer )
 
 _hfnose_hgcalLocalRecoTask = hgcalLocalRecoTask.copy()
-_hfnose_hgcalLocalRecoTask.add(hgcalLayerClustersHFNose)
+_hfnose_hgcalLocalRecoTask.add(hgcalLayerClustersHFNoseAlpakaTask, hgcalLayerClustersHFNose)
 
 from Configuration.Eras.Modifier_phase2_hfnose_cff import phase2_hfnose
 phase2_hfnose.toReplaceWith(
     hgcalLocalRecoTask, _hfnose_hgcalLocalRecoTask )
-
-hgcalLocalRecoTask.add(hgcalLayerClustersAlpakaTask)
-_hfnose_hgcalLocalRecoTask.add(hgcalLayerClustersHFNoseAlpakaTask)
 
 hgcalLocalRecoSequence = cms.Sequence(hgcalLocalRecoTask)

@@ -1,5 +1,5 @@
-#ifndef RecoLocalCalo_HGCalRecProducers_plugins_alpaka_HGCalCLUEsteringAlgoWrapper_h
-#define RecoLocalCalo_HGCalRecProducers_plugins_alpaka_HGCalCLUEsteringAlgoWrapper_h
+#ifndef RecoTICL_LayerClustering_plugins_alpaka_HGCalCLUEsteringAlgoWrapper_h
+#define RecoTICL_LayerClustering_plugins_alpaka_HGCalCLUEsteringAlgoWrapper_h
 
 #include <cstdint>
 #include <memory>
@@ -41,4 +41,4 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
   };
 }  // namespace ALPAKA_ACCELERATOR_NAMESPACE
 
-#endif  // RecoLocalCalo_HGCalRecProducers_plugins_alpaka_HGCalCLUEsteringAlgoWrapper_h
+#endif  // RecoTICL_LayerClustering_plugins_alpaka_HGCalCLUEsteringAlgoWrapper_h
