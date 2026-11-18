@@ -37,7 +37,7 @@ namespace caloclustertest {
       view.energy()[i].correctedEnergy() = value(i, 4);
       view.energy()[i].correctedEnergyUncertainty() = value(i, 5);
       view.indexes()[i].algoID() = reco::CaloCluster::hgcal_em;
-      view.indexes()[i].seedID() = DetId(0x10000000u + i);
+      view.indexes()[i].seedID() = 0x10000000u + i;
       view.indexes()[i].flags() = 7u * i;
       view.timing()[i].time() = value(i, 6);
       view.timing()[i].timeError() = value(i, 7);
@@ -59,7 +59,7 @@ namespace caloclustertest {
       require(view.energy()[i].correctedEnergy() == value(i, 4), "correctedEnergy", i);
       require(view.energy()[i].correctedEnergyUncertainty() == value(i, 5), "correctedEnergyUncertainty", i);
       require(view.indexes()[i].algoID() == reco::CaloCluster::hgcal_em, "algoID", i);
-      require(view.indexes()[i].seedID() == DetId(0x10000000u + i), "seedID", i);
+      require(view.indexes()[i].seedID() == 0x10000000u + i, "seedID", i);
       require(view.indexes()[i].flags() == 7u * i, "flags", i);
       require(view.timing()[i].time() == value(i, 6), "time", i);
       require(view.timing()[i].timeError() == value(i, 7), "timeError", i);
