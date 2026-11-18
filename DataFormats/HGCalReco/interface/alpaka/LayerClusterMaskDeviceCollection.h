@@ -1,6 +1,8 @@
 #ifndef DataFormats_HGCalReco_interface_alpaka_LayerClusterMaskDeviceCollection_h
 #define DataFormats_HGCalReco_interface_alpaka_LayerClusterMaskDeviceCollection_h
 
+#include <Eigen/Core>
+
 #include "DataFormats/HGCalReco/interface/LayerClusterMaskHostCollection.h"
 #include "DataFormats/HGCalReco/interface/LayerClusterMaskSoA.h"
 #include "DataFormats/Portable/interface/alpaka/PortableCollection.h"

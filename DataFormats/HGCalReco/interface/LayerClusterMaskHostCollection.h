@@ -1,6 +1,8 @@
 #ifndef DataFormats_HGCalReco_interface_LayerClusterMaskHostCollection_h
 #define DataFormats_HGCalReco_interface_LayerClusterMaskHostCollection_h
 
+#include <Eigen/Core>
+
 #include "DataFormats/HGCalReco/interface/LayerClusterMaskSoA.h"
 #include "DataFormats/Portable/interface/PortableHostCollection.h"
 

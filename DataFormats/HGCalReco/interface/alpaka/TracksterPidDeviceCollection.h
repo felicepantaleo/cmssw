@@ -1,6 +1,8 @@
 #ifndef DataFormats_HGCalReco_interface_alpaka_TracksterPidDeviceCollection_h
 #define DataFormats_HGCalReco_interface_alpaka_TracksterPidDeviceCollection_h
 
+#include <Eigen/Core>
+
 #include "DataFormats/HGCalReco/interface/TracksterPidHostCollection.h"
 #include "DataFormats/HGCalReco/interface/TracksterPidSoA.h"
 #include "DataFormats/Portable/interface/alpaka/PortableCollection.h"

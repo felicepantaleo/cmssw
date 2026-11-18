@@ -1,8 +1,9 @@
 #ifndef DataFormats_HGCalReco_interface_TracksterSoA_h
 #define DataFormats_HGCalReco_interface_TracksterSoA_h
 
-#include <cstdint>
 #include <Eigen/Core>
+
+#include <cstdint>
 
 #include "DataFormats/SoATemplate/interface/SoABlocks.h"
 #include "DataFormats/SoATemplate/interface/SoALayout.h"
@@ -10,7 +11,9 @@
 
 namespace ticl {
 
-  using TracksterIdProbabilities = Eigen::Matrix<float, 8, 1>;
+  // The number of PID probabilities of a trackster, one per ticl::Trackster::ParticleType
+  inline constexpr int kTracksterIdProbabilitiesSize = 8;
+  using TracksterIdProbabilities = Eigen::Matrix<float, kTracksterIdProbabilitiesSize, 1>;
 
   GENERATE_SOA_LAYOUT(TracksterSoAEnergy,
                       SOA_COLUMN(float, rawEnergy),
@@ -30,14 +33,9 @@ namespace ticl {
 
   GENERATE_SOA_LAYOUT(TracksterSoAId, SOA_EIGEN_COLUMN(TracksterIdProbabilities, idProbabilities))
 
-  // The radii [cm] of the core energies of the profile, shared with ticl::layerClusterProfile on the host
-  inline constexpr float kProfileCore2Radius = 2.f;
-  inline constexpr float kProfileCore5Radius = 5.f;
-
-  // The energy profile of the layer clusters around the first principal axis (the barycenter direction without one),
-  // as ticl::layerClusterProfile: the fractions of the energy in the most energetic layer cluster and within 2 and
-  // 5 cm of the axis, the energy-weighted rms distance from the axis [cm], and the |z| range [cm]. Without energy:
-  // -1, -1, -1, -1, -1, 0.
+  // The energy profile of the layer clusters around the first principal axis (the barycenter direction without one):
+  // the fractions of the energy in the most energetic layer cluster and within 2 and 5 cm of the axis, the
+  // energy-weighted rms distance from the axis [cm], and the |z| range [cm]. Without energy: -1, -1, -1, -1, -1, 0.
   GENERATE_SOA_LAYOUT(TracksterSoAProfile,
                       SOA_COLUMN(float, maxEnergyFraction),
                       SOA_COLUMN(float, core2EnergyFraction),
@@ -50,6 +48,8 @@ namespace ticl {
   template <CMS_SOA_BYTE_SIZE_TYPE ALIGNMENT, bool ALIGNMENT_ENFORCEMENT>
   using TracksterSoAVertices = AssociationMapLayout<uint32_t, uint32_t>::Layout<ALIGNMENT, ALIGNMENT_ENFORCEMENT>;
 
+  // A collection of N tracksters takes 8 block sizes, in this order: N for energy, barycenter, timing, pca, id, profile
+  // and vertices().offsets() (which holds N + 1 offsets), then the number of vertices for vertices().content().
   GENERATE_SOA_BLOCKS(TracksterSoALayout,
                       SOA_BLOCK(energy, TracksterSoAEnergy),
                       SOA_BLOCK(barycenter, TracksterSoABarycenter),

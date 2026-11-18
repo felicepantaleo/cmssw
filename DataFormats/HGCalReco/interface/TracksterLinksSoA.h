@@ -1,6 +1,8 @@
 #ifndef DataFormats_HGCalReco_interface_TracksterLinksSoA_h
 #define DataFormats_HGCalReco_interface_TracksterLinksSoA_h
 
+#include <Eigen/Core>
+
 #include <cstdint>
 
 #include "DataFormats/TICL/interface/AssociationMap.h"

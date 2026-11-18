@@ -2,3 +2,25 @@
   <use name="catch2"/>
   <use name="DataFormats/HGCalReco" />
 </bin>
+
+<bin name="TestHGCalRecoSoA" file="alpaka/TestHGCalRecoSoA.dev.cc">
+  <use name="catch2"/>
+  <use name="eigen"/>
+  <use name="DataFormats/HGCalReco"/>
+  <use name="DataFormats/Portable"/>
+  <use name="FWCore/Utilities"/>
+  <use name="HeterogeneousCore/AlpakaInterface"/>
+  <flags ALPAKA_BACKENDS="serial"/>
+</bin>
+
+<library name="testDataFormatsHGCalRecoSoAIO" file="TestWriteHGCalRecoSoA.cc,TestReadHGCalRecoSoA.cc">
+  <flags EDM_PLUGIN="1"/>
+  <use name="eigen"/>
+  <use name="DataFormats/HGCalReco"/>
+  <use name="FWCore/Framework"/>
+  <use name="FWCore/ParameterSet"/>
+  <use name="FWCore/Utilities"/>
+  <use name="HeterogeneousCore/AlpakaInterface"/>
+</library>
+
+<test name="TestHGCalRecoSoAWriteRead" command="testHGCalRecoSoAWriteRead.sh"/>

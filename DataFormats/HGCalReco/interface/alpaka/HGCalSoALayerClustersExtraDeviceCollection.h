@@ -1,6 +1,8 @@
 #ifndef DataFormats_HGCalReco_interface_alpaka_HGCalSoALayerClustersExtraDeviceCollection_h
 #define DataFormats_HGCalReco_interface_alpaka_HGCalSoALayerClustersExtraDeviceCollection_h
 
+#include <Eigen/Core>
+
 #include "DataFormats/Portable/interface/alpaka/PortableCollection.h"
 #include "DataFormats/HGCalReco/interface/HGCalSoALayerClustersExtra.h"
 #include "HeterogeneousCore/AlpakaInterface/interface/config.h"

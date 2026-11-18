@@ -4,8 +4,18 @@
 #include "DataFormats/HGCalReco/interface/HGCalSoARecHitsHostCollection.h"
 #include "DataFormats/HGCalReco/interface/HGCalSoARecHitsExtraHostCollection.h"
 #include "DataFormats/HGCalReco/interface/HGCalSoAClustersHostCollection.h"
+#include "DataFormats/HGCalReco/interface/HGCalSoALayerClustersExtraHostCollection.h"
+#include "DataFormats/HGCalReco/interface/LayerClusterMaskHostCollection.h"
+#include "DataFormats/HGCalReco/interface/TracksterHostCollection.h"
+#include "DataFormats/HGCalReco/interface/TracksterLinksHostCollection.h"
+#include "DataFormats/HGCalReco/interface/TracksterPidHostCollection.h"
 
 SET_PORTABLEHOSTCOLLECTION_READ_RULES(MtdHostCollection);
 SET_PORTABLEHOSTCOLLECTION_READ_RULES(HGCalSoARecHitsHostCollection);
 SET_PORTABLEHOSTCOLLECTION_READ_RULES(HGCalSoARecHitsExtraHostCollection);
 SET_PORTABLEHOSTCOLLECTION_READ_RULES(HGCalSoAClustersHostCollection);
+SET_PORTABLEHOSTCOLLECTION_READ_RULES(HGCalSoALayerClustersExtraHostCollection);
+SET_PORTABLEHOSTCOLLECTION_READ_RULES(ticl::LayerClusterMaskHostCollection);
+SET_PORTABLEHOSTCOLLECTION_READ_RULES(ticl::TracksterHostCollection);
+SET_PORTABLEHOSTCOLLECTION_READ_RULES(ticl::TracksterLinksHostCollection);
+SET_PORTABLEHOSTCOLLECTION_READ_RULES(ticl::TracksterPidHostCollection);

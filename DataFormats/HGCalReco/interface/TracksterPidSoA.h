@@ -9,8 +9,7 @@
 
 namespace ticl {
 
-  // The PID probabilities of each trackster of one collection, in the order of the collection. They replace the
-  // probabilities of the trackster SoA, which the device does not fill.
+  // The PID probabilities of each trackster of one collection, in the order of the collection.
   GENERATE_SOA_LAYOUT(TracksterPidLayout, SOA_EIGEN_COLUMN(TracksterIdProbabilities, idProbabilities))
 
   using TracksterPidSoA = TracksterPidLayout<>;

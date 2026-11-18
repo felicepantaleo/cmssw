@@ -1,6 +1,8 @@
 #ifndef DataFormats_HGCalReco_interface_HGCalSoALayerClustersExtraHostCollection_h
 #define DataFormats_HGCalReco_interface_HGCalSoALayerClustersExtraHostCollection_h
 
+#include <Eigen/Core>
+
 #include "DataFormats/Portable/interface/PortableHostCollection.h"
 #include "DataFormats/HGCalReco/interface/HGCalSoALayerClustersExtra.h"
 

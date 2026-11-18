@@ -1,6 +1,8 @@
 #ifndef DataFormats_HGCalReco_interface_TracksterLinksHostCollection_h
 #define DataFormats_HGCalReco_interface_TracksterLinksHostCollection_h
 
+#include <Eigen/Core>
+
 #include "DataFormats/HGCalReco/interface/TracksterLinksSoA.h"
 #include "DataFormats/Portable/interface/PortableHostCollection.h"
 
