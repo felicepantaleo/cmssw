@@ -1,7 +1,7 @@
 #ifndef DataFormats_CaloRecHit_CaloClusterSoA_h
 #define DataFormats_CaloRecHit_CaloClusterSoA_h
 
-// Authors: Simone Balducci, Felice Pantaleo, Wahid Redjeb, Aurora Perego, Leonardo Beltrame
+#include <Eigen/Core>
 
 #include "DataFormats/SoATemplate/interface/SoABlocks.h"
 #include "DataFormats/SoATemplate/interface/SoALayout.h"
@@ -31,6 +31,7 @@ namespace reco {
 
   GENERATE_SOA_LAYOUT(CaloClusterSoATiming, SOA_COLUMN(float, time), SOA_COLUMN(float, timeError))
 
+  // A collection of N layer clusters takes 4 block sizes, all N: position, energy, indexes and timing.
   // clang-format off
   GENERATE_SOA_BLOCKS(CaloClusterSoALayout,
                       SOA_BLOCK(position, CaloClusterSoAPosition),
@@ -52,8 +53,7 @@ namespace reco {
                           const auto x = this->position()[idx].x();
                           const auto y = this->position()[idx].y();
                           const auto z = this->position()[idx].z();
-                          const auto theta = xtd::atan2(xtd::sqrt(x * x + y * y), z);
-                          return -xtd::log(xtd::tan(theta / 2));
+                          return xtd::asinh(z / xtd::sqrt(x * x + y * y));
                         }
                       )
   )

@@ -2,6 +2,7 @@
 <use name="DataFormats/Math"/>
 <use name="DataFormats/DetId"/>
 <use name="DataFormats/Portable"/>
+<use name="DataFormats/SoATemplate"/>
 <use name="FWCore/Utilities"/>
 <use name="rootmathcore"/>
 <use name="alpaka"/>

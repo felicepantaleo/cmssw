@@ -1,5 +1,7 @@
-#ifndef DataFormats_CaloRecHit_CaloClusterDeviceCollection_h
-#define DataFormats_CaloRecHit_CaloClusterDeviceCollection_h
+#ifndef DataFormats_CaloRecHit_interface_alpaka_CaloClusterDeviceCollection_h
+#define DataFormats_CaloRecHit_interface_alpaka_CaloClusterDeviceCollection_h
+
+#include <Eigen/Core>
 
 #include "DataFormats/Portable/interface/alpaka/PortableCollection.h"
 #include "DataFormats/CaloRecHit/interface/CaloClusterSoA.h"
