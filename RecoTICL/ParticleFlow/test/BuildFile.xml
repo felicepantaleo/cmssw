@@ -1,0 +1,1 @@
+<test name="testPFTICLProducer" command="cmsRun ${LOCALTOP}/src/RecoTICL/ParticleFlow/test/testPFTICLProducer_cfg.py"/>

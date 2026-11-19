@@ -6,7 +6,6 @@
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/Framework/interface/MakerMacros.h"
 #include "FWCore/ParameterSet/interface/ConfigurationDescriptions.h"
-#include "FWCore/ParameterSet/interface/EmptyGroupDescription.h"
 #include "FWCore/ParameterSet/interface/ParameterSetDescription.h"
 #include "FWCore/Utilities/interface/Exception.h"
 
@@ -36,9 +35,11 @@ private:
   const bool muonsFromCandidates_;
   // inputs
   const edm::EDGetTokenT<edm::View<TICLCandidate>> ticl_candidates_;
-  // The muon decisions of the candidate producer, when muonsFromCandidates is set.
+  // The muon decisions of the candidate producer and the candidate energies before the muon kinematics, when
+  // muonsFromCandidates is set.
   const edm::EDGetTokenT<edm::ValueMap<reco::MuonRef>> candidateMuons_;
   const edm::EDGetTokenT<std::vector<int>> muonTrackType_;
+  const edm::EDGetTokenT<std::vector<float>> energyBeforeMuon_;
   // The muons and PFMuonAlgo, when muonsFromCandidates is not set.
   const edm::EDGetTokenT<reco::MuonCollection> muons_;
   const std::unique_ptr<PFMuonAlgo> pfmu_;
@@ -62,6 +63,8 @@ PFTICLProducer::PFTICLProducer(const edm::ParameterSet& conf)
                                            : edm::EDGetTokenT<edm::ValueMap<reco::MuonRef>>()),
       muonTrackType_(muonsFromCandidates_ ? consumes<std::vector<int>>(candidateProduct(conf, "muonTrackType"))
                                           : edm::EDGetTokenT<std::vector<int>>()),
+      energyBeforeMuon_(muonsFromCandidates_ ? consumes<std::vector<float>>(candidateProduct(conf, "energyBeforeMuon"))
+                                             : edm::EDGetTokenT<std::vector<float>>()),
       muons_(muonsFromCandidates_ ? edm::EDGetTokenT<reco::MuonCollection>()
                                   : consumes<reco::MuonCollection>(conf.getParameter<edm::InputTag>("muonSrc"))),
       pfmu_(muonsFromCandidates_ ? nullptr
@@ -74,23 +77,17 @@ void PFTICLProducer::fillDescriptions(edm::ConfigurationDescriptions& descriptio
   edm::ParameterSetDescription desc;
   desc.add<edm::InputTag>("ticlCandidateSrc", edm::InputTag("ticlCandidate"));
   desc.add<bool>("energyFromRegression", true);
+  // For PFMuonAlgo; not read with muonsFromCandidates.
+  desc.add<edm::InputTag>("muonSrc", edm::InputTag("muons1stStep"));
   edm::ParameterSetDescription psd_PFMuonAlgo;
   PFMuonAlgo::fillPSetDescription(psd_PFMuonAlgo);
-  // The muons and the PFMuonAlgo parameters exist only without the muon decisions of the candidates.
-  desc.ifValue(
-      edm::ParameterDescription<bool>("muonsFromCandidates",
-                                      false,
-                                      true,
-                                      edm::Comment("Copy the muon decisions of the candidate producer (the muon of "
-                                                   "each candidate and its track type) instead of PFMuonAlgo. "
-                                                   "Candidates of TICLCandidateArbitrationProducer need true: it "
-                                                   "applies the muon rule before it changes the candidate "
-                                                   "tracksters, so false applies the rule again on other "
-                                                   "tracksters and is not supported.")),
-      false >>
-              (edm::ParameterDescription<edm::InputTag>("muonSrc", edm::InputTag("muons1stStep"), true) and
-               edm::ParameterDescription<edm::ParameterSetDescription>("pfMuonAlgoParameters", psd_PFMuonAlgo, true)) or
-          true >> edm::EmptyGroupDescription());
+  desc.add<edm::ParameterSetDescription>("pfMuonAlgoParameters", psd_PFMuonAlgo);
+  desc.add<bool>("muonsFromCandidates", false)
+      ->setComment(
+          "Copy the muon decisions of the candidate producer (the muon of each candidate, its track type and its "
+          "energy before the muon kinematics) instead of PFMuonAlgo; muonSrc and pfMuonAlgoParameters are not read. "
+          "Candidates of TICLCandidateArbitrationProducer need true: it applies the muon rule before it changes the "
+          "candidate tracksters, so false applies the rule again on other tracksters and is not supported.");
   descriptions.add("pfTICLProducer", desc);
 }
 
@@ -104,10 +101,14 @@ void PFTICLProducer::produce(edm::Event& evt, const edm::EventSetup& es) {
     candidateMuonsH = evt.getHandle(candidateMuons_);
   else
     muonH = evt.getHandle(muons_);
+  static const std::vector<float> noEnergies;
   const auto& muonTrackType = muonsFromCandidates_ ? evt.get(muonTrackType_) : noMuons;
-  if (muonsFromCandidates_ && muonTrackType.size() != ticl_candidates.size())
+  const auto& energyBeforeMuon = muonsFromCandidates_ ? evt.get(energyBeforeMuon_) : noEnergies;
+  if (muonsFromCandidates_ &&
+      (muonTrackType.size() != ticl_candidates.size() || energyBeforeMuon.size() != ticl_candidates.size()))
     throw cms::Exception("LogicError") << "PFTICLProducer: " << ticl_candidates.size() << " candidates but "
-                                       << muonTrackType.size() << " muon track types";
+                                       << muonTrackType.size() << " muon track types and " << energyBeforeMuon.size()
+                                       << " energies before the muon kinematics";
 
   auto candidates = std::make_unique<reco::PFCandidateCollection>();
 
@@ -123,10 +124,12 @@ void PFTICLProducer::produce(edm::Event& evt, const edm::EventSetup& es) {
       total_em_raw_energy += t->raw_em_energy();
     }
     float ecal_energy_fraction = (total_raw_energy > 0.f) ? (total_em_raw_energy / total_raw_energy) : 0.f;
-    float ecal_energy = energy_from_regression_ ? ticl_cand.p4().energy() * ecal_energy_fraction
-                                                : ticl_cand.rawEnergy() * ecal_energy_fraction;
-    float hcal_energy =
-        energy_from_regression_ ? ticl_cand.p4().energy() - ecal_energy : ticl_cand.rawEnergy() - ecal_energy;
+    // The calorimeter energies come from the candidate energy before the muon kinematics.
+    const bool candidateMuon = muonsFromCandidates_ && candidateMuonsH->get(ticl_cand_h.id(), iCand).isNonnull();
+    const double energy = candidateMuon ? energyBeforeMuon[iCand] : ticl_cand.p4().energy();
+    float ecal_energy =
+        energy_from_regression_ ? energy * ecal_energy_fraction : ticl_cand.rawEnergy() * ecal_energy_fraction;
+    float hcal_energy = energy_from_regression_ ? energy - ecal_energy : ticl_cand.rawEnergy() - ecal_energy;
     // fix for floating point rounding could go slightly below 0
     hcal_energy = std::max(0.f, hcal_energy);
     reco::PFCandidate::ParticleType part_type;
