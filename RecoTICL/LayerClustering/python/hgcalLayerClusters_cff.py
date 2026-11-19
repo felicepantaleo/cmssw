@@ -4,7 +4,8 @@ from RecoLocalCalo.HGCalRecProducers.HGCalRecHit_cfi import HGCalRecHit
 
 from RecoLocalCalo.HGCalRecProducers.HGCalUncalibRecHit_cfi import HGCalUncalibRecHit
 
-from SimCalorimetry.HGCalSimProducers.hgcalDigitizer_cfi import HGCAL_noises, HGCAL_noise_heback
+# HGCAL_noise_heback is imported so that the process that loads this file has the PSet that noiseMip refers to
+from SimCalorimetry.HGCalSimProducers.hgcalDigitizer_cfi import fC_per_ele, HGCAL_noises, HGCAL_noise_heback
 
 from Configuration.Eras.Modifier_phase2_hgcalV19_cff import phase2_hgcalV19
 from RecoLocalCalo.HGCalRecProducers.HGCalUncalibRecHit_cfi import fCPerMIP_mean_V19
@@ -18,7 +19,8 @@ from SimCalorimetry.HGCalSimProducers.hgcalDigitizer_cfi import nonAgedNoises_v9
 #   hgcalSoARecHits<Det>       (HGCRecHit  -> HGCalSoARecHits SoA)
 #   hgcalCLUEstering<Det>      (CLUE clustering on the SoA)
 #   hgcalSoALayerClusters<Det> (build the CaloCluster SoA)
-#   hgcalLayerClusters<Det>    (SoA -> legacy reco::CaloCluster products)
+# hgcalMergeLayerClusters converts the SoA layer clusters of EE, HSi and
+# HSci into one collection of reco::CaloCluster.
 #####################################################################
 from RecoTICL.LayerClustering.hgCalSoARecHitsProducer_cfi import hgCalSoARecHitsProducer
 from RecoTICL.LayerClustering.hgCalCLUEsteringLayerClustersProducer_cfi import hgCalCLUEsteringLayerClustersProducer
@@ -30,7 +32,8 @@ from RecoTICL.LayerClustering.hgCalMergedLayerClustersFromSoAProducer_cfi import
 # EE/FH/BH share the same silicon energy-threshold constants. The scintillator
 # (BH) rechits have no silicon thickness: the producer gives them the last
 # threshold slot, computed from the scintillator noise constants (noiseMip,
-# sciThicknessCorrection) set below.
+# sciThicknessCorrection) set below. noiseMip refers to the HGCAL_noise_heback
+# PSet of the process, so that the aging customisations change it.
 _siFcPerMip = HGCalUncalibRecHit.HGCEEConfig.fCPerMIP.value() + HGCalUncalibRecHit.HGCHEFConfig.fCPerMIP.value()
 _siNoises = HGCAL_noises.values.value() + HGCAL_noises.values.value()
 _siThicknessCorrection = HGCalRecHit.thicknessCorrection.value()
@@ -41,6 +44,7 @@ def _makeSoARecHits(det, recHits, **kwargs):
         detector = det,
         recHits = recHits,
         maxNumberOfThickIndices = 6,
+        fcPerEle = fC_per_ele,
         fcPerMip = _siFcPerMip,
         thicknessCorrection = _siThicknessCorrection,
         noises = _siNoises,
@@ -56,11 +60,6 @@ hgcalCLUEsteringEE = hgCalCLUEsteringLayerClustersProducer.clone(
 hgcalSoALayerClustersEE = hgCalSoALayerClustersProducer.clone(
     hgcalRecHitsSoA = 'hgcalSoARecHitsEE', hgcalRecHitsLayerClustersSoA = 'hgcalCLUEsteringEE',
     detector = 'EE')
-hgcalLayerClustersEE = hgCalLayerClustersFromSoAProducer.clone(
-    src = 'hgcalSoALayerClustersEE',
-    hgcalRecHitsSoA = 'hgcalSoARecHitsEE',
-    hgcalRecHitsLayerClustersSoA = 'hgcalCLUEsteringEE',
-    detector = 'EE')
 
 # ---- HSi / FH (silicon, hadronic) ----
 hgcalSoARecHitsHSi = _makeSoARecHits('FH', "HGCalRecHit:HGCHEFRecHits")
@@ -70,27 +69,17 @@ hgcalCLUEsteringHSi = hgCalCLUEsteringLayerClustersProducer.clone(
 hgcalSoALayerClustersHSi = hgCalSoALayerClustersProducer.clone(
     hgcalRecHitsSoA = 'hgcalSoARecHitsHSi', hgcalRecHitsLayerClustersSoA = 'hgcalCLUEsteringHSi',
     detector = 'FH')
-hgcalLayerClustersHSi = hgCalLayerClustersFromSoAProducer.clone(
-    src = 'hgcalSoALayerClustersHSi',
-    hgcalRecHitsSoA = 'hgcalSoARecHitsHSi',
-    hgcalRecHitsLayerClustersSoA = 'hgcalCLUEsteringHSi',
-    detector = 'FH')
 
 # ---- HSci / BH (scintillator, hadronic) ----
 hgcalSoARecHitsHSci = _makeSoARecHits(
     'BH', "HGCalRecHit:HGCHEBRecHits",
-    noiseMip = HGCAL_noise_heback.noise_MIP.value(),
+    noiseMip = cms.PSet(refToPSet_ = cms.string('HGCAL_noise_heback')),
     sciThicknessCorrection = HGCalRecHit.sciThicknessCorrection.value())
 hgcalCLUEsteringHSci = hgCalCLUEsteringLayerClustersProducer.clone(
     hgcalRecHitsSoA = 'hgcalSoARecHitsHSci', detector = 'BH',
     deltac = 0.0315, kappa = 9., outlierDeltaFactor = 2.)
 hgcalSoALayerClustersHSci = hgCalSoALayerClustersProducer.clone(
     hgcalRecHitsSoA = 'hgcalSoARecHitsHSci', hgcalRecHitsLayerClustersSoA = 'hgcalCLUEsteringHSci',
-    detector = 'BH')
-hgcalLayerClustersHSci = hgCalLayerClustersFromSoAProducer.clone(
-    src = 'hgcalSoALayerClustersHSci',
-    hgcalRecHitsSoA = 'hgcalSoARecHitsHSci',
-    hgcalRecHitsLayerClustersSoA = 'hgcalCLUEsteringHSci',
     detector = 'BH')
 
 # TICLv6: the tuned layer clustering parameters
@@ -107,6 +96,7 @@ hgcalSoARecHitsHFNose = hgCalSoARecHitsProducer.clone(
     detector = 'HFNose',
     recHits = "HGCalRecHit:HGCHFNoseRecHits",
     maxNumberOfThickIndices = 3,
+    fcPerEle = fC_per_ele,
     fcPerMip = HGCalUncalibRecHit.HGCHFNoseConfig.fCPerMIP.value(),
     thicknessCorrection = HGCalRecHit.thicknessNoseCorrection.value(),
     noises = HGCAL_noises.values.value(),
@@ -120,8 +110,7 @@ hgcalSoALayerClustersHFNose = hgCalSoALayerClustersProducer.clone(
 hgcalLayerClustersHFNose = hgCalLayerClustersFromSoAProducer.clone(
     src = 'hgcalSoALayerClustersHFNose',
     hgcalRecHitsSoA = 'hgcalSoARecHitsHFNose',
-    hgcalRecHitsLayerClustersSoA = 'hgcalCLUEsteringHFNose',
-    detector = 'HFNose')
+    hgcalRecHitsLayerClustersSoA = 'hgcalCLUEsteringHFNose')
 
 _v19SiSoAParams = dict(
     maxNumberOfThickIndices = 8,
@@ -155,8 +144,7 @@ hgcalLayerClustersHFNoseAlpakaTask = cms.Task(
 hgcalMergeLayerClusters = hgCalMergedLayerClustersFromSoAProducer.clone(
     layerClustersSoA = ['hgcalSoALayerClusters' + component for component in _mergedComponents],
     hgcalRecHitsSoA = ['hgcalSoARecHits' + component for component in _mergedComponents],
-    hgcalRecHitsLayerClustersSoA = ['hgcalCLUEstering' + component for component in _mergedComponents],
-    detectors = ['EE', 'FH', 'BH']
+    hgcalRecHitsLayerClustersSoA = ['hgcalCLUEstering' + component for component in _mergedComponents]
 )
 
 # with the barrel, its layer clusters come after the HGCAL ones
