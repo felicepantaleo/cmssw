@@ -1,5 +1,5 @@
-// The final tracksters of the interpretation stage that it types as electrons or as EM neutrals, the input of the HGCAL
-// PF clusters of the e/gamma objects, and their indices in the final tracksters (interpretationIndex).
+// The final tracksters of the interpretation stage that it types as electrons or as EM neutrals, the input of
+// TICLEGammaSuperClustersProducer, and their indices in the final tracksters (interpretationIndex).
 
 #include <string>
 #include <utility>

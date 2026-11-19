@@ -3,10 +3,11 @@
 // The final trackster of an electron or photon hypothesis is a supercluster of input tracksters: the layer clusters of
 // each input trackster in it make one cluster, and the cluster of the largest energy is the seed. The position is the
 // energy-weighted mean of the layer clusters, and the widths are their energy-weighted spreads in eta and phi. The
-// energy is the raw energy times the output of the energy regression on the first regressionInputs features of
+// energy is the raw energy times the output of the energy regression on regressionFeatures of
 // EGammaSuperClusterFeatures.h when regressionModel is set, else the raw energy. With regressionMaxRatio > 0, the
 // output of the regression is at most regressionMaxRatio, and a supercluster whose raw transverse energy times
-// regressionMaxRatio is at or below superClusterEtThreshold keeps the raw energy. The seed hit of a supercluster is
+// regressionMaxRatio is at or below superClusterEtThreshold keeps the raw energy. A supercluster keeps the raw energy
+// also when the output of the regression is not finite or not positive. The seed hit of a supercluster is
 // the seed hit of its seed cluster. The clusters are the instance "clusters", and tracksterIndex gives the e/gamma
 // trackster of each supercluster.
 // The seed input trackster is the one of largest energy. With seedOnlyMinAbsEta > 0, a supercluster whose seed input
@@ -24,6 +25,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -45,6 +47,7 @@
 #include "FWCore/Framework/interface/MakerMacros.h"
 #include "FWCore/Framework/interface/Run.h"
 #include "FWCore/Framework/interface/stream/EDProducer.h"
+#include "FWCore/MessageLogger/interface/MessageLogger.h"
 #include "FWCore/ParameterSet/interface/ConfigurationDescriptions.h"
 #include "FWCore/ParameterSet/interface/FileInPath.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
@@ -97,7 +100,6 @@ private:
   const edm::ESGetToken<TICLGeomHost, CaloGeometryRecord> ticlGeomToken_;
   const double maxTimeDifference_;
   const double seedOnlyMinAbsEta_;
-  const unsigned int regressionInputs_;
   const double regressionMaxRatio_;
   const double superClusterEtThreshold_;
   const double minScore_;
@@ -124,7 +126,6 @@ TICLEGammaSuperClustersProducer::TICLEGammaSuperClustersProducer(const edm::Para
       ticlGeomToken_(esConsumes<TICLGeomHost, CaloGeometryRecord, edm::Transition::BeginRun>()),
       maxTimeDifference_(ps.getParameter<double>("maxTimeDifference")),
       seedOnlyMinAbsEta_(ps.getParameter<double>("seedOnlyMinAbsEta")),
-      regressionInputs_(ps.getParameter<unsigned int>("regressionInputs")),
       regressionMaxRatio_(ps.getParameter<double>("regressionMaxRatio")),
       superClusterEtThreshold_(ps.getParameter<double>("superClusterEtThreshold")),
       minScore_(ps.getParameter<double>("minScore")),
@@ -145,9 +146,6 @@ TICLEGammaSuperClustersProducer::TICLEGammaSuperClustersProducer(const edm::Para
     neutralIdx_token_ = consumes(edm::InputTag(it.label(), "neutralIdx", it.process()));
     neutralPdg_token_ = consumes(edm::InputTag(it.label(), "neutralPdg", it.process()));
   }
-  if (regressionInputs_ < 1 || regressionInputs_ > ticl::egammaSuperCluster::kNFeatures)
-    throw cms::Exception("Configuration") << "TICLEGammaSuperClustersProducer: regressionInputs must be in [1, "
-                                          << ticl::egammaSuperCluster::kNFeatures << "]";
 }
 
 void TICLEGammaSuperClustersProducer::beginRun(const edm::Run &, const edm::EventSetup &es) {
@@ -155,6 +153,9 @@ void TICLEGammaSuperClustersProducer::beginRun(const edm::Run &, const edm::Even
 }
 
 namespace {
+  constexpr int kElectronPdgId = 11;
+  constexpr int kNeutralPionPdgId = 111;
+
   // Time [ns] of a trackster at the origin: its time at the barycenter minus the flight time from the origin.
   double timeAtOrigin(const ticl::Trackster &trackster) {
     constexpr double kSpeedOfLight = 29.9792458;  // cm/ns
@@ -200,7 +201,7 @@ void TICLEGammaSuperClustersProducer::produce(edm::Event &evt, const edm::EventS
   for (std::size_t k = 0; k < eGammaTracksters.size(); ++k) {
     const auto &ts = eGammaTracksters[k];
     const auto &vertices = ts.vertices();
-    // A layer cluster shared by several final tracksters gives each the same fraction of its energy.
+    // The energy fraction of a layer cluster in the e/gamma trackster: 1 / its vertex multiplicity, 1 without one.
     auto fraction = [&ts](std::size_t i) {
       const float multiplicity = i < ts.vertex_multiplicity().size() ? ts.vertex_multiplicity(i) : 1.f;
       return multiplicity > 0.f ? 1.f / multiplicity : 1.f;
@@ -321,14 +322,8 @@ void TICLEGammaSuperClustersProducer::produce(edm::Event &evt, const edm::EventS
   const auto *scoreModel = globalCache()->score.get();
   const auto *typeScoreModel = globalCache()->typeScore.get();
   if (regressionModel != nullptr && !superClusters.empty()) {
-    // The cell-level features are computed only for a regression that reads them.
-    const bool cellLevel = regressionInputs_ > egsc::kNFeaturesV2;
-    const std::unordered_map<DetId, const unsigned int> *hitMap = nullptr;
-    edm::MultiSpan<HGCRecHit> hits;
-    if (cellLevel) {
-      hitMap = &evt.get(hitMap_token_);
-      hits = edm::MultiSpan<HGCRecHit>(evt.get(hits_token_));
-    }
+    const auto &hitMap = evt.get(hitMap_token_);
+    const edm::MultiSpan<HGCRecHit> hits(evt.get(hits_token_));
     std::vector<std::size_t> regressed;
     for (std::size_t i = 0; i < superClusters.size(); ++i) {
       const auto &sc = superClusters[i];
@@ -338,21 +333,28 @@ void TICLEGammaSuperClustersProducer::produce(edm::Event &evt, const edm::EventS
     }
     const auto n = static_cast<int64_t>(regressed.size());
     cms::Ort::FloatArrays input(1);
-    input[0].reserve(regressed.size() * regressionInputs_);
+    input[0].reserve(regressed.size() * egsc::kNFeatures);
     for (auto i : regressed) {
-      const auto cell = cellLevel ? egsc::cellFeatures(superClusters[i], *hitMap, hits, tools_) : egsc::CellFeatures();
-      const auto features =
-          egsc::regressionFeatures(superClusters[i], eGammaTracksters[tracksterIndex[i]], cell, hits.size());
-      input[0].insert(input[0].end(), features.begin(), features.begin() + regressionInputs_);
+      const auto features = egsc::regressionFeatures(superClusters[i],
+                                                     eGammaTracksters[tracksterIndex[i]],
+                                                     egsc::cellFeatures(superClusters[i], hitMap, hits, tools_),
+                                                     hits.size());
+      input[0].insert(input[0].end(), features.begin(), features.end());
     }
     if (n > 0) {
-      const auto output = regressionModel->run({"input"}, input, {{n, static_cast<int64_t>(regressionInputs_)}}, {}, n);
+      const auto output = regressionModel->run({"input"}, input, {{n, static_cast<int64_t>(egsc::kNFeatures)}}, {}, n);
       if (output.empty() || output[0].size() != regressed.size())
         throw cms::Exception("LogicError")
             << "TICLEGammaSuperClustersProducer: the regression gives " << (output.empty() ? 0 : output[0].size())
             << " values for " << regressed.size() << " superclusters";
       for (std::size_t k = 0; k < regressed.size(); ++k) {
         double ratio = output[0][k];
+        if (!std::isfinite(ratio) || ratio <= 0.) {
+          edm::LogWarning("TICLEGammaSuperClustersProducer")
+              << "regression output " << ratio << " for a supercluster of raw energy "
+              << superClusters[regressed[k]].rawEnergy() << " GeV: it keeps the raw energy";
+          continue;
+        }
         if (regressionMaxRatio_ > 0.)
           ratio = std::min(ratio, regressionMaxRatio_);
         auto &sc = superClusters[regressed[k]];
@@ -382,8 +384,8 @@ void TICLEGammaSuperClustersProducer::produce(edm::Event &evt, const edm::EventS
     const auto &tracks = evt.get(tracks_token_);
     auto trackTiles = std::make_unique<egsc::TrackTiles>();
     egsc::fillTrackTiles(tracks, *trackTiles);
-    // Interpretation type of each e/gamma trackster: 11 for the trackster of a track in electron mode, else the pdg
-    // id of the neutral.
+    // Interpretation type of each e/gamma trackster: kElectronPdgId for the trackster of a track in electron mode, else
+    // the pdg id of the neutral.
     const auto &eGammaIndex = evt.get(eGammaIndex_token_);
     const auto &trackToTrackster = evt.get(trackToTrackster_token_);
     const auto &trackMode = evt.get(trackMode_token_);
@@ -394,7 +396,7 @@ void TICLEGammaSuperClustersProducer::produce(edm::Event &evt, const edm::EventS
       typeOfFinal[neutralIdx[k]] = neutralPdg[k];
     for (std::size_t t = 0; t < trackMode.size() && t < trackToTrackster.size(); ++t)
       if (trackMode[t] == static_cast<int>(ticl::TrackMode::kElectron) && trackToTrackster[t] >= 0)
-        typeOfFinal[trackToTrackster[t]] = 11;
+        typeOfFinal[trackToTrackster[t]] = kElectronPdgId;
     auto typeOf = [&](int k) {
       if (k < 0 || k >= static_cast<int>(eGammaIndex.size()))
         return 0;
@@ -409,11 +411,16 @@ void TICLEGammaSuperClustersProducer::produce(edm::Event &evt, const edm::EventS
       const auto &ts = eGammaTracksters[tracksterIndex[i]];
       const auto regression =
           egsc::regressionFeatures(sc, ts, egsc::cellFeatures(sc, hitMap, hits, tools_), hits.size());
-      const auto isolation =
-          egsc::isolationEt(sc, tiles, layerClusters, egsc::kIsolationInnerDR, egsc::kIsolationOuterDR);
+      const auto isolation = egsc::isolationEt(
+          sc, tiles, layerClusters, tools_.lastLayer(), egsc::kIsolationInnerDR, egsc::kIsolationOuterDR);
       const int type = typeOf(tracksterIndex[i]);
-      const auto features = egsc::scoreFeatures(
-          regression, sc, ts, isolation, type == 11, type == 111, egsc::trackFeatures(sc, tracks, *trackTiles));
+      const auto features = egsc::scoreFeatures(regression,
+                                                sc,
+                                                ts,
+                                                isolation,
+                                                type == kElectronPdgId,
+                                                type == kNeutralPionPdgId,
+                                                egsc::trackFeatures(sc, tracks, *trackTiles));
       input[0].insert(input[0].end(), features.begin(), features.end());
     }
     const std::vector<std::vector<int64_t>> shape{{n, static_cast<int64_t>(egsc::kNScoreFeatures)}};
@@ -446,7 +453,7 @@ void TICLEGammaSuperClustersProducer::produce(edm::Event &evt, const edm::EventS
   for (std::size_t k = 0; k < passing.size(); ++k) {
     if (!keep[k])
       continue;
-    selected.push_back(superClusters[passing[k]]);
+    selected.push_back(std::move(superClusters[passing[k]]));
     selectedIndex.push_back(tracksterIndex[passing[k]]);
   }
   evt.emplace(superClusters_put_token_, std::move(selected));
@@ -470,21 +477,20 @@ void TICLEGammaSuperClustersProducer::fillDescriptions(edm::ConfigurationDescrip
   desc.add<double>("seedOnlyMinAbsEta", 2.4)
       ->setComment(
           "Min |eta| of the seed cluster above which a supercluster keeps the seed cluster only; <= 0: never.");
-  desc.add<unsigned int>("regressionInputs", static_cast<unsigned int>(ticl::egammaSuperCluster::kNFeatures))
-      ->setComment("Number of features (EGammaSuperClusterFeatures.h) that the regression reads.");
   desc.add<double>("regressionMaxRatio", 1.5)->setComment("Max output of the regression; <= 0: no limit.");
   desc.add<double>("superClusterEtThreshold", 4.)
       ->setComment("Min transverse energy [GeV] of a supercluster, after the regression.");
   desc.add<std::string>("regressionModel", "RecoTICL/ParticleFlow/data/egammaSuperClusters/regression_v3.onnx")
       ->setComment("FileInPath of the ONNX energy regression; empty: the supercluster energy is the raw energy.");
-  desc.add<std::string>("scoreModel", "")
+  desc.add<std::string>("scoreModel", "RecoTICL/ParticleFlow/data/egammaSuperClusters/score_v3.onnx")
       ->setComment("FileInPath of the ONNX supercluster score on scoreFeatures; empty: no score.");
-  desc.add<double>("minScore", 0.5)->setComment("Min score of a supercluster below scoreEtSplit, with scoreModel set.");
-  desc.add<double>("minScoreHighEt", 0.5)
+  desc.add<double>("minScore", 0.635)
+      ->setComment("Min score of a supercluster below scoreEtSplit, with scoreModel set.");
+  desc.add<double>("minScoreHighEt", 0.575)
       ->setComment("Min score of a supercluster at or above scoreEtSplit, with scoreModel set.");
   desc.add<double>("scoreEtSplit", 10.)
       ->setComment("Transverse energy [GeV] after the regression that separates minScore and minScoreHighEt.");
-  desc.add<std::string>("typeScoreModel", "")
+  desc.add<std::string>("typeScoreModel", "RecoTICL/ParticleFlow/data/egammaSuperClusters/type_v3.onnx")
       ->setComment("FileInPath of the ONNX score on scoreFeatures for the instance tracksterScore; empty: the score.");
   desc.add<edm::InputTag>("layerTiles", edm::InputTag("ticlLayerTileProducer"))
       ->setComment(

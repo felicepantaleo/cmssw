@@ -1,1 +1,19 @@
 <test name="testPFTICLProducer" command="cmsRun ${LOCALTOP}/src/RecoTICL/ParticleFlow/test/testPFTICLProducer_cfg.py"/>
+<test name="testTICLEGammaProducers" command="testTICLEGammaProducers.sh"/>
+<bin name="testEGammaSuperClusterFeatures" file="EGammaSuperClusterFeatures_t.cpp">
+  <use name="RecoTICL/ParticleFlow"/>
+  <use name="DataFormats/CaloRecHit"/>
+  <use name="DataFormats/Common"/>
+  <use name="DataFormats/EgammaReco"/>
+  <use name="DataFormats/HGCalReco"/>
+  <use name="DataFormats/Math"/>
+  <use name="DataFormats/TrackReco"/>
+  <use name="eigen"/>
+  <use name="catch2"/>
+</bin>
+<bin name="testTICLElectronSuperClustersProducer" file="TICLElectronSuperClustersProducer_t.cpp">
+  <use name="DataFormats/EgammaReco"/>
+  <use name="FWCore/TestProcessor"/>
+  <use name="RecoTICL/Interpretation"/>
+  <use name="catch2"/>
+</bin>

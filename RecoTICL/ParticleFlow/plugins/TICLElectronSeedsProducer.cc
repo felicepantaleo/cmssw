@@ -2,6 +2,7 @@
 // the seeds of the ECAL-driven seeding, where a seed of a copied supercluster points to the original supercluster, and
 // a seed from the KF track of each selected pair of supercluster and track, made from the seed of the track.
 
+#include <cstddef>
 #include <string>
 #include <utility>
 #include <vector>
