@@ -20,9 +20,10 @@
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/ParameterSet/interface/ConfigurationDescriptions.h"
 #include "FWCore/ParameterSet/interface/ParameterSetDescription.h"
-#include "FWCore/MessageLogger/interface/MessageLogger.h"
+#include "FWCore/ParameterSet/interface/FileInPath.h"
 #include "FWCore/Utilities/interface/ESGetToken.h"
 #include "FWCore/Utilities/interface/Exception.h"
+#include "FWCore/Utilities/interface/propagate_const.h"
 
 #include "DataFormats/Common/interface/ValueMap.h"
 #include "DataFormats/HGCalReco/interface/Common.h"
@@ -31,25 +32,25 @@
 #include "DataFormats/HGCalReco/interface/TICLLayerTile.h"
 #include "DataFormats/CaloRecHit/interface/CaloCluster.h"
 #include "DataFormats/HGCalReco/interface/TICLCandidate.h"
+#include "DataFormats/GsfTrackReco/interface/GsfTrack.h"
+#include "DataFormats/Math/interface/deltaR.h"
 #include "DataFormats/TrackReco/interface/Track.h"
 #include "DataFormats/MuonReco/interface/Muon.h"
 #include "DataFormats/ParticleFlowCandidate/interface/PFCandidate.h"
+#include "PhysicsTools/ONNXRuntime/interface/ONNXRuntime.h"
 #include "RecoParticleFlow/PFProducer/interface/PFMuonAlgo.h"
 #include "RecoTICL/Interpretation/interface/AssignmentMaps.h"
+#include "RecoTICL/Interpretation/interface/CandidateArbitration.h"
+#include "RecoTICL/Interpretation/interface/CandidateTime.h"
 #include "RecoTICL/Interpretation/interface/CandidateTracksters.h"
 #include "RecoTICL/Interpretation/interface/ChargedHadronEnergy.h"
+#include "RecoTICL/Interpretation/interface/ModelFeatures.h"
+#include "RecoTICL/Interpretation/interface/MuonKinematics.h"
 #include "RecoTICL/Interpretation/interface/TrackImpact.h"
+#include "RecoTICL/Interpretation/interface/TypeProbabilities.h"
 #include "RecoTICL/Common/interface/TICLUtils.h"
 #include "RecoTICL/Common/interface/TrackstersPCA.h"
 #include "RecoLocalCalo/HGCalRecAlgos/interface/TICLGeomTools.h"
-#include "RecoTICL/Interpretation/interface/CandidateTime.h"
-#include "RecoTICL/Interpretation/interface/ModelFeatures.h"
-#include "RecoTICL/Interpretation/interface/MuonKinematics.h"
-#include "RecoTICL/Interpretation/interface/TypeProbabilities.h"
-#include "FWCore/ParameterSet/interface/FileInPath.h"
-#include "PhysicsTools/ONNXRuntime/interface/ONNXRuntime.h"
-#include "DataFormats/GsfTrackReco/interface/GsfTrack.h"
-#include "DataFormats/Math/interface/deltaR.h"
 
 #include "TrackingTools/GeomPropagators/interface/Propagator.h"
 #include "TrackingTools/Records/interface/TrackingComponentsRecord.h"
@@ -86,14 +87,13 @@ private:
   const edm::EDGetTokenT<std::vector<int>> neutralPdg_token_;
   // The candidate of a track holds the claim trackster of the track.
   const bool attachClaimTracksters_;
-  // The energy combination of a charged hadron or a jet member adds the regressed energy of the claim trackster of
-  // its track to the trackster energy. A track with a claim trackster and no trackster takes their combined energy
-  // when the claim trackster has at least claimDeposit_.minFraction of the expected raw deposit of the track.
+  // The energy combination of a track adds the regressed energy of its claim trackster; a track with a claim trackster
+  // and no trackster takes their combined energy (useCombinedClaimEnergy with claimDeposit_).
   const bool useClaimTracksterEnergy_;
   const ExpectedDeposit claimDeposit_;
   edm::EDGetTokenT<std::vector<int>> trackToClaimTrackster_token_;
   // One trackster per candidate from the layer clusters of its tracksters (CandidateTracksters.h), put as the
-  // trackster product; each candidate then holds its trackster.
+  // trackster product; a candidate without layer clusters holds no trackster, and a neutral one is removed.
   bool buildCandidateTracksters_ = false;
   CandidateTrackstersParameters candidateTrackstersParameters_;
   edm::EDGetTokenT<edm::ValueMap<std::pair<float, float>>> layerClustersTime_token_;
@@ -108,11 +108,10 @@ private:
   const bool useMTDTiming_;
   const bool useTimingAverage_;
   const float timingQualityThreshold_;
-  // (eta, phi) window between an electron track and its GSF track.
+  // (eta, phi) window between an electron track and its GSF track of the same charge.
   const float delta_tk_gsf_;
-  // A trackster shared by tracks that take their energy from the track gives a neutral residual E - sum(p) when it is
-  // at least max(floor, fraction x E). When the interpretation stage gives the species of the tracksters
-  // (tracksterSpeciesForTracks), the species types the residual.
+  // A trackster with charged candidates gives a neutral residual (neutralResidualEnergy) from its total energy, typed
+  // by the trackster species when the interpretation stage gives them.
   const float residualEnergyFloor_;
   const float residualEnergyFraction_;
   const edm::EDGetTokenT<std::vector<int>> tracksterSpecies_token_;
@@ -121,24 +120,12 @@ private:
   // hadron) and per neutral (photon, pi0, neutral hadron), from the interpretation stage.
   const edm::EDGetTokenT<std::vector<float>> trackTypeProbabilities_token_;
   const edm::EDGetTokenT<std::vector<float>> neutralSpeciesProbabilities_token_;
-  // A charged candidate on an EM trackster takes the inverse-variance mean of the track energy and the trackster energy
-  // when they agree within energyCompatibilityNSigma. Otherwise a charged hadron takes the track energy and an electron
-  // keeps the trackster energy. The charged hadrons on a hadronic trackster and the jet members that share a trackster
-  // take the inverse-variance weighted average of their track energy sum and the trackster energy when they agree:
-  // each track takes a share of the difference in proportion to its variance. Momentum error: trackMomentumErrorScale x
-  // sigma(p) of the track (hadronicTrackMomentumErrorScale for the charged hadrons that share a trackster), or
-  // gsfMomentumErrorScale x sigma(p) of the GSF mode for an electron with a GSF track.
-  // Trackster error: sigma/E = sqrt(S^2/E + C^2) at the track energy (the sum of the track energies of the charged
-  // hadrons that share it), with the EM or the hadronic terms. With the hadronic calibration model, a hadronic
-  // trackster of charged hadrons has the energy E_reg x q50 and the error E_reg x (q84 - q16) / 2 from the predicted
-  // quantiles of their true energy over its regressed energy.
+  // Energies of the charged candidates: combinedEnergy on an EM trackster, shareTracksterEnergy on a shared trackster
+  // (calibratedEnergy with the hadronic calibration model). The scales multiply the track momentum errors.
   const float trackMomentumErrorScale_;
   const float hadronicTrackMomentumErrorScale_;
   const float gsfMomentumErrorScale_;
-  const float emTracksterStochastic_;
-  const float emTracksterConstant_;
-  const float hadTracksterStochastic_;
-  const float hadTracksterConstant_;
+  const TracksterResolution resolution_;
   const float energyCompatibilityNSigma_;
   // A charged hadron or recovery winner on an EM trackster is an electron only when the trackster energy over the track
   // momentum is above electronMinEOverP_, else a charged pion. 0 disables the test.
@@ -146,18 +133,17 @@ private:
 
   // A charged candidate whose track belongs to a muon takes the kinematics of the best muon track (PFMuonAlgo).
   const edm::EDGetTokenT<reco::MuonCollection> muons_token_;
-  std::unique_ptr<PFMuonAlgo> pfmu_;
+  edm::propagate_const<std::unique_ptr<PFMuonAlgo>> pfmu_;
 
-  // Share of a neutral trackster energy that comes from the particle it represents, predicted from 31 features of the
-  // trackster, its shape and its surroundings. A neutral candidate at or above neutralShareMinPt_ keeps the trackster
-  // energy. A neutral candidate below neutralMinEnergy_ after the correction is not produced. With photonMinScore_ > 0,
-  // a photon or neutral pion candidate at or above photonScoreMinPt_ whose e/gamma supercluster has a score
-  // (eGammaScore) below photonMinScore_, or that has no supercluster, is a neutral hadron; its energy does not change.
+  // Share of a neutral trackster energy that comes from the particle it represents, from 31 features of the trackster
+  // and its surroundings. neutralEnergyScale applies it.
   const edm::EDGetTokenT<std::vector<reco::CaloCluster>> layerClustersToken_;
   const cms::Ort::ONNXRuntime &neutralShareModel_;
   const cms::Ort::ONNXRuntime *hadronicCalibrationModel_;
   const float neutralMinEnergy_;
   const float neutralShareMinPt_;
+  // With photonMinScore_ > 0, a photon or neutral pion candidate at or above photonScoreMinPt_ whose e/gamma
+  // supercluster has a score below photonMinScore_, or that has no supercluster, is a neutral hadron.
   const float photonMinScore_;
   const float photonScoreMinPt_;
   edm::EDGetTokenT<std::vector<float>> eGammaScore_token_;
@@ -166,69 +152,23 @@ private:
                                          const std::vector<reco::CaloCluster> &layerClusters,
                                          const std::vector<int> &neutralIdx) const;
 
-  // Per-trackster estimates of the point-cloud model (TracksterPointCloudInferenceProducer): energy and pile-up
-  // fraction of the deposit, -1 when the model did not run on the trackster. With pointCloudEnergy, a neutral
-  // candidate or residual starts from the model energy instead of the regressed energy. With
-  // pointCloudNeutralShare false, the neutral share model is not applied when the model runs. With
-  // pointCloudPileupScale, the energy is scaled by (1 - pile-up fraction); neutralMinEnergy applies to the neutral
-  // candidate energy before this scale, or after it with pointCloudMinEnergyAfterScale. A neutral candidate or
-  // residual whose trackster has a pile-up fraction above pointCloudMaxPileup is not produced. With
-  // pointCloudSpecies, a neutral candidate is a photon when the model gives the EM species at least the probability of
-  // the neutral-hadron species, else a neutral hadron, with the type probabilities of these two species.
-  struct PointCloudEstimates {
-    const std::vector<float> *energy = nullptr;
-    const std::vector<float> *pileup = nullptr;
-    // kPointCloudSpecies values per trackster: EM, charged hadron, neutral hadron, muon, other.
-    const std::vector<float> *species = nullptr;
-    bool valid(int idx) const { return energy != nullptr && (*pileup)[idx] >= 0.f; }
-  };
-  static constexpr unsigned int kPointCloudSpecies = 5;
-  const bool usePointCloud_;
-  edm::EDGetTokenT<std::vector<float>> pointCloudEnergy_token_;
-  edm::EDGetTokenT<std::vector<float>> pointCloudPileup_token_;
-  edm::EDGetTokenT<std::vector<float>> pointCloudSpecies_token_;
-  const bool pointCloudEnergy_;
-  const bool pointCloudNeutralShare_;
-  const bool pointCloudPileupScale_;
-  const float pointCloudMaxPileup_;
-  const bool pointCloudSpecies_;
-  const bool pointCloudMinEnergyAfterScale_;
-  // Energy of a neutral trackster before the share: the model energy, scaled for pile-up, or the regressed energy.
-  float neutralTracksterEnergy(const Trackster &ts, int idx, const PointCloudEstimates &pc) const;
-
-  // Energy of a momentum p with error sigmaP and mass hypothesis mass on an EM trackster: the inverse-variance mean of
-  // the two when they are compatible, else the track energy.
-  struct CombinedEnergy {
-    float energy;
-    bool compatible;
-  };
-  CombinedEnergy combinedEnergy(float p, float sigmaP, float mass, const Trackster &ts) const;
-  // Energy error of a trackster that measures the energy e.
-  float tracksterEnergyError(const Trackster &ts, float e) const;
-
-  // A charged hadron that shares the energy of a trackster with the other charged hadrons on it. claimEnergy and
-  // claimVariance are the energy and the variance of the claim trackster of its track (useClaimTracksterEnergy_), else 0.
-  struct ChargedOnTrackster {
-    size_t candidate;
-    float energy;
-    float variance;
-    bool jetMember;
-    float claimEnergy;
-    float claimVariance;
-  };
-  // Sets the weighted-average energies of the charged hadrons of each trackster and adds them to trackSumP.
-  void combineChargedHadrons(const edm::Handle<std::vector<Trackster>> &tracksters_h,
+  // Calibrated energy and error of the hadronic tracksters with charged hadrons, from the calibration model.
+  std::map<int, EnergyWithError> calibratedTracksterEnergies(
+      const std::vector<Trackster> &tracksters,
+      const std::map<int, std::vector<ChargedOnTrackster>> &chargedOnTrackster) const;
+  // Sets the energies of the charged hadrons of each trackster (shareTracksterEnergy) and the energy balance of the
+  // trackster.
+  void combineChargedHadrons(const std::vector<Trackster> &tracksters,
                              const std::map<int, std::vector<ChargedOnTrackster>> &chargedOnTrackster,
-                             std::map<int, float> &trackSumP,
+                             std::map<int, TracksterEnergyBalance> &balance,
                              std::vector<TICLCandidate> &candidates) const;
 
-  // Neutral residuals: the energy of a trackster above the energy given to its tracks, typed by the trackster PID or,
-  // when tracksterSpecies is not empty, by its species, with the species probabilities.
+  // Neutral residuals (neutralResidualEnergy): typed by the trackster PID or, when tracksterSpecies is not empty, by
+  // its species, with the species probabilities.
   void appendNeutralResiduals(const edm::Handle<std::vector<Trackster>> &tracksters_h,
-                              const std::map<int, float> &trackSumP,
+                              const std::map<int, TracksterEnergyBalance> &balance,
                               const std::vector<int> &tracksterSpecies,
                               const std::vector<float> &tracksterSpeciesProbabilities,
-                              const PointCloudEstimates &pc,
                               std::vector<TICLCandidate> &candidates) const;
   // Neutral candidates: each takes the share of its trackster energy that comes from the particle it represents.
   void appendNeutralCandidates(const edm::Handle<std::vector<Trackster>> &tracksters_h,
@@ -236,18 +176,18 @@ private:
                                const std::vector<int> &neutralIdx,
                                const std::vector<int> &neutralPdg,
                                const std::vector<float> &neutralSpeciesProbabilities,
-                               const PointCloudEstimates &pc,
                                const std::vector<float> &photonScore,
                                std::vector<TICLCandidate> &candidates) const;
-  // Muons: a charged candidate takes the kinematics of the best muon track when takesMuonKinematics holds. A loose muon
-  // is accepted for a muon candidate only. Returns the muon of each candidate and the type of its muon track (-1: none).
+  // A charged candidate takes the kinematics of the best muon track when takesMuonKinematics holds. Per candidate:
+  // its muon (null: none), the type of its muon track (-1: none) and its energy before the muon kinematics.
   struct CandidateMuons {
     std::vector<reco::MuonRef> muons;
     std::unique_ptr<std::vector<int>> trackType;
+    std::unique_ptr<std::vector<float>> energyBeforeMuon;
   };
   CandidateMuons applyMuonKinematics(const edm::Handle<std::vector<reco::Track>> &tracks_h,
                                      const edm::Handle<reco::MuonCollection> &muons_h,
-                                     std::vector<TICLCandidate> &candidates) const;
+                                     std::vector<TICLCandidate> &candidates);
 
   const std::string propName_;
   const edm::ESGetToken<MagneticField, IdealMagneticFieldRecord> bfield_token_;
@@ -285,20 +225,30 @@ namespace {
     const auto &tag = ps.getParameter<edm::InputTag>("interpretations");
     return edm::InputTag(tag.label(), instance, tag.process());
   }
+
+  // Throws when a map of the interpretation stage does not have the expected size or holds a trackster index out of
+  // range. With allowNone, -1 is no trackster.
+  void checkMap(
+      const std::vector<int> &map, std::size_t size, std::size_t nTracksters, bool allowNone, const char *name) {
+    if (map.size() != size)
+      throw cms::Exception("LogicError") << "TICLCandidateArbitrationProducer: " << name << " has " << map.size()
+                                         << " entries, expected " << size;
+    for (int idx : map)
+      if (idx < (allowNone ? -1 : 0) || idx >= static_cast<int>(nTracksters))
+        throw cms::Exception("LogicError")
+            << "TICLCandidateArbitrationProducer: " << name << " holds the trackster " << idx << " of " << nTracksters;
+  }
 }  // namespace
 
 std::unique_ptr<TICLArbitrationModels> TICLCandidateArbitrationProducer::initializeGlobalCache(
     const edm::ParameterSet &ps) {
-  // One session per model for all the streams, with one intra-op and one inter-op thread.
-  auto options = cms::Ort::ONNXRuntime::defaultSessionOptions();
-  options.SetInterOpNumThreads(1);
+  // One session per model for all the streams, with the session options of the ONNX service.
   auto models = std::make_unique<TICLArbitrationModels>();
-  models->neutralShare = std::make_unique<cms::Ort::ONNXRuntime>(
-      ps.getParameter<edm::FileInPath>("neutralShareModel").fullPath(), options);
+  models->neutralShare =
+      std::make_unique<cms::Ort::ONNXRuntime>(ps.getParameter<edm::FileInPath>("neutralShareModel").fullPath());
   const auto &calibration = ps.getParameter<std::string>("hadronicTracksterCalibration");
   if (!calibration.empty())
-    models->hadronicCalibration =
-        std::make_unique<cms::Ort::ONNXRuntime>(edm::FileInPath(calibration).fullPath(), options);
+    models->hadronicCalibration = std::make_unique<cms::Ort::ONNXRuntime>(edm::FileInPath(calibration).fullPath());
   return models;
 }
 
@@ -335,10 +285,10 @@ TICLCandidateArbitrationProducer::TICLCandidateArbitrationProducer(const edm::Pa
       trackMomentumErrorScale_(ps.getParameter<float>("trackMomentumErrorScale")),
       hadronicTrackMomentumErrorScale_(ps.getParameter<float>("hadronicTrackMomentumErrorScale")),
       gsfMomentumErrorScale_(ps.getParameter<float>("gsfMomentumErrorScale")),
-      emTracksterStochastic_(ps.getParameter<float>("emTracksterStochastic")),
-      emTracksterConstant_(ps.getParameter<float>("emTracksterConstant")),
-      hadTracksterStochastic_(ps.getParameter<float>("hadTracksterStochastic")),
-      hadTracksterConstant_(ps.getParameter<float>("hadTracksterConstant")),
+      resolution_{ps.getParameter<float>("emTracksterStochastic"),
+                  ps.getParameter<float>("emTracksterConstant"),
+                  ps.getParameter<float>("hadTracksterStochastic"),
+                  ps.getParameter<float>("hadTracksterConstant")},
       energyCompatibilityNSigma_(ps.getParameter<float>("energyCompatibilityNSigma")),
       electronMinEOverP_(ps.getParameter<float>("electronMinEOverP")),
       muons_token_(consumes<reco::MuonCollection>(ps.getParameter<edm::InputTag>("muonSrc"))),
@@ -350,13 +300,6 @@ TICLCandidateArbitrationProducer::TICLCandidateArbitrationProducer(const edm::Pa
       neutralShareMinPt_(ps.getParameter<float>("neutralShareMinPt")),
       photonMinScore_(ps.getParameter<float>("photonMinScore")),
       photonScoreMinPt_(ps.getParameter<float>("photonScoreMinPt")),
-      usePointCloud_(!ps.getParameter<edm::InputTag>("pointCloud").label().empty()),
-      pointCloudEnergy_(ps.getParameter<bool>("pointCloudEnergy")),
-      pointCloudNeutralShare_(ps.getParameter<bool>("pointCloudNeutralShare")),
-      pointCloudPileupScale_(ps.getParameter<bool>("pointCloudPileupScale")),
-      pointCloudMaxPileup_(ps.getParameter<float>("pointCloudMaxPileup")),
-      pointCloudSpecies_(ps.getParameter<bool>("pointCloudSpecies")),
-      pointCloudMinEnergyAfterScale_(ps.getParameter<bool>("pointCloudMinEnergyAfterScale")),
       propName_(ps.getParameter<std::string>("propagator")),
       bfield_token_(esConsumes<MagneticField, IdealMagneticFieldRecord, edm::Transition::BeginRun>()),
       propagator_token_(
@@ -395,13 +338,6 @@ TICLCandidateArbitrationProducer::TICLCandidateArbitrationProducer(const edm::Pa
   if (useMTDTiming_) {
     inputTimingToken_ = consumes<MtdHostCollection>(ps.getParameter<edm::InputTag>("timingSoA"));
   }
-  if (usePointCloud_) {
-    const auto &tag = ps.getParameter<edm::InputTag>("pointCloud");
-    pointCloudEnergy_token_ = consumes<std::vector<float>>(edm::InputTag(tag.label(), "energy", tag.process()));
-    pointCloudPileup_token_ = consumes<std::vector<float>>(edm::InputTag(tag.label(), "puFraction", tag.process()));
-    if (pointCloudSpecies_)
-      pointCloudSpecies_token_ = consumes<std::vector<float>>(edm::InputTag(tag.label(), "species", tag.process()));
-  }
   if (useGsfTracks_) {
     gsf_tracks_token_ = consumes<std::vector<reco::GsfTrack>>(ps.getParameter<edm::InputTag>("gsf_tracks"));
   }
@@ -415,9 +351,11 @@ TICLCandidateArbitrationProducer::TICLCandidateArbitrationProducer(const edm::Pa
     eGammaIndex_token_ = consumes<std::vector<int>>(edm::InputTag(eg.label(), "interpretationIndex", eg.process()));
   }
   produces<std::vector<TICLCandidate>>();
-  // Per candidate: its muon (null when none) and the type of the muon track it takes (-1 when none).
+  // Per candidate: its muon (null when none), the type of the muon track it takes (-1 when none) and its energy before
+  // the muon kinematics.
   produces<edm::ValueMap<reco::MuonRef>>("muons");
   produces<std::vector<int>>("muonTrackType");
+  produces<std::vector<float>>("energyBeforeMuon");
 }
 
 void TICLCandidateArbitrationProducer::beginRun(edm::Run const &, edm::EventSetup const &es) {
@@ -432,92 +370,62 @@ void TICLCandidateArbitrationProducer::beginRun(edm::Run const &, edm::EventSetu
   }
 }
 
-TICLCandidateArbitrationProducer::CombinedEnergy TICLCandidateArbitrationProducer::combinedEnergy(
-    float p, float sigmaP, float mass, const Trackster &ts) const {
-  const float eTrack = std::sqrt(p * p + mass * mass);
-  const float sigmaTrack = sigmaP;
-  const float eTrackster = ts.regressed_energy();
-  const float sigmaTrackster = tracksterEnergyError(ts, eTrack);
-  if (!(std::abs(eTrackster - eTrack) < energyCompatibilityNSigma_ * std::hypot(sigmaTrack, sigmaTrackster)))
-    return {eTrack, false};
-  const float wTrack = 1.f / std::max(sigmaTrack * sigmaTrack, 1e-12f);
-  const float wTrackster = 1.f / (sigmaTrackster * sigmaTrackster);
-  return {(wTrack * eTrack + wTrackster * eTrackster) / (wTrack + wTrackster), true};
-}
-
-float TICLCandidateArbitrationProducer::tracksterEnergyError(const Trackster &ts, float e) const {
-  const float s = ts.isHadronic() ? hadTracksterStochastic_ : emTracksterStochastic_;
-  const float c = ts.isHadronic() ? hadTracksterConstant_ : emTracksterConstant_;
-  return e * std::sqrt(s * s / std::max(e, 0.1f) + c * c);
+std::map<int, EnergyWithError> TICLCandidateArbitrationProducer::calibratedTracksterEnergies(
+    const std::vector<Trackster> &tracksters,
+    const std::map<int, std::vector<ChargedOnTrackster>> &chargedOnTrackster) const {
+  std::map<int, EnergyWithError> calibrated;
+  if (hadronicCalibrationModel_ == nullptr)
+    return calibrated;
+  using modelfeatures::hadronicCalibration::kN;
+  std::vector<int> rows;
+  std::vector<float> x;
+  for (auto const &[tsIdx, charged] : chargedOnTrackster) {
+    const auto &ts = tracksters[tsIdx];
+    if (!ts.isHadronic() || !(ts.regressed_energy() > 0.f))
+      continue;
+    const int nJetMembers =
+        std::count_if(charged.begin(), charged.end(), [](const ChargedOnTrackster &c) { return c.jetMember; });
+    x.resize(x.size() + kN);
+    modelfeatures::fillHadronicCalibrationFeatures(
+        ts, static_cast<int>(charged.size()), nJetMembers, std::span<float, kN>(x.end() - kN, kN));
+    rows.push_back(tsIdx);
+  }
+  if (rows.empty())
+    return calibrated;
+  const auto n = static_cast<int64_t>(rows.size());
+  cms::Ort::FloatArrays input{std::move(x)};
+  const auto output = hadronicCalibrationModel_->run({"input"}, input, {{n, static_cast<int64_t>(kN)}}, {}, n);
+  if (output.empty() || output[0].size() != 3 * rows.size())
+    throw cms::Exception("LogicError") << "TICLCandidateArbitrationProducer: the hadronic calibration gives "
+                                       << (output.empty() ? 0 : output[0].size()) << " values for " << rows.size()
+                                       << " tracksters";
+  for (size_t r = 0; r < rows.size(); ++r)
+    calibrated[rows[r]] =
+        calibratedEnergy(tracksters[rows[r]].regressed_energy(), std::span<const float, 3>(&output[0][3 * r], 3));
+  return calibrated;
 }
 
 void TICLCandidateArbitrationProducer::combineChargedHadrons(
-    const edm::Handle<std::vector<Trackster>> &tracksters_h,
+    const std::vector<Trackster> &tracksters,
     const std::map<int, std::vector<ChargedOnTrackster>> &chargedOnTrackster,
-    std::map<int, float> &trackSumP,
+    std::map<int, TracksterEnergyBalance> &balance,
     std::vector<TICLCandidate> &candidates) const {
-  // Calibrated energy and error of the hadronic tracksters, from the predicted quantiles of the calibration model.
-  std::map<int, std::pair<float, float>> calibrated;
-  if (hadronicCalibrationModel_ != nullptr) {
-    using modelfeatures::hadronicCalibration::kN;
-    std::vector<int> rows;
-    std::vector<float> x;
-    for (auto const &[tsIdx, charged] : chargedOnTrackster) {
-      const auto &ts = (*tracksters_h)[tsIdx];
-      if (!ts.isHadronic() || !(ts.regressed_energy() > 0.f))
-        continue;
-      const int nJetMembers =
-          std::count_if(charged.begin(), charged.end(), [](const ChargedOnTrackster &c) { return c.jetMember; });
-      x.resize(x.size() + kN);
-      modelfeatures::fillHadronicCalibrationFeatures(
-          ts, static_cast<int>(charged.size()), nJetMembers, std::span<float, kN>(x.end() - kN, kN));
-      rows.push_back(tsIdx);
-    }
-    if (!rows.empty()) {
-      const auto n = static_cast<int64_t>(rows.size());
-      cms::Ort::FloatArrays input{std::move(x)};
-      const auto output = hadronicCalibrationModel_->run({"input"}, input, {{n, static_cast<int64_t>(kN)}}, {}, n);
-      if (output.empty() || output[0].size() != 3 * rows.size())
-        throw cms::Exception("LogicError")
-            << "TICLCandidateArbitrationProducer: the hadronic calibration gives "
-            << (output.empty() ? 0 : output[0].size()) << " values for " << rows.size() << " tracksters";
-      for (size_t r = 0; r < rows.size(); ++r) {
-        const float e = (*tracksters_h)[rows[r]].regressed_energy();
-        const float *q = &output[0][3 * r];
-        calibrated[rows[r]] = {e * q[1], e * 0.5f * (q[2] - q[0])};
-      }
-    }
-  }
+  const auto calibrated = calibratedTracksterEnergies(tracksters, chargedOnTrackster);
   for (auto const &[tsIdx, charged] : chargedOnTrackster) {
-    const auto &ts = (*tracksters_h)[tsIdx];
-    float eSum = 0.f, varSum = 0.f, eClaim = 0.f, varClaim = 0.f;
-    for (auto const &c : charged) {
-      eSum += c.energy;
-      varSum += c.variance;
-      eClaim += c.claimEnergy;
-      varClaim += c.claimVariance;
-    }
     const auto cal = calibrated.find(tsIdx);
-    const float eTrackster = (cal != calibrated.end() ? cal->second.first : ts.regressed_energy()) + eClaim;
-    // The calibrated error is the error of the trackster alone: the variance of the claim tracksters adds to it.
-    float sigmaTrackster = cal != calibrated.end() ? cal->second.second : tracksterEnergyError(ts, eSum);
-    if (cal != calibrated.end() && varClaim > 0.f)
-      sigmaTrackster = std::sqrt(sigmaTrackster * sigmaTrackster + varClaim);
-    const float varTotal = varSum + sigmaTrackster * sigmaTrackster;
-    const float diff = eTrackster - eSum;
-    bool combine = std::abs(diff) < energyCompatibilityNSigma_ * std::sqrt(varTotal);
-    // The tracks keep their energies when the average would give one of them less than the pion mass.
-    for (auto const &c : charged)
-      combine = combine && c.energy + c.variance / varTotal * diff > ticl::mpion;
-    for (auto const &c : charged) {
-      auto &cand = candidates[c.candidate];
-      if (!combine) {
-        trackSumP[tsIdx] += cand.trackPtr()->p();
-        continue;
-      }
-      const float energy = c.energy + c.variance / varTotal * diff;
-      cand.setP4(p4Along(cand.trackPtr()->momentum(), energy, ticl::mpion));
-      trackSumP[tsIdx] += energy;
+    const auto trackster =
+        sharedTracksterEnergy(tracksters[tsIdx],
+                              cal != calibrated.end() ? std::optional<EnergyWithError>(cal->second) : std::nullopt,
+                              charged,
+                              resolution_);
+    const auto shared = shareTracksterEnergy(charged, trackster, energyCompatibilityNSigma_, ticl::mpion);
+    auto &b = balance[tsIdx];
+    b.energy = sharedTracksterTotalEnergy(tracksters[tsIdx], charged);
+    for (size_t i = 0; i < charged.size(); ++i) {
+      auto &cand = candidates[charged[i].candidate];
+      if (shared.combined)
+        cand.setP4(p4Along(cand.trackPtr()->momentum(), shared.energies[i], ticl::mpion));
+      b.given += shared.energies[i];
     }
   }
 }
@@ -586,19 +494,9 @@ std::vector<float> TICLCandidateArbitrationProducer::neutralEnergyShares(
   return share;
 }
 
-float TICLCandidateArbitrationProducer::neutralTracksterEnergy(const Trackster &ts,
-                                                               int idx,
-                                                               const PointCloudEstimates &pc) const {
-  if (!pc.valid(idx))
-    return ts.regressed_energy();
-  float e = pointCloudEnergy_ ? (*pc.energy)[idx] : ts.regressed_energy();
-  if (pointCloudPileupScale_)
-    e *= 1.f - std::clamp((*pc.pileup)[idx], 0.f, 1.f);
-  return e;
-}
-
 void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::EventSetup &es) {
   const auto tracksters_h = evt.getHandle(tracksters_token_);
+  const auto &tracksters = *tracksters_h;
   const auto &trackToTrackster = evt.get(trackToTrackster_token_);
   const auto &trackMode = evt.get(trackMode_token_);
   const auto &neutralIdx = evt.get(neutralIdx_token_);
@@ -608,6 +506,16 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
     throw cms::Exception("LogicError") << "TICLCandidateArbitrationProducer: the assignment maps cover "
                                        << trackMode.size() << " tracks but the configured tracks collection has "
                                        << tracks_h->size() << "; the two producers must consume the same tracks.";
+  }
+  checkMap(trackToTrackster, trackMode.size(), tracksters.size(), true, "trackToTrackster");
+  checkMap(neutralIdx, neutralIdx.size(), tracksters.size(), false, "neutralIdx");
+  if (neutralPdg.size() != neutralIdx.size())
+    throw cms::Exception("LogicError") << "TICLCandidateArbitrationProducer: " << neutralPdg.size()
+                                       << " neutral species for " << neutralIdx.size() << " neutrals";
+  const std::vector<int> *claimOfTrack = nullptr;
+  if (attachClaimTracksters_) {
+    claimOfTrack = &evt.get(trackToClaimTrackster_token_);
+    checkMap(*claimOfTrack, trackMode.size(), tracksters.size(), true, "trackToClaimTrackster");
   }
   edm::Handle<std::vector<reco::GsfTrack>> gsfTracks_h;
   if (useGsfTracks_)
@@ -622,27 +530,26 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
   static const std::vector<reco::GsfTrack> emptyGsf;
   const auto &gsfTracks = useGsfTracks_ ? *gsfTracks_h : emptyGsf;
 
-  // Charged candidates from the per-track assignment maps, in track order, and the energy given to the tracks of each
-  // trackster.
+  // Charged candidates from the per-track assignment maps, in track order, and the energy balance of the tracksters
+  // that they hold.
   std::vector<TICLCandidate> candidates;
-  std::map<int, float> trackSumP;
+  std::map<int, TracksterEnergyBalance> balance;
   std::map<int, std::vector<ChargedOnTrackster>> chargedOnTrackster;
-  const std::vector<int> *claimOfTrack = attachClaimTracksters_ ? &evt.get(trackToClaimTrackster_token_) : nullptr;
   auto claimTracksterOf = [&](size_t iTrack) -> const Trackster * {
-    if (!useClaimTracksterEnergy_ || iTrack >= claimOfTrack->size() || (*claimOfTrack)[iTrack] < 0)
+    if (!useClaimTracksterEnergy_ || (*claimOfTrack)[iTrack] < 0)
       return nullptr;
-    return &(*tracksters_h)[(*claimOfTrack)[iTrack]];
+    return &tracksters[(*claimOfTrack)[iTrack]];
   };
-  // The last candidate, a charged hadron with the pion mass, joins the energy combination of its trackster
-  // (combineChargedHadrons). With a claim trackster and no trackster, it takes the combined energy of the two when
-  // useCombinedClaimEnergy allows it.
+  // The last candidate, a charged hadron, joins the energy combination of its trackster (combineChargedHadrons), or
+  // takes the combined energy with its claim trackster when it has no trackster and useCombinedClaimEnergy allows it.
   auto addToEnergyCombination = [&](size_t iTrack, const reco::Track &tk, int tsIdx, bool jetMember) {
     const float p = tk.p();
     const float sigmaP = hadronicTrackMomentumErrorScale_ * tk.qoverpError() * p * p;
     const Trackster *claim = claimTracksterOf(iTrack);
     if (tsIdx < 0) {
       if (claim != nullptr) {
-        const float energy = combinedEnergy(p, sigmaP, ticl::mpion, *claim).energy;
+        const float energy =
+            combinedEnergy(p, sigmaP, ticl::mpion, *claim, resolution_, energyCompatibilityNSigma_).energy;
         if (useCombinedClaimEnergy(energy, ticl::mpion, claim->raw_energy(), p, claimDeposit_))
           candidates.back().setP4(p4Along(tk.momentum(), energy, ticl::mpion));
       }
@@ -651,7 +558,7 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
     ChargedOnTrackster c{candidates.size() - 1, std::sqrt(p * p + ticl::mpion2), sigmaP * sigmaP, jetMember, 0.f, 0.f};
     if (claim != nullptr) {
       c.claimEnergy = claim->regressed_energy();
-      const float sigma = tracksterEnergyError(*claim, c.claimEnergy);
+      const float sigma = resolution_.error(claim->isHadronic(), c.claimEnergy);
       c.claimVariance = sigma * sigma;
     }
     chargedOnTrackster[tsIdx].push_back(c);
@@ -693,18 +600,8 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
     } else if (mode == TrackMode::kElectron) {
       // Electron: the trackster energy along the direction of the GSF track.
       TICLCandidate cand(trackPtr, tracksterPtr);
-      int bestGsf = -1;
-      float bestDR = delta_tk_gsf_;
-      for (size_t iGsf = 0; iGsf < gsfTracks.size(); ++iGsf) {
-        if (gsfUsed[iGsf])
-          continue;
-        const float dR = reco::deltaR(gsfTracks[iGsf].eta(), gsfTracks[iGsf].phi(), tk.eta(), tk.phi());
-        if (dR < bestDR) {
-          bestDR = dR;
-          bestGsf = static_cast<int>(iGsf);
-        }
-      }
-      if (bestGsf >= 0 && tracksterPtr.isNonnull()) {
+      const int bestGsf = tracksterPtr.isNonnull() ? matchGsfTrack(tk, gsfTracks, gsfUsed, delta_tk_gsf_) : -1;
+      if (bestGsf >= 0) {
         gsfUsed[bestGsf] = true;
         const auto &gsf = gsfTracks[bestGsf];
         cand.addGsfTrackPtr(edm::Ptr<reco::GsfTrack>(gsfTracks_h, bestGsf));
@@ -712,8 +609,12 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
         cand.setCharge(gsf.charge());
         // The GSF mode momentum combined with the trackster energy, or the trackster energy when they disagree.
         const float p = gsf.pMode();
-        const auto combined =
-            combinedEnergy(p, gsfMomentumErrorScale_ * gsf.qoverpModeError() * p * p, 0.f, *tracksterPtr);
+        const auto combined = combinedEnergy(p,
+                                             gsfMomentumErrorScale_ * gsf.qoverpModeError() * p * p,
+                                             0.f,
+                                             *tracksterPtr,
+                                             resolution_,
+                                             energyCompatibilityNSigma_);
         cand.setP4(
             p4Along(gsf.momentum(), combined.compatible ? combined.energy : tracksterPtr->regressed_energy(), 0.f));
       } else {
@@ -730,24 +631,29 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
       candidates.push_back(cand);
       addToEnergyCombination(iTrack, tk, tsIdx, true);
     } else if (tracksterPtr.isNonnull() && !tracksterPtr->isHadronic()) {
-      // Charged hadron or recovery on an EM trackster: an electron (the trackster PID) when E/p passes
-      // electronMinEOverP_, else a charged pion, with the combined energy along the track. A compatible trackster is all
-      // in the combined energy; else its excess becomes a neutral residual.
+      // Charged hadron or recovery on an EM trackster: an electron when E/p passes electronMinEOverP_, else a charged
+      // pion, with the combined energy along the track. An incompatible trackster can give a neutral residual.
       TICLCandidate cand(trackPtr, tracksterPtr);
       const float p = tk.p();
       const bool electron = electronMinEOverP_ <= 0.f || tracksterPtr->regressed_energy() > electronMinEOverP_ * p;
       const float mass = electron ? 0.f : ticl::mpion;
       if (!electron)
         cand.setPdgId(211 * tk.charge());
-      const auto combined = combinedEnergy(p, trackMomentumErrorScale_ * tk.qoverpError() * p * p, mass, *tracksterPtr);
+      const auto combined = combinedEnergy(p,
+                                           trackMomentumErrorScale_ * tk.qoverpError() * p * p,
+                                           mass,
+                                           *tracksterPtr,
+                                           resolution_,
+                                           energyCompatibilityNSigma_);
       cand.setP4(p4Along(tk.momentum(), combined.energy, mass));
       cand.setTypeProbabilities(chargedTypeProbabilities(iTrack));
       candidates.push_back(cand);
-      trackSumP[tsIdx] += combined.compatible ? tracksterPtr->regressed_energy() : combined.energy;
+      auto &b = balance[tsIdx];
+      b.energy = tracksterPtr->regressed_energy();
+      b.given += combined.compatible ? tracksterPtr->regressed_energy() : combined.energy;
     } else {
       // Charged hadron or recovery on a hadronic trackster or with no trackster: kinematics from the track, then the
-      // weighted-average energy with the trackster (combineChargedHadrons). The calorimetric excess of the trackster
-      // becomes a neutral residual.
+      // energy shared with the trackster (combineChargedHadrons).
       TICLCandidate cand(trackPtr, tracksterPtr);
       math::PtEtaPhiMLorentzVector p4Polar(tk.pt(), tk.eta(), tk.phi(), ticl::mpion);
       cand.setP4(p4Polar);
@@ -756,42 +662,25 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
       addToEnergyCombination(iTrack, tk, tsIdx, false);
     }
   }
-  combineChargedHadrons(tracksters_h, chargedOnTrackster, trackSumP, candidates);
+  combineChargedHadrons(tracksters, chargedOnTrackster, balance, candidates);
   // Empty when the interpretation stage runs without tracksterSpeciesForTracks.
   const auto &tracksterSpecies = evt.get(tracksterSpecies_token_);
   const auto &tracksterSpeciesProbabilities = evt.get(tracksterSpeciesProbabilities_token_);
-  if (!tracksterSpecies.empty() && (tracksterSpecies.size() != tracksters_h->size() ||
-                                    tracksterSpeciesProbabilities.size() != kNeutralSpecies * tracksters_h->size()))
+  if (!tracksterSpecies.empty() && (tracksterSpecies.size() != tracksters.size() ||
+                                    tracksterSpeciesProbabilities.size() != kNeutralSpecies * tracksters.size()))
     throw cms::Exception("LogicError") << "TICLCandidateArbitrationProducer: " << tracksterSpecies.size()
                                        << " trackster species and " << tracksterSpeciesProbabilities.size()
-                                       << " species probabilities for " << tracksters_h->size() << " tracksters";
-  PointCloudEstimates pc;
-  if (usePointCloud_) {
-    pc.energy = &evt.get(pointCloudEnergy_token_);
-    pc.pileup = &evt.get(pointCloudPileup_token_);
-    if (pc.energy->size() != tracksters_h->size() || pc.pileup->size() != tracksters_h->size())
-      throw cms::Exception("LogicError") << "TICLCandidateArbitrationProducer: " << pc.energy->size()
-                                         << " point-cloud energies and " << pc.pileup->size()
-                                         << " pile-up fractions for " << tracksters_h->size() << " tracksters";
-    if (pointCloudSpecies_) {
-      pc.species = &evt.get(pointCloudSpecies_token_);
-      if (pc.species->size() != kPointCloudSpecies * tracksters_h->size())
-        throw cms::Exception("LogicError")
-            << "TICLCandidateArbitrationProducer: " << pc.species->size() << " point-cloud species probabilities for "
-            << tracksters_h->size() << " tracksters";
-    }
-  }
-  appendNeutralResiduals(tracksters_h, trackSumP, tracksterSpecies, tracksterSpeciesProbabilities, pc, candidates);
+                                       << " species probabilities for " << tracksters.size() << " tracksters";
+  appendNeutralResiduals(tracksters_h, balance, tracksterSpecies, tracksterSpeciesProbabilities, candidates);
   // Supercluster score of each final trackster (-1: none), for the type of the photon candidates.
   std::vector<float> photonScore;
   if (photonMinScore_ > 0.f) {
     const auto &eGammaScore = evt.get(eGammaScore_token_);
     const auto &eGammaIndex = evt.get(eGammaIndex_token_);
     if (eGammaScore.size() != eGammaIndex.size())
-      throw cms::Exception("Configuration")
-          << "TICLCandidateArbitrationProducer: " << eGammaScore.size() << " supercluster scores for "
-          << eGammaIndex.size() << " e/gamma tracksters; photonMinScore needs the supercluster score";
-    photonScore.assign(tracksters_h->size(), -1.f);
+      throw cms::Exception("LogicError") << "TICLCandidateArbitrationProducer: " << eGammaScore.size()
+                                         << " supercluster scores for " << eGammaIndex.size() << " e/gamma tracksters";
+    photonScore.assign(tracksters.size(), -1.f);
     for (size_t k = 0; k < eGammaIndex.size(); ++k)
       if (eGammaIndex[k] >= 0 && eGammaIndex[k] < static_cast<int>(photonScore.size()))
         photonScore[eGammaIndex[k]] = eGammaScore[k];
@@ -801,7 +690,6 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
                           neutralIdx,
                           neutralPdg,
                           evt.get(neutralSpeciesProbabilities_token_),
-                          pc,
                           photonScore,
                           candidates);
   ticl::assignTimeToCandidates(candidates,
@@ -819,7 +707,7 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
   if (attachClaimTracksters_) {
     for (auto &cand : candidates) {
       const auto track = cand.trackPtr();
-      if (track.isNull() || track.key() >= claimOfTrack->size() || (*claimOfTrack)[track.key()] < 0)
+      if (track.isNull() || (*claimOfTrack)[track.key()] < 0)
         continue;
       // The candidate keeps the time of assignTimeToCandidates.
       cand.appendTrackster(edm::Ptr<Trackster>(tracksters_h, (*claimOfTrack)[track.key()]));
@@ -835,7 +723,7 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
     auto const &layerClusters = evt.get(layerClustersToken_);
     const auto fractions = candidateLayerClusterFractions(candidates,
                                                           tracksters_h.id(),
-                                                          *tracksters_h,
+                                                          tracksters,
                                                           trackToTrackster,
                                                           trackMode,
                                                           layerClusters,
@@ -855,7 +743,7 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
       std::vector<const Trackster *> sources;
       for (auto t :
            candidateSourceTracksters(candidates[candidateIndex[i]], tracksters_h.id(), trackToTrackster, trackMode))
-        sources.push_back(&(*tracksters_h)[t]);
+        sources.push_back(&tracksters[t]);
       copySourceProperties((*candidateTracksters)[i], sources);
     }
     std::vector<float> rawEnergies;
@@ -863,13 +751,18 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
     for (auto const &ts : *candidateTracksters)
       rawEnergies.push_back(ts.raw_energy());
     const auto candidateTracksters_h = evt.put(std::move(candidateTracksters));
-    // A candidate with a rebuilt trackster holds it alone; a candidate without layer clusters keeps its source
-    // tracksters.
-    for (unsigned int i = 0; i < candidateIndex.size(); ++i) {
-      auto &cand = candidates[candidateIndex[i]];
-      cand.setTracksters({edm::Ptr<Trackster>(candidateTracksters_h, i)});
-      cand.setRawEnergy(rawEnergies[i]);
+    setCandidateTracksters(candidates, candidateIndex, rawEnergies, [&](std::size_t i) {
+      return edm::Ptr<Trackster>(candidateTracksters_h, i);
+    });
+    // A neutral residual without layer clusters is not produced: every candidate holds a track or a trackster.
+    const auto kept = removeEmptyCandidates(candidates);
+    CandidateMuons keptMuons{{}, std::make_unique<std::vector<int>>(), std::make_unique<std::vector<float>>()};
+    for (auto i : kept) {
+      keptMuons.muons.push_back(muons.muons[i]);
+      keptMuons.trackType->push_back((*muons.trackType)[i]);
+      keptMuons.energyBeforeMuon->push_back((*muons.energyBeforeMuon)[i]);
     }
+    muons = std::move(keptMuons);
   }
 
   const auto candidates_h = evt.put(std::make_unique<std::vector<TICLCandidate>>(std::move(candidates)));
@@ -879,22 +772,19 @@ void TICLCandidateArbitrationProducer::produce(edm::Event &evt, const edm::Event
   filler.fill();
   evt.put(std::move(muonMap), "muons");
   evt.put(std::move(muons.trackType), "muonTrackType");
+  evt.put(std::move(muons.energyBeforeMuon), "energyBeforeMuon");
 }
 
 void TICLCandidateArbitrationProducer::appendNeutralResiduals(const edm::Handle<std::vector<Trackster>> &tracksters_h,
-                                                              const std::map<int, float> &trackSumP,
+                                                              const std::map<int, TracksterEnergyBalance> &balance,
                                                               const std::vector<int> &tracksterSpecies,
                                                               const std::vector<float> &tracksterSpeciesProbabilities,
-                                                              const PointCloudEstimates &pc,
                                                               std::vector<TICLCandidate> &candidates) const {
-  for (auto const &[tsIdx, sumP] : trackSumP) {
+  for (auto const &[tsIdx, b] : balance) {
+    const auto residual = neutralResidualEnergy(b, residualEnergyFloor_, residualEnergyFraction_);
+    if (!residual)
+      continue;
     edm::Ptr<Trackster> tracksterPtr(tracksters_h, tsIdx);
-    if (pc.valid(tsIdx) && (*pc.pileup)[tsIdx] > pointCloudMaxPileup_)
-      continue;
-    const float eTrackster = neutralTracksterEnergy(*tracksterPtr, tsIdx, pc);
-    const float residual = eTrackster - sumP;
-    if (residual < std::max(residualEnergyFloor_, residualEnergyFraction_ * eTrackster))
-      continue;
     edm::Ptr<reco::Track> noTrack;
     TICLCandidate cand(noTrack, tracksterPtr);
     if (!tracksterSpecies.empty() && tracksterSpecies[tsIdx] != 0) {
@@ -904,7 +794,7 @@ void TICLCandidateArbitrationProducer::appendNeutralResiduals(const edm::Handle<
                                                              .first<kNeutralSpecies>()));
     }
     const auto dir = tracksterPtr->barycenter().unit();
-    math::XYZTLorentzVector p4(residual * dir.x(), residual * dir.y(), residual * dir.z(), residual);
+    math::XYZTLorentzVector p4(*residual * dir.x(), *residual * dir.y(), *residual * dir.z(), *residual);
     cand.setP4(p4);
     candidates.push_back(cand);
   }
@@ -915,7 +805,6 @@ void TICLCandidateArbitrationProducer::appendNeutralCandidates(const edm::Handle
                                                                const std::vector<int> &neutralIdx,
                                                                const std::vector<int> &neutralPdg,
                                                                const std::vector<float> &neutralSpeciesProbabilities,
-                                                               const PointCloudEstimates &pc,
                                                                const std::vector<float> &photonScore,
                                                                std::vector<TICLCandidate> &candidates) const {
   if (neutralSpeciesProbabilities.size() != kNeutralSpecies * neutralIdx.size())
@@ -923,39 +812,18 @@ void TICLCandidateArbitrationProducer::appendNeutralCandidates(const edm::Handle
                                        << " neutral species probabilities for " << neutralIdx.size() << " neutrals";
   const auto neutralShare = neutralEnergyShares(*tracksters_h, layerClusters, neutralIdx);
   for (size_t k = 0; k < neutralIdx.size(); ++k) {
-    const int idx = neutralIdx[k];
-    if (pc.valid(idx) && (*pc.pileup)[idx] > pointCloudMaxPileup_)
-      continue;
-    edm::Ptr<Trackster> tracksterPtr(tracksters_h, idx);
+    edm::Ptr<Trackster> tracksterPtr(tracksters_h, neutralIdx[k]);
     edm::Ptr<reco::Track> trackPtr;
     TICLCandidate cand(trackPtr, tracksterPtr);
+    const auto scale =
+        neutralEnergyScale(cand.energy(), cand.pt(), neutralShare[k], neutralShareMinPt_, neutralMinEnergy_);
+    if (!scale)
+      continue;
+    cand.setP4(cand.p4() * *scale);
     if (neutralPdg[k] != 0)
       cand.setPdgId(neutralPdg[k]);
     cand.setTypeProbabilities(neutralTypeProbabilities(
         std::span<const float>(neutralSpeciesProbabilities).subspan(kNeutralSpecies * k).first<kNeutralSpecies>()));
-    if (pc.species != nullptr && pc.valid(idx)) {
-      const float em = (*pc.species)[kPointCloudSpecies * idx];
-      const float neutralHadron = (*pc.species)[kPointCloudSpecies * idx + 2];
-      if (em + neutralHadron > 0.f) {
-        std::array<float, 8> p{};
-        p[int(ticl::Trackster::ParticleType::photon)] = em / (em + neutralHadron);
-        p[int(ticl::Trackster::ParticleType::neutral_hadron)] = neutralHadron / (em + neutralHadron);
-        cand.setTypeProbabilities(p);
-        cand.setPdgId(em >= neutralHadron ? 22 : 130);
-      }
-    }
-    if (pc.valid(idx) && cand.energy() > 0.)
-      cand.setP4(cand.p4() * (neutralTracksterEnergy(*tracksterPtr, idx, pc) / cand.energy()));
-    const bool applyShare = !pc.valid(idx) || pointCloudNeutralShare_;
-    const bool keepTracksterEnergy = neutralShareMinPt_ > 0.f && cand.pt() >= neutralShareMinPt_;
-    if (applyShare && !keepTracksterEnergy)
-      cand.setP4(cand.p4() * neutralShare[k]);
-    // The minimum energy of the candidate before the pile-up scale.
-    const float puScale = pc.valid(idx) && pointCloudPileupScale_ && !pointCloudMinEnergyAfterScale_
-                              ? 1.f - std::clamp((*pc.pileup)[idx], 0.f, 1.f)
-                              : 1.f;
-    if (!(cand.energy() > 0.) || cand.energy() < neutralMinEnergy_ * puScale)
-      continue;
     const int absPdg = std::abs(cand.pdgId());
     if (!photonScore.empty() && (absPdg == 22 || absPdg == 111) && cand.pt() >= photonScoreMinPt_ &&
         photonScore[neutralIdx[k]] < photonMinScore_)
@@ -967,9 +835,13 @@ void TICLCandidateArbitrationProducer::appendNeutralCandidates(const edm::Handle
 TICLCandidateArbitrationProducer::CandidateMuons TICLCandidateArbitrationProducer::applyMuonKinematics(
     const edm::Handle<std::vector<reco::Track>> &tracks_h,
     const edm::Handle<reco::MuonCollection> &muons_h,
-    std::vector<TICLCandidate> &candidates) const {
+    std::vector<TICLCandidate> &candidates) {
   CandidateMuons muons{std::vector<reco::MuonRef>(candidates.size()),
-                       std::make_unique<std::vector<int>>(candidates.size(), -1)};
+                       std::make_unique<std::vector<int>>(candidates.size(), -1),
+                       std::make_unique<std::vector<float>>()};
+  muons.energyBeforeMuon->reserve(candidates.size());
+  for (auto const &cand : candidates)
+    muons.energyBeforeMuon->push_back(cand.energy());
   const auto muonOf = muonOfTrack(tracks_h, *muons_h);
   for (size_t i = 0; i < candidates.size(); ++i) {
     auto &cand = candidates[i];
@@ -1017,7 +889,8 @@ void TICLCandidateArbitrationProducer::fillDescriptions(edm::ConfigurationDescri
                                          edm::InputTag("hgcalMergeLayerClusters", "timeLayerCluster"));
   desc.add<edm::ParameterSetDescription>("candidateTracksters", candidateTracksters)
       ->setComment(
-          "One trackster per candidate, after the energy, the time and the muon kinematics of the candidates.");
+          "One trackster per candidate, after the energy, the time and the muon kinematics of the candidates. A "
+          "candidate without layer clusters holds no trackster; a neutral one is not produced.");
   desc.add<bool>("attachClaimTracksters", true)
       ->setComment("The candidate of a track holds the claim trackster of the track, after the energy and the time.");
   desc.add<bool>("useClaimTracksterEnergy", false)
@@ -1036,10 +909,11 @@ void TICLCandidateArbitrationProducer::fillDescriptions(edm::ConfigurationDescri
   desc.add<bool>("useMTDTiming", true);
   desc.add<bool>("useTimingAverage", true);
   desc.add<float>("timingQualityThreshold", 0.5f);
-  desc.add<float>("delta_tk_gsf", 0.05f)->setComment("(eta,phi) window between an electron track and its GSF track.");
+  desc.add<float>("delta_tk_gsf", 0.05f)
+      ->setComment("(eta,phi) window between an electron track and its GSF track of the same charge.");
   desc.add<float>("residualEnergyFloor", 2.0f)->setComment("Min energy [GeV] of a neutral residual.");
   desc.add<float>("residualEnergyFraction", 0.1f)
-      ->setComment("Min energy of a neutral residual as a fraction of the trackster energy.");
+      ->setComment("Min energy of a neutral residual as a fraction of the total energy of its trackster.");
   desc.add<float>("trackMomentumErrorScale", 2.0f)->setComment("Scale of the track momentum error.");
   desc.add<float>("hadronicTrackMomentumErrorScale", 1.0f)
       ->setComment("Scale of the track momentum error of the charged hadrons that share a trackster.");
@@ -1078,28 +952,11 @@ void TICLCandidateArbitrationProducer::fillDescriptions(edm::ConfigurationDescri
           "Score of the supercluster of each e/gamma trackster (ticlEGammaSuperClusters:tracksterScore), with "
           "photonMinScore > 0.");
   desc.add<edm::InputTag>("eGammaTracksters", edm::InputTag(""))
-      ->setComment("E/gamma tracksters of the score (ticlEGammaTracksters), with photonMinScore > 0.");
+      ->setComment(
+          "E/gamma tracksters of the score: their interpretationIndex product gives the final trackster of each, with "
+          "photonMinScore > 0.");
   desc.add<edm::InputTag>("layerClusters", edm::InputTag("hgcalMergeLayerClusters"))
       ->setComment("Layer clusters of the tracksters, read for the neutral energy share.");
-  desc.add<edm::InputTag>("pointCloud", edm::InputTag(""))
-      ->setComment(
-          "Label of the point-cloud model estimates per final trackster (instances energy and puFraction); empty: "
-          "off.");
-  desc.add<bool>("pointCloudEnergy", false)
-      ->setComment("Neutral candidates and residuals start from the model energy instead of the regressed energy.");
-  desc.add<bool>("pointCloudNeutralShare", true)
-      ->setComment("Apply the neutral share model to the tracksters with a model estimate.");
-  desc.add<bool>("pointCloudPileupScale", false)
-      ->setComment("Scale the neutral energy by (1 - pile-up fraction) of the model.");
-  desc.add<bool>("pointCloudSpecies", false)
-      ->setComment("The neutral candidate type (photon or neutral hadron) from the model species probabilities.");
-  desc.add<bool>("pointCloudMinEnergyAfterScale", false)
-      ->setComment(
-          "neutralMinEnergy applies to the neutral candidate energy after the pile-up scale; false: before it.");
-  desc.add<float>("pointCloudMaxPileup", 1.f)
-      ->setComment(
-          "Neutral candidates and residuals whose trackster has a model pile-up fraction above this value "
-          "are not produced.");
   desc.add<edm::InputTag>("muonSrc", edm::InputTag("muons1stStep"));
   edm::ParameterSetDescription pfMuonAlgoDesc;
   PFMuonAlgo::fillPSetDescription(pfMuonAlgoDesc);

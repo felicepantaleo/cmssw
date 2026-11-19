@@ -4,6 +4,7 @@
 <use name="DataFormats/HGCRecHit"/>
 <use name="DataFormats/HGCalReco"/>
 <use name="DataFormats/Math"/>
+<use name="DataFormats/MuonReco"/>
 <use name="DataFormats/ParticleFlowCandidate"/>
 <use name="DataFormats/TrackReco"/>
 <use name="FWCore/Framework"/>

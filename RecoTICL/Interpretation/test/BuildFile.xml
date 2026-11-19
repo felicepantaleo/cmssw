@@ -48,3 +48,14 @@
   <use name="DataFormats/TrackReco"/>
   <use name="catch2"/>
 </bin>
+<bin name="testCandidateArbitration" file="CandidateArbitration_t.cpp">
+  <use name="RecoTICL/Interpretation"/>
+  <use name="DataFormats/CaloRecHit"/>
+  <use name="DataFormats/Common"/>
+  <use name="DataFormats/GsfTrackReco"/>
+  <use name="DataFormats/HGCalReco"/>
+  <use name="DataFormats/Provenance"/>
+  <use name="DataFormats/TrackReco"/>
+  <use name="catch2"/>
+</bin>
+<test name="testTICLCandidateArbitrationProducer" command="testTICLCandidateArbitrationProducer.sh"/>
