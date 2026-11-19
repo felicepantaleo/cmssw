@@ -23,7 +23,7 @@ public:
   explicit HGCalRecHitTimeHarvester(const edm::ParameterSet& config)
       : DQMEDHarvester(config),
         inputFile_(config.getParameter<std::string>("inputFile")),
-        lhcInfoToken_(esConsumes(config.getParameter<edm::ESInputTag>("lhcInfo"))) {}
+        lhcInfoToken_(esConsumes<edm::Transition::BeginRun>(config.getParameter<edm::ESInputTag>("lhcInfo"))) {}
 
   static void fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
     edm::ParameterSetDescription desc;
