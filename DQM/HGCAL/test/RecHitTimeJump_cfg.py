@@ -30,6 +30,7 @@ if not found:
     raise RuntimeError("No RecHit crate profiles found. Check whether RecHits were produced and monitored.")
 
 process = cms.Process("HARVESTING")
+process.load("CondTools.RunInfo.lhcPhaseShiftESSource_cfi")
 process.load("FWCore.MessageService.MessageLogger_cfi")
 process.DQMStore = cms.Service("DQMStore")
 process.source = cms.Source("EmptySource", firstRun=cms.untracked.uint32(1))
