@@ -1,5 +1,5 @@
-#ifndef RecoLocalCalo_HGCalRecProducers_plugins_alpaka_HGCalLayerClustersSoAAlgoWrapper_h
-#define RecoLocalCalo_HGCalRecProducers_plugins_alpaka_HGCalLayerClustersSoAAlgoWrapper_h
+#ifndef RecoTICL_LayerClustering_plugins_alpaka_HGCalLayerClustersSoAAlgoWrapper_h
+#define RecoTICL_LayerClustering_plugins_alpaka_HGCalLayerClustersSoAAlgoWrapper_h
 
 #include <cstdint>
 
@@ -29,4 +29,4 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
   };
 }  // namespace ALPAKA_ACCELERATOR_NAMESPACE
 
-#endif  // RecoLocalCalo_HGCalRecProducers_plugins_alpaka_HGCalLayerClustersSoAAlgoWrapper_h
+#endif  // RecoTICL_LayerClustering_plugins_alpaka_HGCalLayerClustersSoAAlgoWrapper_h

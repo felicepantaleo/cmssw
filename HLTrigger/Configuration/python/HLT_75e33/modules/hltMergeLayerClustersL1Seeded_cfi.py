@@ -9,7 +9,6 @@ hltMergeLayerClustersL1Seeded = cms.EDProducer("HGCalMergedLayerClustersFromSoAP
     layerClustersSoA = cms.VInputTag(*["hltHgcalSoALayerClustersProducer" + x + "L1Seeded" for x in _hgcal_components]),
     hgcalRecHitsSoA = cms.VInputTag(*["hltHgcalSoARecHitsProducer" + x + "L1Seeded" for x in _hgcal_components]),
     hgcalRecHitsLayerClustersSoA = cms.VInputTag(*["hltHgcalSoARecHitsLayerClustersProducer" + x + "L1Seeded" for x in _hgcal_components]),
-    detectors = cms.vstring("EE", "BH", "FH"),
     extraLayerClusters = cms.VInputTag(),
     extraTimeLayerClusters = cms.VInputTag(),
     timeClname = cms.string("timeLayerCluster")

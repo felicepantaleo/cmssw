@@ -35,8 +35,7 @@ def merged_layer_clusters():
 
 
 def merged_layer_clusters_soa():
-    """The configured ``hgcalSoAMergeLayerClusters`` producer: the same layer clusters merged on the device, which a
-    CLUEstering iteration consumes."""
+    """The configured ``hgcalSoAMergeLayerClusters`` producer: the same layer clusters merged on the device."""
     from RecoTICL.LayerClustering.hgcalLayerClusters_cff import hgcalSoAMergeLayerClusters
     return hgcalSoAMergeLayerClusters
 

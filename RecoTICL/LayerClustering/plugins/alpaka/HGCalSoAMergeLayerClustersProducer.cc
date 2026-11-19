@@ -15,9 +15,9 @@
 
 namespace ALPAKA_ACCELERATOR_NAMESPACE {
 
-  // Merges the layer clusters of the HGCAL components into one collection, one component after the other. When the
-  // components are listed in the order of the layerClusters of hgcalMergeLayerClusters (legacy Merging), both merged collections index
-  // the same layer clusters, so the tracksters built from this one can index the legacy one.
+  // Merges the layer clusters of the HGCAL components into one collection, one component after the other, in the order
+  // of hgcalLayerClustersSoA. With the order of the layerClustersSoA of hgcalMergeLayerClusters, row i of this
+  // collection and element i of the legacy merged collection are the same layer cluster.
   class HGCalSoAMergeLayerClustersProducer : public stream::EDProducer<> {
   public:
     HGCalSoAMergeLayerClustersProducer(const edm::ParameterSet& config)
@@ -51,7 +51,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                                            {edm::InputTag("hgcalSoALayerClustersEE"),
                                             edm::InputTag("hgcalSoALayerClustersHSi"),
                                             edm::InputTag("hgcalSoALayerClustersHSci")})
-          ->setComment("In the order of the layerClusters of hgcalMergeLayerClusters.");
+          ->setComment("the SoA layer clusters of each HGCAL component, in the order of the merged collection");
       descriptions.addWithDefaultLabel(desc);
     }
 
