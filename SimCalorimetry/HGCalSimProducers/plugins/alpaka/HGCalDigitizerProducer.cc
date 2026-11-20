@@ -102,6 +102,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     std::optional<hgcaldigi::HGCalPhaseShiftsDevice> phaseShiftsDevice_;
 
     std::optional<hgcaldigi::HGCalECONDPacketInfoDevice> econInfo_device_;
+    std::optional<::hgcaldigi::HGCalDigiHost> digisHost_;
+    std::optional<::hgcaldigi::HGCalECONDPacketInfoHost> econdInfoHost_;
     edm::EDPutTokenT<::hgcaldigi::HGCalECONDPacketInfoHost> econInfoTkn_;
   };
 
@@ -239,9 +241,6 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       alpaka::memcpy(queue, phaseShiftsDevice_->buffer(), phaseShiftsHost_->buffer());
     });
 
-    //synch queue for copy of data procedure
-    alpaka::wait(queue);
-
     //run ageing
     if (useHitList) {
       agedG4HitsAcc_device_ = accumulator_.accumulate(queue, iEvent.get(g4HitListTkn_), nchannels);
@@ -268,6 +267,12 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
 
       //havest the digis
       rocDigis_device_ = digitizer_.harvest(queue, rocDigisAcc_device_.value().const_view());
+
+      // copy to the host (as the unpacker does for the time being); the framework waits before produce()
+      digisHost_.emplace(queue, rocDigis_device_->view().metadata().size());
+      alpaka::memcpy(queue, digisHost_->buffer(), rocDigis_device_->const_buffer());
+      econdInfoHost_.emplace(queue, econInfo_device_->view().metadata().size());
+      alpaka::memcpy(queue, econdInfoHost_->buffer(), econInfo_device_->const_buffer());
     }
 
 #ifdef EDM_ML_DEBUG
@@ -283,18 +288,10 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
   void HGCalDigitizerProducer::produce(device::Event& iEvent, device::EventSetup const& iSetup) {
     LogDebug("[HGCalDigitizerProducer]") << "Storing HGCAL DIGIs in the event";
 
-    //copy to host (as the unpacker does for the time being)
-    auto& queue = iEvent.queue();
-    auto const& digisDevice = rocDigis_device_.value();
-    ::hgcaldigi::HGCalDigiHost digisHost(digisDevice.view().metadata().size());
-    alpaka::memcpy(queue, digisHost.buffer(), digisDevice.const_buffer());
-    iEvent.emplace(rocDigisTkn_, std::move(digisHost));
-
-    auto const& econdDevice = econInfo_device_.value();
-    ::hgcaldigi::HGCalECONDPacketInfoHost econdInfoHost(econdDevice.view().metadata().size());
-    alpaka::memcpy(queue, econdInfoHost.buffer(), econdDevice.const_buffer());
-    alpaka::wait(queue);
-    iEvent.emplace(econInfoTkn_, std::move(econdInfoHost));
+    iEvent.emplace(rocDigisTkn_, std::move(digisHost_.value()));
+    digisHost_.reset();
+    iEvent.emplace(econInfoTkn_, std::move(econdInfoHost_.value()));
+    econdInfoHost_.reset();
 
     //helpers
     if (produceExtra_) {
