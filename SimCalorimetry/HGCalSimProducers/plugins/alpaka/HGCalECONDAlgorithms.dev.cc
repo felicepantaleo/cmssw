@@ -23,9 +23,9 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                                   HGCalECONDPacketInfoDevice::View econdInfo,
                                   HGCalMappingModuleParamDevice::ConstView moduleInfo,
                                   const uint64_t seed) const {
-      // one engine per thread (or per work item)
+      // one engine per thread (or per work item); subsequence 1, so that the numbers differ from the cell noise
       const uint32_t globalThreadIdx = alpaka::getIdx<alpaka::Grid, alpaka::Threads>(acc)[0u];
-      auto engine = alpaka::rand::engine::createDefault(acc, seed + globalThreadIdx, 0);
+      auto engine = alpaka::rand::engine::createDefault(acc, seed + globalThreadIdx, 1);
       auto normal = alpaka::rand::distribution::createNormalReal<float>(acc);
 
       // dispatch operation
