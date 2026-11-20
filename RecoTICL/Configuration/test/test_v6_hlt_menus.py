@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """With ticl_v6, the Phase-2 HLT menus run TICLv6: on every path, each TICL product that a module reads comes from a
-module earlier on the same path, and no TICLv5-only module stays. Without ticl_v6, the menus run TICLv5."""
+module earlier on the same path, and no TICLv5-only module stays. The unseeded e/gamma candidates read the TICLv6
+e/gamma superclusters, the HGCAL ID variables read the HGCAL rechits, and only a path with the HGCAL PF clusters runs
+the HGCAL PF rechits. Without ticl_v6, the menus run TICLv5."""
 
 import subprocess
 import sys
@@ -11,7 +13,8 @@ from FWCore.ParameterSet.SequenceTypes import ModuleNodeVisitor
 MENUS = (("HLT_NGTScouting_cff", ("alpaka", "ngtScouting")), ("HLT_75e33_timing_cff", ()), ("HLT_75e33_cff", ()))
 V5_ONLY = ("hltFilteredLayerClustersCLUE3DHigh", "hltTiclSeedingGlobal", "hltTiclTrackstersCLUE3DHigh",
            "hltFilteredLayerClustersRecovery")
-TICL_PREFIXES = ("hltTicl", "hltFilteredLayerClusters", "hltPfTICL", "hltHgcalSoAMergeLayerClusters")
+TICL_PREFIXES = ("hltTicl", "hltFilteredLayerClusters", "hltPfTICL", "hltHgcalSoAMergeLayerClusters", "hltHGCalRecHitMap")
+HGCAL_PF_RECHITS = ("hltParticleFlowRecHitHGC", "hltParticleFlowRecHitHGCL1Seeded")
 # Inputs that a module reads only when a switch of the module is on.
 SWITCHES = {"timingSoA": "useMTDTiming", "gsf_tracks": "useGsfTracks"}
 
@@ -47,6 +50,15 @@ def check(menu, names, v6):
         failures.append("hltTiclCandidate is a %s" % process.hltTiclCandidate.type_())
     if v6:
         failures += ["%s is in the process" % label for label in V5_ONLY if hasattr(process, label)]
+        if hasattr(process, "hltTiclEGammaSuperClusterProducerUnseeded"):
+            failures.append("hltTiclEGammaSuperClusterProducerUnseeded is in the process")
+        if (hasattr(process, "hltEgammaCandidatesUnseeded") and
+                process.hltEgammaCandidatesUnseeded.scIslandEndcapProducer.getModuleLabel() !=
+                "hltTiclEGammaSuperClustersUnseeded"):
+            failures.append("hltEgammaCandidatesUnseeded does not read hltTiclEGammaSuperClustersUnseeded")
+        for label, module in process.producers_().items():
+            if module.type_() == "EgammaHLTHGCalIDVarProducer" and module.hgcalRecHits.getModuleLabel():
+                failures.append("%s reads the PF rechits %s" % (label, module.hgcalRecHits.getModuleLabel()))
     for name, path in process.paths_().items():
         modules = []
         path.visit(ModuleNodeVisitor(modules))
@@ -56,6 +68,8 @@ def check(menu, names, v6):
                 if used.startswith(TICL_PREFIXES) and used not in seen:
                     failures.append("%s: %s reads %s, which no earlier module makes" % (name, module.label_(), used))
             seen.add(module.label_())
+        if v6 and "hltParticleFlowClusterHGCal" not in seen:
+            failures += ["%s runs %s" % (name, label) for label in HGCAL_PF_RECHITS if label in seen]
     for failure in failures:
         print("FAIL [%s, %s]: %s" % (menu, "ticl_v6" if v6 else "default", failure))
     return 1 if failures else 0

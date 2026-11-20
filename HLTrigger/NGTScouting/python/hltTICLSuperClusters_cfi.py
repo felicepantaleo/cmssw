@@ -33,3 +33,6 @@ hltTiclSuperClustersTable = cms.EDProducer(
                            doc="SuperCluster position phi"),
     ),
 )
+# With ticl_v6, the table reads the superclusters of the TICLv6 e/gamma tracksters.
+from Configuration.ProcessModifiers.ticl_v6_cff import ticl_v6
+ticl_v6.toModify(hltTiclSuperClustersTable, src="hltTiclEGammaSuperClustersUnseeded")
