@@ -23,13 +23,11 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                                   HGCalECONDPacketInfoDevice::View econdInfo,
                                   HGCalMappingModuleParamDevice::ConstView moduleInfo,
                                   const uint64_t seed) const {
-      // one engine per thread (or per work item); subsequence 1, so that the numbers differ from the cell noise
-      const uint32_t globalThreadIdx = alpaka::getIdx<alpaka::Grid, alpaka::Threads>(acc)[0u];
-      auto engine = alpaka::rand::engine::createDefault(acc, seed + globalThreadIdx, 1);
-      auto normal = alpaka::rand::distribution::createNormalReal<float>(acc);
-
       // dispatch operation
       for (auto idx : uniform_elements(acc, econdInfo.metadata().size())) {
+        // one subsequence per module; the cell noise uses the subsequences below 2^31
+        auto engine = alpaka::rand::engine::createDefault(acc, static_cast<uint32_t>(seed), (1u << 31) | idx);
+        auto normal = alpaka::rand::distribution::createNormalReal<float>(acc);
         auto econd = econdInfo[idx];
 
         // a normal packet without exception; the simulation does not emulate the header fields

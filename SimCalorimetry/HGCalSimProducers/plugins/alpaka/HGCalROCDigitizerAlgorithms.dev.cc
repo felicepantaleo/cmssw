@@ -28,13 +28,11 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                                   HGCalDenseIndexInfoDevice::ConstView denseIndex,
                                   HGCalMappingCellParamDevice::ConstView cellInfo,
                                   const uint64_t seed) const {
-      const uint32_t globalThreadIdx = alpaka::getIdx<alpaka::Grid, alpaka::Threads>(acc)[0u];
-      // one engine per thread (or per work item)
-      auto engine = alpaka::rand::engine::createDefault(acc, seed + globalThreadIdx, 0);
-      auto normal = alpaka::rand::distribution::createNormalReal<float>(acc);
-
       // dispatch operation
       for (auto idx : uniform_elements(acc, realisticHits.metadata().size())) {
+        // the noise of a cell depends only on the event seed and on the cell index
+        auto engine = alpaka::rand::engine::createDefault(acc, static_cast<uint32_t>(seed), idx);
+        auto normal = alpaka::rand::distribution::createNormalReal<float>(acc);
         auto sumQ = realisticHits[idx].sumQ();
         auto enc = conds[idx].enc();
         //auto cellIdx = denseIndex[idx].cellInfoIdx();
