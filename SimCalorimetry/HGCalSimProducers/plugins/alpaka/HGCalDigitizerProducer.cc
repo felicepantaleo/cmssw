@@ -12,7 +12,6 @@
 
 // CMSSW imports
 #include "FWCore/AbstractServices/interface/RandomNumberGenerator.h"
-#include "FWCore/Framework/interface/ESWatcher.h"
 #include "FWCore/Framework/interface/MakerMacros.h"
 #include "FWCore/ParameterSet/interface/ConfigurationDescriptions.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
@@ -44,7 +43,7 @@
 #include "DataFormats/HGCalDigi/interface/alpaka/HGCalDigiDevice.h"
 #include "DataFormats/HGCalDigi/interface/HGCalECONDPacketInfoHost.h"
 #include "DataFormats/HGCalDigi/interface/alpaka/HGCalECONDPacketInfoDevice.h"
-#include "CondFormats/HGCalObjects/interface/HGCalAgeingCondsHost.h"
+#include "CondFormats/HGCalObjects/interface/alpaka/HGCalAgeingCondsDevice.h"
 #include "CondFormats/DataRecord/interface/HGCalAgeingCondsRcd.h"
 #include "CondFormats/DataRecord/interface/HGCalDenseIndexInfoRcd.h"
 #include "CondFormats/HGCalObjects/interface/HGCalMappingParameterHost.h"
@@ -76,12 +75,12 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     const edm::EDGetTokenT<float> lhcPhaseShiftToken_;
     edm::EDGetTokenT<hgcaldigi::HGCalSimHitAccumHost> g4HitsAccTkn_;
     edm::EDGetTokenT<hgcaldigi::HGCalSimHitListHost> g4HitListTkn_;
-    edm::ESWatcher<HGCalAgeingCondsRcd> ageingCondsWatcher_;
-    const edm::ESGetToken<hgcal::HGCalAgeingCondsHost, HGCalAgeingCondsRcd> ageingCondsTkn_;
+    const device::ESGetToken<hgcal::HGCalAgeingCondsDevice, HGCalAgeingCondsRcd> ageingCondsTkn_;
     const edm::ESGetToken<hgcal::HGCalDenseIndexInfoHost, HGCalDenseIndexInfoRcd> denseIndexTkn_;
+    const device::ESGetToken<hgcal::HGCalDenseIndexInfoDevice, HGCalDenseIndexInfoRcd> denseIndexDeviceTkn_;
     edm::ESGetToken<HGCalMappingModuleIndexer, HGCalElectronicsMappingRcd> readoutMapTkn_;
-    const edm::ESGetToken<hgcal::HGCalMappingModuleParamHost, HGCalElectronicsMappingRcd> moduleInfoTkn_;
-    const edm::ESGetToken<hgcal::HGCalMappingCellParamHost, HGCalElectronicsMappingRcd> cellInfoToken_;
+    const device::ESGetToken<hgcal::HGCalMappingModuleParamDevice, HGCalElectronicsMappingRcd> moduleInfoTkn_;
+    const device::ESGetToken<hgcal::HGCalMappingCellParamDevice, HGCalElectronicsMappingRcd> cellInfoToken_;
     const int n_blocks_, n_threads_;
     const HGCalSimHitListAlgorithms accumulator_;
     const HGCalAgeingAlgorithms ripener_;
@@ -112,6 +111,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
         lhcPhaseShiftToken_{consumes<float>(iConfig.getParameter<edm::InputTag>("lhcPhaseShift"))},
         ageingCondsTkn_{esConsumes(iConfig.getParameter<edm::ESInputTag>("ageingConds"))},
         denseIndexTkn_{esConsumes(iConfig.getParameter<edm::ESInputTag>("denseIndexer"))},
+        denseIndexDeviceTkn_{esConsumes(iConfig.getParameter<edm::ESInputTag>("denseIndexer"))},
         readoutMapTkn_{esConsumes(iConfig.getParameter<edm::ESInputTag>("readoutMap"))},
         moduleInfoTkn_{esConsumes(iConfig.getParameter<edm::ESInputTag>("moduleInfo"))},
         cellInfoToken_{esConsumes(iConfig.getParameter<edm::ESInputTag>("cellInfo"))},
@@ -193,13 +193,15 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
   //
   void HGCalDigitizerProducer::acquire(device::Event const& iEvent, device::EventSetup const& iSetup) {
     auto& queue = iEvent.queue();
-    const auto& ageingConds = iSetup.getData(ageingCondsTkn_);
+    // the framework copies the conditions to the device once for each IOV
+    const auto& ageingConds_device = iSetup.getData(ageingCondsTkn_);
     const auto& denseIndexer = iSetup.getData(denseIndexTkn_);
     const auto& readoutMap = iSetup.getData(readoutMapTkn_);
-    const auto& moduleInfo = iSetup.getData(moduleInfoTkn_);
-    int nmodules = moduleInfo.view().metadata().size();
-    const auto& cellInfo = iSetup.getData(cellInfoToken_);
-    int ncellinfo = cellInfo.view().metadata().size();
+    const auto& denseIndex_device = iSetup.getData(denseIndexDeviceTkn_);
+    const auto& moduleInfo_device = iSetup.getData(moduleInfoTkn_);
+    int nmodules = moduleInfo_device.view().metadata().size();
+    const auto& cellInfo_device = iSetup.getData(cellInfoToken_);
+    int ncellinfo = cellInfo_device.view().metadata().size();
     const bool useHitList = !g4HitListTkn_.isUninitialized();
     auto const* g4AccHits = useHitList ? nullptr : &iEvent.get(g4HitsAccTkn_);
     auto nchannels = useHitList ? denseIndexer.view().metadata().size() : g4AccHits->view().metadata().size();
@@ -208,7 +210,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     auto const& lhc_phaseshift = lhcPhaseShift.isValid() ? *lhcPhaseShift : 0.;
 
     LogDebug("[HGCalDigitizerProducer]") << "Loaded accumulated Geant 4 hits for " << nchannels << " cells"
-                                         << ", " << ageingConds.view().metadata().size() << " ageing conditions"
+                                         << ", " << ageingConds_device.view().metadata().size() << " ageing conditions"
                                          << ", " << denseIndexer.view().metadata().size() << " dense indices"
                                          << ", " << nmodules << " modules"
                                          << ", and " << ncellinfo << " cell info indices";
@@ -224,16 +226,6 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
 
     // per event noise seed
     const uint64_t seed = static_cast<uint64_t>(CLHEP::RandFlat::shootInt(&engine, std::numeric_limits<int>::max()));
-
-    //copy conditions and dense indexer to device
-    hgcal::HGCalAgeingCondsDevice ageingConds_device(queue, nchannels);
-    alpaka::memcpy(queue, ageingConds_device.buffer(), ageingConds.const_buffer());
-    hgcal::HGCalDenseIndexInfoDevice denseIndex_device(queue, nchannels);
-    alpaka::memcpy(queue, denseIndex_device.buffer(), denseIndexer.const_buffer());
-    hgcal::HGCalMappingModuleParamDevice moduleInfo_device(queue, nmodules);
-    alpaka::memcpy(queue, moduleInfo_device.buffer(), moduleInfo.const_buffer());
-    hgcal::HGCalMappingCellParamDevice cellInfo_device(queue, ncellinfo);
-    alpaka::memcpy(queue, cellInfo_device.buffer(), cellInfo.const_buffer());
 
     // special procedure to generate and copy the vector of time jumps to the device (avoid doing it twice)
     // note 1: move to an ESProducer following the pattern above....
