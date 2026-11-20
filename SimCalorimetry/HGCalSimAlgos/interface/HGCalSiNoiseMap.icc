@@ -43,7 +43,7 @@ HGCalSiNoiseMap<T>::HGCalSiNoiseMap()
   const double cellCapacitance_hd120 = 48.;
   cellCapacitance_[HGCSiliconDetId::HGCalHD120] = cellCapacitance_hd120;
   cellRefArea_[HGCSiliconDetId::HGCalHD120] = 0.56204;
-  calibCellRefArea_[HGCSiliconDetId::HGCalHD120] = 29.086;
+  calibCellRefArea_[HGCSiliconDetId::HGCalHD120] = 0.29086;
   const double cellVolume_hd120 = cellRefArea_[HGCSiliconDetId::HGCalHD120] * (120.e-4);
   cellVolume_[HGCSiliconDetId::HGCalHD120] = cellVolume_hd120;
 
@@ -53,7 +53,7 @@ HGCalSiNoiseMap<T>::HGCalSiNoiseMap()
   const double cellCapacitance_ld200 = 67.;
   cellCapacitance_[HGCSiliconDetId::HGCalLD200] = cellCapacitance_ld200;
   cellRefArea_[HGCSiliconDetId::HGCalLD200] = 1.2646;
-  calibCellRefArea_[HGCSiliconDetId::HGCalLD200] = 29.086;
+  calibCellRefArea_[HGCSiliconDetId::HGCalLD200] = 0.29086;
   const double cellVolume_ld200 = cellRefArea_[HGCSiliconDetId::HGCalLD200] * (200.e-4);
   cellVolume_[HGCSiliconDetId::HGCalLD200] = cellVolume_ld200;
 
@@ -177,7 +177,7 @@ typename HGCalSiNoiseMap<T>::SiCellOpCharacteristics HGCalSiNoiseMap<T>::getSiCe
   }
 
   //capacitance an volume are re-scaled by the scaling factor of the area with respect to a reference full cell
-  //calibration channels use the pre-stored value
+  //calibration channels use the pre-stored value; all areas are in cm2
   double areaSF = (chType == 0) ? calibCellRefArea_[cellType] / cellRefArea_[cellType]
                                 : geom()->getArea(cellId) / cellRefArea_[cellType];
 
