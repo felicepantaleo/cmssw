@@ -21,7 +21,6 @@
 // alpaka imports
 #include "HeterogeneousCore/AlpakaCore/interface/alpaka/global/EDProducer.h"
 #include "HeterogeneousCore/AlpakaCore/interface/alpaka/EDPutToken.h"
-#include "HeterogeneousCore/AlpakaCore/interface/alpaka/ESGetToken.h"
 #include "HeterogeneousCore/AlpakaCore/interface/alpaka/Event.h"
 #include "HeterogeneousCore/AlpakaInterface/interface/config.h"
 #include "HeterogeneousCore/AlpakaInterface/interface/CopyToDevice.h"
@@ -29,7 +28,6 @@
 // data formats
 #include "SimDataFormats/CaloHit/interface/PCaloHitContainer.h"
 #include "DataFormats/HGCalDigi/interface/HGCalSimHitAccumHost.h"
-#include "CondFormats/HGCalObjects/interface/alpaka/HGCalMappingParameterDevice.h"
 #include "CondFormats/DataRecord/interface/HGCalDenseIndexInfoRcd.h"
 #include "CondFormats/HGCalObjects/interface/HGCalMappingParameterHost.h"
 #include "CondFormats/DataRecord/interface/HGCalElectronicsMappingRcd.h"
@@ -84,11 +82,11 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     @short reads the electronics dense indexing and builds an internal DetId -> DenseIndex mapping
     The mapping is only built once in a run. The `ncellsMapped_` variable is used to track if the map is available or not
     */
-    int32_t buildGeoToDenseIndexMap(const hgcal::HGCalDenseIndexInfoDevice&,
+    int32_t buildGeoToDenseIndexMap(const hgcal::HGCalDenseIndexInfoHost&,
                                     const hgcal::HGCalMappingCellParamHost&) const;
 
     const bool produceExtra_;
-    const device::ESGetToken<hgcal::HGCalDenseIndexInfoDevice, HGCalDenseIndexInfoRcd> indexingToken_;
+    const edm::ESGetToken<hgcal::HGCalDenseIndexInfoHost, HGCalDenseIndexInfoRcd> indexingToken_;
     const edm::ESGetToken<hgcal::HGCalMappingCellParamHost, HGCalElectronicsMappingRcd> cellMappingToken_;
     const edm::EDPutTokenT<hgcaldigi::HGCalSimHitAccumHost> g4AccumulatorToken_;
     edm::EDPutTokenT<hgcaldigi::HGCalSimHitAccumulatorMonitorCollection> accMonitorToken_;
@@ -166,7 +164,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
   }
 
   //
-  int32_t HGCalSimHitAccumulator::buildGeoToDenseIndexMap(const hgcal::HGCalDenseIndexInfoDevice& denseIndexInfo,
+  int32_t HGCalSimHitAccumulator::buildGeoToDenseIndexMap(const hgcal::HGCalDenseIndexInfoHost& denseIndexInfo,
                                                           const hgcal::HGCalMappingCellParamHost& cellInfo) const {
     //loop over the indices and map the DetId for the physical cells
     auto const& cellInfo_view = cellInfo.const_view();
