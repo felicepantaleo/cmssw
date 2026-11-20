@@ -32,6 +32,19 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       for (auto idx : uniform_elements(acc, econdInfo.metadata().size())) {
         auto econd = econdInfo[idx];
 
+        // a normal packet without exception; the simulation does not emulate the header fields
+        econd.cbFlag() = 0;
+        econd.econdFlag() = 0;
+        econd.exception() = 0;
+        econd.location() = 0;
+        econd.payloadLength() = 0;
+        econd.BX() = 0;
+        econd.L1A() = 0;
+        econd.Orbit() = 0;
+        econd.CBBX() = 0;
+        econd.CBL1A() = 0;
+        econd.CBOrbit() = 0;
+
         //placeholder - in practice we should get the gain associated with the module and then throw the typical expected noise for 47pF with that gain
         // in addition there would be no need to generate 12 values just the ones corresponding to 2*nErx
         for (size_t i = 0; i < 12; i++)
