@@ -4,6 +4,8 @@
 // system include files
 #include <map>
 #include <memory>
+#include <optional>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -11,10 +13,13 @@
 #include <Math/Vector3Dfwd.h>
 
 // CMSSW include files
+#include "DataFormats/Common/interface/MultiSpan.h"
+#include "DataFormats/Common/interface/RefProdVector.h"
 #include "DataFormats/EgammaReco/interface/SuperCluster.h"
 #include "DataFormats/ForwardDetId/interface/HGCEEDetId.h"
 #include "DataFormats/ForwardDetId/interface/HGCalDetId.h"
 #include "DataFormats/HGCRecHit/interface/HGCRecHit.h"
+#include "DataFormats/HGCRecHit/interface/HGCRecHitCollections.h"
 #include "DataFormats/ParticleFlowReco/interface/PFRecHit.h"
 #include "DataFormats/ParticleFlowReco/interface/PFRecHitFraction.h"
 #include "FWCore/Framework/interface/ConsumesCollector.h"
@@ -69,10 +74,36 @@ public:
           sigma2ww(0.0) {}
   };
 
+  // Energy and squared transverse energy of a hit.
+  struct HitEnergy {
+    double energy;
+    double pt2;
+  };
+
+  // The hits of the shower shapes in one event: the PF rechits, or the HGCAL rechits with a signal over noise of at
+  // least minSignalOverNoise.
+  class HitSource {
+  public:
+    void setPFRecHits(const std::vector<reco::PFRecHit> &recHits);
+    void setHGCRecHits(const std::unordered_map<DetId, const unsigned int> &hitMap,
+                       const edm::RefProdVector<HGCRecHitCollection> &hits,
+                       float minSignalOverNoise,
+                       std::shared_ptr<const ticlgeom::Tools> recHitTools);
+    // Empty if the hit is not in the source or does not pass its selection.
+    std::optional<HitEnergy> find(DetId detId) const;
+
+  private:
+    std::unordered_map<uint32_t, const reco::PFRecHit *> pfRecHits_;
+    const std::unordered_map<DetId, const unsigned int> *hitMap_ = nullptr;
+    edm::MultiSpan<HGCRecHit> hits_;
+    float minSignalOverNoise_ = 0.f;
+    std::shared_ptr<const ticlgeom::Tools> recHitTools_;
+  };
+
   class ShowerShapeCalc {
   public:
     ShowerShapeCalc(std::shared_ptr<const ticlgeom::Tools> recHitTools,
-                    std::shared_ptr<const std::unordered_map<uint32_t, const reco::PFRecHit *> > pfRecHitPtrMap,
+                    std::shared_ptr<const HitSource> hitSource,
                     const std::vector<std::pair<DetId, float> > &hitsAndFracs,
                     const double rawEnergy,
                     const double minHitE = 0,
@@ -96,7 +127,7 @@ public:
     void setLayerWiseInfo();
 
     std::shared_ptr<const ticlgeom::Tools> recHitTools_;
-    std::shared_ptr<const std::unordered_map<uint32_t, const reco::PFRecHit *> > pfRecHitPtrMap_;
+    std::shared_ptr<const HitSource> hitSource_;
     double rawEnergy_;
 
     double minHitE_;
@@ -132,6 +163,12 @@ public:
   void initPerSetup(const edm::EventSetup &iSetup);
   void initPerEvent(const std::vector<reco::PFRecHit> &recHits);
   void initPerEvent(const edm::EventSetup &iSetup, const std::vector<reco::PFRecHit> &recHits);
+  // The shower shapes read the HGCAL rechits of the RecHitMapProducer products with a signal over noise of at least
+  // minSignalOverNoise.
+  void initPerEvent(const edm::EventSetup &iSetup,
+                    const std::unordered_map<DetId, const unsigned int> &hitMap,
+                    const edm::RefProdVector<HGCRecHitCollection> &hits,
+                    float minSignalOverNoise);
 
   HGCalShowerShapeHelper::ShowerShapeCalc createCalc(const std::vector<std::pair<DetId, float> > &hitsAndFracs,
                                                      double rawEnergy,
@@ -150,11 +187,9 @@ public:
   }
 
 private:
-  void setPFRecHitPtrMap(const std::vector<reco::PFRecHit> &recHits);
-
   edm::ESGetToken<TICLGeomHost, CaloGeometryRecord> ticlGeomToken_;
   std::shared_ptr<ticlgeom::Tools> recHitTools_;
-  std::shared_ptr<std::unordered_map<uint32_t, const reco::PFRecHit *> > pfRecHitPtrMap_;
+  std::shared_ptr<HitSource> hitSource_;
 };
 
 #endif

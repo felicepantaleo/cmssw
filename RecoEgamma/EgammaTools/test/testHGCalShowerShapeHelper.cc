@@ -4,19 +4,17 @@
 #include "RecoEgamma/EgammaTools/interface/HGCalShowerShapeHelper.h"
 
 #include <memory>
-#include <unordered_map>
 #include <vector>
 
 TEST_CASE("HGCalShowerShapeHelper cell size per silicon wafer type", "[HGCalShowerShapeHelper]") {
-  const HGCalShowerShapeHelper::ShowerShapeCalc calc(
-      std::make_shared<const ticlgeom::Tools>(),
-      std::make_shared<const std::unordered_map<uint32_t, const reco::PFRecHit*>>(),
-      std::vector<std::pair<DetId, float>>(),
-      1.0,
-      0.,
-      0.,
-      1,
-      26);
+  const HGCalShowerShapeHelper::ShowerShapeCalc calc(std::make_shared<const ticlgeom::Tools>(),
+                                                     std::make_shared<const HGCalShowerShapeHelper::HitSource>(),
+                                                     std::vector<std::pair<DetId, float>>(),
+                                                     1.0,
+                                                     0.,
+                                                     0.,
+                                                     1,
+                                                     26);
   auto cellSize = [&calc](int type) {
     return calc.getCellSize(HGCSiliconDetId(DetId::HGCalEE, 1, type, 10, 3, 0, 5, 5));
   };

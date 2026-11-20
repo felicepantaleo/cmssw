@@ -10,18 +10,17 @@
 const double HGCalShowerShapeHelper::kLDWaferCellSize_ = 0.698;
 const double HGCalShowerShapeHelper::kHDWaferCellSize_ = 0.465;
 
-HGCalShowerShapeHelper::ShowerShapeCalc::ShowerShapeCalc(
-    std::shared_ptr<const ticlgeom::Tools> recHitTools,
-    std::shared_ptr<const std::unordered_map<uint32_t, const reco::PFRecHit *>> pfRecHitPtrMap,
-    const std::vector<std::pair<DetId, float>> &hitsAndFracs,
-    const double rawEnergy,
-    const double minHitE,
-    const double minHitET,
-    const int minLayer,
-    const int maxLayer,
-    const DetId::Detector subDet)
+HGCalShowerShapeHelper::ShowerShapeCalc::ShowerShapeCalc(std::shared_ptr<const ticlgeom::Tools> recHitTools,
+                                                         std::shared_ptr<const HitSource> hitSource,
+                                                         const std::vector<std::pair<DetId, float>> &hitsAndFracs,
+                                                         const double rawEnergy,
+                                                         const double minHitE,
+                                                         const double minHitET,
+                                                         const int minLayer,
+                                                         const int maxLayer,
+                                                         const DetId::Detector subDet)
     : recHitTools_(recHitTools),
-      pfRecHitPtrMap_(pfRecHitPtrMap),
+      hitSource_(std::move(hitSource)),
       rawEnergy_(rawEnergy),
       minHitE_(minHitE),
       minHitET_(minHitET),
@@ -226,25 +225,23 @@ void HGCalShowerShapeHelper::ShowerShapeCalc::setFilteredHitsAndFractions(
     if (hitId.det() != subDet_) {
       continue;
     }
-    auto hitIt = pfRecHitPtrMap_->find(hitId.rawId());
-    if (hitIt == pfRecHitPtrMap_->end()) {
+    const auto hit = hitSource_->find(hitId);
+    if (!hit) {
       continue;
     }
 
-    const reco::PFRecHit &recHit = *hitIt->second;
-
-    if (recHit.energy() < minHitE_) {
+    if (hit->energy < minHitE_) {
       continue;
     }
 
-    if (recHit.pt2() < minHitET2_) {
+    if (hit->pt2 < minHitET2_) {
       continue;
     }
 
     // Fill the vectors
     hitsAndFracs_.push_back(hnf);
-    hitEnergies_.push_back(recHit.energy());
-    hitEnergiesWithFracs_.push_back(recHit.energy() * hitEfrac);
+    hitEnergies_.push_back(hit->energy);
+    hitEnergiesWithFracs_.push_back(hit->energy * hitEfrac);
   }
 }
 
@@ -295,13 +292,54 @@ void HGCalShowerShapeHelper::ShowerShapeCalc::setLayerWiseInfo() {
   }
 }
 
+void HGCalShowerShapeHelper::HitSource::setPFRecHits(const std::vector<reco::PFRecHit> &recHits) {
+  hitMap_ = nullptr;
+  hits_ = edm::MultiSpan<HGCRecHit>();
+  recHitTools_.reset();
+  pfRecHits_.clear();
+  for (const auto &recHit : recHits) {
+    pfRecHits_[recHit.detId()] = &recHit;
+  }
+}
+
+void HGCalShowerShapeHelper::HitSource::setHGCRecHits(const std::unordered_map<DetId, const unsigned int> &hitMap,
+                                                      const edm::RefProdVector<HGCRecHitCollection> &hits,
+                                                      float minSignalOverNoise,
+                                                      std::shared_ptr<const ticlgeom::Tools> recHitTools) {
+  pfRecHits_.clear();
+  hitMap_ = &hitMap;
+  hits_ = edm::MultiSpan<HGCRecHit>(hits);
+  minSignalOverNoise_ = minSignalOverNoise;
+  recHitTools_ = std::move(recHitTools);
+}
+
+std::optional<HGCalShowerShapeHelper::HitEnergy> HGCalShowerShapeHelper::HitSource::find(DetId detId) const {
+  if (hitMap_ == nullptr) {
+    const auto it = pfRecHits_.find(detId.rawId());
+    if (it == pfRecHits_.end()) {
+      return std::nullopt;
+    }
+    return HitEnergy{it->second->energy(), it->second->pt2()};
+  }
+  const auto it = hitMap_->find(detId);
+  if (it == hitMap_->end()) {
+    return std::nullopt;
+  }
+  const HGCRecHit &recHit = hits_[it->second];
+  if (recHit.signalOverSigmaNoise() < minSignalOverNoise_) {
+    return std::nullopt;
+  }
+  const auto position = recHitTools_->getPosition(detId);
+  const double mag2 = position.mag2();
+  const double energy = recHit.energy();
+  return HitEnergy{energy, mag2 > 0. ? energy * energy * position.perp2() / mag2 : 0.};
+}
+
 HGCalShowerShapeHelper::HGCalShowerShapeHelper()
-    : recHitTools_(std::make_shared<ticlgeom::Tools>()),
-      pfRecHitPtrMap_(std::make_shared<std::unordered_map<uint32_t, const reco::PFRecHit *>>()) {}
+    : recHitTools_(std::make_shared<ticlgeom::Tools>()), hitSource_(std::make_shared<HitSource>()) {}
 
 HGCalShowerShapeHelper::HGCalShowerShapeHelper(edm::ConsumesCollector &&sumes)
-    : recHitTools_(std::make_shared<ticlgeom::Tools>()),
-      pfRecHitPtrMap_(std::make_shared<std::unordered_map<uint32_t, const reco::PFRecHit *>>()) {
+    : recHitTools_(std::make_shared<ticlgeom::Tools>()), hitSource_(std::make_shared<HitSource>()) {
   setTokens(sumes);
 }
 
@@ -310,12 +348,20 @@ void HGCalShowerShapeHelper::initPerSetup(const edm::EventSetup &iSetup) {
 }
 
 void HGCalShowerShapeHelper::initPerEvent(const std::vector<reco::PFRecHit> &pfRecHits) {
-  setPFRecHitPtrMap(pfRecHits);
+  hitSource_->setPFRecHits(pfRecHits);
 }
 
 void HGCalShowerShapeHelper::initPerEvent(const edm::EventSetup &iSetup, const std::vector<reco::PFRecHit> &pfRecHits) {
   initPerSetup(iSetup);
   initPerEvent(pfRecHits);
+}
+
+void HGCalShowerShapeHelper::initPerEvent(const edm::EventSetup &iSetup,
+                                          const std::unordered_map<DetId, const unsigned int> &hitMap,
+                                          const edm::RefProdVector<HGCRecHitCollection> &hits,
+                                          float minSignalOverNoise) {
+  initPerSetup(iSetup);
+  hitSource_->setHGCRecHits(hitMap, hits, minSignalOverNoise, recHitTools_);
 }
 
 HGCalShowerShapeHelper::ShowerShapeCalc HGCalShowerShapeHelper::createCalc(
@@ -327,13 +373,5 @@ HGCalShowerShapeHelper::ShowerShapeCalc HGCalShowerShapeHelper::createCalc(
     int maxLayer,
     DetId::Detector subDet) const {
   return ShowerShapeCalc(
-      recHitTools_, pfRecHitPtrMap_, hitsAndFracs, rawEnergy, minHitE, minHitET, minLayer, maxLayer, subDet);
-}
-
-void HGCalShowerShapeHelper::setPFRecHitPtrMap(const std::vector<reco::PFRecHit> &recHits) {
-  pfRecHitPtrMap_->clear();
-
-  for (const auto &recHit : recHits) {
-    (*pfRecHitPtrMap_)[recHit.detId()] = &recHit;
-  }
+      recHitTools_, hitSource_, hitsAndFracs, rawEnergy, minHitE, minHitET, minLayer, maxLayer, subDet);
 }

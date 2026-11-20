@@ -1,3 +1,5 @@
+#include <unordered_map>
+
 #include "FWCore/Framework/interface/Frameworkfwd.h"
 #include "FWCore/Framework/interface/stream/EDProducer.h"
 #include "FWCore/Framework/interface/Event.h"
@@ -13,6 +15,8 @@
 #include "DataFormats/EgammaReco/interface/SuperClusterFwd.h"
 #include "DataFormats/RecoCandidate/interface/RecoEcalCandidate.h"
 #include "DataFormats/RecoCandidate/interface/RecoEcalCandidateFwd.h"
+#include "DataFormats/Common/interface/RefProdVector.h"
+#include "DataFormats/HGCRecHit/interface/HGCRecHitCollections.h"
 #include "DataFormats/ParticleFlowReco/interface/PFRecHit.h"
 #include "RecoEgamma/EgammaTools/interface/HGCalShowerShapeHelper.h"
 #include "RecoEgamma/EgammaTools/interface/HGCalClusterTools.h"
@@ -53,7 +57,10 @@ private:
   float hOverECone_;
   std::vector<PCAAssocMap> pcaAssocMaps_;
   const edm::EDGetTokenT<reco::RecoEcalCandidateCollection> recoEcalCandidateToken_;
-  const edm::EDGetTokenT<reco::PFRecHitCollection> hgcalRecHitToken_;
+  edm::EDGetTokenT<reco::PFRecHitCollection> hgcalRecHitToken_;
+  edm::EDGetTokenT<std::unordered_map<DetId, const unsigned int>> hgcalHitMapToken_;
+  edm::EDGetTokenT<edm::RefProdVector<HGCRecHitCollection>> hgcalHitsToken_;
+  const float minSignalOverNoise_;
   const edm::EDGetTokenT<reco::CaloClusterCollection> layerClusterToken_;
   HGCalShowerShapeHelper ssHelper_;
 };
@@ -63,9 +70,16 @@ EgammaHLTHGCalIDVarProducer::EgammaHLTHGCalIDVarProducer(const edm::ParameterSet
       hOverECone_(config.getParameter<double>("hOverECone")),
       recoEcalCandidateToken_(
           consumes<reco::RecoEcalCandidateCollection>(config.getParameter<edm::InputTag>("recoEcalCandidateProducer"))),
-      hgcalRecHitToken_(consumes<reco::PFRecHitCollection>(config.getParameter<edm::InputTag>("hgcalRecHits"))),
+      minSignalOverNoise_(config.getParameter<double>("minSignalOverNoise")),
       layerClusterToken_(consumes<reco::CaloClusterCollection>(config.getParameter<edm::InputTag>("layerClusters"))),
       ssHelper_(consumesCollector()) {
+  const auto& hgcalRecHits = config.getParameter<edm::InputTag>("hgcalRecHits");
+  if (hgcalRecHits.label().empty()) {
+    hgcalHitMapToken_ = consumes(config.getParameter<edm::InputTag>("hgcalHitMap"));
+    hgcalHitsToken_ = consumes(config.getParameter<edm::InputTag>("hgcalHits"));
+  } else {
+    hgcalRecHitToken_ = consumes(hgcalRecHits);
+  }
   pcaAssocMaps_.emplace_back(PCAAssocMap(&HGCalShowerShapeHelper::ShowerWidths::sigma2xx, "sigma2xx"));
   pcaAssocMaps_.emplace_back(PCAAssocMap(&HGCalShowerShapeHelper::ShowerWidths::sigma2yy, "sigma2yy"));
   pcaAssocMaps_.emplace_back(PCAAssocMap(&HGCalShowerShapeHelper::ShowerWidths::sigma2zz, "sigma2zz"));
@@ -88,7 +102,14 @@ EgammaHLTHGCalIDVarProducer::~EgammaHLTHGCalIDVarProducer() {}
 void EgammaHLTHGCalIDVarProducer::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
   edm::ParameterSetDescription desc;
   desc.add<edm::InputTag>("recoEcalCandidateProducer", edm::InputTag("hltL1SeededRecoEcalCandidate"));
-  desc.add<edm::InputTag>("hgcalRecHits", edm::InputTag("hgcalRecHits"));
+  desc.add<edm::InputTag>("hgcalRecHits", edm::InputTag("hgcalRecHits"))
+      ->setComment("PF rechits of the shower shapes; empty: the HGCAL rechits of hgcalHitMap and hgcalHits.");
+  desc.add<edm::InputTag>("hgcalHitMap", edm::InputTag("recHitMapProducer", "hgcalRecHitMap"))
+      ->setComment("Map from DetId to the index in hgcalHits, with an empty hgcalRecHits.");
+  desc.add<edm::InputTag>("hgcalHits", edm::InputTag("recHitMapProducer", "RefProdVectorHGCRecHitCollection"))
+      ->setComment("HGCAL rechits, with an empty hgcalRecHits.");
+  desc.add<double>("minSignalOverNoise", 5.)
+      ->setComment("Min signal over noise of an HGCAL rechit of hgcalHits in the shower shapes.");
   desc.add<edm::InputTag>("layerClusters", edm::InputTag("layerClusters"));
   desc.add<double>("rCylinder", EgammaHGCALIDParamDefaults::kRCylinder);
   desc.add<double>("hOverECone", 0.15);
@@ -97,10 +118,13 @@ void EgammaHLTHGCalIDVarProducer::fillDescriptions(edm::ConfigurationDescription
 
 void EgammaHLTHGCalIDVarProducer::produce(edm::Event& iEvent, const edm::EventSetup& iSetup) {
   auto recoEcalCandHandle = iEvent.getHandle(recoEcalCandidateToken_);
-  const auto& hgcalRecHits = iEvent.get(hgcalRecHitToken_);
   const auto& layerClusters = iEvent.get(layerClusterToken_);
 
-  ssHelper_.initPerEvent(iSetup, hgcalRecHits);
+  if (!hgcalRecHitToken_.isUninitialized()) {
+    ssHelper_.initPerEvent(iSetup, iEvent.get(hgcalRecHitToken_));
+  } else {
+    ssHelper_.initPerEvent(iSetup, iEvent.get(hgcalHitMapToken_), iEvent.get(hgcalHitsToken_), minSignalOverNoise_);
+  }
 
   auto rVarMap = std::make_unique<reco::RecoEcalCandidateIsolationMap>(recoEcalCandHandle);
   auto hForHoverEMap = std::make_unique<reco::RecoEcalCandidateIsolationMap>(recoEcalCandHandle);
