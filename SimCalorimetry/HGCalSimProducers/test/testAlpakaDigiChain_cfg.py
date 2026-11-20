@@ -142,6 +142,7 @@ from SimCalorimetry.HGCalSimProducers.hgCalDigitizerProducer_cfi import hgCalDig
 process.hgCalDigitizerProducer = cms.EDProducer(
     'alpaka_serial_sync::HGCalDigitizerProducer',
     g4HitsAcc = cms.InputTag("hgCalSimHitAccumulator"),
+    produceExtra = cms.bool(True),
     ageingConds = cms.ESInputTag(),
     readoutMap = cms.ESInputTag(),
     n_blocks = cms.int32(4096),

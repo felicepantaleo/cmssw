@@ -154,7 +154,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     desc.add("denseIndexer", edm::ESInputTag{})->setComment("Dense indexer SoA source");
     desc.add("moduleInfo", edm::ESInputTag{})->setComment("module info SoA source");
     desc.add("cellInfo", edm::ESInputTag{})->setComment("cell info SoA source");
-    desc.add<bool>("produceExtra", true)->setComment("produce extra digitizer collections");
+    desc.add<bool>("produceExtra", false)->setComment("produce the dense aged hits and ROC words of all bins");
     desc.add<double>("crateTimeJumpsSigma_ns", 0.015)
         ->setComment("typical width of a time jump associated to a BE crate [ns]");
     desc.add<int>("n_blocks", -1);
