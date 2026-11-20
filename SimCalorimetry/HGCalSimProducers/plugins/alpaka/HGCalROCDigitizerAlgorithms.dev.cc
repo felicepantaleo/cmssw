@@ -129,6 +129,9 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                  conds[idx].tot_lsb(),
                  conds[idx].tot_thr(),
                  conds[idx].toa_thr());
+        // no status condition is emulated
+        for (auto j = 0; j < hgcaldigi::kTimeBins; j++)
+          digi.status()(j, 0) = 0;
       }  //end grid loop
     }
   };
