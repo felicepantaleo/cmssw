@@ -49,8 +49,9 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
         // in addition there would be no need to generate 12 values just the ones corresponding to 2*nErx
         for (size_t i = 0; i < 12; i++)
           for (size_t j = 0; j < 2; j++) {
-            const float noiseVal = normal(engine);
-            econd.cm()(i, j) = noiseVal;
+            // cm is unsigned: truncate towards zero and clamp, the same on every backend
+            const float noiseVal = alpaka::math::trunc(acc, normal(engine));
+            econd.cm()(i, j) = static_cast<uint16_t>(noiseVal < 0.f ? 0.f : (noiseVal > 65535.f ? 65535.f : noiseVal));
           }
 
       }  //end grid loop
