@@ -1,8 +1,9 @@
 #ifndef RecoTICL_LayerClustering_plugins_alpaka_HGCalCLUEsteringAlgoWrapper_h
 #define RecoTICL_LayerClustering_plugins_alpaka_HGCalCLUEsteringAlgoWrapper_h
 
+#include <array>
 #include <cstdint>
-#include <memory>
+#include <optional>
 #include <span>
 #include <utility>
 
@@ -12,15 +13,11 @@
 
 namespace ALPAKA_ACCELERATOR_NAMESPACE {
 
-  // Clusters the rechits of one HGCAL component with CLUEstering. It keeps the CLUEstering buffers from one event to
-  // the next, so one object must be used by one stream only.
+  // Clusters the rechits of one HGCAL component with CLUEstering. Each event uses its own CLUEstering buffers.
   class HGCalCLUEsteringAlgoWrapper {
   public:
     // The scintillator rechits cluster in (eta, phi), with a periodic phi in [0, 2 pi)
     HGCalCLUEsteringAlgoWrapper(float dc, float kappa, float outlierDeltaFactor, bool isScintillator);
-    ~HGCalCLUEsteringAlgoWrapper();
-    HGCalCLUEsteringAlgoWrapper(const HGCalCLUEsteringAlgoWrapper&) = delete;
-    HGCalCLUEsteringAlgoWrapper& operator=(const HGCalCLUEsteringAlgoWrapper&) = delete;
 
     // The ranges of the two coordinates for the tiles. Without them, CLUEstering computes them from the rechits of
     // every event. The tiles set the order in which the densities are summed, so the ranges can change the rounding.
@@ -36,9 +33,11 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
              HGCalSoARecHitsExtraDeviceCollection::View recHitsClustering);
 
   private:
-    struct Clusterer;
-    std::unique_ptr<Clusterer> clusterer_;
-    const bool isScintillator_;
+    float dc_;
+    float kappa_;
+    float outlierDistance_;
+    std::optional<std::array<std::pair<float, float>, 2>> extremes_;
+    bool isScintillator_;
   };
 }  // namespace ALPAKA_ACCELERATOR_NAMESPACE
 
