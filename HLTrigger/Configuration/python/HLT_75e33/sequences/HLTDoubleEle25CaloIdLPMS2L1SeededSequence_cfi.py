@@ -12,6 +12,7 @@ from ..modules.hltEGL1SeedsForDoubleEleNonIsolatedFilter_cfi import *
 from ..modules.hltEgammaCandidatesL1Seeded_cfi import *
 from ..modules.hltEgammaClusterShapeL1Seeded_cfi import *
 from ..modules.hltEgammaHGCALIDVarsL1Seeded_cfi import *
+from ..modules.hltHGCalRecHitMapL1Seeded_cfi import *
 from ..modules.hltEgammaHoverEL1Seeded_cfi import *
 
 from ..sequences.HLTDoFullUnpackingEgammaEcalL1SeededSequence_cfi import *
@@ -29,6 +30,7 @@ HLTDoubleEle25CaloIdLPMS2L1SeededSequence = cms.Sequence(hltEGL1SeedsForDoubleEl
                                                          +hltDiEG25EtL1SeededFilter
                                                          +hltEgammaClusterShapeL1Seeded
                                                          +hltDiEG25CaloIdLClusterShapeL1SeededFilter
+                                                         +hltHGCalRecHitMapL1Seeded
                                                          +hltEgammaHGCALIDVarsL1Seeded
                                                          +hltDiEG25CaloIdLClusterShapeSigmavvL1SeededFilter
                                                          +hltDiEG25CaloIdLHgcalHEL1SeededFilter

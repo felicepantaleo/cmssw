@@ -17,6 +17,7 @@ from ..modules.hltEgammaEleGsfTrackIsoUnseeded_cfi import *
 from ..modules.hltEgammaEleL1TrkIsoUnseeded_cfi import *
 from ..modules.hltEgammaHcalPFClusterIsoUnseeded_cfi import *
 from ..modules.hltEgammaHGCALIDVarsUnseeded_cfi import *
+from ..modules.hltHGCalRecHitMap_cfi import *
 from ..modules.hltEgammaHGCalLayerClusterIsoUnseeded_cfi import *
 from ..modules.hltEgammaHoverEUnseeded_cfi import *
 from ..modules.hltEG32EtUnseededFilter_cfi import *
@@ -51,6 +52,7 @@ HLTEle32WPTightUnseededSequence = cms.Sequence(
     +hltEG32EtUnseededFilter
     +hltEgammaClusterShapeUnseeded
     +hltEle32WPTightClusterShapeUnseededFilter
+    +hltHGCalRecHitMap
     +hltEgammaHGCALIDVarsUnseeded
     +hltEle32WPTightClusterShapeSigmavvUnseededFilter
     +hltEle32WPTightClusterShapeSigmawwUnseededFilter

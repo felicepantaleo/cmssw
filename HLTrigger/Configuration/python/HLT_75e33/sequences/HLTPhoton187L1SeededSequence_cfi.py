@@ -7,6 +7,7 @@ from ..modules.hltPhoton187HgcalHEL1SeededFilter_cfi import *
 from ..modules.hltEGL1SeedsForSinglePhotonNonIsolatedFilter_cfi import *
 from ..modules.hltEgammaCandidatesL1Seeded_cfi import *
 from ..modules.hltEgammaHGCALIDVarsL1Seeded_cfi import *
+from ..modules.hltHGCalRecHitMapL1Seeded_cfi import *
 from ..modules.hltEgammaHoverEL1Seeded_cfi import *
 
 from ..sequences.HLTDoFullUnpackingEgammaEcalL1SeededSequence_cfi import *
@@ -22,6 +23,7 @@ HLTPhoton187L1SeededSequence = cms.Sequence(hltEGL1SeedsForSinglePhotonNonIsolat
                                             +hltEgammaCandidatesL1Seeded
                                             +hltEgammaCandidatesWrapperL1Seeded
                                             +hltEG187EtL1SeededFilter
+                                            +hltHGCalRecHitMapL1Seeded
                                             +hltEgammaHGCALIDVarsL1Seeded
                                             +hltPhoton187HgcalHEL1SeededFilter
                                             +HLTEGammaDoLocalHcalSequence

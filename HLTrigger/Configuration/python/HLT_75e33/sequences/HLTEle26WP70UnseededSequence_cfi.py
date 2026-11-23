@@ -7,6 +7,7 @@ from ..modules.hltEgammaEleGsfTrackIsoUnseeded_cfi import *
 from ..modules.hltEgammaEleL1TrkIsoUnseeded_cfi import *
 from ..modules.hltEgammaHcalPFClusterIsoUnseeded_cfi import *
 from ..modules.hltEgammaHGCALIDVarsUnseeded_cfi import *
+from ..modules.hltHGCalRecHitMap_cfi import *
 from ..modules.hltEgammaHGCalLayerClusterIsoUnseeded_cfi import *
 from ..modules.hltEgammaHoverEUnseeded_cfi import *
 from ..modules.hltEG26EtUnseededFilter_cfi import *
@@ -50,6 +51,7 @@ HLTEle26WP70UnseededSequence = cms.Sequence(hltEGL1SeedsForSingleEleIsolatedFilt
                                             +hltEG26EtUnseededFilter
                                             +hltEgammaClusterShapeUnseeded
                                             +hltEle26WP70ClusterShapeUnseededFilter
+                                            +hltHGCalRecHitMap
                                             +hltEgammaHGCALIDVarsUnseeded
                                             +hltEle26WP70ClusterShapeSigmavvUnseededFilter
                                             +hltEle26WP70ClusterShapeSigmawwUnseededFilter

@@ -24,6 +24,7 @@ from ..modules.hltEgammaCandidatesWrapperL1Seeded_cfi import *
 from ..modules.hltEgammaClusterShapeL1Seeded_cfi import *
 from ..modules.hltEG30EtL1SeededFilter_cfi import * 
 from ..modules.hltEgammaHGCALIDVarsL1Seeded_cfi import *
+from ..modules.hltHGCalRecHitMapL1Seeded_cfi import *
 from ..modules.hltEgammaHoverEL1Seeded_cfi import *
 from ..modules.hltEgammaEcalPFClusterIsoL1Seeded_cfi import *
 from ..modules.hltEgammaHGCalLayerClusterIsoL1Seeded_cfi import *
@@ -66,6 +67,7 @@ HLT_Ele30_WPTight_L1Seeded_LooseDeepTauPFTauHPS30_eta2p1_CrossL1 = cms.Path(
     hltEG30EtL1SeededFilter + 
     hltEgammaClusterShapeL1Seeded + 
     hltEle30WPTightClusterShapeL1SeededFilter + 
+    hltHGCalRecHitMapL1Seeded +
     hltEgammaHGCALIDVarsL1Seeded +
     hltEle30WPTightClusterShapeSigmavvL1SeededFilter + 
     hltEle30WPTightClusterShapeSigmawwL1SeededFilter + 

@@ -17,6 +17,7 @@ from ..modules.hltEgammaClusterShapeL1Seeded_cfi import *
 from ..modules.hltEgammaEcalPFClusterIsoL1Seeded_cfi import *
 from ..modules.hltEgammaHcalPFClusterIsoL1Seeded_cfi import *
 from ..modules.hltEgammaHGCALIDVarsL1Seeded_cfi import *
+from ..modules.hltHGCalRecHitMapL1Seeded_cfi import *
 from ..modules.hltEgammaHGCalLayerClusterIsoL1Seeded_cfi import *
 from ..modules.hltEgammaHoverEL1Seeded_cfi import *
 
@@ -37,6 +38,7 @@ HLTDiphoton3023IsoCaloIdL1SeededSequence = cms.Sequence(hltEGL1SeedsForDoublePho
                                                         +hltDiEG23EtL1SeededFilter
                                                         +hltEgammaClusterShapeL1Seeded
                                                         +hltDiEG3023IsoCaloIdClusterShapeL1SeededFilter
+                                                        +hltHGCalRecHitMapL1Seeded
                                                         +hltEgammaHGCALIDVarsL1Seeded
                                                         +hltDiEG3023IsoCaloIdClusterShapeSigmavvL1SeededFilter
                                                         +hltDiEG3023IsoCaloIdClusterShapeSigmawwL1SeededFilter

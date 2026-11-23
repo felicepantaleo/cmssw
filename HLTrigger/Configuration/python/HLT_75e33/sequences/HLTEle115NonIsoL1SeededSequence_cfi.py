@@ -15,6 +15,7 @@ from ..modules.hltEle115NonIsoPMS2L1SeededFilter_cfi import *
 from ..modules.hltEgammaCandidatesL1Seeded_cfi import *
 from ..modules.hltEgammaClusterShapeL1Seeded_cfi import *
 from ..modules.hltEgammaHGCALIDVarsL1Seeded_cfi import *
+from ..modules.hltHGCalRecHitMapL1Seeded_cfi import *
 from ..modules.hltEgammaHoverEL1Seeded_cfi import *
 
 from ..sequences.HLTDoFullUnpackingEgammaEcalL1SeededSequence_cfi import *
@@ -35,6 +36,7 @@ HLTEle115NonIsoL1SeededSequence = cms.Sequence(
         +hltEG115EtL1SeededFilter
         +hltEgammaClusterShapeL1Seeded
         +hltEle115NonIsoClusterShapeL1SeededFilter
+        +hltHGCalRecHitMapL1Seeded
         +hltEgammaHGCALIDVarsL1Seeded
         +hltEle115NonIsoClusterShapeSigmavvL1SeededFilter
         +hltEle115NonIsoClusterShapeSigmawwL1SeededFilter

@@ -9,7 +9,6 @@ from ..modules.hltHGCalRecHitL1Seeded_cfi import *
 from ..modules.hltHGCalUncalibRecHitL1Seeded_cfi import *
 from ..modules.hltL1TEGammaHGCFilteredCollectionProducer_cfi import *
 from ..modules.hltRechitInRegionsHGCAL_cfi import *
-from ..modules.hltParticleFlowRecHitHGCL1Seeded_cfi import *
 from ..modules.hltTiclLayerTileProducerL1Seeded_cfi import *
 from ..modules.hltTiclSeedingL1_cfi import *
 from ..modules.hltTiclTrackstersCLUE3DHighL1Seeded_cfi import *
@@ -24,7 +23,6 @@ _HgcalLocalRecoL1SeededSequence = cms.Sequence(hltHgcalDigis+
                                                hltHgcalDigisL1Seeded+
                                                hltHGCalUncalibRecHitL1Seeded+
                                                hltHGCalRecHitL1Seeded+
-                                               hltParticleFlowRecHitHGCL1Seeded+
                                                hltRechitInRegionsHGCAL+
                                                HLTHgcalLayerClustersL1SeededSequence+
                                                hltMergeLayerClustersL1Seeded)
@@ -64,7 +62,6 @@ _HgcalLocalRecoL1SeededSequence_barrel = cms.Sequence(
     hltHgcalDigisL1Seeded+
     hltHGCalUncalibRecHitL1Seeded+
     hltHGCalRecHitL1Seeded+
-    hltParticleFlowRecHitHGCL1Seeded+
     hltRechitInRegionsHGCAL+
     HLTHgcalLayerClustersL1SeededSequence+
     hltBarrelLayerClustersEBL1Seeded+

@@ -15,6 +15,7 @@ from ..modules.hltEgammaEleGsfTrackIsoL1Seeded_cfi import *
 from ..modules.hltEgammaEleL1TrkIsoL1Seeded_cfi import *
 from ..modules.hltEgammaHcalPFClusterIsoL1Seeded_cfi import *
 from ..modules.hltEgammaHGCALIDVarsL1Seeded_cfi import *
+from ..modules.hltHGCalRecHitMapL1Seeded_cfi import *
 from ..modules.hltEgammaHGCalLayerClusterIsoL1Seeded_cfi import *
 from ..modules.hltEG32EtL1SeededFilter_cfi import *
 from ..modules.hltEgammaCandidatesWrapperL1Seeded_cfi import *
@@ -39,6 +40,7 @@ from ..modules.hltEle32WPTightPMS2L1SeededFilter_cfi import *
 from ..modules.hltEgammaCandidatesL1Seeded_cfi import *
 from ..modules.hltEgammaClusterShapeL1Seeded_cfi import *
 from ..modules.hltEgammaHGCALIDVarsL1Seeded_cfi import *
+from ..modules.hltHGCalRecHitMapL1Seeded_cfi import *
 from ..modules.hltEgammaHoverEL1Seeded_cfi import *
 
 HLTEle32WPTightL1SeededSequence = cms.Sequence(
@@ -51,6 +53,7 @@ HLTEle32WPTightL1SeededSequence = cms.Sequence(
     +hltEG32EtL1SeededFilter
     +hltEgammaClusterShapeL1Seeded
     +hltEle32WPTightClusterShapeL1SeededFilter
+    +hltHGCalRecHitMapL1Seeded
     +hltEgammaHGCALIDVarsL1Seeded
     +hltEle32WPTightClusterShapeSigmavvL1SeededFilter
     +hltEle32WPTightClusterShapeSigmawwL1SeededFilter

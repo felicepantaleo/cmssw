@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """With ticl_v6, the Phase-2 HLT menus run TICLv6: on every path, each TICL product that a module reads comes from a
 module earlier on the same path, and no TICLv5-only module stays. The unseeded e/gamma candidates read the TICLv6
-e/gamma superclusters, the HGCAL ID variables read the HGCAL rechits, and only a path with the HGCAL PF clusters runs
-the HGCAL PF rechits. Without ticl_v6, the menus run TICLv5."""
+e/gamma superclusters. Without ticl_v6, the menus run TICLv5. In both cases, the HGCAL ID variables read the HGCAL
+rechits, and only a path with the HGCAL PF clusters runs the HGCAL PF rechits."""
 
 import subprocess
 import sys
@@ -56,9 +56,9 @@ def check(menu, names, v6):
                 process.hltEgammaCandidatesUnseeded.scIslandEndcapProducer.getModuleLabel() !=
                 "hltTiclEGammaSuperClustersUnseeded"):
             failures.append("hltEgammaCandidatesUnseeded does not read hltTiclEGammaSuperClustersUnseeded")
-        for label, module in process.producers_().items():
-            if module.type_() == "EgammaHLTHGCalIDVarProducer" and module.hgcalRecHits.getModuleLabel():
-                failures.append("%s reads the PF rechits %s" % (label, module.hgcalRecHits.getModuleLabel()))
+    for label, module in process.producers_().items():
+        if module.type_() == "EgammaHLTHGCalIDVarProducer" and module.hgcalRecHits.getModuleLabel():
+            failures.append("%s reads the PF rechits %s" % (label, module.hgcalRecHits.getModuleLabel()))
     for name, path in process.paths_().items():
         modules = []
         path.visit(ModuleNodeVisitor(modules))
@@ -68,7 +68,7 @@ def check(menu, names, v6):
                 if used.startswith(TICL_PREFIXES) and used not in seen:
                     failures.append("%s: %s reads %s, which no earlier module makes" % (name, module.label_(), used))
             seen.add(module.label_())
-        if v6 and "hltParticleFlowClusterHGCal" not in seen:
+        if "hltParticleFlowClusterHGCal" not in seen:
             failures += ["%s runs %s" % (name, label) for label in HGCAL_PF_RECHITS if label in seen]
     for failure in failures:
         print("FAIL [%s, %s]: %s" % (menu, "ticl_v6" if v6 else "default", failure))

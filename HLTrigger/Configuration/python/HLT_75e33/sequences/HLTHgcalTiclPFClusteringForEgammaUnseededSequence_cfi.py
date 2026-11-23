@@ -6,7 +6,6 @@ from ..modules.hltMergeLayerClusters_cfi import *
 from ..sequences.HLTHgcalLayerClustersSequence_cfi import *
 from ..modules.hltHGCalRecHit_cfi import *
 from ..modules.hltHGCalUncalibRecHit_cfi import *
-from ..modules.hltParticleFlowRecHitHGC_cfi import *
 from ..modules.hltTiclLayerTileProducer_cfi import *
 from ..modules.hltTiclSeedingGlobal_cfi import *
 from ..modules.hltTiclTrackstersCLUE3DHigh_cfi import *
@@ -24,7 +23,7 @@ from ..modules.hltTiclLayerTileBarrelProducer_cfi import *
 from ..modules.hltTiclTrackstersCLUE3DBarrel_cfi import *
 
 _HgcalLocalRecoUnseededSequence = cms.Sequence(hltHgcalDigis+hltHGCalUncalibRecHit+
-                                               hltHGCalRecHit+hltParticleFlowRecHitHGC+
+                                               hltHGCalRecHit+
                                                HLTHgcalLayerClustersSequence+
                                                hltMergeLayerClusters)
 
@@ -54,7 +53,7 @@ ticl_superclustering_mustache_ticl.toReplaceWith(_SuperclusteringUnseededSequenc
 _HgcalLocalRecoUnseededSequence_barrel = _HgcalLocalRecoUnseededSequence.copy()
 
 _HgcalLocalRecoUnseededSequence_barrel = cms.Sequence(hltHgcalDigis+hltHGCalUncalibRecHit+
-                                                      hltHGCalRecHit+hltParticleFlowRecHitHGC+
+                                                      hltHGCalRecHit+
                                                       HLTHgcalLayerClustersSequence+
                                                       hltBarrelLayerClustersEB+
                                                       hltBarrelLayerClustersHB+

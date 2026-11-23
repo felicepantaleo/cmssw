@@ -175,45 +175,18 @@ def _containers(process):
     return list(process.sequences_().values()) + list(process.paths_().values()) + list(process.endpaths_().values())
 
 
-def _hgcal_rechit_map(rechits):
-    from RecoLocalCalo.HGCalRecProducers.recHitMapProducer_cfi import recHitMapProducer
-    return recHitMapProducer.clone(hits=[f"{rechits}:{i}" for i in ("HGCEERecHits", "HGCHEFRecHits", "HGCHEBRecHits")],
-                                   hgcalOnly=True)
-
-
 def _use_v6_egamma(process, target):
-    """The unseeded HGCAL e/gamma superclusters are the TICLv6 e/gamma tracksters of the interpretation stage. The
-    HGCAL ID variables read the HGCAL rechits with the signal over noise cut of the HGCAL PF rechits. The HGCAL PF
-    rechits run only for the HGCAL PF clusters."""
+    """The unseeded HGCAL e/gamma superclusters are the TICLv6 e/gamma tracksters of the interpretation stage."""
     from RecoTICL.ParticleFlow.ticlEGammaTrackstersProducer_cfi import ticlEGammaTrackstersProducer
     from RecoTICL.ParticleFlow.ticlEGammaSuperClustersProducer_cfi import ticlEGammaSuperClustersProducer
-    containers = _containers(process)
-    pf_cluster = getattr(process, "hltParticleFlowClusterHGCal", None)
-    # One map of the HGCAL rechits per rechit producer, in the place of the HGCAL PF rechits.
-    for pf_rechits, rechits, rechit_map in (("hltParticleFlowRecHitHGC", "hltHGCalRecHit", "hltHGCalRecHitMap"),
-                                            ("hltParticleFlowRecHitHGCL1Seeded", "hltHGCalRecHitL1Seeded",
-                                             "hltHGCalRecHitMapL1Seeded")):
-        if not hasattr(process, pf_rechits):
-            continue
-        setattr(process, rechit_map, _hgcal_rechit_map(rechits))
-        pf = getattr(process, pf_rechits)
-        for container in containers:
-            if pf_cluster is None or not container.contains(pf_cluster):
-                container.replace(pf, getattr(process, rechit_map))
-        for id_vars in process.producers_().values():
-            if id_vars.type_() == "EgammaHLTHGCalIDVarProducer" and id_vars.hgcalRecHits.getModuleLabel() == pf_rechits:
-                id_vars.hgcalRecHits = ""
-                id_vars.hgcalHitMap = cms.InputTag(rechit_map, "hgcalRecHitMap")
-                id_vars.hgcalHits = cms.InputTag(rechit_map, "RefProdVectorHGCRecHitCollection")
-                id_vars.minSignalOverNoise = cms.double(pf.producers[0].qualityTests[0].thresholdSNR.value())
-        if not any(container.contains(pf) for container in containers):
-            delattr(process, pf_rechits)
-
+    from HLTrigger.Configuration.HLT_75e33.modules.hltHGCalRecHitMap_cfi import hltHGCalRecHitMap
     old_label = "hltTiclEGammaSuperClusterProducerUnseeded"
     if not hasattr(process, old_label):
         return
     interpretations = getattr(process, target.interpretations_label)
     egamma_input = getattr(process, interpretations.egamma_tracksters_collections[0].getModuleLabel())
+    if not hasattr(process, "hltHGCalRecHitMap"):
+        process.hltHGCalRecHitMap = hltHGCalRecHitMap
     process.hltTiclEGammaTracksters = ticlEGammaTrackstersProducer.clone(interpretations=target.interpretations_label)
     # No HLT module reads the type score.
     process.hltTiclEGammaSuperClustersUnseeded = ticlEGammaSuperClustersProducer.clone(
@@ -233,7 +206,7 @@ def _use_v6_egamma(process, target):
         process.HLTTiclTracksterLinksSequence + interpretations + process.hltTiclEGammaTracksters +
         process.hltHGCalRecHitMap + process.hltTiclEGammaSuperClustersUnseeded)
     old = getattr(process, old_label)
-    for container in containers:
+    for container in _containers(process):
         container.replace(old, process.HLTTiclEGammaSuperClustersUnseededSequence)
     for modules in (process.producers_(), process.filters_(), process.analyzers_()):
         for module in modules.values():
@@ -244,7 +217,7 @@ def _use_v6_egamma(process, target):
 def use_v6(process):
     """Make the Phase-2 HLT menu in ``process`` run TICLv6 (:func:`v6_hlt`) in the place of TICLv5 (:func:`v5_hlt`).
     The unseeded e/gamma superclusters are the TICLv6 e/gamma tracksters (:func:`_use_v6_egamma`). The L1-seeded
-    e/gamma chain keeps the TICLv5 superclusters, and its HGCAL ID variables read the HGCAL rechits."""
+    e/gamma chain keeps the TICLv5 superclusters."""
     assembled = v6_hlt().assemble()
     target = assembled.target
     old_sequences = dict(process.sequences_())

@@ -17,6 +17,7 @@ from ..modules.hltEgammaClusterShapeUnseeded_cfi import *
 from ..modules.hltEgammaEcalPFClusterIsoUnseeded_cfi import *
 from ..modules.hltEgammaHcalPFClusterIsoUnseeded_cfi import *
 from ..modules.hltEgammaHGCALIDVarsUnseeded_cfi import *
+from ..modules.hltHGCalRecHitMap_cfi import *
 from ..modules.hltEgammaHGCalLayerClusterIsoUnseeded_cfi import *
 from ..modules.hltEgammaHoverEUnseeded_cfi import *
 
@@ -39,6 +40,7 @@ HLTDiphoton3023IsoCaloIdUnseededSequence = cms.Sequence(hltEGL1SeedsForDoublePho
                                                         +hltDiEG23EtUnseededFilter
                                                         +hltEgammaClusterShapeUnseeded
                                                         +hltDiEG3023IsoCaloIdClusterShapeUnseededFilter
+                                                        +hltHGCalRecHitMap
                                                         +hltEgammaHGCALIDVarsUnseeded
                                                         +hltDiEG3023IsoCaloIdClusterShapeSigmavvUnseededFilter
                                                         +hltDiEG3023IsoCaloIdClusterShapeSigmawwUnseededFilter

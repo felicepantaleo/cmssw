@@ -17,6 +17,7 @@ from ..modules.hltEgammaEleGsfTrackIsoL1Seeded_cfi import *
 from ..modules.hltEgammaEleL1TrkIsoL1Seeded_cfi import *
 from ..modules.hltEgammaHcalPFClusterIsoL1Seeded_cfi import *
 from ..modules.hltEgammaHGCALIDVarsL1Seeded_cfi import *
+from ..modules.hltHGCalRecHitMapL1Seeded_cfi import *
 from ..modules.hltEgammaHGCalLayerClusterIsoL1Seeded_cfi import *
 from ..modules.hltEgammaHoverEL1Seeded_cfi import *
 from ..modules.hltEG26EtL1SeededFilter_cfi import *
@@ -50,6 +51,7 @@ HLTEle26WP70L1SeededSequence = cms.Sequence(
     +hltEG26EtL1SeededFilter
     +hltEgammaClusterShapeL1Seeded
     +hltEle26WP70ClusterShapeL1SeededFilter
+    +hltHGCalRecHitMapL1Seeded
     +hltEgammaHGCALIDVarsL1Seeded
     +hltEle26WP70ClusterShapeSigmavvL1SeededFilter
     +hltEle26WP70ClusterShapeSigmawwL1SeededFilter
