@@ -351,11 +351,6 @@ void HGCalShowerShapeHelper::initPerEvent(const std::vector<reco::PFRecHit> &pfR
   hitSource_->setPFRecHits(pfRecHits);
 }
 
-void HGCalShowerShapeHelper::initPerEvent(const edm::EventSetup &iSetup, const std::vector<reco::PFRecHit> &pfRecHits) {
-  initPerSetup(iSetup);
-  initPerEvent(pfRecHits);
-}
-
 void HGCalShowerShapeHelper::initPerEvent(const edm::EventSetup &iSetup,
                                           const std::unordered_map<DetId, const unsigned int> &hitMap,
                                           const edm::RefProdVector<HGCRecHitCollection> &hits,

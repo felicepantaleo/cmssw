@@ -1,7 +1,6 @@
 import FWCore.ParameterSet.Config as cms
 
 hltEgammaHGCALIDVarsL1Seeded = cms.EDProducer("EgammaHLTHGCalIDVarProducer",
-    hgcalRecHits = cms.InputTag(""),
     hgcalHitMap = cms.InputTag("hltHGCalRecHitMapL1Seeded","hgcalRecHitMap"),
     hgcalHits = cms.InputTag("hltHGCalRecHitMapL1Seeded","RefProdVectorHGCRecHitCollection"),
     minSignalOverNoise = cms.double(5.0),

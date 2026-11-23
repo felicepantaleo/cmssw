@@ -162,7 +162,6 @@ public:
 
   void initPerSetup(const edm::EventSetup &iSetup);
   void initPerEvent(const std::vector<reco::PFRecHit> &recHits);
-  void initPerEvent(const edm::EventSetup &iSetup, const std::vector<reco::PFRecHit> &recHits);
   // The shower shapes read the HGCAL rechits of the RecHitMapProducer products with a signal over noise of at least
   // minSignalOverNoise.
   void initPerEvent(const edm::EventSetup &iSetup,
