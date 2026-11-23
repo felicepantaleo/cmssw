@@ -226,9 +226,10 @@ def _use_v6_egamma(process, target):
         tracks=interpretations.tracks,
         interpretations=target.interpretations_label,
         typeScoreModel="")
-    # The interpretation stage reads the tracks, the muons and the final tracksters.
+    # The interpretation stage reads the tracks, the muons and the final tracksters. The muons read the muon digis.
     process.HLTTiclEGammaSuperClustersUnseededSequence = cms.Sequence(
-        process.HLTTrackingSequence + process.HLTMuonsSequence + process.HLTTiclIterationsSequence +
+        process.HLTRawToDigiSequence + process.HLTTrackingSequence + process.HLTMuonsSequence +
+        process.HLTTiclIterationsSequence +
         process.HLTTiclTracksterLinksSequence + interpretations + process.hltTiclEGammaTracksters +
         process.hltHGCalRecHitMap + process.hltTiclEGammaSuperClustersUnseeded)
     old = getattr(process, old_label)
