@@ -1,8 +1,30 @@
 <lcgdict>
-  <class name="TruthGraph" ClassVersion="4">
+  <class name="TruthGraph" ClassVersion="5">
     <version ClassVersion="3" checksum="2885336572"/>
     <version ClassVersion="4" checksum="2439525732"/>
+    <version ClassVersion="5" checksum="1575769627"/>
+    <field name="offsets_" transient="true"/>
+    <field name="edges_" transient="true"/>
+    <field name="simTrackToVtx_" transient="true"/>
   </class>
+  <!-- Up to version 4 the file holds offsets, edges and simTrackToVtx themselves. -->
+  <ioread sourceClass="TruthGraph" version="[-4]" targetClass="TruthGraph"
+          source="std::vector<unsigned int> offsets_; std::vector<unsigned int> edges_; std::vector<int> simTrackToVtx_"
+          target="offsets_,edges_,simTrackToVtx_,edgeCounts_,edgeDeltas_,simTrackToVtxRelative_">
+    <![CDATA[offsets_ = onfile.offsets_;
+             edges_ = onfile.edges_;
+             simTrackToVtx_ = onfile.simTrackToVtx_;
+             truth::delta::encode(offsets_, edgeCounts_);
+             truth::delta::encode(edges_, edgeDeltas_);
+             truth::delta::encodeRelativeToIndex(simTrackToVtx_, simTrackToVtxRelative_);]]>
+  </ioread>
+  <ioread sourceClass="TruthGraph" version="[5-]" targetClass="TruthGraph"
+          source="std::vector<unsigned int> edgeCounts_; std::vector<unsigned int> edgeDeltas_; std::vector<int> simTrackToVtxRelative_"
+          target="offsets_,edges_,simTrackToVtx_">
+    <![CDATA[TruthGraph::unpackOffsets(onfile.edgeCounts_, offsets_);
+             TruthGraph::unpackEdges(onfile.edgeDeltas_, edges_);
+             TruthGraph::unpackSimTrackToVtx(onfile.simTrackToVtxRelative_, simTrackToVtx_);]]>
+  </ioread>
   <class name="TruthGraph::NodeRef" ClassVersion="4">
     <version ClassVersion="4" checksum="1691003696"/>
     <version ClassVersion="3" checksum="4042798111"/>

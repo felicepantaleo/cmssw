@@ -4,6 +4,7 @@
 // The graph is built in the TruthGraphProducer module, which also fills the node metadata and associations.
 // The graph is intended to be a common data format for various use cases (e.g. validation, analysis, visualization).
 
+#include "SimDataFormats/TruthInfo/interface/DeltaCoding.h"
 #include "SimDataFormats/TruthInfo/interface/TruthGraph.h"
 
 bool TruthGraph::isConsistent() const {
@@ -21,4 +22,22 @@ bool TruthGraph::isConsistent() const {
       return false;
   }
   return true;
+}
+
+void TruthGraph::pack() {
+  truth::delta::encode(offsets_, edgeCounts_);
+  truth::delta::encode(edges_, edgeDeltas_);
+  truth::delta::encodeRelativeToIndex(simTrackToVtx_, simTrackToVtxRelative_);
+}
+
+void TruthGraph::unpackOffsets(std::vector<uint32_t> const& stored, std::vector<uint32_t>& offsets) {
+  truth::delta::decode(stored, offsets);
+}
+
+void TruthGraph::unpackEdges(std::vector<uint32_t> const& stored, std::vector<uint32_t>& edges) {
+  truth::delta::decode(stored, edges);
+}
+
+void TruthGraph::unpackSimTrackToVtx(std::vector<int32_t> const& stored, std::vector<int32_t>& simTrackToVtx) {
+  truth::delta::decodeRelativeToIndex(stored, simTrackToVtx);
 }

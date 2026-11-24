@@ -141,11 +141,24 @@ public:
 
   bool isConsistent() const;
 
+  // Fills the stored form of offsets, edges and simTrackToVtx. The producer calls it
+  // once, after it fills the graph and before it puts the graph in the event. A graph
+  // that is written without this call reads back with these three arrays empty.
+  void pack();
+
+  // Fill the arrays from the stored form. The I/O rules call them after a read.
+  static void unpackOffsets(std::vector<uint32_t> const& stored, std::vector<uint32_t>& offsets);
+  static void unpackEdges(std::vector<uint32_t> const& stored, std::vector<uint32_t>& edges);
+  static void unpackSimTrackToVtx(std::vector<int32_t> const& stored, std::vector<int32_t>& simTrackToVtx);
+
 private:
   // CSR out-edges: offsets_.size() == nNodes+1, edges_/edgeKind_.size() == nEdges.
+  // offsets_ and edges_ are not stored: the file holds edgeCounts_ and edgeDeltas_.
   std::vector<uint32_t> offsets_;
   std::vector<uint32_t> edges_;
-  std::vector<uint8_t> edgeKind_;  // stores TruthGraph::EdgeKind as uint8_t
+  std::vector<uint32_t> edgeCounts_;  // offsets_[i] - offsets_[i - 1]
+  std::vector<uint32_t> edgeDeltas_;  // edges_[i] - edges_[i - 1]
+  std::vector<uint8_t> edgeKind_;     // stores TruthGraph::EdgeKind as uint8_t
 
   // Node metadata: nodes_.size() == nNodes
   std::vector<NodeRef> nodes_;
@@ -171,7 +184,9 @@ private:
   // Associations (nodeId -> nodeId). Only meaningful for SimTrack nodes.
   // -1 means "no association".
   std::vector<int32_t> simTrackToGen_;  // SimTrack nodeId -> GenParticle nodeId
-  std::vector<int32_t> simTrackToVtx_;  // SimTrack nodeId -> SimVertex nodeId
+  // Not stored: the file holds simTrackToVtxRelative_.
+  std::vector<int32_t> simTrackToVtx_;          // SimTrack nodeId -> SimVertex nodeId
+  std::vector<int32_t> simTrackToVtxRelative_;  // simTrackToVtx_[i] - i, see truth::delta
 
   // SimVertex nodeId -> GenVertex nodeId provenance association, -1 if none.
   // Derived from primary SimTracks: a SimTrack's production SimVertex corresponds

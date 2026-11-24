@@ -602,6 +602,7 @@ public:
                                    << " primaryGenToSimParticleLinks=" << nGenToSimParticleLinks
                                    << " simVtxToGenVertexLinks=" << nSimVtxToGenLinks;
 
+    out->pack();
     evt.put(std::move(out));
   }
 

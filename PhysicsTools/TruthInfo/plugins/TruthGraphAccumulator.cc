@@ -703,6 +703,7 @@ void TruthGraphAccumulator::finalizeEvent(edm::Event& event, edm::EventSetup con
   if (!out->isConsistent())
     throw cms::Exception("TruthGraphAccumulator") << "Produced TruthGraph is not consistent";
 
+  out->pack();
   event.put(std::move(out));
   event.put(std::make_unique<std::vector<uint32_t>>(std::move(genPayloadNodes_)), "genPayloadNodes");
   event.put(std::make_unique<std::vector<math::XYZTLorentzVectorD>>(std::move(genPayload_)), "genPayload");
