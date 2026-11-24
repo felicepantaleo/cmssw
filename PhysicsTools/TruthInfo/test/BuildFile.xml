@@ -8,6 +8,13 @@
   <flags EDM_PLUGIN="1"/>
 </library>
 
+<bin name="TruthStoredForm_t" file="TruthStoredForm_t.cpp">
+  <use name="SimDataFormats/TruthInfo"/>
+  <use name="rootcore"/>
+  <use name="rootrio"/>
+  <use name="cppunit"/>
+</bin>
+
 <bin name="TruthLogicalGraphPostProcessor_t" file="TruthLogicalGraphPostProcessor_t.cpp">
   <use name="PhysicsTools/TruthInfo"/>
   <use name="SimDataFormats/TruthInfo"/>
