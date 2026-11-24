@@ -38,11 +38,53 @@
   <class name="std::vector<TruthGraph::NodeRef>"/>
   <class name="edm::Wrapper<TruthGraph>"/>
 
-  <class name="truth::Graph" ClassVersion="5">
+  <class name="truth::Graph" ClassVersion="6">
     <version ClassVersion="3" checksum="260758393"/>
     <version ClassVersion="4" checksum="2233235025"/>
     <version ClassVersion="5" checksum="1041064367"/>
+    <version ClassVersion="6" checksum="645133977"/>
+    <field name="particleToDecayVertexOffsets_" transient="true"/>
+    <field name="particleToDecayVertices_" transient="true"/>
+    <field name="particleToProductionVertexOffsets_" transient="true"/>
+    <field name="particleToProductionVertices_" transient="true"/>
+    <field name="vertexToOutgoingParticleOffsets_" transient="true"/>
+    <field name="vertexToOutgoingParticles_" transient="true"/>
+    <field name="vertexToIncomingParticleOffsets_" transient="true"/>
+    <field name="vertexToIncomingParticles_" transient="true"/>
   </class>
+  <!-- Up to version 5 the file holds the adjacency arrays themselves. -->
+  <ioread sourceClass="truth::Graph" version="[-5]" targetClass="truth::Graph"
+          source="std::vector<unsigned int> particleToDecayVertexOffsets_; std::vector<unsigned int> particleToDecayVertices_; std::vector<unsigned int> particleToProductionVertexOffsets_; std::vector<unsigned int> particleToProductionVertices_; std::vector<unsigned int> vertexToOutgoingParticleOffsets_; std::vector<unsigned int> vertexToOutgoingParticles_; std::vector<unsigned int> vertexToIncomingParticleOffsets_; std::vector<unsigned int> vertexToIncomingParticles_"
+          target="particleToDecayVertexOffsets_,particleToDecayVertices_,particleToProductionVertexOffsets_,particleToProductionVertices_,vertexToOutgoingParticleOffsets_,vertexToOutgoingParticles_,vertexToIncomingParticleOffsets_,vertexToIncomingParticles_,storedParticleToDecayVertexOffsets_,storedParticleToDecayVertices_,storedParticleToProductionVertexOffsets_,storedParticleToProductionVertices_,storedVertexToOutgoingParticleOffsets_,storedVertexToOutgoingParticles_,storedVertexToIncomingParticleOffsets_,storedVertexToIncomingParticles_">
+    <![CDATA[particleToDecayVertexOffsets_ = onfile.particleToDecayVertexOffsets_;
+             truth::delta::encode(particleToDecayVertexOffsets_, storedParticleToDecayVertexOffsets_);
+             particleToDecayVertices_ = onfile.particleToDecayVertices_;
+             truth::delta::encode(particleToDecayVertices_, storedParticleToDecayVertices_);
+             particleToProductionVertexOffsets_ = onfile.particleToProductionVertexOffsets_;
+             truth::delta::encode(particleToProductionVertexOffsets_, storedParticleToProductionVertexOffsets_);
+             particleToProductionVertices_ = onfile.particleToProductionVertices_;
+             truth::delta::encode(particleToProductionVertices_, storedParticleToProductionVertices_);
+             vertexToOutgoingParticleOffsets_ = onfile.vertexToOutgoingParticleOffsets_;
+             truth::delta::encode(vertexToOutgoingParticleOffsets_, storedVertexToOutgoingParticleOffsets_);
+             vertexToOutgoingParticles_ = onfile.vertexToOutgoingParticles_;
+             truth::delta::encode(vertexToOutgoingParticles_, storedVertexToOutgoingParticles_);
+             vertexToIncomingParticleOffsets_ = onfile.vertexToIncomingParticleOffsets_;
+             truth::delta::encode(vertexToIncomingParticleOffsets_, storedVertexToIncomingParticleOffsets_);
+             vertexToIncomingParticles_ = onfile.vertexToIncomingParticles_;
+             truth::delta::encode(vertexToIncomingParticles_, storedVertexToIncomingParticles_);]]>
+  </ioread>
+  <ioread sourceClass="truth::Graph" version="[6-]" targetClass="truth::Graph"
+          source="std::vector<unsigned int> storedParticleToDecayVertexOffsets_; std::vector<unsigned int> storedParticleToDecayVertices_; std::vector<unsigned int> storedParticleToProductionVertexOffsets_; std::vector<unsigned int> storedParticleToProductionVertices_; std::vector<unsigned int> storedVertexToOutgoingParticleOffsets_; std::vector<unsigned int> storedVertexToOutgoingParticles_; std::vector<unsigned int> storedVertexToIncomingParticleOffsets_; std::vector<unsigned int> storedVertexToIncomingParticles_"
+          target="particleToDecayVertexOffsets_,particleToDecayVertices_,particleToProductionVertexOffsets_,particleToProductionVertices_,vertexToOutgoingParticleOffsets_,vertexToOutgoingParticles_,vertexToIncomingParticleOffsets_,vertexToIncomingParticles_">
+    <![CDATA[truth::delta::decode(onfile.storedParticleToDecayVertexOffsets_, particleToDecayVertexOffsets_);
+             truth::delta::decode(onfile.storedParticleToDecayVertices_, particleToDecayVertices_);
+             truth::delta::decode(onfile.storedParticleToProductionVertexOffsets_, particleToProductionVertexOffsets_);
+             truth::delta::decode(onfile.storedParticleToProductionVertices_, particleToProductionVertices_);
+             truth::delta::decode(onfile.storedVertexToOutgoingParticleOffsets_, vertexToOutgoingParticleOffsets_);
+             truth::delta::decode(onfile.storedVertexToOutgoingParticles_, vertexToOutgoingParticles_);
+             truth::delta::decode(onfile.storedVertexToIncomingParticleOffsets_, vertexToIncomingParticleOffsets_);
+             truth::delta::decode(onfile.storedVertexToIncomingParticles_, vertexToIncomingParticles_);]]>
+  </ioread>
   <class name="truth::Checkpoint" ClassVersion="3">
     <version ClassVersion="3" checksum="4215584109"/>
   </class>

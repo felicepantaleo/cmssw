@@ -1049,6 +1049,7 @@ public:
       throw cms::Exception("TruthLogicalGraphProducer") << "Produced truth::Graph is not consistent";
     }
 
+    out->pack();
     evt.put(std::move(out));
   }
 

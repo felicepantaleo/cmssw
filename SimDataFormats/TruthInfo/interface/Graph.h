@@ -132,6 +132,11 @@ namespace truth {
 
     [[nodiscard]] bool isConsistent() const;
 
+    // Fills the stored form of the adjacency arrays. The producer calls it once, after
+    // it fills the graph and before it puts the graph in the event. A graph that is
+    // written without this call reads back with no adjacency.
+    void pack();
+
     // The selection preset's seed PDG ids, recorded so LevelFlag::Signal stays
     // RE-DERIVABLE. Every other level bit can be recomputed from the graph alone, which
     // is what lets a reader detect a graph written before a definition changed; Signal
@@ -210,6 +215,17 @@ namespace truth {
     // Vertex -> incoming particles
     std::vector<uint32_t> vertexToIncomingParticleOffsets_;
     std::vector<uint32_t> vertexToIncomingParticles_;
+
+    // The eight adjacency arrays above are not stored. The file holds their
+    // differences, x[i] - x[i - 1].
+    std::vector<uint32_t> storedParticleToDecayVertexOffsets_;
+    std::vector<uint32_t> storedParticleToDecayVertices_;
+    std::vector<uint32_t> storedParticleToProductionVertexOffsets_;
+    std::vector<uint32_t> storedParticleToProductionVertices_;
+    std::vector<uint32_t> storedVertexToOutgoingParticleOffsets_;
+    std::vector<uint32_t> storedVertexToOutgoingParticles_;
+    std::vector<uint32_t> storedVertexToIncomingParticleOffsets_;
+    std::vector<uint32_t> storedVertexToIncomingParticles_;
   };
 
 }  // namespace truth

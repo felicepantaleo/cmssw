@@ -1,5 +1,6 @@
 // Original author: Felice Pantaleo (CERN) <felice.pantaleo@cern.ch>
 
+#include "SimDataFormats/TruthInfo/interface/DeltaCoding.h"
 #include "SimDataFormats/TruthInfo/interface/Graph.h"
 
 #include <algorithm>
@@ -495,6 +496,17 @@ std::optional<truth::Particle> truth::Graph::lowestCommonAncestor(std::vector<Pa
     return std::nullopt;
 
   return particle(static_cast<uint32_t>(bestId));
+}
+
+void truth::Graph::pack() {
+  delta::encode(particleToDecayVertexOffsets_, storedParticleToDecayVertexOffsets_);
+  delta::encode(particleToDecayVertices_, storedParticleToDecayVertices_);
+  delta::encode(particleToProductionVertexOffsets_, storedParticleToProductionVertexOffsets_);
+  delta::encode(particleToProductionVertices_, storedParticleToProductionVertices_);
+  delta::encode(vertexToOutgoingParticleOffsets_, storedVertexToOutgoingParticleOffsets_);
+  delta::encode(vertexToOutgoingParticles_, storedVertexToOutgoingParticles_);
+  delta::encode(vertexToIncomingParticleOffsets_, storedVertexToIncomingParticleOffsets_);
+  delta::encode(vertexToIncomingParticles_, storedVertexToIncomingParticles_);
 }
 
 bool truth::Graph::isConsistent() const {
