@@ -899,6 +899,11 @@ public:
     std::vector<std::pair<uint32_t, uint32_t>> particleToProductionVertexPairs;
     std::vector<std::pair<uint32_t, uint32_t>> vertexToOutgoingParticlePairs;
     std::vector<std::pair<uint32_t, uint32_t>> vertexToIncomingParticlePairs;
+    // A raw edge gives at most one pair in two of the four lists.
+    particleToDecayVertexPairs.reserve(raw.edges().size());
+    particleToProductionVertexPairs.reserve(raw.edges().size());
+    vertexToOutgoingParticlePairs.reserve(raw.edges().size());
+    vertexToIncomingParticlePairs.reserve(raw.edges().size());
 
     for (uint32_t src = 0; src < nRawNodes; ++src) {
       auto const& srcRef = raw.nodeRef(src);

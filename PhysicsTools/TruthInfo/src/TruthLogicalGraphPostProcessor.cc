@@ -126,6 +126,12 @@ namespace {
     std::vector<std::pair<uint32_t, uint32_t>> particleToProductionVertexPairs;
     std::vector<std::pair<uint32_t, uint32_t>> vertexToOutgoingParticlePairs;
     std::vector<std::pair<uint32_t, uint32_t>> vertexToIncomingParticlePairs;
+    const std::size_t maxDecayEdges = input.vertexToIncomingParticles().size() + extraDecayEdges.size();
+    const std::size_t maxProductionEdges = input.vertexToOutgoingParticles().size() + extraProductionEdges.size();
+    particleToDecayVertexPairs.reserve(maxDecayEdges);
+    vertexToIncomingParticlePairs.reserve(maxDecayEdges);
+    particleToProductionVertexPairs.reserve(maxProductionEdges);
+    vertexToOutgoingParticlePairs.reserve(maxProductionEdges);
 
     for (uint32_t oldVertex = 0; oldVertex < input.nVertices(); ++oldVertex) {
       const int32_t newVertex = oldVertexToNew[oldVertex];
@@ -686,7 +692,7 @@ namespace {
   // and UnderlyingEvent sub-vertices the attached particles hang off; all three
   // carry the genEvent/eventId of the activity they summarize so overlaid
   // pile-up interactions stay distinguishable.
-  truth::Graph rebuildFilteredGraph(truth::Graph const& input,
+  truth::Graph rebuildFilteredGraph(truth::Graph& input,
                                     std::vector<uint8_t> const& keepParticle,
                                     std::vector<uint8_t> const& keepVertex,
                                     std::vector<uint8_t> const& attachRole) {
@@ -706,7 +712,8 @@ namespace {
         continue;
 
       oldParticleToNew[oldParticle] = static_cast<int32_t>(output.particles().size());
-      output.particles().push_back(input.particles()[oldParticle]);
+      // The checkpoints move to the output. The other fields of the input particle stay valid.
+      output.particles().push_back(std::move(input.particles()[oldParticle]));
     }
 
     for (uint32_t oldVertex = 0; oldVertex < nVertices; ++oldVertex) {
