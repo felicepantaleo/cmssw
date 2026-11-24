@@ -285,6 +285,93 @@ namespace {
 
 }  // namespace
 
+namespace {
+  // The position of a SIM object in a merged container, from its sub-event id and its
+  // local id (a trackId, or the index of a vertex in its sub-event). A merged container
+  // holds the objects of each sub-event together, with increasing local ids, so a
+  // sub-event is one run of the container and a lookup is a search in that run. A
+  // container without this layout is served by a hash map, where the first object of a
+  // key wins.
+  class MergedSimIndex {
+  public:
+    static constexpr uint32_t kNotFound = std::numeric_limits<uint32_t>::max();
+
+    MergedSimIndex() = default;
+
+    // localIdOf(object, position in its run) is the local id of an object.
+    template <typename Container, typename LocalIdOf>
+    MergedSimIndex(Container const& objects, LocalIdOf localIdOf) {
+      localIds_.reserve(objects.size());
+      uint32_t positionInRun = 0;
+      for (uint32_t i = 0; i < objects.size(); ++i) {
+        const uint32_t eventId = objects[i].eventId().rawId();
+        if (runs_.empty() || eventId != runs_.back().eventId) {
+          regular_ = runOfEvent_.emplace(eventId, static_cast<uint32_t>(runs_.size())).second && regular_;
+          runs_.push_back(Run{eventId, i, i});
+          positionInRun = 0;
+        }
+        const uint32_t localId = localIdOf(objects[i], positionInRun++);
+        regular_ = regular_ && (i == runs_.back().begin || localId > localIds_.back());
+        localIds_.push_back(localId);
+        runs_.back().end = i + 1;
+      }
+      if (!regular_) {
+        fallback_.reserve(objects.size());
+        for (auto const& run : runs_) {
+          for (uint32_t i = run.begin; i < run.end; ++i)
+            fallback_.emplace(truth::simObjectKey(run.eventId, localIds_[i]), i);
+        }
+      }
+    }
+
+    // The position of the object, or kNotFound.
+    [[nodiscard]] uint32_t find(uint64_t packedEventId, uint32_t localId) {
+      if (!regular_) {
+        const auto it = fallback_.find(truth::simObjectKey(packedEventId, localId));
+        return it != fallback_.end() ? it->second : kNotFound;
+      }
+      // simObjectKey keeps the low 32 bits of the sub-event id.
+      const uint32_t eventId = static_cast<uint32_t>(packedEventId);
+      if (run_ >= runs_.size() || runs_[run_].eventId != eventId) {
+        const auto it = runOfEvent_.find(eventId);
+        if (it == runOfEvent_.end())
+          return kNotFound;
+        run_ = it->second;
+        next_ = runs_[run_].begin;
+      }
+      auto const& run = runs_[run_];
+      // The lookups mostly come in the order of the container.
+      if (next_ >= run.begin && next_ < run.end && localIds_[next_] == localId)
+        return next_++;
+      const auto begin = localIds_.begin() + run.begin;
+      const auto end = localIds_.begin() + run.end;
+      const auto it = std::lower_bound(begin, end, localId);
+      if (it == end || *it != localId)
+        return kNotFound;
+      const uint32_t position = static_cast<uint32_t>(it - localIds_.begin());
+      next_ = position + 1;
+      return position;
+    }
+
+  private:
+    struct Run {
+      uint32_t eventId = 0;
+      uint32_t begin = 0;
+      uint32_t end = 0;
+    };
+
+    std::vector<Run> runs_;
+    std::unordered_map<uint32_t, uint32_t> runOfEvent_;
+    std::vector<uint32_t> localIds_;
+    // Whether each sub-event is one run with increasing local ids.
+    bool regular_ = true;
+    std::unordered_map<uint64_t, uint32_t> fallback_;
+    // The run of the last lookup and the position after the last object found.
+    uint32_t run_ = std::numeric_limits<uint32_t>::max();
+    uint32_t next_ = 0;
+  };
+}  // namespace
+
 class TruthLogicalGraphProducer : public edm::stream::EDProducer<> {
 public:
   explicit TruthLogicalGraphProducer(edm::ParameterSet const& cfg)
@@ -407,31 +494,12 @@ public:
     // SimTracks by (sub-event id, trackId) and SimVertices by (sub-event id, index in
     // its sub-event): a trackId and an index are local to a sub-event, and a merged
     // container holds every sub-event's in order.
-    std::unordered_map<uint64_t, uint32_t> simTrackIdToIndex;
-    std::unordered_map<uint64_t, uint32_t> simVertexIdToIndex;
-    if (hSimVertices.isValid()) {
-      simVertexIdToIndex.reserve(hSimVertices->size() * 2);
-      uint32_t local = 0;
-      uint32_t currentEventId = 0;
-      for (uint32_t i = 0; i < hSimVertices->size(); ++i) {
-        const uint32_t eventId = (*hSimVertices)[i].eventId().rawId();
-        if (i == 0 || eventId != currentEventId) {
-          currentEventId = eventId;
-          local = 0;
-        }
-        simVertexIdToIndex.emplace(truth::simObjectKey(eventId, local), i);
-        ++local;
-      }
-    }
-
-    if (hSimTracks.isValid()) {
-      simTrackIdToIndex.reserve(hSimTracks->size() * 2);
-
-      for (uint32_t i = 0; i < hSimTracks->size(); ++i) {
-        simTrackIdToIndex.emplace(truth::simObjectKey((*hSimTracks)[i].eventId().rawId(), (*hSimTracks)[i].trackId()),
-                                  i);
-      }
-    }
+    MergedSimIndex simTrackIdToIndex;
+    MergedSimIndex simVertexIdToIndex;
+    if (hSimVertices.isValid())
+      simVertexIdToIndex = MergedSimIndex(*hSimVertices, [](SimVertex const&, uint32_t local) { return local; });
+    if (hSimTracks.isValid())
+      simTrackIdToIndex = MergedSimIndex(*hSimTracks, [](SimTrack const& track, uint32_t) { return track.trackId(); });
 
     std::unordered_map<int, GenParticlePayload> genParticlePayload;
     std::unordered_map<int, GenVertexPayload> genVertexPayload;
@@ -725,10 +793,10 @@ public:
 
           if (hSimTracks.isValid()) {
             const auto trackId = static_cast<uint32_t>(ref.key());
-            auto it = simTrackIdToIndex.find(truth::simObjectKey(raw.nodeEventId(nodeId), trackId));
+            const uint32_t simTrackIndex = simTrackIdToIndex.find(raw.nodeEventId(nodeId), trackId);
 
-            if (it != simTrackIdToIndex.end()) {
-              auto const& t = (*hSimTracks)[it->second];
+            if (simTrackIndex != MergedSimIndex::kNotFound) {
+              auto const& t = (*hSimTracks)[simTrackIndex];
 
               const math::XYZTLorentzVectorD simMomentum(
                   t.momentum().px(), t.momentum().py(), t.momentum().pz(), t.momentum().e());
@@ -803,11 +871,11 @@ public:
             v.eventId = raw.nodeEventId(nodeId);
 
           if (hSimVertices.isValid()) {
-            auto it =
-                simVertexIdToIndex.find(truth::simObjectKey(raw.nodeEventId(nodeId), static_cast<uint32_t>(ref.key())));
+            const uint32_t simVertexIndex =
+                simVertexIdToIndex.find(raw.nodeEventId(nodeId), static_cast<uint32_t>(ref.key()));
 
-            if (it != simVertexIdToIndex.end()) {
-              auto const& sv = (*hSimVertices)[it->second];
+            if (simVertexIndex != MergedSimIndex::kNotFound) {
+              auto const& sv = (*hSimVertices)[simVertexIndex];
               const auto& pos = sv.position();
               constexpr double sToNs = 1e9;  // SimVertex time is stored in seconds -> ns
 
@@ -948,10 +1016,18 @@ public:
                               particleId);
       }
       std::vector<uint8_t> hasHit(out->nParticles(), 0);
+      // Consecutive sim-hits mostly come from one SimTrack, so the last key is kept.
+      uint64_t lastKey = 0;
+      bool lastKeyValid = false;
       auto markHit = [&](uint64_t key) {
-        if (auto it = particleOfKey.find(key); it != particleOfKey.end())
+        if (lastKeyValid && key == lastKey)
+          return;
+        lastKey = key;
+        lastKeyValid = true;
+        if (const auto it = particleOfKey.find(key); it != particleOfKey.end())
           hasHit[it->second] = 1;
       };
+
       bool anyCollectionValid = false;
 
       for (auto const& token : caloSimHitTokens_) {
