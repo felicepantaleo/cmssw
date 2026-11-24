@@ -68,12 +68,36 @@ namespace truth {
     //
     // Members are public so the dictionary and the associator's flat scans can reach
     // them directly.
+    //
+    // directOffsets, directHits and dfsOffsets are not stored. The file holds the
+    // stored* members, a form that compresses better. The constructors of the index
+    // fill it and the I/O rules read it back.
     struct Channel {
       std::vector<uint32_t> directOffsets;
       std::vector<Hit> directHits;
       std::vector<uint32_t> subgraphOffsets;
       std::vector<Hit> subgraphHits;
       std::vector<uint32_t> dfsOffsets;
+
+      std::vector<uint32_t> storedDirectCounts;  // directOffsets[i] - directOffsets[i - 1]
+      std::vector<uint32_t> storedDfsCounts;     // dfsOffsets[i] - dfsOffsets[i - 1]
+      std::vector<uint32_t> storedDetIds;        // detId minus the detId of the previous hit
+      // recHitIndex, or on the detId of the previous hit, recHitIndex minus its recHitIndex.
+      std::vector<uint32_t> storedCells;
+      std::vector<float> storedEnergies;
+
+      // Fills the stored form from directOffsets, directHits and dfsOffsets.
+      void pack();
+      // Fills directOffsets, directHits and dfsOffsets from a stored form.
+      static void unpack(std::vector<uint32_t> const& directCounts,
+                         std::vector<uint32_t> const& dfsCounts,
+                         std::vector<uint32_t> const& detIds,
+                         std::vector<uint32_t> const& cells,
+                         std::vector<float> const& energies,
+                         std::vector<uint32_t>& directOffsets,
+                         std::vector<uint32_t>& dfsOffsets,
+                         std::vector<Hit>& directHits);
+
       // The time of each direct hit in ns, the earliest one of its cell, in the order of
       // directHits. Empty on a channel that carries no time.
       std::vector<float> directHitTimes;
@@ -94,7 +118,9 @@ namespace truth {
     LogicalGraphHitIndex() = default;
 
     LogicalGraphHitIndex(uint32_t nParticles, std::vector<Channel> channels)
-        : nParticles_(nParticles), channels_(std::move(channels)) {}
+        : nParticles_(nParticles), channels_(std::move(channels)) {
+      pack();
+    }
 
     LogicalGraphHitIndex(uint32_t nParticles,
                          std::vector<Channel> channels,
@@ -105,7 +131,26 @@ namespace truth {
           channels_(std::move(channels)),
           dfsPos_(std::move(dfsPos)),
           rangeOffsets_(std::move(rangeOffsets)),
-          ranges_(std::move(ranges)) {}
+          ranges_(std::move(ranges)) {
+      pack();
+    }
+
+    // Fill the stored form of the slot ranges, and the slot ranges from a stored form.
+    // Public for the I/O rules.
+    static void packRanges(std::vector<uint32_t> const& dfsPos,
+                           std::vector<uint32_t> const& rangeOffsets,
+                           std::vector<SlotRange> const& ranges,
+                           std::vector<uint32_t>& storedDfsPos,
+                           std::vector<uint32_t>& storedRangeCounts,
+                           std::vector<uint32_t>& storedRangeFirstSlots,
+                           std::vector<uint32_t>& storedRangeSlotCounts);
+    static void unpackRanges(std::vector<uint32_t> const& storedDfsPos,
+                             std::vector<uint32_t> const& storedRangeCounts,
+                             std::vector<uint32_t> const& storedRangeFirstSlots,
+                             std::vector<uint32_t> const& storedRangeSlotCounts,
+                             std::vector<uint32_t>& dfsPos,
+                             std::vector<uint32_t>& rangeOffsets,
+                             std::vector<SlotRange>& ranges);
 
     // True when the shared layout is in use. The DFS slot of a particle and the ranges
     // its subgraph covers are properties of the tree, so they are stored once for the
@@ -227,14 +272,23 @@ namespace truth {
       return channelIndex < channels_.size() ? &channels_[channelIndex] : nullptr;
     }
 
+    // Fills the stored form of the channels and of the slot ranges.
+    void pack();
+
     uint32_t nParticles_ = 0;
     std::vector<Channel> channels_;  // size kNumHitChannels when built
 
     // Non-empty only in the shared layout: the DFS slot of each particle, and the slot
-    // ranges of each particle's subgraph, CSR-style.
+    // ranges of each particle's subgraph, CSR-style. Not stored: the file holds the
+    // stored* members.
     std::vector<uint32_t> dfsPos_;
     std::vector<uint32_t> rangeOffsets_;
     std::vector<SlotRange> ranges_;
+
+    std::vector<uint32_t> storedDfsPos_;           // dfsPos_[i] - dfsPos_[i - 1]
+    std::vector<uint32_t> storedRangeCounts_;      // rangeOffsets_[i] - rangeOffsets_[i - 1]
+    std::vector<uint32_t> storedRangeFirstSlots_;  // firstSlot minus the firstSlot of the previous range
+    std::vector<uint32_t> storedRangeSlotCounts_;
   };
 
 }  // namespace truth

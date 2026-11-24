@@ -58,19 +58,66 @@
   <class name="std::vector<truth::VertexData>"/>
   <class name="edm::Wrapper<truth::Graph>"/>
 
-  <class name="truth::LogicalGraphHitIndex" ClassVersion="4">
+  <class name="truth::LogicalGraphHitIndex" ClassVersion="5">
+    <version ClassVersion="5" checksum="3145266154"/>
     <version ClassVersion="4" checksum="1362593623"/>
     <version ClassVersion="3" checksum="1046280499"/>
+    <field name="dfsPos_" transient="true"/>
+    <field name="rangeOffsets_" transient="true"/>
+    <field name="ranges_" transient="true"/>
   </class>
+  <!-- Version 4 holds dfsPos, rangeOffsets and ranges themselves. Version 3 has none. -->
+  <ioread sourceClass="truth::LogicalGraphHitIndex" version="[4]" targetClass="truth::LogicalGraphHitIndex"
+          source="std::vector<unsigned int> dfsPos_; std::vector<unsigned int> rangeOffsets_; std::vector<truth::LogicalGraphHitIndex::SlotRange> ranges_"
+          target="dfsPos_,rangeOffsets_,ranges_,storedDfsPos_,storedRangeCounts_,storedRangeFirstSlots_,storedRangeSlotCounts_">
+    <![CDATA[dfsPos_ = onfile.dfsPos_;
+             rangeOffsets_ = onfile.rangeOffsets_;
+             ranges_ = onfile.ranges_;
+             truth::LogicalGraphHitIndex::packRanges(dfsPos_, rangeOffsets_, ranges_, storedDfsPos_, storedRangeCounts_,
+                             storedRangeFirstSlots_, storedRangeSlotCounts_);]]>
+  </ioread>
+  <ioread sourceClass="truth::LogicalGraphHitIndex" version="[5-]" targetClass="truth::LogicalGraphHitIndex"
+          source="std::vector<unsigned int> storedDfsPos_; std::vector<unsigned int> storedRangeCounts_; std::vector<unsigned int> storedRangeFirstSlots_; std::vector<unsigned int> storedRangeSlotCounts_"
+          target="dfsPos_,rangeOffsets_,ranges_">
+    <![CDATA[truth::LogicalGraphHitIndex::unpackRanges(onfile.storedDfsPos_, onfile.storedRangeCounts_, onfile.storedRangeFirstSlots_,
+                               onfile.storedRangeSlotCounts_, dfsPos_, rangeOffsets_, ranges_);]]>
+  </ioread>
   <class name="truth::LogicalGraphHitIndex::Hit" ClassVersion="3">
     <version ClassVersion="3" checksum="611807671"/>
   </class>
   <class name="std::vector<truth::LogicalGraphHitIndex::Hit>"/>
-  <class name="truth::LogicalGraphHitIndex::Channel" ClassVersion="5">
+  <class name="truth::LogicalGraphHitIndex::Channel" ClassVersion="6">
+    <version ClassVersion="6" checksum="2433559611"/>
     <version ClassVersion="5" checksum="1153586987"/>
     <version ClassVersion="4" checksum="2575462028"/>
     <version ClassVersion="3" checksum="1904217884"/>
+    <field name="directOffsets" transient="true"/>
+    <field name="directHits" transient="true"/>
+    <field name="dfsOffsets" transient="true"/>
   </class>
+  <!-- Up to version 5 the file holds directOffsets, directHits and dfsOffsets themselves.
+       Version 3 has no dfsOffsets. -->
+  <ioread sourceClass="truth::LogicalGraphHitIndex::Channel" version="[-3]" targetClass="truth::LogicalGraphHitIndex::Channel"
+          source="std::vector<unsigned int> directOffsets; std::vector<truth::LogicalGraphHitIndex::Hit> directHits"
+          target="directOffsets,directHits,storedDirectCounts,storedDfsCounts,storedDetIds,storedCells,storedEnergies">
+    <![CDATA[directOffsets = onfile.directOffsets;
+             directHits = onfile.directHits;
+             newObj->pack();]]>
+  </ioread>
+  <ioread sourceClass="truth::LogicalGraphHitIndex::Channel" version="[4-5]" targetClass="truth::LogicalGraphHitIndex::Channel"
+          source="std::vector<unsigned int> directOffsets; std::vector<truth::LogicalGraphHitIndex::Hit> directHits; std::vector<unsigned int> dfsOffsets"
+          target="directOffsets,directHits,dfsOffsets,storedDirectCounts,storedDfsCounts,storedDetIds,storedCells,storedEnergies">
+    <![CDATA[directOffsets = onfile.directOffsets;
+             directHits = onfile.directHits;
+             dfsOffsets = onfile.dfsOffsets;
+             newObj->pack();]]>
+  </ioread>
+  <ioread sourceClass="truth::LogicalGraphHitIndex::Channel" version="[6-]" targetClass="truth::LogicalGraphHitIndex::Channel"
+          source="std::vector<unsigned int> storedDirectCounts; std::vector<unsigned int> storedDfsCounts; std::vector<unsigned int> storedDetIds; std::vector<unsigned int> storedCells; std::vector<float> storedEnergies"
+          target="directOffsets,dfsOffsets,directHits">
+    <![CDATA[truth::LogicalGraphHitIndex::Channel::unpack(onfile.storedDirectCounts, onfile.storedDfsCounts, onfile.storedDetIds,
+                                  onfile.storedCells, onfile.storedEnergies, directOffsets, dfsOffsets, directHits);]]>
+  </ioread>
   <class name="std::vector<truth::LogicalGraphHitIndex::Channel>"/>
   <class name="truth::LogicalGraphHitIndex::SlotRange" ClassVersion="3">
     <version ClassVersion="3" checksum="558917159"/>
