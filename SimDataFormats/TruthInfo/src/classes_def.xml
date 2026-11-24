@@ -36,7 +36,9 @@
              key_ = onfile.key;]]>
   </ioread>
   <class name="std::vector<TruthGraph::NodeRef>"/>
-  <class name="edm::Wrapper<TruthGraph>"/>
+  <!-- The three truth products are written unsplit. The I/O rules that fill the arrays
+       from their stored form do not work on a split branch, and a split branch is larger. -->
+  <class name="edm::Wrapper<TruthGraph>" splitLevel="0"/>
 
   <class name="truth::Graph" ClassVersion="6">
     <version ClassVersion="3" checksum="260758393"/>
@@ -98,7 +100,7 @@
   <class name="std::vector<truth::Checkpoint>"/>
   <class name="std::vector<truth::ParticleData>"/>
   <class name="std::vector<truth::VertexData>"/>
-  <class name="edm::Wrapper<truth::Graph>"/>
+  <class name="edm::Wrapper<truth::Graph>" splitLevel="0"/>
 
   <class name="truth::LogicalGraphHitIndex" ClassVersion="5">
     <version ClassVersion="5" checksum="3145266154"/>
@@ -165,7 +167,7 @@
     <version ClassVersion="3" checksum="558917159"/>
   </class>
   <class name="std::vector<truth::LogicalGraphHitIndex::SlotRange>"/>
-  <class name="edm::Wrapper<truth::LogicalGraphHitIndex>"/>
+  <class name="edm::Wrapper<truth::LogicalGraphHitIndex>" splitLevel="0"/>
 
   <!-- The ticl::AssociationMap<mapWithSharedEnergyAndScore> (raw-index variant) and
        its Wrapper dictionaries are provided by SimDataFormats/Associations; the
