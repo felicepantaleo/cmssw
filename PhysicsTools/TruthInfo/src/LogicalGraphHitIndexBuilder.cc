@@ -10,15 +10,17 @@
 namespace truth {
 
   LogicalGraphHitIndexBuilder::LogicalGraphHitIndexBuilder(uint32_t nParticles, bool sharedSubgraphStore)
-      : nParticles_(nParticles), sharedSubgraphStore_(sharedSubgraphStore), hasSimTrack_(nParticles, 0) {
-    trackIdToParticle_.reserve(nParticles);
-  }
+      : nParticles_(nParticles),
+        sharedSubgraphStore_(sharedSubgraphStore),
+        trackIdToParticle_(nParticles),
+        hasSimTrack_(nParticles, 0) {}
 
   void LogicalGraphHitIndexBuilder::setSimTrackForParticle(uint32_t particleId, uint64_t eventId, uint32_t trackId) {
     if (particleId >= nParticles_)
       return;
 
-    trackIdToParticle_[simKey(eventId, trackId)] = particleId;
+    trackIdToParticle_.insertOrAssign(simKey(eventId, trackId), particleId);
+    lastKeyValid_ = false;
     hasSimTrack_[particleId] = 1;
   }
 
@@ -46,8 +48,8 @@ namespace truth {
     if (energy <= 0.f)
       return false;
 
-    auto it = trackIdToParticle_.find(simKey(eventId, trackId));
-    if (it == trackIdToParticle_.end())
+    const uint32_t particleId = particleOfKey(simKey(eventId, trackId));
+    if (particleId == kNoParticle)
       return false;
 
     const std::size_t ch = static_cast<std::size_t>(channel);
@@ -55,7 +57,7 @@ namespace truth {
       directHits_[ch].resize(nParticles_);
       channelTouched_[ch] = true;
     }
-    directHits_[ch][it->second].push_back(Hit{detId, recHitIndex, energy});
+    directHits_[ch][particleId].push_back(Hit{detId, recHitIndex, energy});
     return true;
   }
 
@@ -74,15 +76,15 @@ namespace truth {
     // The time goes in only when the hit does, so the two lists stay in step.
     if (energy <= 0.f)
       return false;
-    auto it = trackIdToParticle_.find(simKey(eventId, trackId));
-    if (it == trackIdToParticle_.end())
+    const uint32_t particleId = particleOfKey(simKey(eventId, trackId));
+    if (particleId == kNoParticle)
       return false;
     if (!channelTouched_[ch]) {
       directHits_[ch].resize(nParticles_);
       channelTouched_[ch] = true;
     }
-    directHits_[ch][it->second].push_back(Hit{detId, recHitIndex, energy});
-    directTimes_[ch][it->second].push_back(time);
+    directHits_[ch][particleId].push_back(Hit{detId, recHitIndex, energy});
+    directTimes_[ch][particleId].push_back(time);
     return true;
   }
 

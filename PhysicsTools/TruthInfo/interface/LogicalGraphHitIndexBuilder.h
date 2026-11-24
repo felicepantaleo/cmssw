@@ -7,10 +7,10 @@
 #include <cstdint>
 #include <limits>
 #include <span>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
+#include "PhysicsTools/TruthInfo/interface/SimKeyMap.h"
 #include "SimDataFormats/TruthInfo/interface/InteractionId.h"
 #include "SimDataFormats/TruthInfo/interface/LogicalGraphHitIndex.h"
 
@@ -145,7 +145,24 @@ namespace truth {
     bool sharedSubgraphStore_ = false;
     bool usedSharedStore_ = false;
 
-    std::unordered_map<uint64_t, uint32_t> trackIdToParticle_;
+    static constexpr uint32_t kNoParticle = SimKeyMap::kNotFound;
+
+    SimKeyMap trackIdToParticle_;
+    // The last key that particleOfKey looked up and its particle. Consecutive sim-hits
+    // mostly come from one SimTrack.
+    uint64_t lastKey_ = 0;
+    uint32_t lastParticle_ = kNoParticle;
+    bool lastKeyValid_ = false;
+
+    // The particle of a SimTrack key, or kNoParticle.
+    [[nodiscard]] uint32_t particleOfKey(uint64_t key) {
+      if (!lastKeyValid_ || key != lastKey_) {
+        lastKey_ = key;
+        lastParticle_ = trackIdToParticle_.find(key);
+        lastKeyValid_ = true;
+      }
+      return lastParticle_;
+    }
     // The (parent, child) links in the order addParticleChild received them, and the CSR
     // that finish() builds from them in the same order.
     std::vector<std::pair<uint32_t, uint32_t>> childLinks_;

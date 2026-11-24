@@ -21,6 +21,12 @@
   <use name="cppunit"/>
 </bin>
 
+<bin name="SimKeyMap_t" file="SimKeyMap_t.cpp">
+  <use name="PhysicsTools/TruthInfo"/>
+  <use name="SimDataFormats/TruthInfo"/>
+  <use name="cppunit"/>
+</bin>
+
 <bin name="Interactions_t" file="Interactions_t.cpp">
   <use name="PhysicsTools/TruthInfo"/>
   <use name="SimDataFormats/TruthInfo"/>
