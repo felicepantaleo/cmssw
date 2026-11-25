@@ -62,14 +62,26 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
 
   }  // namespace
 
+  struct HGCalCLUEsteringAlgoWrapper::Clusterer {
+    clue::Clusterer<2> algo;
+  };
+
   HGCalCLUEsteringAlgoWrapper::HGCalCLUEsteringAlgoWrapper(float dc,
                                                            float kappa,
                                                            float outlierDeltaFactor,
                                                            bool isScintillator)
-      : dc_{dc}, kappa_{kappa}, outlierDistance_{dc * outlierDeltaFactor}, isScintillator_{isScintillator} {}
+      : clusterer_{std::make_unique<Clusterer>(Clusterer{clue::Clusterer<2>(dc, kappa, dc * outlierDeltaFactor)})},
+        isScintillator_{isScintillator} {
+    if (isScintillator_) {
+      clusterer_->algo.setWrappedCoordinates(0, 1);
+    }
+  }
+
+  HGCalCLUEsteringAlgoWrapper::~HGCalCLUEsteringAlgoWrapper() = default;
 
   void HGCalCLUEsteringAlgoWrapper::setExtremes(std::pair<float, float> dim1, std::pair<float, float> dim2) {
-    extremes_ = {dim1, dim2};
+    const std::pair<float, float> extremes[2] = {dim1, dim2};
+    clusterer_->algo.setExtremes(extremes);
   }
 
   void HGCalCLUEsteringAlgoWrapper::run(Queue& queue,
@@ -92,21 +104,15 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     d_points.set_density_uncertainty(recHits.sigmaNoise());
     d_points.set_tags(recHits.detid());
 
-    clue::Clusterer<2> algo(dc_, kappa_, outlierDistance_);
-    if (extremes_) {
-      const std::pair<float, float> extremes[2] = {(*extremes_)[0], (*extremes_)[1]};
-      algo.setExtremes(extremes);
-    }
     if (isScintillator_) {
-      algo.setWrappedCoordinates(0, 1);
       constexpr float kTwoPi = 2.f * static_cast<float>(M_PI);
-      algo.make_clusters(queue,
-                         d_points,
-                         batchItemSizes,
-                         clue::PeriodicEuclideanMetric<2, float>{0.f, kTwoPi},
-                         clue::FlatKernel<float>{0.5f});
+      clusterer_->algo.make_clusters(queue,
+                                     d_points,
+                                     batchItemSizes,
+                                     clue::PeriodicEuclideanMetric<2, float>{0.f, kTwoPi},
+                                     clue::FlatKernel<float>{0.5f});
     } else {
-      algo.make_clusters(queue, d_points, batchItemSizes);
+      clusterer_->algo.make_clusters(queue, d_points, batchItemSizes);
     }
 
     // The layer clusters are numbered by their seeds in rechit order, so the result does not depend on the order in

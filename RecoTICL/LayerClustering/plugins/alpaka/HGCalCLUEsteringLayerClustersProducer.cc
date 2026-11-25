@@ -22,7 +22,7 @@
 #include "FWCore/Utilities/interface/InputTag.h"
 #include "Geometry/Records/interface/CaloGeometryRecord.h"
 #include "HeterogeneousCore/AlpakaCore/interface/alpaka/EDPutToken.h"
-#include "HeterogeneousCore/AlpakaCore/interface/alpaka/stream/EDProducer.h"
+#include "HeterogeneousCore/AlpakaCore/interface/alpaka/stream/FixedQueueEDProducer.h"
 #include "HeterogeneousCore/AlpakaInterface/interface/config.h"
 
 #include "HGCalCLUEsteringAlgoWrapper.h"
@@ -31,10 +31,10 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
 
   // Clusters the rechits of one HGCAL component, layer by layer, with CLUEstering: produces the layer cluster and the
   // seed flag of each rechit, and the number of layer clusters
-  class HGCalCLUEsteringLayerClustersProducer : public stream::EDProducer<> {
+  class HGCalCLUEsteringLayerClustersProducer : public stream::FixedQueueEDProducer<> {
   public:
     HGCalCLUEsteringLayerClustersProducer(const edm::ParameterSet& config)
-        : EDProducer(config),
+        : FixedQueueEDProducer(config),
           recHitsToken_{consumes(config.getParameter<edm::InputTag>("hgcalRecHitsSoA"))},
           layerSizesToken_{consumes<std::vector<uint32_t>>(
               edm::InputTag(config.getParameter<edm::InputTag>("hgcalRecHitsSoA").label(), "layerSizes"))},
