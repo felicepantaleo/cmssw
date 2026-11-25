@@ -279,10 +279,11 @@ particleFlowClusterHGCalNoTracks = particleFlowClusterHGCal.clone(
 )
 hgcalLocalRecoTask_hgcalOnly = hgcalLocalRecoTask.copyAndExclude([particleFlowClusterHGCal])
 hgcalLocalRecoTask_hgcalOnly.add(particleFlowClusterHGCalNoTracks)
-# ticl_v6 makes no HGCAL PF clusters
+# ticl_v6 makes no HGCAL PF clusters and no HGCAL PF rechits
 from Configuration.ProcessModifiers.ticl_v6_cff import ticl_v6
 ticl_v6.toReplaceWith(hgcalLocalRecoTask_hgcalOnly,
-                      hgcalLocalRecoTask_hgcalOnly.copyAndExclude([particleFlowClusterHGCalNoTracks]))
+                      hgcalLocalRecoTask_hgcalOnly.copyAndExclude([particleFlowClusterHGCalNoTracks,
+                                                                   particleFlowRecHitHGC]))
 
 reconstruction_hgcalOnlyTask = cms.Task(
     bunchSpacingProducer,
@@ -291,6 +292,7 @@ reconstruction_hgcalOnlyTask = cms.Task(
     mergeTICLTask,
     pfClusteringHGCalTask
 )
+ticl_v6.toReplaceWith(reconstruction_hgcalOnlyTask, reconstruction_hgcalOnlyTask.copyAndExclude([pfClusteringHGCalTask]))
 reconstruction_hgcalOnly = cms.Sequence(reconstruction_hgcalOnlyTask)
 
 #need a fully expanded sequence copy
